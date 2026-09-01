@@ -21,8 +21,11 @@ from genome_to_diffraction.model_registry import (
 from genome_to_diffraction.model_registry import predicted as predicted_module
 from genome_to_diffraction.schemas.results import (
     CoordinateSourceRecord,
+    SearchScientificStatus,
     SequenceGroupRecord,
+    StructuralSearchResult,
 )
+from genome_to_diffraction.status import ExecutionStatus
 
 
 def _pdb(sequence: str, positions: Sequence[int] | None = None) -> bytes:
@@ -199,6 +202,75 @@ def test_predicted_model_preparation_rejects_coordinate_checksum_drift(
                 sequence_groups_jsonl=groups,
                 phenix_manifest=manifest,
                 output_directory=tmp_path / "output",
+                progress=False,
+            )
+        )
+
+
+def test_disabled_predicted_provider_completes_without_invoking_phenix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sources, groups, manifest, _, group = _inputs(tmp_path)
+    sources.write_text("", encoding="utf-8")
+    provider_results = tmp_path / "disabled AFDB results.jsonl"
+    result = StructuralSearchResult(
+        schema_version="1.0",
+        search_id="search_disabled_afdb",
+        sequence_group_id=group.sequence_group_id,
+        provider="afdb_exact",
+        database_id="disabled_afdb_exact",
+        tool="provider-plan",
+        tool_version="1.0",
+        adapter_version="provider-disabled-v1",
+        cache_key="a" * 64,
+        execution_status=ExecutionStatus.SKIPPED_POLICY,
+        scientific_status=SearchScientificStatus.NOT_INTERPRETABLE,
+        hit_count=0,
+        raw_result_pointer="raw/disabled.jsonl",
+        raw_result_sha256="b" * 64,
+        command_log_pointer="raw/disabled.log",
+        command_log_sha256="c" * 64,
+    )
+    provider_results.write_text(f"{canonical_json_text(result)}\n", encoding="utf-8")
+    arguments = _fake_runtime(monkeypatch)
+
+    output = prepare_predicted_models(
+        PredictedModelPreparationRequest(
+            coordinate_sources_jsonl=sources,
+            provider_search_results_jsonl=provider_results,
+            sequence_groups_jsonl=groups,
+            phenix_manifest=manifest,
+            output_directory=tmp_path / "empty predicted models",
+            progress=False,
+        )
+    )
+
+    assert arguments == []
+    assert output.records == ()
+    assert output.records_jsonl.read_bytes() == b""
+    preparation = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert preparation["coordinate_source_count"] == 0
+    assert preparation["processed_model_count"] == 0
+    assert (
+        preparation["provider_search_results_sha256"]
+        == hashlib.sha256(provider_results.read_bytes()).hexdigest()
+    )
+
+
+def test_empty_predicted_sources_without_typed_provider_evidence_remain_invalid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sources, groups, manifest, _, _ = _inputs(tmp_path)
+    sources.write_text("", encoding="utf-8")
+    _fake_runtime(monkeypatch)
+
+    with pytest.raises(PredictedModelInputError, match="typed provider search results"):
+        prepare_predicted_models(
+            PredictedModelPreparationRequest(
+                coordinate_sources_jsonl=sources,
+                sequence_groups_jsonl=groups,
+                phenix_manifest=manifest,
+                output_directory=tmp_path / "empty predicted models",
                 progress=False,
             )
         )

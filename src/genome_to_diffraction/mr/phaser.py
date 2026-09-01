@@ -18,6 +18,14 @@ remain distinct. The user-defined provisional screen is strict: LLG > 50 or
 TFZ > 5. It annotates and ranks parsed solutions but does not discard them or
 approve them. Final packing, placed-copy checks, raw metrics, and advisories are
 preserved independently for human review.
+
+The opt-in Phase III path additionally verifies a schema-v2 diffraction
+selection and a bound hypothesis identity, either independently confirmed or
+derived from the same complete immutable task inputs. Observation labels, space
+group, and both resolution limits use exact PHIL names retained from the
+installed ``phenix.phaser --show_defaults`` qualification; selected dataset
+identity remains checksum/preflight-verified because Phaser has no
+dataset-qualified label parameter.
 """
 
 import logging
@@ -32,22 +40,38 @@ from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.diffraction.selection import (
+    bind_phase3_hypothesis,
+    build_diffraction_command_binding,
+    load_diffraction_selection,
+    verify_diffraction_selection,
+)
+from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.model_registry import (
+    AllEligibleModelRegistryError,
+    load_all_eligible_model_registry,
+)
 from genome_to_diffraction.mr.policy import (
     SCORE_GATE_LLG,
     SCORE_GATE_OPERATOR,
     SCORE_GATE_TFZ,
     passes_provisional_score_gate,
 )
+from genome_to_diffraction.mr_resources import (
+    MrResourcePlanError,
+    verify_mr_thread_allocation,
+)
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
@@ -58,6 +82,12 @@ from genome_to_diffraction.schemas.results import (
     ProcessedModelRecord,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionBoundHypothesis,
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+)
 from genome_to_diffraction.status import (
     ExecutionStatus,
     InputContractError,
@@ -66,7 +96,8 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v6"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v8"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v12-resource-plan"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -75,7 +106,7 @@ _REFINED_TFZ = re.compile(
     r"(-?[0-9]+(?:\.[0-9]+)?)"
 )
 _TOP_SOLUTION_TFZ = re.compile(
-    r"Solution\s+#1 annotation \(history\):\s*\n?\s*SOLU SET[^\n]*"
+    r"Solution(?:\s+#1)?\s+annotation \(history\):\s*\n?\s*SOLU SET[^\n]*"
     r"\bTFZ=(-?[0-9]+(?:\.[0-9]+)?)",
     re.I,
 )
@@ -84,7 +115,8 @@ _SOLUTION_COUNT = re.compile(r"\*\* There (?:were|was)\s+(\d+) solutions?", re.I
 _SINGLE_SOLUTION = re.compile(r"^\s*\*\*\s+SINGLE solution\s*$", re.I | re.M)
 _NO_SOLUTION = re.compile(r"^\s*(?:\*\*\s+)?Sorry\s+-\s+No solutions?\s*$", re.I | re.M)
 _PACKING = re.compile(
-    r"(\d+) accepted of (\d+) solutions\s+(\d+) pack of (\d+) accepted solutions"
+    r"(\d+) accepted of (\d+) solutions?\s+"
+    r"(\d+) packs? of (\d+) accepted solutions?"
 )
 _PDB_LLG = re.compile(
     r"^REMARK Log-Likelihood Gain:\s*"
@@ -104,6 +136,17 @@ class PhaserParseError(ResultParseError):
     """A completed Phaser log or output set is internally inconsistent."""
 
 
+def read_phaser_evidence_text(path: Path) -> str:
+    """Read authoritative Phaser evidence without replacing corrupted bytes."""
+
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise PhaserParseError(
+            f"Phaser scientific evidence {path.name} is not valid UTF-8"
+        ) from error
+
+
 @dataclass(frozen=True)
 class PhaserRunRequest:
     """Immutable inputs and resource controls for one first-copy search."""
@@ -112,12 +155,18 @@ class PhaserRunRequest:
     hypothesis_id: str
     sequence_groups_jsonl: Path
     processed_models_jsonl: Path
-    model_preparation_manifest: Path
+    model_preparation_manifest: Path | None
     preflight_jsonl: Path
     mtz: Path
     phenix_manifest: Path
     output_directory: Path
+    all_model_registry_json: Path | None = None
+    diffraction_selection_json: Path | None = None
+    resource_plan_json: Path | None = None
+    phase3_hypothesis_id: str | None = None
+    derive_phase3_hypothesis_id: bool = False
     threads: int = 1
+    resource_attempt: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
 
@@ -158,6 +207,12 @@ class _ResolvedInput:
     mtz_path: Path
     model_identity_percent: float
     model_uncertainty_source: str
+    all_model_registry_id: str | None = None
+    all_model_registry_sha256: str | None = None
+    diffraction_selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    diffraction_command_binding: DiffractionCommandBinding | None = None
+    resource_plan: MrResourcePlan | None = None
 
 
 def _read_jsonl[T: BaseModel](
@@ -245,6 +300,47 @@ def _resolve_model_path(
     if actual != model.model_sha256:
         raise PhaserInputError("processed-model checksum mismatch")
     return model_path
+
+
+def _resolve_registered_model_path(
+    registry_json: Path,
+    processed_models_jsonl: Path,
+    model: ProcessedModelRecord,
+    group: SequenceGroupRecord,
+) -> tuple[Path, str, str]:
+    try:
+        registry_path = registry_json.resolve(strict=True)
+        registry = load_all_eligible_model_registry(registry_path)
+        registered_models = (
+            registry.root / registry.manifest.processed_models_path
+        ).resolve(strict=True)
+        supplied_models = processed_models_jsonl.resolve(strict=True)
+    except (AllEligibleModelRegistryError, OSError) as error:
+        raise PhaserInputError(
+            f"invalid all-model registry authority: {error}"
+        ) from error
+    if supplied_models != registered_models:
+        raise PhaserInputError("processed-model records differ from all-model registry")
+    matches = tuple(
+        item
+        for item in registry.lookup(group.sequence_group_id).models
+        if item.model_id == model.model_id
+    )
+    if len(matches) != 1:
+        raise PhaserInputError(
+            f"all-model registry does not uniquely map {model.model_id}"
+        )
+    entry = matches[0]
+    if (
+        entry.sequence_sha256 != group.sha256
+        or entry.model_sha256 != model.model_sha256
+    ):
+        raise PhaserInputError("all-model registry entry differs from search inputs")
+    return (
+        registry.root / Path(*PurePosixPath(entry.model_path).parts),
+        registry.manifest.registry_id,
+        sha256_file(registry_path, progress=False),
+    )
 
 
 def _normalise_space_group(value: str) -> str:
@@ -350,6 +446,32 @@ def _model_execution_policy(
 
 
 def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
+    if (request.model_preparation_manifest is None) == (
+        request.all_model_registry_json is None
+    ):
+        raise PhaserInputError("exactly one model authority must be supplied")
+    if request.diffraction_selection_json is not None and (
+        request.all_model_registry_json is None
+    ):
+        raise PhaserInputError("Phase III requires its canonical all-model registry")
+    if (request.diffraction_selection_json is None) != (
+        request.resource_plan_json is None
+    ):
+        raise PhaserInputError(
+            "Phase III diffraction selection and MR resource plan must be paired"
+        )
+    if request.diffraction_selection_json is None and (
+        request.phase3_hypothesis_id is not None or request.derive_phase3_hypothesis_id
+    ):
+        raise PhaserInputError(
+            "Phase III hypothesis identity requires its diffraction selection"
+        )
+    if request.diffraction_selection_json is not None and (
+        (request.phase3_hypothesis_id is None) != request.derive_phase3_hypothesis_id
+    ):
+        raise PhaserInputError(
+            "Phase III requires either one confirmed or one derived hypothesis identity"
+        )
     hypotheses = _read_jsonl(
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
     )
@@ -391,9 +513,21 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     model_identity_percent, model_uncertainty_source = _model_execution_policy(
         hypothesis, model
     )
-    model_path = _resolve_model_path(
-        request.model_preparation_manifest, model, progress=request.progress
-    )
+    registry_id: str | None = None
+    registry_sha256: str | None = None
+    if request.all_model_registry_json is not None:
+        model_path, registry_id, registry_sha256 = _resolve_registered_model_path(
+            request.all_model_registry_json,
+            request.processed_models_jsonl,
+            model,
+            group,
+        )
+    elif request.model_preparation_manifest is not None:
+        model_path = _resolve_model_path(
+            request.model_preparation_manifest, model, progress=request.progress
+        )
+    else:
+        raise AssertionError("model authority validation did not select one source")
     preflights = _read_jsonl(
         request.preflight_jsonl, MtzPreflightRecord, label="MTZ preflights"
     )
@@ -424,6 +558,43 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
     )
     if mtz_sha256 != preflight.mtz_sha256:
         raise PhaserInputError("MTZ checksum differs from preflight")
+
+    selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    command_binding: DiffractionCommandBinding | None = None
+    resource_plan: MrResourcePlan | None = None
+    if request.diffraction_selection_json is not None:
+        selection = load_diffraction_selection(request.diffraction_selection_json)
+        verify_diffraction_selection(selection, preflight)
+        if selection.mtz_sha256 != mtz_sha256:
+            raise PhaserInputError("Phase III diffraction selection MTZ differs")
+        phase3_hypothesis = bind_phase3_hypothesis(hypothesis, selection)
+        if request.phase3_hypothesis_id is not None and (
+            phase3_hypothesis.hypothesis_id != request.phase3_hypothesis_id
+        ):
+            raise PhaserInputError("Phase III bound hypothesis identity differs")
+        command_binding = build_diffraction_command_binding(
+            consumer=DiffractionCommandConsumer.FIRST_COPY_PHASER,
+            command_owner_id=phase3_hypothesis.hypothesis_id,
+            selection=selection,
+        )
+        try:
+            resource_input = request.resource_plan_json
+            if resource_input is None:  # pragma: no cover - paired-input guard
+                raise ValueError("resource plan is absent")
+            resource_path = resource_input.resolve(strict=True)
+            if not resource_path.is_file() or resource_input.is_symlink():
+                raise OSError("resource plan is not a regular owned file")
+            resource_plan = MrResourcePlan.model_validate_json(
+                resource_path.read_bytes()
+            )
+            if (
+                resource_plan.owner_kind != "mr_hypothesis"
+                or resource_plan.owner_id != hypothesis.hypothesis_id
+            ):
+                raise ValueError("resource plan owns another hypothesis")
+        except (OSError, ValidationError, ValueError) as error:
+            raise PhaserInputError("Phase III MR resource plan is invalid") from error
     return _ResolvedInput(
         hypothesis=hypothesis,
         group=group,
@@ -433,6 +604,12 @@ def _resolve_inputs(request: PhaserRunRequest) -> _ResolvedInput:
         mtz_path=mtz_path,
         model_identity_percent=model_identity_percent,
         model_uncertainty_source=model_uncertainty_source,
+        all_model_registry_id=registry_id,
+        all_model_registry_sha256=registry_sha256,
+        diffraction_selection=selection,
+        phase3_hypothesis=phase3_hypothesis,
+        diffraction_command_binding=command_binding,
+        resource_plan=resource_plan,
     )
 
 
@@ -469,8 +646,11 @@ def parse_phaser_log(text: str) -> ParsedPhaserLog:
         if total < accepted or accepted_again != accepted or packed > accepted:
             raise PhaserParseError("Phaser final packing counts are inconsistent")
     elif single_solution and _TOP_LLG.search(text):
+        pak_values = [float(value) for value in _PDB_PAK.findall(text)]
+        if not pak_values or pak_values[-1] != 0.0:
+            raise PhaserParseError("Phaser solution lacks final packing evidence")
         accepted = packed = 1
-        warnings.append("single_solution_packing_inferred_from_top_llg")
+        warnings.append("single_solution_packing_verified_from_pak")
     elif solution_count > 0:
         raise PhaserParseError("Phaser solution lacks final packing evidence")
     if "The top solution from a FTF did not pack" in text:
@@ -521,13 +701,21 @@ def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
         output_mtz = output / f"{_ROOT}.1.mtz"
         if not coordinate.is_file() or not output_mtz.is_file():
             raise
-        pdb_text = coordinate.read_text(encoding="utf-8", errors="replace")
+        pdb_text = read_phaser_evidence_text(coordinate)
         llg = _last_match_float(_PDB_LLG, pdb_text)
         tfz_values = [float(value) for value in _PDB_TFZ.findall(pdb_text)]
         placed_count = len(_PDB_PLACEMENT.findall(pdb_text))
         if llg is None or not tfz_values or placed_count < 1:
             raise
-        warnings = ["solution_count_inferred_from_output_files"]
+        pak_values = [float(value) for value in _PDB_PAK.findall(pdb_text)]
+        if not pak_values or pak_values[-1] != 0.0:
+            raise PhaserParseError(
+                "Phaser solution lacks final packing evidence"
+            ) from error
+        warnings = [
+            "solution_count_verified_from_output_files",
+            "packing_verified_from_solution_pak",
+        ]
         if "EXIT STATUS: SUCCESS" not in text:
             warnings.append("phaser_success_marker_absent")
         version_match = _VERSION.search(text)
@@ -545,11 +733,17 @@ def parse_completed_phaser_outputs(text: str, output: Path) -> ParsedPhaserLog:
 
 def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> list[str]:
     hypothesis = resolved.hypothesis
-    return [
+    selection = resolved.diffraction_selection
+    observation_labels = (
+        selection.rendered_observation_labels
+        if selection is not None
+        else hypothesis.obs_labels
+    )
+    arguments = [
         "phenix.phaser",
         "phaser.mode=MR_AUTO",
         f"phaser.hklin={resolved.mtz_path}",
-        f"phaser.labin={hypothesis.obs_labels}",
+        f"phaser.labin={observation_labels}",
         f"phaser.model={resolved.model_path}",
         f"phaser.seq_file={sequence_fasta}",
         f"phaser.model_identity={resolved.model_identity_percent:.12g}",
@@ -559,6 +753,61 @@ def _command(resolved: _ResolvedInput, sequence_fasta: Path, threads: int) -> li
         f"phaser.keywords.general.jobs={threads}",
         "phaser.keywords.sgalternative.select=none",
     ]
+    if selection is not None:
+        arguments.extend(
+            (
+                f"phaser.crystal_symmetry.space_group={selection.selected_space_group}",
+                f"phaser.keywords.resolution.low={selection.resolution_low_a:.12g}",
+                f"phaser.keywords.resolution.high={selection.resolution_high_a:.12g}",
+            )
+        )
+    return arguments
+
+
+def _phase3_command_identity(
+    *,
+    arguments: list[str],
+    resolved: _ResolvedInput,
+    threads: int,
+    resource_attempt: int,
+    timeout_seconds: float | None,
+    phenix_manifest_sha256: str,
+) -> str:
+    """Return the command identity for an already verified Phase III selection."""
+
+    if (
+        resolved.diffraction_selection is None
+        or resolved.phase3_hypothesis is None
+        or resolved.diffraction_command_binding is None
+        or resolved.all_model_registry_id is None
+        or resolved.all_model_registry_sha256 is None
+        or resolved.resource_plan is None
+    ):
+        raise PhaserInputError("Phase III command identity lacks its complete binding")
+    return content_id(
+        "phasercmd_",
+        {
+            "adapter_version": _PHASE3_ADAPTER_VERSION,
+            "phase3_hypothesis_id": resolved.phase3_hypothesis.hypothesis_id,
+            "diffraction_selection_id": (
+                resolved.diffraction_selection.diffraction_selection_id
+            ),
+            "diffraction_command_binding_id": (
+                resolved.diffraction_command_binding.binding_id
+            ),
+            "arguments": arguments,
+            "threads": threads,
+            "resource_attempt": resource_attempt,
+            "resource_plan_id": resolved.resource_plan.resource_plan_id,
+            "timeout_seconds": timeout_seconds,
+            "mtz_sha256": resolved.preflight.mtz_sha256,
+            "model_sha256": resolved.model.model_sha256,
+            "sequence_sha256": resolved.group.sha256,
+            "phenix_manifest_sha256": phenix_manifest_sha256,
+            "all_model_registry_id": resolved.all_model_registry_id,
+            "all_model_registry_sha256": resolved.all_model_registry_sha256,
+        },
+    )
 
 
 def _write_result(
@@ -605,7 +854,7 @@ def read_phaser_solution_metrics(
 ) -> tuple[float | None, float | None, int, float | None]:
     if not coordinate_path.is_file():
         return parsed.llg, parsed.tfz, 0, None
-    text = coordinate_path.read_text(encoding="utf-8", errors="replace")
+    text = read_phaser_evidence_text(coordinate_path)
     pdb_llg = _last_match_float(_PDB_LLG, text)
     llg = pdb_llg if pdb_llg is not None else parsed.llg
     tfz_values = [float(value) for value in _PDB_TFZ.findall(text)]
@@ -715,6 +964,17 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
     if output.exists() and any(output.iterdir()):
         raise PhaserInputError(f"Phaser output directory is not empty: {output}")
     resolved = _resolve_inputs(request)
+    if resolved.diffraction_selection is not None:
+        if resolved.resource_plan is None:
+            raise PhaserInputError("Phase III task lacks an MR resource plan")
+        try:
+            verify_mr_thread_allocation(
+                plan=resolved.resource_plan,
+                resource_attempt=request.resource_attempt,
+                threads=request.threads,
+            )
+        except MrResourcePlanError as error:
+            raise PhaserInputError(str(error)) from error
     phenix_manifest = validate_manifest_environment(
         request.phenix_manifest.resolve(strict=True)
     )
@@ -726,26 +986,62 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
     )
     arguments = _command(resolved, sequence_fasta, request.threads)
     command_json = output / "phaser_command.json"
-    atomic_write_json(
-        command_json,
-        {
-            "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
-            "created_at": utc_now_iso(),
-            "hypothesis_id": resolved.hypothesis.hypothesis_id,
-            "arguments": arguments,
-            "threads": request.threads,
-            "timeout_seconds": request.timeout_seconds,
-            "model_identity_percent": resolved.model_identity_percent,
-            "model_uncertainty_source": resolved.model_uncertainty_source,
-            "mtz_sha256": resolved.preflight.mtz_sha256,
-            "model_sha256": resolved.model.model_sha256,
-            "sequence_sha256": resolved.group.sha256,
-            "phenix_manifest_sha256": sha256_file(
-                request.phenix_manifest.resolve(strict=True)
-            ),
-        },
-    )
+    phenix_manifest_sha256 = sha256_file(request.phenix_manifest.resolve(strict=True))
+    command_record: dict[str, object] = {
+        "schema_version": "1.0",
+        "adapter_version": _ADAPTER_VERSION,
+        "created_at": utc_now_iso(),
+        "hypothesis_id": resolved.hypothesis.hypothesis_id,
+        "arguments": arguments,
+        "threads": request.threads,
+        "timeout_seconds": request.timeout_seconds,
+        "model_identity_percent": resolved.model_identity_percent,
+        "model_uncertainty_source": resolved.model_uncertainty_source,
+        "mtz_sha256": resolved.preflight.mtz_sha256,
+        "model_sha256": resolved.model.model_sha256,
+        "sequence_sha256": resolved.group.sha256,
+        "phenix_manifest_sha256": phenix_manifest_sha256,
+    }
+    if (
+        resolved.all_model_registry_id is not None
+        and resolved.all_model_registry_sha256 is not None
+    ):
+        command_record.update(
+            {
+                "all_model_registry_id": resolved.all_model_registry_id,
+                "all_model_registry_sha256": resolved.all_model_registry_sha256,
+            }
+        )
+    if (
+        resolved.diffraction_selection is not None
+        and resolved.phase3_hypothesis is not None
+        and resolved.diffraction_command_binding is not None
+        and resolved.resource_plan is not None
+    ):
+        command_record.update(
+            {
+                "schema_version": "2.0",
+                "adapter_version": _PHASE3_ADAPTER_VERSION,
+                "phase3_hypothesis_id": resolved.phase3_hypothesis.hypothesis_id,
+                "phase3_command_id": _phase3_command_identity(
+                    arguments=arguments,
+                    resolved=resolved,
+                    threads=request.threads,
+                    resource_attempt=request.resource_attempt,
+                    timeout_seconds=request.timeout_seconds,
+                    phenix_manifest_sha256=phenix_manifest_sha256,
+                ),
+                "diffraction_selection": (
+                    resolved.diffraction_selection.model_dump(mode="json")
+                ),
+                "diffraction_command_binding": (
+                    resolved.diffraction_command_binding.model_dump(mode="json")
+                ),
+                "resource_attempt": request.resource_attempt,
+                "resource_plan": resolved.resource_plan.model_dump(mode="json"),
+            }
+        )
+    atomic_write_json(command_json, command_record)
     _LOGGER.info(
         "first-copy Phaser search started",
         extra={
@@ -784,10 +1080,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             return _write_result(output, result, command_json)
         progress_bar.update(1)
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_text(
-        capture_log,
-        (completed.stdout + completed.stderr).decode("utf-8", errors="replace"),
-    )
+    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     if completed.returncode != 0:
@@ -806,8 +1099,8 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             },
         )
         return _write_result(output, result, command_json)
-    log_text = raw_log.read_text(encoding="utf-8", errors="replace")
     try:
+        log_text = read_phaser_evidence_text(raw_log)
         parsed = parse_completed_phaser_outputs(log_text, output)
         tool_version = (
             f"Phenix {phenix_manifest.phenix_version}; Phaser {parsed.phaser_version}"

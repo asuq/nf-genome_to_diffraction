@@ -34,11 +34,14 @@ smoke has a 45-minute walltime; P0 has a 24-hour scheduler margin, while P1,
 P2, P2-diverse, and P2-control use
 the Marmic site's 1,000-hour maximum margin because NFS-cold executable and
 database access are not predictably bounded. The direct PDB
-`process_search` child requests 16 CPUs, 64 GB, and 24 hours. The distinct
-`process_prostt5_search` child requests 100 CPUs, 2,000 GB, and the same
-1,000-hour site margin because catalogue-scale sequence-to-3Di inference is the
-memory-intensive step. The small outer allocation only coordinates those children. The database driver
-uses the same partition with 100 CPUs, 2,000 GB, and a 48-hour walltime. The
+`process_search` child requests 16 CPUs, 64 GB, and 24 hours. Whole-catalogue
+`process_prostt5_search` uses the existing cross-site bound of 64 CPUs, 192 GB,
+and 24 hours. The Phase III `SEARCH_PHASE3_FOLDSEEK_BATCH` override requests
+32 CPUs, 192 GB, and four hours per bounded 128-query batch. A real Marmic
+batch completed in 44 seconds with 64.6 GiB MaxRSS; Slurm controls concurrency
+across the independent batches. The small outer allocation only coordinates
+those children. The database driver separately uses 100 CPUs, 2,000 GB, and a
+48-hour walltime. The
 large memory request supplies `/dev/shm` build space;
 the node's full 4 TB is not requested because it would not accelerate serial
 network, checksum, or copy-back I/O. Only one managed job may be active across
@@ -575,7 +578,8 @@ during the P0 allocation.
 
 The fixed P1 job reuses the frozen catalogue and qualified database manifest
 already protected by the P0 configuration. It verifies their staging-time
-checksums, imports the catalogue once, and runs `discover_structures.nf -profile
+checksums, imports the catalogue once, and runs
+`qualification.nf --qualification_stage discovery -profile
 marmic` against the local PDB sequence resource. The checked `nf-helper` Marmic
 configuration gives the MMseqs2 process compute-node `/scratch` and copies its
 declared output to durable storage. The job repeats the identical workflow with
@@ -598,7 +602,9 @@ Immutable staging imports the catalogue and retrieves the public model
 on the login node, where outbound HTTPS is available. It requires one exact hit
 and coordinate, records fixed-file checksums, and leaves all heavy work to
 Slurm. The compute job verifies that record, runs discovery without remote
-accessions, then runs `prepare_models.nf` with the P0-verified Phenix manifest
+accessions, then runs
+`qualification.nf --qualification_stage prepare_predicted_models` with the
+P0-verified Phenix manifest
 and a separate Nextflow cache. It requires exactly one processed pilot model
 and a fully cached model-preparation resume. The collected allow-list adds only
 the prefetch/model manifests, records, traces, and bounded logs; coordinates,
@@ -659,7 +665,8 @@ instead of accepting a caller-selected intermediate. After replay it:
 1. verifies the single CD6 MTZ from the checksum-frozen P0 bundle layout;
 2. builds the inspectable exact-predicted funnel and requires exactly one
    physically possible, bounded hypothesis for this pilot slice;
-3. runs `screen_first_copy.nf -profile marmic`, with each Phenix process using
+3. runs `qualification.nf --qualification_stage first_copy -profile marmic`,
+   with each Phenix process using
    two CPUs, 8 GB, compute-node `/scratch`, and the 1,000-hour site margin;
 4. validates and preserves the normalised MR result, then requires its execution
    status to be `completed_hit` or `completed_no_hit`;
@@ -718,7 +725,8 @@ login node:
 The scheduled phase is offline. It replays P0/P1, verifies the login-stage
 checksum list, and requires the normalised login-node PDB hit file to have the
 same SHA-256 as the scheduled P1 search. It then runs
-`prepare_pdb_models.nf` and `screen_diverse_first_copy.nf`, each once normally
+`qualification.nf --qualification_stage prepare_experimental_models` and
+`qualification.nf --qualification_stage diverse_first_copy`, each once normally
 and once with `-resume`. The funnel receives an explicit additional cap of 25
 jobs even though the underlying pilot configuration permits more. It must
 retain at least one exact predicted and one mapped experimental hypothesis,
@@ -877,6 +885,23 @@ compute-node claim:
 ```bash
 nf-gtd-hpc-test database-readiness
 ```
+
+If storage maintenance removes only `_config/database.paths` while the exact
+immutable database root and manifest remain, restore that authority without raw
+SSH through the create-only runtime boundary:
+
+```bash
+nf-gtd-hpc-test database-runtime-configure \
+  --paths-file .untracked/m0-qualification/hpc-database-runtime.paths \
+  --confirm-sha256 SHA256
+```
+
+The local controller accepts only an owned mode-`0600`, seven-line ASCII file:
+three conservative absolute paths followed by the four canonical capacity
+integers. The remote dispatcher refuses an existing configuration, validates
+the existing database root and immutable manifest in runtime mode, verifies the
+checksum, and installs the file atomically. It performs no download, database
+build, cleanup, or scheduler action and returns no site paths.
 
 Review the exact commit and external configuration, then explicitly approve the
 two start commands individually:

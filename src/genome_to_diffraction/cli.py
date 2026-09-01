@@ -20,6 +20,7 @@ from genome_to_diffraction.benchmarks import (
     M6RunnerBundleRequest,
     M6RunnerVerificationRequest,
     MrControlBundleRequest,
+    Phase3ControlExecutionRequest,
     PublicControlPreparationRequest,
     PublicPanelPreparationRequest,
     assess_heteromer_control_slice,
@@ -33,22 +34,18 @@ from genome_to_diffraction.benchmarks import (
     prepare_3u7q_heteromer_control,
     prepare_6rtz_heteromer_control,
     prepare_6rtz_partner_catalogue_control,
+    prepare_9ecn_phase3_control,
     prepare_heteromer_control_slice,
     prepare_m6_inputs,
     prepare_public_control,
     prepare_public_control_panel,
+    run_9ecn_phase3_control,
     verify_m6_runner_bundle,
 )
-from genome_to_diffraction.benchmarks.control_matrix_run import (
-    ControlMatrixRunRequest,
-    run_control_matrix,
-)
-from genome_to_diffraction.benchmarks.control_slice_run import (
-    ControlSliceRunRequest,
-    run_control_slice,
-)
 from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
+    collect_m6_child_output_evidence,
     collect_m6_resource_evidence,
 )
 from genome_to_diffraction.benchmarks.m6_nextflow import (
@@ -60,6 +57,7 @@ from genome_to_diffraction.benchmarks.m6_nextflow import (
     run_m6_aggregate_track_task,
     run_m6_assemble_case_task,
     run_m6_catalogue_task,
+    run_m6_coordinate_stage_task,
     run_m6_empty_finalists_task,
     run_m6_empty_seeds_task,
     run_m6_foldseek_search_task,
@@ -98,7 +96,37 @@ from genome_to_diffraction.diffraction import (
     preflight_crystals,
     prepare_crystal_dispatch,
 )
+from genome_to_diffraction.execution import (
+    CompositionAttemptExecutionRequest,
+    CompositionBeamCollectionRequest,
+    CompositionDepthInputRequest,
+    Pass2SeedRequest,
+    ProviderEmptyGraphRequest,
+    build_composition_depth_inputs,
+    build_pass2_a_seed,
+    collect_composition_beam_depth,
+    complete_provider_empty_graph,
+    execute_composition_attempt,
+    publish_unknown_pass1_crystallographic_review_routes,
+    stage_unknown_pass1_composition_decisions,
+    stage_unknown_pass1_selected_a_seeds,
+    stage_unknown_pass1_sequence_decisions,
+)
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.localisation import (
+    BatchLocalisationImportRequest,
+    BatchLocalisationReopenRequest,
+    LocalisationContainerCaptureRequest,
+    build_catalogue_localisation_tasks,
+    build_catalogue_localisation_wave_policy,
+    capture_localisation_container_execution,
+    import_catalogue_localisation_batch,
+    plan_batch_localisation_reopen,
+    plan_localisation_reopen,
+    run_catalogue_localisation_task,
+    stage_catalogue_localisation_batch,
+    validate_catalogue_localisation_batch,
+)
 from genome_to_diffraction.logging import configure_logging, parse_log_level
 from genome_to_diffraction.matthews import (
     MatthewsReferenceRequest,
@@ -116,15 +144,19 @@ from genome_to_diffraction.mr import (
     AddCopyRunRequest,
     ApprovedPartnerSearchRequest,
     CopyCountReportRequest,
+    ExpectedPhaserComponent,
     PartnerSearchRequest,
     PartnerSummaryRequest,
+    PhaserPerPlacementRequest,
     PhaserRunRequest,
     PlannedPartnerSearchRequest,
     build_copy_count_report,
+    collect_phaser_per_placement_outputs,
     run_additional_copy_phaser,
     run_additional_copy_series,
     run_approved_partner_search,
     run_first_copy_phaser,
+    run_multi_fixed_search,
     run_partner_search,
     run_planned_partner_search,
     summarize_partner_attempts,
@@ -132,11 +164,17 @@ from genome_to_diffraction.mr import (
 from genome_to_diffraction.mr.stage_add_copy import (
     AddCopyStageRequest,
     LiveAddCopyStageRequest,
+    PhaseIIISeedStageRequest,
     prepare_add_copy_stage,
     prepare_live_add_copy_stage,
+    prepare_phase3_seed_stage,
 )
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
+from genome_to_diffraction.phenix.interface_probe import (
+    PhaserInterfaceProbeRequest,
+    probe_phaser_interface,
+)
 from genome_to_diffraction.phenix.recovery import (
     RecoveryRequest,
     recover_failed_install,
@@ -164,20 +202,25 @@ from genome_to_diffraction.refinement import (
     stage_live_t12_inputs,
     stage_t12_inputs,
 )
+from genome_to_diffraction.reporting import (
+    collect_derived_unknown_pass1_panel,
+    derivation_request_from_spec,
+    derive_unknown_pass1_assessment,
+)
 from genome_to_diffraction.review import (
-    CrystalReportRequest,
     LiveSequenceCheckpointRequest,
     MrSeedApprovalRequest,
     MrSeedReviewRequest,
     ResourceSummaryRequest,
     SequenceCheckpointRequest,
-    StatusRequest,
-    build_crystal_report,
     build_live_sequence_checkpoint,
     build_mr_seed_review,
+    build_owned_phase3_a_seed_review_package,
+    build_owned_phase3_composition_review_package,
+    build_owned_phase3_sequence_review_package,
+    build_pass2_review_packages,
     build_resource_summary,
     build_sequence_checkpoint,
-    build_status_record,
     validate_mr_seed_approvals,
 )
 from genome_to_diffraction.schema_check import validate_repository
@@ -188,24 +231,36 @@ from genome_to_diffraction.schemas.io import (
     contract_kinds,
     load_contract,
 )
-from genome_to_diffraction.status import GenomeToDiffractionError
+from genome_to_diffraction.status import (
+    GenomeToDiffractionError,
+    TransientInfrastructureError,
+)
 from genome_to_diffraction.structure_search import (
     AfdbExactRequest,
     DisabledProviderBundleRequest,
     P1QualificationRequest,
     PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
+    PhaseIIIProviderDiscoveryRequest,
+    PhaseIIIProviderLoginStageRequest,
     ProstT5FoldseekSearchRequest,
     ProviderHitMergeRequest,
     ProviderPlanRequest,
+    build_phase3_foldseek_batches,
+    build_phase3_provider_discovery_package,
     emit_disabled_provider_bundle,
     merge_pdb_provider_hits,
+    merge_phase3_foldseek_batches,
+    publish_phase3_offline_provider_input,
     qualify_p1_search,
     register_pdb_coordinates,
     resolve_provider_plan,
     search_afdb_exact,
     search_pdb_sequences,
     search_prostt5_foldseek,
+    stage_phase3_provider_coordinates,
+    validate_phase3_provider_discovery_package,
+    validate_phase3_provider_login_stage,
 )
 
 
@@ -218,6 +273,35 @@ def _add_contract_input(parser: argparse.ArgumentParser) -> None:
         default="auto",
         help="input format (default: infer from suffix)",
     )
+
+
+def _expected_phaser_component(value: str) -> ExpectedPhaserComponent:
+    parts = value.split(":")
+    if len(parts) != 3:
+        raise argparse.ArgumentTypeError(
+            "expected component must be LABEL:ENSEMBLE_ID:COPY_COUNT"
+        )
+    label, ensemble_id, raw_count = parts
+    try:
+        copy_count = int(raw_count)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            "expected component copy count must be an integer"
+        ) from error
+    if not label or not ensemble_id or copy_count < 1:
+        raise argparse.ArgumentTypeError(
+            "expected component requires non-empty IDs and a positive copy count"
+        )
+    return ExpectedPhaserComponent(label, ensemble_id, copy_count)
+
+
+def _phaser_component_model(value: str) -> tuple[str, Path]:
+    label, separator, raw_path = value.partition(":")
+    if not separator or not label or not raw_path:
+        raise argparse.ArgumentTypeError(
+            "component model must be LABEL:SOURCE_MODEL_PATH"
+        )
+    return label, Path(raw_path)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -415,6 +499,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="exact command and arguments, conventionally after --",
     )
 
+    interface_probe_parser = phenix_actions.add_parser(
+        "probe-phaser-interface",
+        help="capture the fixed installed phenix.phaser --show_defaults interface",
+    )
+    interface_probe_parser.add_argument("--manifest", type=Path, required=True)
+    interface_probe_parser.add_argument("--outdir", type=Path, required=True)
+    interface_probe_timeout = interface_probe_parser.add_mutually_exclusive_group()
+    interface_probe_timeout.add_argument("--command-timeout-seconds", type=float)
+    interface_probe_timeout.add_argument(
+        "--no-command-timeout",
+        dest="command_timeout_seconds",
+        action="store_const",
+        const=None,
+    )
+    interface_probe_parser.set_defaults(command_timeout_seconds=120.0)
+
     database_parser = subparsers.add_parser(
         "databases", help="prepare or verify shared reference databases"
     )
@@ -551,6 +651,44 @@ def _build_parser() -> argparse.ArgumentParser:
         help="download only the two protocol-frozen RCSB files",
     )
     multicopy_control_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_control_parser = benchmark_actions.add_parser(
+        "prepare-9ecn-phase3-control",
+        help="prepare the fixed public 9ECN 2A+2B+2C validation inputs",
+    )
+    phase3_control_parser.add_argument("--protocol", type=Path, required=True)
+    phase3_control_parser.add_argument("--coordinates", type=Path)
+    phase3_control_parser.add_argument("--structure-factors", type=Path)
+    phase3_control_parser.add_argument(
+        "--download",
+        action="store_true",
+        help="download only the two protocol-frozen RCSB files",
+    )
+    phase3_control_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_control_run_parser = benchmark_actions.add_parser(
+        "run-9ecn-phase3-control",
+        help="run the fixed public 9ECN A+B+C depth-three validation",
+    )
+    phase3_control_run_parser.add_argument("--preparation", type=Path, required=True)
+    phase3_control_run_parser.add_argument(
+        "--phenix-manifest", type=Path, required=True
+    )
+    phase3_control_run_parser.add_argument(
+        "--wrong-c-sequence-groups", type=Path, required=True
+    )
+    phase3_control_run_parser.add_argument("--wrong-c-sequence-group-id", required=True)
+    phase3_control_run_parser.add_argument("--wrong-c-model", type=Path, required=True)
+    phase3_control_run_parser.add_argument(
+        "--wrong-c-control-manifest", type=Path, required=True
+    )
+    phase3_control_run_parser.add_argument(
+        "--expected-wrong-c-model-sha256", required=True
+    )
+    phase3_control_run_parser.add_argument(
+        "--wrong-c-model-identity-fraction", type=float, required=True
+    )
+    phase3_control_run_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_control_run_parser.add_argument("--threads", type=int, default=1)
+    phase3_control_run_parser.add_argument("--timeout-seconds", type=float)
     partner_catalogue_parser = benchmark_actions.add_parser(
         "prepare-6rtz-partner-catalogue",
         help="prepare the frozen full Thermotoga catalogue and HisH model registry",
@@ -636,22 +774,6 @@ def _build_parser() -> argparse.ArgumentParser:
     control_bundle_parser.add_argument("--sequence-groups", type=Path, required=True)
     control_bundle_parser.add_argument("--preflight", type=Path, required=True)
     control_bundle_parser.add_argument("--outdir", type=Path, required=True)
-    control_slice_parser = benchmark_actions.add_parser(
-        "run-control-slice",
-        help="execute the fixed six-case Viper Phenix control slice",
-    )
-    control_slice_parser.add_argument("--import-root", type=Path, required=True)
-    control_slice_parser.add_argument("--phenix-manifest", type=Path, required=True)
-    control_slice_parser.add_argument("--outdir", type=Path, required=True)
-    control_slice_parser.add_argument("--threads", type=int, default=8)
-    control_matrix_parser = benchmark_actions.add_parser(
-        "run-control-matrix",
-        help="run the fixed 23-case prokaryotic homomer benchmark",
-    )
-    control_matrix_parser.add_argument("--import-root", type=Path, required=True)
-    control_matrix_parser.add_argument("--phenix-manifest", type=Path, required=True)
-    control_matrix_parser.add_argument("--outdir", type=Path, required=True)
-    control_matrix_parser.add_argument("--threads", type=int, default=8)
     panel_check_parser = benchmark_actions.add_parser(
         "check-public-panel",
         help="validate the tracked public panel and active control mappings",
@@ -703,27 +825,6 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     m6_verify_parser.add_argument("--runner-root", type=Path, required=True)
     m6_verify_parser.add_argument("--report", type=Path, required=True)
-    m6_scientific_parser = benchmark_actions.add_parser(
-        "run-m6-scientific",
-        help="reject legacy monolithic execution; retained for CLI compatibility",
-    )
-    m6_scientific_parser.add_argument("--runner-root", type=Path, required=True)
-    m6_scientific_parser.add_argument("--protocol", type=Path, required=True)
-    m6_scientific_parser.add_argument("--database-manifest", type=Path, required=True)
-    m6_scientific_parser.add_argument("--phenix-manifest", type=Path, required=True)
-    m6_scientific_parser.add_argument(
-        "--track", choices=("operational", "leakage"), required=True
-    )
-    m6_scientific_parser.add_argument("--outdir", type=Path, required=True)
-    m6_scientific_parser.add_argument("--threads", type=int, default=8)
-    m6_scientific_parser.add_argument(
-        "--maximum-concurrent-phenix-attempts", type=int, default=4
-    )
-    m6_scientific_parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="verify and reuse a complete checksum-matching track output",
-    )
     m6_plan_nf = benchmark_actions.add_parser(
         "plan-m6-nextflow", help="materialise one truthless M6 Nextflow task graph"
     )
@@ -805,8 +906,17 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_case_task.add_argument("--preflight-bundle", type=Path, required=True)
     m6_case_task.add_argument("--catalogue-bundle", type=Path, required=True)
     m6_case_task.add_argument("--policy-bundle", type=Path)
-    m6_case_task.add_argument("--database-manifest", type=Path, required=True)
+    m6_case_task.add_argument("--coordinate-stage", type=Path)
     m6_case_task.add_argument("--outdir", type=Path, required=True)
+    m6_coordinate_stage = benchmark_actions.add_parser(
+        "stage-m6-coordinates",
+        help="stage one bounded M6 PDB coordinate set for offline case preparation",
+    )
+    m6_coordinate_stage.add_argument("--task", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--catalogue-bundle", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--policy-bundle", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--database-manifest", type=Path, required=True)
+    m6_coordinate_stage.add_argument("--outdir", type=Path, required=True)
     m6_seed_task = benchmark_actions.add_parser(
         "select-m6-seeds", help="select retained first-copy seeds for one M6 case"
     )
@@ -881,6 +991,16 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_resources.add_argument("--execution-policy", type=Path, required=True)
     m6_resources.add_argument("--trace", type=Path, required=True)
     m6_resources.add_argument("--output", type=Path, required=True)
+    m6_child_outputs = benchmark_actions.add_parser(
+        "collect-m6-child-outputs",
+        help="verify complete first-pass or cached M6 child outputs",
+    )
+    m6_child_outputs.add_argument(
+        "--track", choices=("operational", "leakage"), required=True
+    )
+    m6_child_outputs.add_argument("--trace", type=Path, required=True)
+    m6_child_outputs.add_argument("--baseline", type=Path)
+    m6_child_outputs.add_argument("--output", type=Path, required=True)
     m6_evaluate_parser = benchmark_actions.add_parser(
         "evaluate-m6",
         help="evaluate collected M6 evidence against the frozen gates",
@@ -916,6 +1036,120 @@ def _build_parser() -> argparse.ArgumentParser:
     import_parser.add_argument(
         "--outdir", type=Path, required=True, help="stable output directory"
     )
+
+    localisation_parser = subparsers.add_parser(
+        "localisation", help="run checksum-bound offline localisation policy"
+    )
+    localisation_actions = localisation_parser.add_subparsers(
+        dest="localisation_action", required=True
+    )
+    localisation_batch_parser = localisation_actions.add_parser(
+        "import-batch",
+        help="import complete offline PSORTb and DeepTMHMM catalogue batches",
+    )
+    localisation_batch_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    localisation_batch_parser.add_argument("--source-records", type=Path, required=True)
+    localisation_batch_parser.add_argument(
+        "--catalogue-fasta", type=Path, required=True
+    )
+    localisation_batch_parser.add_argument("--psortb-terse", type=Path, required=True)
+    localisation_batch_parser.add_argument(
+        "--deeptmhmm-topologies", type=Path, required=True
+    )
+    localisation_batch_parser.add_argument("--gel-evidence", type=Path, required=True)
+    localisation_batch_parser.add_argument(
+        "--container-execution-bundle", type=Path, required=True
+    )
+    localisation_batch_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_capture_parser = localisation_actions.add_parser(
+        "capture-container-batch",
+        help="capture terminal network-none Docker execution evidence",
+    )
+    localisation_capture_parser.add_argument(
+        "--catalogue-fasta", type=Path, required=True
+    )
+    localisation_capture_parser.add_argument("--psortb-container", required=True)
+    localisation_capture_parser.add_argument("--psortb-container-output", required=True)
+    localisation_capture_parser.add_argument(
+        "--psortb-output", type=Path, required=True
+    )
+    localisation_capture_parser.add_argument("--deeptmhmm-container", required=True)
+    localisation_capture_parser.add_argument(
+        "--deeptmhmm-container-output", required=True
+    )
+    localisation_capture_parser.add_argument(
+        "--deeptmhmm-output", type=Path, required=True
+    )
+    localisation_capture_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_validate_batch_parser = localisation_actions.add_parser(
+        "validate-batch",
+        help="revalidate a portable offline localisation batch",
+    )
+    localisation_validate_batch_parser.add_argument(
+        "--bundle", type=Path, required=True
+    )
+    localisation_stage_batch_parser = localisation_actions.add_parser(
+        "stage-batch",
+        help="validate and copy a portable offline localisation batch",
+    )
+    localisation_stage_batch_parser.add_argument("--bundle", type=Path, required=True)
+    localisation_stage_batch_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_reopen_parser = localisation_actions.add_parser(
+        "plan-batch-reopen",
+        help="reopen retained exclusions only after complete zero packing",
+    )
+    localisation_reopen_parser.add_argument("--funnel", type=Path, required=True)
+    localisation_reopen_parser.add_argument(
+        "--result-directory", type=Path, action="append", default=[]
+    )
+    localisation_reopen_parser.add_argument(
+        "--localisation-bundle", type=Path, required=True
+    )
+    localisation_reopen_parser.add_argument(
+        "--maximum-reopened-attempts", type=int, default=175
+    )
+    localisation_reopen_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_tasks_parser = localisation_actions.add_parser(
+        "build-tasks", help="emit one offline task per exact sequence group"
+    )
+    localisation_tasks_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    localisation_tasks_parser.add_argument("--psortb-runtime", type=Path, required=True)
+    localisation_tasks_parser.add_argument(
+        "--deeptmhmm-runtime", type=Path, required=True
+    )
+    localisation_tasks_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_run_parser = localisation_actions.add_parser(
+        "run-task", help="run one PSORTb item and retain blocked DeepTMHMM"
+    )
+    localisation_run_parser.add_argument("--task-directory", type=Path, required=True)
+    localisation_run_parser.add_argument("--psortb-runtime", type=Path, required=True)
+    localisation_run_parser.add_argument(
+        "--deeptmhmm-runtime", type=Path, required=True
+    )
+    localisation_run_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_policy_parser = localisation_actions.add_parser(
+        "build-wave-policy",
+        help="merge exact per-group results into first-wave decisions",
+    )
+    localisation_policy_parser.add_argument(
+        "--task-inventory", type=Path, required=True
+    )
+    localisation_policy_parser.add_argument(
+        "--result-directory", type=Path, action="append", default=[]
+    )
+    localisation_policy_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_reopen_parser = localisation_actions.add_parser(
+        "plan-reopen", help="reopen excluded groups only after a zero-pack wave"
+    )
+    localisation_reopen_parser.add_argument("--wave-policy", type=Path, required=True)
+    localisation_reopen_parser.add_argument(
+        "--active-wave-completion", type=Path, required=True
+    )
+    localisation_reopen_parser.add_argument("--outdir", type=Path, required=True)
 
     diffraction_parser = subparsers.add_parser(
         "diffraction", help="inspect crystallographic diffraction inputs"
@@ -961,11 +1195,23 @@ def _build_parser() -> argparse.ArgumentParser:
     free_r_parser.add_argument("--timeout-seconds", type=float, default=3600.0)
     dispatch_parser = diffraction_actions.add_parser(
         "select-single",
-        help="derive one checksum-verified MR input from a one-crystal manifest",
+        help="derive one checksum-verified MR input from a crystal manifest",
     )
     dispatch_parser.add_argument("--crystals", type=Path, required=True)
     dispatch_parser.add_argument("--preflight", type=Path, required=True)
     dispatch_parser.add_argument("--outdir", type=Path, required=True)
+    dispatch_parser.add_argument(
+        "--crystal-id",
+        help=(
+            "manifest-owned crystal to dispatch; required when the manifest "
+            "contains more than one crystal"
+        ),
+    )
+    dispatch_parser.add_argument(
+        "--phase3-diffraction",
+        action="store_true",
+        help="bind the selected MTZ dataset and exact existing Free-R membership",
+    )
 
     matthews_parser = subparsers.add_parser(
         "matthews", help="enumerate candidate-specific ASU copy hypotheses"
@@ -1006,6 +1252,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="confidence-process selected AFDB/Atlas coordinates with Phenix",
     )
     predicted_parser.add_argument("--coordinate-sources", type=Path, required=True)
+    predicted_parser.add_argument("--provider-search-results", type=Path)
     predicted_parser.add_argument("--sequence-groups", type=Path, required=True)
     predicted_parser.add_argument("--phenix-manifest", type=Path, required=True)
     predicted_parser.add_argument("--outdir", type=Path, required=True)
@@ -1029,6 +1276,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--coordinate-hit-mappings", type=Path, required=True
     )
     experimental_parser.add_argument("--sequence-groups", type=Path, required=True)
+    experimental_parser.add_argument("--registration-manifest", type=Path)
     experimental_parser.add_argument("--outdir", type=Path, required=True)
     experimental_parser.add_argument(
         "--mapping-id",
@@ -1080,6 +1328,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     diverse_parser.add_argument("--coordinate-hit-mappings", type=Path)
     diverse_parser.add_argument("--sequence-groups", type=Path, required=True)
+    diverse_parser.add_argument("--source-records", type=Path)
     diverse_parser.add_argument("--matthews", type=Path, required=True)
     diverse_parser.add_argument("--preflight", type=Path, required=True)
     diverse_parser.add_argument("--config", type=Path, required=True)
@@ -1094,6 +1343,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--maximum-first-copy-jobs",
         type=int,
         help="optional additional hard cap applied after configured profile limits",
+    )
+    diverse_parser.add_argument("--localisation-bundle", type=Path)
+    diverse_parser.add_argument(
+        "--require-localisation-policy",
+        action="store_true",
+        help="fail unless a complete localisation/gel bundle is supplied",
     )
     partner_plan_parser = ranking_actions.add_parser(
         "partner-plan",
@@ -1131,6 +1386,125 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     approved_partner_plan_parser.add_argument("--outdir", type=Path, required=True)
 
+    composition_parser = subparsers.add_parser(
+        "composition",
+        help="execute one bounded Phase III B--F composition attempt",
+    )
+    composition_actions = composition_parser.add_subparsers(
+        dest="composition_action",
+        required=True,
+    )
+    composition_run_parser = composition_actions.add_parser(
+        "run-attempt",
+        help="run one selected multi-fixed component attempt",
+    )
+    composition_run_parser.add_argument("--attempt-inventory", type=Path, required=True)
+    composition_run_parser.add_argument("--attempt-id", required=True)
+    composition_run_parser.add_argument(
+        "--fixed-coordinate-root", type=Path, required=True
+    )
+    composition_run_parser.add_argument("--model-registry", type=Path, required=True)
+    composition_run_parser.add_argument("--sequence-groups", type=Path, required=True)
+    composition_run_parser.add_argument("--preflight", type=Path, required=True)
+    composition_run_parser.add_argument("--mtz", type=Path, required=True)
+    composition_run_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    composition_run_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    composition_run_parser.add_argument("--threads", type=int, default=1)
+    composition_run_parser.add_argument("--resource-attempt", type=int, default=1)
+    composition_run_parser.add_argument("--timeout-seconds", type=float)
+    composition_run_parser.add_argument("--outdir", type=Path, required=True)
+    composition_plan_parser = composition_actions.add_parser(
+        "plan-depth",
+        help="build one complete bounded B--F depth inventory",
+    )
+    composition_plan_parser.add_argument("--parent-states", type=Path, required=True)
+    composition_plan_parser.add_argument("--sequence-groups", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--localisation-policy", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--active-wave-completion", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--localisation-reopen-plan", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--gel-evidence", type=Path, required=True)
+    composition_plan_parser.add_argument("--preflight", type=Path, required=True)
+    composition_plan_parser.add_argument("--model-registry", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--model-ranking-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--diffraction-selection", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--free-r-identity", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--fixed-coordinate-root", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--finding-closure", type=Path, required=True)
+    composition_plan_parser.add_argument("--finding-ledger", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--adverse-review-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--integration-gate-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--known-control-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument("--m6-evidence", type=Path, required=True)
+    composition_plan_parser.add_argument(
+        "--unknown-pass1-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--exact-source-ci-evidence", type=Path, required=True
+    )
+    composition_plan_parser.add_argument(
+        "--global-attempts-used-before", type=int, default=0
+    )
+    composition_plan_parser.add_argument(
+        "--per-depth-attempt-budget", type=int, default=25
+    )
+    composition_plan_parser.add_argument("--outdir", type=Path, required=True)
+    composition_collect_parser = composition_actions.add_parser(
+        "collect-depth",
+        help="verify one complete attempt fan-out and retain the next beam",
+    )
+    composition_collect_parser.add_argument(
+        "--attempt-inventory", type=Path, required=True
+    )
+    composition_collect_parser.add_argument(
+        "--attempt-result", type=Path, action="append", default=[]
+    )
+    composition_collect_parser.add_argument("--beam-width", type=int, default=3)
+    composition_collect_parser.add_argument("--outdir", type=Path, required=True)
+    composition_seed_parser = composition_actions.add_parser(
+        "build-pass2-a-seed",
+        help="derive one executable claim-free A parent from credible pass 1",
+    )
+    composition_seed_parser.add_argument("--assessment", type=Path, required=True)
+    composition_seed_parser.add_argument("--hypotheses", type=Path, required=True)
+    composition_seed_parser.add_argument("--copy-assessments", type=Path, required=True)
+    composition_seed_parser.add_argument("--packing-result", type=Path, required=True)
+    composition_seed_parser.add_argument("--phaser-command", type=Path, required=True)
+    composition_seed_parser.add_argument("--solution-file", type=Path, required=True)
+    composition_seed_parser.add_argument(
+        "--combined-coordinate", type=Path, required=True
+    )
+    composition_seed_parser.add_argument("--source-mtz", type=Path, required=True)
+    composition_seed_parser.add_argument("--output-mtz", type=Path, required=True)
+    composition_seed_parser.add_argument("--sequence-groups", type=Path, required=True)
+    composition_seed_parser.add_argument("--model-registry", type=Path, required=True)
+    composition_seed_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    composition_seed_parser.add_argument("--outdir", type=Path, required=True)
+
     mr_parser = subparsers.add_parser(
         "mr", help="execute bounded molecular-replacement hypotheses"
     )
@@ -1143,14 +1517,32 @@ def _build_parser() -> argparse.ArgumentParser:
     first_copy_parser.add_argument("--hypothesis-id", required=True)
     first_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
     first_copy_parser.add_argument("--processed-models", type=Path, required=True)
-    first_copy_parser.add_argument(
-        "--model-preparation-manifest", type=Path, required=True
+    first_copy_model_authority = first_copy_parser.add_mutually_exclusive_group(
+        required=True
     )
+    first_copy_model_authority.add_argument("--model-preparation-manifest", type=Path)
+    first_copy_model_authority.add_argument("--all-model-registry", type=Path)
     first_copy_parser.add_argument("--preflight", type=Path, required=True)
     first_copy_parser.add_argument("--mtz", type=Path, required=True)
+    first_copy_parser.add_argument(
+        "--diffraction-selection",
+        type=Path,
+        help="optional schema-v2 dataset-qualified diffraction selection",
+    )
+    first_copy_parser.add_argument(
+        "--phase3-hypothesis-id",
+        help="content identity binding the v1 hypothesis to --diffraction-selection",
+    )
+    first_copy_parser.add_argument(
+        "--derive-phase3-hypothesis-id",
+        action="store_true",
+        help="derive the bound identity from this complete hypothesis and selection",
+    )
     first_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    first_copy_parser.add_argument("--resource-plan", type=Path)
     first_copy_parser.add_argument("--outdir", type=Path, required=True)
     first_copy_parser.add_argument("--threads", type=int, default=1)
+    first_copy_parser.add_argument("--resource-attempt", type=int, default=1)
     first_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -1160,13 +1552,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "add-copy",
         help="fix one approved MR seed and search one additional same-component copy",
     )
-    add_copy_parser.add_argument("--review-validation", type=Path, required=True)
-    add_copy_parser.add_argument("--review-package-manifest", type=Path, required=True)
+    add_copy_parser.add_argument("--review-validation", type=Path)
+    add_copy_parser.add_argument("--review-package-manifest", type=Path)
+    add_copy_parser.add_argument(
+        "--phase3-seed-stage-manifest",
+        type=Path,
+        help="canonical schema-v2 owned A-seed stage; rejects legacy approvals",
+    )
     add_copy_parser.add_argument("--seed-solution-id", required=True)
     add_copy_parser.add_argument("--hypotheses", type=Path, required=True)
     add_copy_parser.add_argument("--sequence-groups", type=Path, required=True)
     add_copy_parser.add_argument("--preflight", type=Path, required=True)
     add_copy_parser.add_argument("--mtz", type=Path, required=True)
+    add_copy_parser.add_argument(
+        "--diffraction-selection",
+        type=Path,
+        help="optional schema-v2 dataset-qualified diffraction selection",
+    )
     add_copy_parser.add_argument("--search-model", type=Path, required=True)
     add_copy_parser.add_argument("--expected-search-model-sha256")
     add_copy_parser.add_argument("--phenix-manifest", type=Path, required=True)
@@ -1187,6 +1589,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="advance one supported copy at a time to expected n or first stop",
     )
     add_copy_parser.add_argument("--threads", type=int, default=1)
+    add_copy_parser.add_argument("--resource-attempt", type=int, default=1)
     add_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -1204,6 +1607,10 @@ def _build_parser() -> argparse.ArgumentParser:
     partner_parser.add_argument("--parent-coordinate", type=Path, required=True)
     partner_parser.add_argument("--expected-parent-coordinate-sha256", required=True)
     partner_parser.add_argument("--parent-llg", type=float, required=True)
+    partner_parser.add_argument(
+        "--parent-model-identity-fraction", type=float, required=True
+    )
+    partner_parser.add_argument("--parent-model-uncertainty-source", required=True)
     partner_parser.add_argument("--parent-copy-count", type=int, default=1)
     partner_parser.add_argument("--partner-model", type=Path, required=True)
     partner_parser.add_argument("--expected-partner-model-sha256", required=True)
@@ -1262,6 +1669,42 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
     )
+    multi_fixed_parser = mr_actions.add_parser(
+        "search-component",
+        help="fix two to five placed components and search the next component",
+    )
+    multi_fixed_parser.add_argument("--manifest", type=Path, required=True)
+    multi_fixed_parser.add_argument("--sequence-groups", type=Path, required=True)
+    multi_fixed_parser.add_argument("--preflight", type=Path, required=True)
+    multi_fixed_parser.add_argument("--mtz", type=Path, required=True)
+    multi_fixed_parser.add_argument("--phenix-manifest", type=Path, required=True)
+    multi_fixed_parser.add_argument("--outdir", type=Path, required=True)
+    multi_fixed_parser.add_argument("--threads", type=int, default=1)
+    multi_fixed_parser.add_argument("--timeout-seconds", type=float)
+    placement_parser = mr_actions.add_parser(
+        "collect-per-placement",
+        help="map exact top-solution SOLU 6DIM entries to native Phaser PDBs",
+    )
+    placement_parser.add_argument("--crystal-id", required=True)
+    placement_parser.add_argument("--search-id", required=True)
+    placement_parser.add_argument("--phaser-version", required=True)
+    placement_parser.add_argument("--output-directory", type=Path, required=True)
+    placement_parser.add_argument("--command-record", type=Path, required=True)
+    placement_parser.add_argument("--result-record", type=Path, required=True)
+    placement_parser.add_argument(
+        "--expected-component",
+        type=_expected_phaser_component,
+        action="append",
+        required=True,
+        help="repeat LABEL:ENSEMBLE_ID:COPY_COUNT for each known component",
+    )
+    placement_parser.add_argument(
+        "--component-model",
+        type=_phaser_component_model,
+        action="append",
+        required=True,
+        help="repeat LABEL:SOURCE_MODEL_PATH for each known component",
+    )
     stage_add_copy_parser = mr_actions.add_parser(
         "stage-add-copy",
         help="prepare checksum-bound comparative M4 inputs from a retained run",
@@ -1290,6 +1733,23 @@ def _build_parser() -> argparse.ArgumentParser:
     live_stage_parser.add_argument("--decisions", type=Path, required=True)
     live_stage_parser.add_argument("--hypotheses", type=Path, required=True)
     live_stage_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_seed_stage_parser = mr_actions.add_parser(
+        "stage-phase3-seeds",
+        help="stage one canonical owned Phase III A-review checkpoint",
+    )
+    phase3_seed_stage_parser.add_argument("--review-stage", type=Path, required=True)
+    phase3_seed_stage_parser.add_argument(
+        "--review-package-manifest", type=Path, required=True
+    )
+    phase3_seed_stage_parser.add_argument("--hypotheses", type=Path, required=True)
+    phase3_seed_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
+    )
+    phase3_seed_stage_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    phase3_seed_stage_parser.add_argument("--owned-parent-run", required=True)
+    phase3_seed_stage_parser.add_argument("--outdir", type=Path, required=True)
     copy_report_parser = mr_actions.add_parser(
         "copy-report",
         help="compare Matthews-intended and empirically supported copy counts",
@@ -1317,6 +1777,33 @@ def _build_parser() -> argparse.ArgumentParser:
     brief_parser.add_argument("--sequence-groups", type=Path, required=True)
     brief_parser.add_argument("--source-records", type=Path, required=True)
     brief_parser.add_argument("--resolution", type=float, required=True)
+    brief_parser.add_argument(
+        "--crystal-id",
+        help="required with --diffraction-selection for Phase III refinement",
+    )
+    brief_parser.add_argument(
+        "--diffraction-selection",
+        type=Path,
+        help="optional schema-v2 dataset-qualified diffraction selection",
+    )
+    brief_parser.add_argument(
+        "--source-mtz",
+        type=Path,
+        help="required with --diffraction-selection to verify exact raw observations",
+    )
+    brief_parser.add_argument(
+        "--preflight",
+        type=Path,
+        help="required with --diffraction-selection for exact preflight verification",
+    )
+    brief_parser.add_argument(
+        "--free-r-identity",
+        type=Path,
+        help=(
+            "required with --diffraction-selection; content-addressed Free-R "
+            "identity for exact post-refinement membership verification"
+        ),
+    )
     brief_parser.add_argument("--phenix-manifest", type=Path, required=True)
     brief_parser.add_argument("--outdir", type=Path, required=True)
     brief_parser.add_argument("--threads", type=int, default=4)
@@ -1337,7 +1824,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="retain every approved normal-workflow copy state for T12",
     )
     live_stage_parser.add_argument("--approved-stage", type=Path, required=True)
-    live_stage_parser.add_argument("--review-package", type=Path, required=True)
+    live_stage_parser.add_argument("--review-package", type=Path)
+    live_stage_parser.add_argument(
+        "--phase3-seed-stage-manifest",
+        type=Path,
+        help="canonical schema-v2 owned A-seed stage; rejects legacy review inputs",
+    )
     live_stage_parser.add_argument(
         "--additional-copy-result", type=Path, action="append", default=[]
     )
@@ -1353,6 +1845,126 @@ def _build_parser() -> argparse.ArgumentParser:
         "review", help="build and validate file-based human checkpoints"
     )
     review_actions = review_parser.add_subparsers(dest="review_action", required=True)
+    crystallographic_stage_parser = review_actions.add_parser(
+        "validate-crystallographic-stages",
+        help="bind three owned proceed/hold stages before Phase III A searches",
+    )
+    crystallographic_stage_parser.add_argument(
+        "--stage-index", type=Path, required=True
+    )
+    crystallographic_stage_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    crystallographic_stage_parser.add_argument("--crystals", type=Path, required=True)
+    crystallographic_stage_parser.add_argument("--outdir", type=Path, required=True)
+    owned_a_seed_stage_parser = review_actions.add_parser(
+        "stage-owned-a-seeds",
+        help="stage an owned unknown-screen A-seed decision TSV",
+    )
+    owned_a_seed_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
+    )
+    owned_a_seed_stage_parser.add_argument("--parent-run", required=True)
+    owned_a_seed_stage_parser.add_argument("--decisions", type=Path, required=True)
+    owned_a_seed_stage_parser.add_argument("--confirm-decisions-sha256", required=True)
+    owned_a_seed_stage_parser.add_argument("--outdir", type=Path, required=True)
+    owned_sequence_stage_parser = review_actions.add_parser(
+        "stage-owned-sequences",
+        help="stage an owned single-component sequence decision TSV",
+    )
+    owned_sequence_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
+    )
+    owned_sequence_stage_parser.add_argument("--parent-run", required=True)
+    owned_sequence_stage_parser.add_argument("--decisions", type=Path, required=True)
+    owned_sequence_stage_parser.add_argument(
+        "--confirm-decisions-sha256", required=True
+    )
+    owned_sequence_stage_parser.add_argument("--outdir", type=Path, required=True)
+    owned_composition_stage_parser = review_actions.add_parser(
+        "stage-owned-compositions",
+        help="stage an owned single-component composition decision TSV",
+    )
+    owned_composition_stage_parser.add_argument(
+        "--owned-run-registry", type=Path, required=True
+    )
+    owned_composition_stage_parser.add_argument("--parent-run", required=True)
+    owned_composition_stage_parser.add_argument("--decisions", type=Path, required=True)
+    owned_composition_stage_parser.add_argument(
+        "--confirm-decisions-sha256", required=True
+    )
+    owned_composition_stage_parser.add_argument("--outdir", type=Path, required=True)
+    unknown_pass1_derive_parser = review_actions.add_parser(
+        "derive-unknown-pass1-assessment",
+        help="derive one terminal unknown-pass-1 assessment from owned evidence",
+    )
+    unknown_pass1_derive_parser.add_argument("--spec", type=Path, required=True)
+    unknown_pass1_derive_parser.add_argument("--outdir", type=Path, required=True)
+    unknown_pass1_collect_parser = review_actions.add_parser(
+        "collect-derived-unknown-pass1-panel",
+        help="collect exactly three independently derived unknown-pass-1 records",
+    )
+    unknown_pass1_collect_parser.add_argument("--input-root", type=Path, required=True)
+    unknown_pass1_collect_parser.add_argument("--outdir", type=Path, required=True)
+    owned_a_seed_package_parser = review_actions.add_parser(
+        "build-owned-a-package",
+        help="publish one owned A-seed package from verified first-copy evidence",
+    )
+    owned_a_seed_package_parser.add_argument(
+        "--review-package", type=Path, required=True
+    )
+    owned_a_seed_package_parser.add_argument("--hypotheses", type=Path, required=True)
+    owned_a_seed_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    owned_a_seed_package_parser.add_argument("--owned-parent-run", required=True)
+    owned_a_seed_package_parser.add_argument(
+        "--parent-profile",
+        choices=("unknown-screen", "unknown-pass2"),
+        default="unknown-screen",
+    )
+    owned_a_seed_package_parser.add_argument(
+        "--parent-phase",
+        choices=("phase3-pass1", "phase3-pass2"),
+        default="phase3-pass1",
+    )
+    owned_a_seed_package_parser.add_argument("--crystal-id", required=True)
+    owned_a_seed_package_parser.add_argument("--outdir", type=Path, required=True)
+    owned_sequence_package_parser = review_actions.add_parser(
+        "build-owned-sequence-package",
+        help="publish one owned sequence package from verified finalist evidence",
+    )
+    owned_sequence_package_parser.add_argument(
+        "--sequence-checkpoint", type=Path, required=True
+    )
+    owned_sequence_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    owned_sequence_package_parser.add_argument("--owned-parent-run", required=True)
+    owned_sequence_package_parser.add_argument("--crystal-id", required=True)
+    owned_sequence_package_parser.add_argument("--outdir", type=Path, required=True)
+    owned_composition_package_parser = review_actions.add_parser(
+        "build-owned-composition-package",
+        help="publish one owned composition package from verified refined states",
+    )
+    owned_composition_package_parser.add_argument(
+        "--sequence-checkpoint", type=Path, required=True
+    )
+    owned_composition_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    owned_composition_package_parser.add_argument("--owned-parent-run", required=True)
+    owned_composition_package_parser.add_argument("--crystal-id", required=True)
+    owned_composition_package_parser.add_argument("--outdir", type=Path, required=True)
+    pass2_package_parser = review_actions.add_parser(
+        "build-pass2-packages",
+        help="publish terminal pass-2 composition and sequence review packages",
+    )
+    pass2_package_parser.add_argument("--beam", type=Path, required=True)
+    pass2_package_parser.add_argument("--execution-identity", type=Path, required=True)
+    pass2_package_parser.add_argument("--owned-parent-run", required=True)
+    pass2_package_parser.add_argument("--crystal-id", required=True)
+    pass2_package_parser.add_argument("--outdir", type=Path, required=True)
     mr_seed_review_parser = review_actions.add_parser(
         "build-mr-seed",
         help="assemble a bounded first-copy MR review package",
@@ -1407,31 +2019,8 @@ def _build_parser() -> argparse.ArgumentParser:
     live_sequence_checkpoint_parser.add_argument(
         "--candidate-result", type=Path, action="append", default=[]
     )
+    live_sequence_checkpoint_parser.add_argument("--crystal-id")
     live_sequence_checkpoint_parser.add_argument("--outdir", type=Path, required=True)
-    status_parser = review_actions.add_parser(
-        "build-status",
-        help="derive the T13.1 execution, scientific, and assumption status",
-    )
-    status_parser.add_argument("--crystal-id", required=True)
-    status_parser.add_argument("--t12-summary", type=Path, required=True)
-    status_parser.add_argument("--job-result", type=Path, required=True)
-    status_parser.add_argument("--refinement-results", type=Path, required=True)
-    status_parser.add_argument("--checkpoint-manifest", type=Path, required=True)
-    status_parser.add_argument("--approval-candidates", type=Path, required=True)
-    status_parser.add_argument("--decisions", type=Path, required=True)
-    status_parser.add_argument(
-        "--prototype-assumption-status",
-        choices=("consistent", "possibly_violated", "violated", "unknown"),
-        default="unknown",
-    )
-    status_parser.add_argument("--residual-content-suspected", action="store_true")
-    status_parser.add_argument("--out", type=Path, required=True)
-    report_parser = review_actions.add_parser(
-        "build-report",
-        help="add the T13.2 crystal report to a verified T12.5 package",
-    )
-    report_parser.add_argument("--status", type=Path, required=True)
-    report_parser.add_argument("--checkpoint-dir", type=Path, required=True)
     resource_parser = review_actions.add_parser(
         "build-resource-summary",
         help="add the deterministic T13.3 resource record to a T12.5 package",
@@ -1463,6 +2052,21 @@ def _build_parser() -> argparse.ArgumentParser:
     disabled_provider_parser.add_argument("--provider-entry", type=Path, required=True)
     disabled_provider_parser.add_argument("--sequence-groups", type=Path, required=True)
     disabled_provider_parser.add_argument("--outdir", type=Path, required=True)
+    provider_empty_graph_parser = search_actions.add_parser(
+        "complete-provider-empty-graph",
+        help="close the fixed provider graph after complete empty branches",
+    )
+    provider_empty_graph_parser.add_argument("--config", type=Path, required=True)
+    provider_empty_graph_parser.add_argument(
+        "--provider-plan", type=Path, required=True
+    )
+    provider_empty_graph_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    provider_empty_graph_parser.add_argument(
+        "--bundle", type=Path, action="append", required=True
+    )
+    provider_empty_graph_parser.add_argument("--outdir", type=Path, required=True)
     merge_provider_hits_parser = search_actions.add_parser(
         "merge-pdb-provider-hits",
         help="combine typed PDB-sequence and Foldseek hit evidence",
@@ -1472,14 +2076,96 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     merge_provider_hits_parser.add_argument("--foldseek-hits", type=Path, required=True)
     merge_provider_hits_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_batch_plan_parser = search_actions.add_parser(
+        "plan-phase3-foldseek-batches",
+        help="partition the complete catalogue into fixed 128-query Foldseek batches",
+    )
+    phase3_batch_plan_parser.add_argument("--sequence-groups", type=Path, required=True)
+    phase3_batch_plan_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_batch_merge_parser = search_actions.add_parser(
+        "merge-phase3-foldseek-batches",
+        help="verify and combine all fixed complete-catalogue Foldseek batches",
+    )
+    phase3_batch_merge_parser.add_argument(
+        "--sequence-groups", type=Path, required=True
+    )
+    phase3_batch_merge_parser.add_argument("--batch-plan", type=Path, required=True)
+    phase3_batch_merge_parser.add_argument(
+        "--batch", type=Path, action="append", required=True
+    )
+    phase3_batch_merge_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_discovery_package_parser = search_actions.add_parser(
+        "package-phase3-provider-discovery",
+        help="publish the owned offline provider-discovery checkpoint",
+    )
+    phase3_discovery_package_parser.add_argument("--owned-run-id", required=True)
+    phase3_discovery_package_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument("--config", type=Path, required=True)
+    phase3_discovery_package_parser.add_argument(
+        "--database-manifest", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--crystallographic-review-routes", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--catalogue-bundle", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--provider-plan-bundle", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--pdb-sequence-search", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--prostt5-foldseek-search", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument(
+        "--pdb-provider-hits", type=Path, required=True
+    )
+    phase3_discovery_package_parser.add_argument("--afdb-accession-map", type=Path)
+    phase3_discovery_package_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_provider_stage_parser = search_actions.add_parser(
+        "stage-phase3-provider-coordinates",
+        help="run bounded login acquisition for an owned discovery package",
+    )
+    phase3_provider_stage_parser.add_argument(
+        "--discovery-package", type=Path, required=True
+    )
+    phase3_provider_stage_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_offline_provider_parser = search_actions.add_parser(
+        "validate-phase3-offline-provider-input",
+        help="bind discovery, login preparation, and execution for offline MR",
+    )
+    phase3_offline_provider_parser.add_argument(
+        "--discovery-package", type=Path, required=True
+    )
+    phase3_offline_provider_parser.add_argument(
+        "--provider-preparation", type=Path, required=True
+    )
+    phase3_offline_provider_parser.add_argument(
+        "--execution-identity", type=Path, required=True
+    )
+    phase3_offline_provider_parser.add_argument("--outdir", type=Path, required=True)
+    phase3_discovery_validate_parser = search_actions.add_parser(
+        "validate-phase3-provider-discovery-package",
+        help="verify one owned provider-discovery package",
+    )
+    phase3_discovery_validate_parser.add_argument("--package", type=Path, required=True)
+    phase3_login_validate_parser = search_actions.add_parser(
+        "validate-phase3-provider-login-stage",
+        help="verify one bounded login-side provider preparation",
+    )
+    phase3_login_validate_parser.add_argument("--preparation", type=Path, required=True)
     pdb_sequence_parser = search_actions.add_parser(
         "pdb-sequence",
         help="search exact catalogue sequences against the local PDB SEQRES database",
     )
     pdb_sequence_parser.add_argument("--sequence-groups", type=Path, required=True)
     pdb_sequence_parser.add_argument("--database-manifest", type=Path, required=True)
-    pdb_sequence_parser.add_argument("--provider-plan", type=Path)
-    pdb_sequence_parser.add_argument("--provider-entry", type=Path)
+    pdb_sequence_parser.add_argument("--provider-plan", type=Path, required=True)
+    pdb_sequence_parser.add_argument("--provider-entry", type=Path, required=True)
     pdb_sequence_parser.add_argument("--outdir", type=Path, required=True)
     pdb_sequence_parser.add_argument("--threads", type=int, default=4)
     pdb_sequence_parser.add_argument("--maximum-hits-per-query", type=int, default=25)
@@ -1493,6 +2179,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="cache and register a bounded, diversity-reserved set of direct-PDB hits",
     )
     pdb_coordinates_parser.add_argument("--structural-hits", type=Path, required=True)
+    pdb_coordinates_parser.add_argument(
+        "--provider-search-results", type=Path, action="append", default=[]
+    )
     pdb_coordinates_parser.add_argument("--sequence-groups", type=Path, required=True)
     pdb_coordinates_parser.add_argument("--database-manifest", type=Path, required=True)
     pdb_coordinates_parser.add_argument("--outdir", type=Path, required=True)
@@ -1520,8 +2209,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prostt5_parser.add_argument("--sequence-groups", type=Path, required=True)
     prostt5_parser.add_argument("--database-manifest", type=Path, required=True)
-    prostt5_parser.add_argument("--provider-plan", type=Path)
-    prostt5_parser.add_argument("--provider-entry", type=Path)
+    prostt5_parser.add_argument("--provider-plan", type=Path, required=True)
+    prostt5_parser.add_argument("--provider-entry", type=Path, required=True)
     prostt5_parser.add_argument("--outdir", type=Path, required=True)
     prostt5_parser.add_argument("--threads", type=int, default=4)
     prostt5_parser.add_argument("--maximum-hits-per-query", type=int, default=3)
@@ -1542,6 +2231,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="enable Foldseek/ProstT5 GPU execution (CPU is the default)",
     )
+    prostt5_parser.add_argument(
+        "--retain-unmapped-targets",
+        action="store_true",
+        help=(
+            "retain PDB targets missing from the coordinate mapping as typed "
+            "deferred hits instead of failing the complete query batch"
+        ),
+    )
     afdb_parser = search_actions.add_parser(
         "afdb-exact",
         help="retrieve sequence-exact AlphaFold DB models for mapped accessions",
@@ -1549,8 +2246,8 @@ def _build_parser() -> argparse.ArgumentParser:
     afdb_parser.add_argument("--sequence-groups", type=Path, required=True)
     afdb_parser.add_argument("--source-records", type=Path, required=True)
     afdb_parser.add_argument("--database-manifest", type=Path, required=True)
-    afdb_parser.add_argument("--provider-plan", type=Path)
-    afdb_parser.add_argument("--provider-entry", type=Path)
+    afdb_parser.add_argument("--provider-plan", type=Path, required=True)
+    afdb_parser.add_argument("--provider-entry", type=Path, required=True)
     afdb_parser.add_argument("--outdir", type=Path, required=True)
     afdb_parser.add_argument(
         "--accession-map",
@@ -1676,6 +2373,16 @@ def _run_phenix(args: argparse.Namespace, logger: logging.Logger) -> int:
         if command and command[0] == "--":
             command = command[1:]
         return execute_from_manifest(args.manifest, command)
+    if args.phenix_action == "probe-phaser-interface":
+        output = probe_phaser_interface(
+            PhaserInterfaceProbeRequest(
+                phenix_manifest=args.manifest,
+                output_directory=args.outdir,
+                timeout_seconds=args.command_timeout_seconds,
+            )
+        )
+        print(f"Captured Phaser interface {output.probe_id}: {output.report_json}")
+        return 0
     raise AssertionError(f"unhandled Phenix action: {args.phenix_action}")
 
 
@@ -1764,6 +2471,113 @@ def _run_catalogue(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_localisation(args: argparse.Namespace) -> int:
+    if args.localisation_action == "capture-container-batch":
+        manifest = capture_localisation_container_execution(
+            LocalisationContainerCaptureRequest(
+                catalogue_fasta=args.catalogue_fasta,
+                psortb_container=args.psortb_container,
+                psortb_output_container_path=args.psortb_container_output,
+                psortb_output=args.psortb_output,
+                deeptmhmm_container=args.deeptmhmm_container,
+                deeptmhmm_output_container_path=args.deeptmhmm_container_output,
+                deeptmhmm_output=args.deeptmhmm_output,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Captured offline localisation container evidence: {manifest}")
+        return 0
+    if args.localisation_action == "import-batch":
+        imported = import_catalogue_localisation_batch(
+            BatchLocalisationImportRequest(
+                sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
+                catalogue_fasta=args.catalogue_fasta,
+                psortb_terse=args.psortb_terse,
+                deeptmhmm_topologies=args.deeptmhmm_topologies,
+                gel_evidence=args.gel_evidence,
+                container_execution_bundle=args.container_execution_bundle,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            "Imported offline localisation for "
+            f"{imported.policy.sequence_group_count} sequence group(s): "
+            f"{imported.policy_json}"
+        )
+        return 0
+    if args.localisation_action == "validate-batch":
+        policy = validate_catalogue_localisation_batch(args.bundle)
+        print(
+            "Validated offline localisation for "
+            f"{policy.sequence_group_count} sequence group(s): {policy.policy_id}"
+        )
+        return 0
+    if args.localisation_action == "stage-batch":
+        policy = stage_catalogue_localisation_batch(args.bundle, args.outdir)
+        print(
+            "Staged offline localisation for "
+            f"{policy.sequence_group_count} sequence group(s): {args.outdir}"
+        )
+        return 0
+    if args.localisation_action == "plan-batch-reopen":
+        output = plan_batch_localisation_reopen(
+            BatchLocalisationReopenRequest(
+                funnel_directory=args.funnel,
+                result_directories=tuple(args.result_directory),
+                localisation_bundle=args.localisation_bundle,
+                maximum_reopened_attempts=args.maximum_reopened_attempts,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Localisation reopen {output.plan.status.value}: {output.plan_json}")
+        return 0
+    if args.localisation_action == "build-tasks":
+        result = build_catalogue_localisation_tasks(
+            args.sequence_groups,
+            args.psortb_runtime,
+            args.deeptmhmm_runtime,
+            args.outdir,
+        )
+        print(
+            f"Built {result.inventory.task_count} localisation task(s): "
+            f"{result.inventory_json}"
+        )
+        return 0
+    if args.localisation_action == "run-task":
+        result = run_catalogue_localisation_task(
+            args.task_directory,
+            args.psortb_runtime,
+            args.deeptmhmm_runtime,
+            args.outdir,
+        )
+        print(
+            f"Localisation {result.task.sequence_group_id}: "
+            f"{result.group_evidence.merged_outcome.value}"
+        )
+        return 0
+    if args.localisation_action == "build-wave-policy":
+        result = build_catalogue_localisation_wave_policy(
+            args.task_inventory,
+            tuple(args.result_directory),
+            args.outdir,
+        )
+        print(
+            f"Built localisation wave policy for "
+            f"{result.policy.sequence_group_count} group(s): {result.policy_json}"
+        )
+        return 0
+    if args.localisation_action == "plan-reopen":
+        result = plan_localisation_reopen(
+            args.wave_policy,
+            args.active_wave_completion,
+            args.outdir,
+        )
+        print(f"Localisation reopen {result.plan.status.value}: {result.plan_json}")
+        return 0
+    raise AssertionError(f"unhandled localisation action: {args.localisation_action}")
+
+
 def _run_benchmark(args: argparse.Namespace) -> int:
     mib = 1024 * 1024
     if args.benchmark_action == "prepare-public-control":
@@ -1809,6 +2623,38 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             )
         )
         print(f"Prepared fixed 3U7Q 2A+2B inputs: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "prepare-9ecn-phase3-control":
+        prepared = prepare_9ecn_phase3_control(
+            HeteromerControlPreparationRequest(
+                protocol=args.protocol,
+                coordinates=args.coordinates,
+                structure_factors=args.structure_factors,
+                output_directory=args.outdir,
+                download_missing=args.download,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Prepared fixed 9ECN 2A+2B+2C inputs: {prepared.preparation_manifest}")
+        return 0
+    if args.benchmark_action == "run-9ecn-phase3-control":
+        executed = run_9ecn_phase3_control(
+            Phase3ControlExecutionRequest(
+                preparation_directory=args.preparation,
+                phenix_manifest=args.phenix_manifest,
+                wrong_c_sequence_groups_jsonl=args.wrong_c_sequence_groups,
+                wrong_c_sequence_group_id=args.wrong_c_sequence_group_id,
+                wrong_c_model=args.wrong_c_model,
+                wrong_c_control_manifest=args.wrong_c_control_manifest,
+                expected_wrong_c_model_sha256=args.expected_wrong_c_model_sha256,
+                wrong_c_model_identity_fraction=args.wrong_c_model_identity_fraction,
+                output_directory=args.outdir,
+                threads=args.threads,
+                timeout_seconds=args.timeout_seconds,
+                progress=not args.no_progress,
+            )
+        )
+        print(f"Validated fixed 9ECN A+B+C control: {executed.report}")
         return 0
     if args.benchmark_action == "prepare-heteromer-control-slice":
         prepared = prepare_heteromer_control_slice(
@@ -1882,39 +2728,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         )
         print(f"Approved fixed 6RTZ HisF parent: {reviewed.approved_stage}")
         return 0
-    if args.benchmark_action == "run-control-slice":
-        result = run_control_slice(
-            ControlSliceRunRequest(
-                import_root=args.import_root,
-                phenix_manifest=args.phenix_manifest,
-                output_directory=args.outdir,
-                threads=args.threads,
-                progress=not args.no_progress,
-            )
-        )
-        print(
-            f"Executed six-case control slice with "
-            f"{result.first_copy_attempt_count} first-copy attempts: "
-            f"{result.summary_json}"
-        )
-        return 0
-    if args.benchmark_action == "run-control-matrix":
-        result = run_control_matrix(
-            ControlMatrixRunRequest(
-                import_root=args.import_root,
-                phenix_manifest=args.phenix_manifest,
-                output_directory=args.outdir,
-                threads=args.threads,
-                progress=not args.no_progress,
-            )
-        )
-        print(
-            "Completed fixed 23-case homomer matrix: "
-            f"{result.first_copy_attempt_count} first-copy, "
-            f"{result.additional_copy_attempt_count} additional-copy, "
-            f"{result.refinement_attempt_count} refinement attempts"
-        )
-        return 0
     if args.benchmark_action == "check-public-panel":
         panel = load_public_control_panel(args.panel)
         print(f"Public panel {panel.panel_id} is valid: {len(panel.entries)} entries")
@@ -1983,11 +2796,6 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             f"and {result.object_count} objects: {result.qualification}"
         )
         return 0
-    if args.benchmark_action == "run-m6-scientific":
-        raise GenomeToDiffractionError(
-            "run-m6-scientific is a legacy verifier-only boundary; "
-            "execute M6 through m6_validation.nf"
-        )
     if args.benchmark_action == "plan-m6-nextflow":
         result = plan_m6_nextflow_track(
             M6TrackPlanRequest(
@@ -2071,10 +2879,20 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             args.preflight_bundle,
             args.catalogue_bundle,
             args.policy_bundle,
-            args.database_manifest,
+            args.coordinate_stage,
             args.outdir,
         )
         print(f"Completed M6 case task: {result}")
+        return 0
+    if args.benchmark_action == "stage-m6-coordinates":
+        result = run_m6_coordinate_stage_task(
+            args.task,
+            args.catalogue_bundle,
+            args.policy_bundle,
+            args.database_manifest,
+            args.outdir,
+        )
+        print(f"Staged M6 coordinates: {result}")
         return 0
     if args.benchmark_action == "select-m6-seeds":
         result = run_m6_select_seeds_task(
@@ -2153,6 +2971,20 @@ def _run_benchmark(args: argparse.Namespace) -> int:
         )
         print(f"Collected {result.child_job_count} M6 child jobs: {args.output}")
         return 0
+    if args.benchmark_action == "collect-m6-child-outputs":
+        child_outputs = collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                track=args.track,
+                trace=args.trace,
+                baseline=args.baseline,
+                output=args.output,
+            )
+        )
+        print(
+            f"Verified {child_outputs.task_count} M6 {child_outputs.phase} "
+            f"child outputs: {args.output}"
+        )
+        return 0
     if args.benchmark_action == "evaluate-m6":
         result = evaluate_m6(
             M6EvaluationRequest(
@@ -2189,6 +3021,8 @@ def _run_diffraction(args: argparse.Namespace) -> int:
                 preflight_jsonl=args.preflight,
                 output_directory=args.outdir,
                 progress=not args.no_progress,
+                crystal_id=args.crystal_id,
+                phase3_diffraction=args.phase3_diffraction,
             )
         )
         print(
@@ -2297,6 +3131,21 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             f"{disabled.search_manifest}"
         )
         return 0
+    if args.structure_search_action == "complete-provider-empty-graph":
+        completion = complete_provider_empty_graph(
+            ProviderEmptyGraphRequest(
+                pipeline_config=args.config,
+                provider_plan_json=args.provider_plan,
+                sequence_groups_jsonl=args.sequence_groups,
+                provider_bundle_directories=tuple(args.bundle),
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Completed empty provider graph {completion.completion.completion_id}: "
+            f"{completion.completion_json}"
+        )
+        return 0
     if args.structure_search_action == "merge-pdb-provider-hits":
         merged = merge_pdb_provider_hits(
             ProviderHitMergeRequest(
@@ -2306,6 +3155,77 @@ def _run_structure_search(args: argparse.Namespace) -> int:
             )
         )
         print(f"Merged {len(merged.hits)} PDB provider hits: {merged.manifest_json}")
+        return 0
+    if args.structure_search_action == "plan-phase3-foldseek-batches":
+        batches = build_phase3_foldseek_batches(
+            sequence_groups=args.sequence_groups,
+            output_directory=args.outdir,
+        )
+        print(f"Planned complete fixed-128-query Foldseek batches: {batches}")
+        return 0
+    if args.structure_search_action == "merge-phase3-foldseek-batches":
+        merged = merge_phase3_foldseek_batches(
+            sequence_groups=args.sequence_groups,
+            batch_plan=args.batch_plan,
+            batch_outputs=tuple(args.batch),
+            output_directory=args.outdir,
+        )
+        print(f"Merged complete bounded Foldseek batch results: {merged}")
+        return 0
+    if args.structure_search_action == "package-phase3-provider-discovery":
+        packaged = build_phase3_provider_discovery_package(
+            PhaseIIIProviderDiscoveryRequest(
+                owned_run_id=args.owned_run_id,
+                execution_identity=args.execution_identity,
+                pipeline_config=args.config,
+                database_manifest=args.database_manifest,
+                crystallographic_review_routes=args.crystallographic_review_routes,
+                catalogue_bundle=args.catalogue_bundle,
+                provider_plan_bundle=args.provider_plan_bundle,
+                pdb_sequence_search=args.pdb_sequence_search,
+                prostt5_foldseek_search=args.prostt5_foldseek_search,
+                pdb_provider_hits=args.pdb_provider_hits,
+                afdb_accession_map=args.afdb_accession_map,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            "Published owned Phase III provider discovery "
+            f"{packaged.manifest.package_id}: {packaged.manifest_path}"
+        )
+        return 0
+    if args.structure_search_action == "stage-phase3-provider-coordinates":
+        staged = stage_phase3_provider_coordinates(
+            PhaseIIIProviderLoginStageRequest(
+                discovery_package=args.discovery_package,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            "Published bounded Phase III provider preparation "
+            f"{staged.manifest.preparation_id}: {staged.manifest_path}"
+        )
+        return 0
+    if args.structure_search_action == "validate-phase3-offline-provider-input":
+        offline = publish_phase3_offline_provider_input(
+            discovery_package=args.discovery_package,
+            provider_preparation=args.provider_preparation,
+            execution_identity=args.execution_identity,
+            output_directory=args.outdir,
+        )
+        print(
+            "Validated offline Phase III provider input "
+            f"{offline.manifest.offline_input_id}: {offline.manifest_path}"
+        )
+        return 0
+    if args.structure_search_action == "validate-phase3-provider-discovery-package":
+        package = validate_phase3_provider_discovery_package(args.package)
+        print(f"Validated Phase III provider discovery: {package.package_id}")
+        return 0
+    if args.structure_search_action == "validate-phase3-provider-login-stage":
+        preparation = validate_phase3_provider_login_stage(args.preparation)
+        print(f"Validated Phase III provider preparation: {preparation.preparation_id}")
         return 0
     if args.structure_search_action == "qualify-p1":
         report = qualify_p1_search(
@@ -2357,6 +3277,7 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 maximum_query_length=args.maximum_query_length,
                 maximum_queries=args.maximum_queries,
                 gpu=args.gpu,
+                retain_unmapped_targets=args.retain_unmapped_targets,
                 progress=not args.no_progress,
             )
         )
@@ -2374,6 +3295,7 @@ def _run_structure_search(args: argparse.Namespace) -> int:
                 sequence_groups_jsonl=args.sequence_groups,
                 database_manifest=args.database_manifest,
                 output_directory=args.outdir,
+                provider_search_results_jsonl=tuple(args.provider_search_results),
                 maximum_hits_per_sequence_group=(args.maximum_hits_per_sequence_group),
                 maximum_mappings=args.maximum_mappings,
                 hit_ids=tuple(args.hit_id),
@@ -2423,6 +3345,7 @@ def _run_model(args: argparse.Namespace) -> int:
                 coordinate_hit_mappings_jsonl=args.coordinate_hit_mappings,
                 sequence_groups_jsonl=args.sequence_groups,
                 output_directory=args.outdir,
+                registration_manifest=args.registration_manifest,
                 mapping_ids=tuple(args.mapping_id),
                 progress=not args.no_progress,
             )
@@ -2440,6 +3363,7 @@ def _run_model(args: argparse.Namespace) -> int:
             sequence_groups_jsonl=args.sequence_groups,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            provider_search_results_jsonl=args.provider_search_results,
             coordinate_ids=tuple(args.coordinate_id),
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
@@ -2503,12 +3427,15 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 model_preparation_manifests=tuple(args.model_preparation_manifest),
                 coordinate_hit_mappings_jsonl=args.coordinate_hit_mappings,
                 sequence_groups_jsonl=args.sequence_groups,
+                source_records_jsonl=args.source_records,
                 matthews_hypotheses_jsonl=args.matthews,
                 mtz_preflight_jsonl=args.preflight,
                 pipeline_config=args.config,
                 output_directory=args.outdir,
                 crystal_ids=tuple(args.crystal_id),
                 maximum_first_copy_jobs=args.maximum_first_copy_jobs,
+                localisation_bundle=args.localisation_bundle,
+                require_localisation_policy=args.require_localisation_policy,
                 progress=not args.no_progress,
             )
         )
@@ -2538,6 +3465,101 @@ def _run_ranking(args: argparse.Namespace) -> int:
         f"{result.manifest_json}"
     )
     return 0
+
+
+def _run_composition(args: argparse.Namespace) -> int:
+    if args.composition_action == "run-attempt":
+        output = execute_composition_attempt(
+            CompositionAttemptExecutionRequest(
+                attempt_inventory=args.attempt_inventory,
+                attempt_id=args.attempt_id,
+                fixed_coordinate_root=args.fixed_coordinate_root,
+                model_registry=args.model_registry,
+                sequence_groups_jsonl=args.sequence_groups,
+                preflight_jsonl=args.preflight,
+                mtz=args.mtz,
+                phenix_manifest=args.phenix_manifest,
+                execution_identity=args.execution_identity,
+                output_directory=args.outdir,
+                threads=args.threads,
+                resource_attempt=args.resource_attempt,
+                timeout_seconds=args.timeout_seconds,
+            )
+        )
+        print(
+            f"Composition attempt {output.result.attempt_id} "
+            f"{output.result.execution_status.value}: {output.result_json}"
+        )
+        return 0
+    if args.composition_action == "plan-depth":
+        output = build_composition_depth_inputs(
+            CompositionDepthInputRequest(
+                parent_states_jsonl=args.parent_states,
+                sequence_groups_jsonl=args.sequence_groups,
+                localisation_policy=args.localisation_policy,
+                active_wave_completion=args.active_wave_completion,
+                localisation_reopen_plan=args.localisation_reopen_plan,
+                gel_evidence=args.gel_evidence,
+                preflight_jsonl=args.preflight,
+                model_registry=args.model_registry,
+                model_ranking_evidence_jsonl=args.model_ranking_evidence,
+                diffraction_selection=args.diffraction_selection,
+                free_r_identity=args.free_r_identity,
+                fixed_coordinate_root=args.fixed_coordinate_root,
+                execution_identity=args.execution_identity,
+                finding_closure=args.finding_closure,
+                finding_ledger=args.finding_ledger,
+                adverse_review_evidence=args.adverse_review_evidence,
+                integration_gate_evidence=args.integration_gate_evidence,
+                known_control_evidence=args.known_control_evidence,
+                m6_evidence=args.m6_evidence,
+                unknown_pass1_evidence=args.unknown_pass1_evidence,
+                exact_source_ci_evidence=args.exact_source_ci_evidence,
+                output_directory=args.outdir,
+                global_attempts_used_before=args.global_attempts_used_before,
+                per_depth_attempt_budget=args.per_depth_attempt_budget,
+            )
+        )
+        print(
+            f"Planned {output.attempt_count} composition attempt(s): "
+            f"{output.attempt_inventory}"
+        )
+        return 0
+    if args.composition_action == "collect-depth":
+        output = collect_composition_beam_depth(
+            CompositionBeamCollectionRequest(
+                attempt_inventory=args.attempt_inventory,
+                attempt_result_directories=tuple(args.attempt_result),
+                output_directory=args.outdir,
+                beam_width=args.beam_width,
+            )
+        )
+        print(
+            f"Collected composition depth {output.result.target_depth} "
+            f"as {output.result.status.value}: {output.result_json}"
+        )
+        return 0
+    if args.composition_action == "build-pass2-a-seed":
+        output = build_pass2_a_seed(
+            Pass2SeedRequest(
+                assessment=args.assessment,
+                hypothesis_jsonl=args.hypotheses,
+                copy_assessments_jsonl=args.copy_assessments,
+                packing_result=args.packing_result,
+                phaser_command=args.phaser_command,
+                solution_file=args.solution_file,
+                combined_coordinate=args.combined_coordinate,
+                source_mtz=args.source_mtz,
+                output_mtz=args.output_mtz,
+                sequence_groups_jsonl=args.sequence_groups,
+                model_registry=args.model_registry,
+                execution_identity=args.execution_identity,
+                output_directory=args.outdir,
+            )
+        )
+        print(f"Built pass-2 A state {output.state.state_id}: {output.state_json}")
+        return 0
+    raise AssertionError(f"unhandled composition action: {args.composition_action}")
 
 
 def _run_mr(args: argparse.Namespace) -> int:
@@ -2592,6 +3614,25 @@ def _run_mr(args: argparse.Namespace) -> int:
             f"search: {live_staged.stage_manifest}"
         )
         return 0
+    if args.mr_action == "stage-phase3-seeds":
+        staged = prepare_phase3_seed_stage(
+            PhaseIIISeedStageRequest(
+                review_stage=args.review_stage,
+                review_package_manifest=args.review_package_manifest,
+                hypotheses_jsonl=args.hypotheses,
+                owned_run_registry=args.owned_run_registry,
+                execution_identity=args.execution_identity,
+                owned_parent_run_id=args.owned_parent_run,
+                output_directory=args.outdir,
+                progress=not args.no_progress,
+            )
+        )
+        print(
+            f"Staged {staged.approved_seed_count} owned Phase III A seed(s); "
+            f"{staged.additional_copy_seed_count} require additional-copy "
+            f"search: {staged.stage_manifest}"
+        )
+        return 0
     if args.mr_action == "add-copy":
         request = AddCopyRunRequest(
             review_validation_json=args.review_validation,
@@ -2607,9 +3648,12 @@ def _run_mr(args: argparse.Namespace) -> int:
             output_directory=args.outdir,
             parent_result_jsonl=args.parent_result,
             parent_coordinate=args.parent_coordinate,
+            diffraction_selection_json=args.diffraction_selection,
             threads=args.threads,
+            resource_attempt=args.resource_attempt,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
+            phase3_seed_stage_manifest=args.phase3_seed_stage_manifest,
         )
         if args.until_expected:
             series = run_additional_copy_series(request)
@@ -2625,6 +3669,21 @@ def _run_mr(args: argparse.Namespace) -> int:
             f"{add_copy_output.result_json}"
         )
         return 0
+    if args.mr_action == "collect-per-placement":
+        placement_output = collect_phaser_per_placement_outputs(
+            PhaserPerPlacementRequest(
+                crystal_id=args.crystal_id,
+                search_id=args.search_id,
+                phaser_version=args.phaser_version,
+                output_directory=args.output_directory,
+                command_record=args.command_record,
+                result_record=args.result_record,
+                expected_components=tuple(args.expected_component),
+                component_models=tuple(args.component_model),
+            )
+        )
+        print(f"Mapped native Phaser placements: {placement_output.inventory_json}")
+        return 0
     if args.mr_action == "search-partner":
         partner_output = run_partner_search(
             PartnerSearchRequest(
@@ -2638,6 +3697,8 @@ def _run_mr(args: argparse.Namespace) -> int:
                     args.expected_parent_coordinate_sha256
                 ),
                 parent_llg=args.parent_llg,
+                parent_model_identity_fraction=(args.parent_model_identity_fraction),
+                parent_model_uncertainty_source=(args.parent_model_uncertainty_source),
                 parent_copy_count=args.parent_copy_count,
                 partner_model=args.partner_model,
                 expected_partner_model_sha256=args.expected_partner_model_sha256,
@@ -2656,6 +3717,23 @@ def _run_mr(args: argparse.Namespace) -> int:
             "Partner MR "
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
+        )
+        return 0
+    if args.mr_action == "search-component":
+        component_result = run_multi_fixed_search(
+            manifest_path=args.manifest,
+            sequence_groups_jsonl=args.sequence_groups,
+            preflight_jsonl=args.preflight,
+            mtz_path=args.mtz,
+            phenix_manifest=args.phenix_manifest,
+            output_directory=args.outdir,
+            threads=args.threads,
+            timeout_seconds=args.timeout_seconds,
+        )
+        print(
+            "Multi-fixed component MR "
+            f"{component_result.execution_status.value}: "
+            f"{args.outdir / 'component_search_result.json'}"
         )
         return 0
     if args.mr_action == "approved-partner":
@@ -2731,7 +3809,13 @@ def _run_mr(args: argparse.Namespace) -> int:
             mtz=args.mtz,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            all_model_registry_json=args.all_model_registry,
+            diffraction_selection_json=args.diffraction_selection,
+            resource_plan_json=args.resource_plan,
+            phase3_hypothesis_id=args.phase3_hypothesis_id,
+            derive_phase3_hypothesis_id=args.derive_phase3_hypothesis_id,
             threads=args.threads,
+            resource_attempt=args.resource_attempt,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
         )
@@ -2741,6 +3825,121 @@ def _run_mr(args: argparse.Namespace) -> int:
 
 
 def _run_review(args: argparse.Namespace) -> int:
+    if args.review_action == "validate-crystallographic-stages":
+        output = publish_unknown_pass1_crystallographic_review_routes(
+            review_stage_index=args.stage_index,
+            execution_identity=args.execution_identity,
+            crystal_manifest=args.crystals,
+            output_directory=args.outdir,
+        )
+        print(f"Validated three crystallographic review stages: {output}")
+        return 0
+    if args.review_action == "stage-owned-a-seeds":
+        output = stage_unknown_pass1_selected_a_seeds(
+            owned_run_registry=args.owned_run_registry,
+            owned_run_id=args.parent_run,
+            decisions=args.decisions,
+            confirmed_decisions_sha256=args.confirm_decisions_sha256,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+        print(
+            f"Staged {output.decision_count} owned A-seed decisions: {output.stage_id}"
+        )
+        return 0
+    if args.review_action == "stage-owned-sequences":
+        output = stage_unknown_pass1_sequence_decisions(
+            owned_run_registry=args.owned_run_registry,
+            owned_run_id=args.parent_run,
+            decisions=args.decisions,
+            confirmed_decisions_sha256=args.confirm_decisions_sha256,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+        print(
+            f"Staged {output.decision_count} owned sequence decisions: "
+            f"{output.stage_id}"
+        )
+        return 0
+    if args.review_action == "stage-owned-compositions":
+        output = stage_unknown_pass1_composition_decisions(
+            owned_run_registry=args.owned_run_registry,
+            owned_run_id=args.parent_run,
+            decisions=args.decisions,
+            confirmed_decisions_sha256=args.confirm_decisions_sha256,
+            output_directory=args.outdir,
+            progress=not args.no_progress,
+        )
+        print(
+            f"Staged {output.decision_count} owned composition decisions: "
+            f"{output.stage_id}"
+        )
+        return 0
+    if args.review_action == "derive-unknown-pass1-assessment":
+        output = derive_unknown_pass1_assessment(
+            derivation_request_from_spec(
+                spec_path=args.spec,
+                output_directory=args.outdir,
+            )
+        )
+        print(
+            f"Derived {output.scientific_status} unknown-pass-1 assessment: "
+            f"{output.assessment}"
+        )
+        return 0
+    if args.review_action == "collect-derived-unknown-pass1-panel":
+        output = collect_derived_unknown_pass1_panel(
+            input_root=args.input_root,
+            output_directory=args.outdir,
+        )
+        print(f"Collected unknown-pass-1 panel: {output.panel_id}")
+        return 0
+    if args.review_action == "build-owned-a-package":
+        package = build_owned_phase3_a_seed_review_package(
+            review_package=args.review_package,
+            hypotheses_jsonl=args.hypotheses,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+            parent_profile=args.parent_profile,
+            parent_phase=args.parent_phase,
+        )
+        print(f"Built owned Phase III A-seed review package: {package.manifest}")
+        return 0
+    if args.review_action == "build-owned-sequence-package":
+        package = build_owned_phase3_sequence_review_package(
+            sequence_checkpoint=args.sequence_checkpoint,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+        )
+        print(f"Built owned Phase III sequence review package: {package.manifest}")
+        return 0
+    if args.review_action == "build-owned-composition-package":
+        package = build_owned_phase3_composition_review_package(
+            sequence_checkpoint=args.sequence_checkpoint,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+        )
+        print(f"Built owned Phase III composition review package: {package.manifest}")
+        return 0
+    if args.review_action == "build-pass2-packages":
+        packages = build_pass2_review_packages(
+            beam_directory=args.beam,
+            execution_identity=args.execution_identity,
+            owned_parent_run_id=args.owned_parent_run,
+            crystal_id=args.crystal_id,
+            output_directory=args.outdir,
+        )
+        print(
+            "Built pass-2 composition/sequence review packages: "
+            f"{packages.composition.manifest}, {packages.sequence.manifest}"
+        )
+        return 0
     if args.review_action == "build-resource-summary":
         resources = build_resource_summary(
             ResourceSummaryRequest(
@@ -2757,15 +3956,6 @@ def _run_review(args: argparse.Namespace) -> int:
             f"Built T13.3 resource summary {resources.summary_id}: "
             f"{resources.summary_json}"
         )
-        return 0
-    if args.review_action == "build-report":
-        report = build_crystal_report(
-            CrystalReportRequest(
-                status_json=args.status,
-                checkpoint_directory=args.checkpoint_dir,
-            )
-        )
-        print(f"Built T13.2 crystal report {report.report_id}: {report.report_html}")
         return 0
     if args.review_action == "build-mr-seed":
         output = build_mr_seed_review(
@@ -2793,6 +3983,7 @@ def _run_review(args: argparse.Namespace) -> int:
                 stage_bundle=args.stage_bundle,
                 candidate_result_directories=tuple(args.candidate_result),
                 output_directory=args.outdir,
+                crystal_id=args.crystal_id,
                 progress=not args.no_progress,
             )
         )
@@ -2821,30 +4012,6 @@ def _run_review(args: argparse.Namespace) -> int:
         print(
             f"Built T12.5 sequence checkpoint for {sequence_output.finalist_count} "
             f"finalist(s): {sequence_output.manifest_json}"
-        )
-        return 0
-    if args.review_action == "build-status":
-        from genome_to_diffraction.schemas.results import PrototypeAssumptionStatus
-
-        status = build_status_record(
-            StatusRequest(
-                crystal_id=args.crystal_id,
-                t12_summary_json=args.t12_summary,
-                job_result_json=args.job_result,
-                refinement_results_jsonl=args.refinement_results,
-                checkpoint_manifest_json=args.checkpoint_manifest,
-                approval_candidates_tsv=args.approval_candidates,
-                decisions_tsv=args.decisions,
-                output_json=args.out,
-                prototype_assumption_status=PrototypeAssumptionStatus(
-                    args.prototype_assumption_status
-                ),
-                residual_content_suspected=args.residual_content_suspected,
-            )
-        )
-        print(
-            f"Built T13.1 status {status.execution_status.value}/"
-            f"{status.scientific_status.value}: {args.out}"
         )
         return 0
     if args.review_action != "validate-mr-seeds":
@@ -2879,6 +4046,7 @@ def _run_refinement(args: argparse.Namespace) -> int:
                 phenix_manifest=args.phenix_manifest,
                 output_directory=args.outdir,
                 progress=not args.no_progress,
+                phase3_seed_stage_manifest=args.phase3_seed_stage_manifest,
             )
         )
         print(
@@ -2918,6 +4086,11 @@ def _run_refinement(args: argparse.Namespace) -> int:
             resolution=args.resolution,
             phenix_manifest=args.phenix_manifest,
             output_directory=args.outdir,
+            crystal_id=args.crystal_id,
+            source_mtz=args.source_mtz,
+            diffraction_selection_json=args.diffraction_selection,
+            preflight_jsonl=args.preflight,
+            free_r_identity_json=args.free_r_identity,
             threads=args.threads,
             timeout_seconds=args.timeout_seconds,
             progress=not args.no_progress,
@@ -2963,6 +4136,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_benchmark(args)
         if args.command == "catalogue":
             return _run_catalogue(args)
+        if args.command == "localisation":
+            return _run_localisation(args)
         if args.command == "diffraction":
             return _run_diffraction(args)
         if args.command == "matthews":
@@ -2971,6 +4146,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _run_model(args)
         if args.command == "ranking":
             return _run_ranking(args)
+        if args.command == "composition":
+            return _run_composition(args)
         if args.command == "mr":
             return _run_mr(args)
         if args.command == "refinement":
@@ -2985,6 +4162,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             extra={"error": str(error), "exit_status": error.returncode},
         )
         return error.returncode
+    except TransientInfrastructureError as error:
+        logger.error(
+            "classified transient infrastructure failure",
+            extra={"error": str(error), "exit_status": 75},
+        )
+        return 75
     except (
         ContractError,
         GenomeToDiffractionError,

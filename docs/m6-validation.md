@@ -47,6 +47,14 @@ cluster snapshots are independent partitions and are not assumed to be nested.
 Their exact target lines and frozen set differences are private truth-side
 cross-checks, not substitutes for the all-route identity calculation.
 
+Coordinate URLs remain trusted preparation metadata only. After model policy,
+one bounded login/controller-labelled stage resolves selected PDB entries
+through the qualified cache and materialises checksum-addressed local objects.
+Case workers receive only that local registration bundle; they receive neither
+the database manifest nor URL or credential authority and never perform HTTPS.
+Scientific no-hit and the deliberate missing-model control produce typed empty
+stage bundles instead of falling back to worker-side acquisition.
+
 ## Leakage and truth isolation
 
 The leakage-controlled track excludes any model chain with at least 70% target
@@ -56,6 +64,23 @@ are excluded from both positive tracks. MMseqs2 18.8cc5c performs the pinned
 identity/coverage calculation. The 8AI1 case is predeclared leakage-model-
 scarce, giving an 11-case leakage correct-family denominator. Operational
 family evidence retains the full 12-case denominator.
+
+Truthless shared discovery retains a fixed envelope of at most 25 ranked hits
+per query and model route. This is an execution bound, not a scientific
+threshold and does not alter the frozen protocol. Operational cases restore
+the historical first three hits per route before policy evaluation. Leakage
+cases instead apply the runner-visible 70% identity/80% coverage evidence to
+the complete discovery envelope and only then retain the first three safe hits
+per route. Thus an excluded leading trio cannot hide a safe fourth hit. Every
+policy exclusion and post-policy cap deferral remains a deterministic retained
+annotation; an all-excluded candidate produces a typed
+`completed_no_model` policy result.
+
+The blind search tasks do not receive target truth or the protocol. The
+query-relative filter consumes only normalised amino-acid metrics plus the
+existing checksum-bound runner model-policy object. The separately existing
+trusted exact-deposition removal still uses the narrow protocol transition; no
+new private target or family field enters runner input or search cache identity.
 
 The opaque runner archive never contains the tracked protocol or private truth
 map. A trusted preparer emits anonymised catalogue IDs, sanitised MTZ metadata,
@@ -68,6 +93,29 @@ only opaque inputs. A narrow trusted transition reads the tracked protocol only
 to remove the exact deposition and enforce the approved all-route leakage
 threshold. Truth-side case assessment occurs only after both collected result
 checksums are fixed.
+
+For ordinary cases, the trusted preparer applies a strict Gemmi whitelist
+before the reflection object reaches the runner. It reuses the deterministic
+preflight observation selection, retains only `H,K,L`, that selected
+value/sigma pair (or anomalous quartet), and exactly one recognised integral,
+non-constant Free-R array from the same MTZ dataset. Missing or conflicting
+observations, missing or ambiguous Free-R columns, non-finite/non-integral or
+constant flags, duplicate HKLs, and changed HKL-to-flag membership abort
+preparation. FWT/PHWT, FC/PHIC, other map/phase columns, and all other source
+columns are therefore absent from ordinary runner objects and cannot affect the
+runner archive/cache identity. The two frozen `map_only_mtz` edge cases remain
+deliberate exceptions because their purpose is to exercise typed no-observation
+handling; they are not ordinary scientific inputs.
+
+Each ordinary local preparation case must carry a content-addressed, path-free
+sanitisation record binding the output MTZ checksum, exact retained labels,
+reflection count, selected observation identity, and sorted HKL and
+HKL-to-Free-R digests. The runner builder requires and independently validates
+that record against the prepared reflection object but deliberately does not
+serialise it into the blind runner manifest. Original coordinate and
+structure-factor resource checksums,
+sizes, PDB-source provenance, and the unchanged frozen protocol remain in the
+trusted `source_inventory.json`/private boundary outside the runner.
 
 Each fresh runner case emits a checksum-bound identity decision:
 `reported`, `ambiguous`, or `abstained`. It also emits typed edge observations
@@ -149,13 +197,15 @@ enabled model routes, and the leakage transition applies to every enabled
 route.
 
 The two scientific run IDs are staged and submitted separately from the same
-confirmed runner archive:
+confirmed runner archive. Both reviewed sites require an immutable commit on
+`main`:
 
 ```bash
 nf-gtd-hpc-test --no-progress m6-scientific-stage \
   --revision HEAD \
   --archive .untracked/m6/runner.tar \
   --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --source-branch main \
   --track operational
 nf-gtd-hpc-test --no-progress submit m6-operational --run-id RUN_ID
 
@@ -163,14 +213,36 @@ nf-gtd-hpc-test --no-progress m6-scientific-stage \
   --revision HEAD \
   --archive .untracked/m6/runner.tar \
   --confirm-archive-sha256 ARCHIVE_SHA256 \
+  --source-branch main \
   --track leakage
 nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
 ```
 
-Scientific staging binds the checksum-validated Viper runtime database
-configuration and the fixed Viper Phenix manifest. It does not reuse the
-legacy P0 single-root path file, which cannot represent Viper's separate
-database and licensed-software mounts.
+Scientific staging binds the checksum-validated selected-site runtime database
+configuration, its exact reviewed Nextflow profile and execution policy, and a
+run-owned Apptainer cache. Viper retains its fixed site-manifest Phenix
+binding. Marmic reuses the independently frozen Phenix manifest and checksum
+already qualified by the Phase III control profile; it does not infer that
+path from Viper's incompatible site configuration. Both final tracks must use
+the same reviewed site and its exact frozen policy checksum. The controller
+accepts only `main`; the retired development branch fails before archive
+inspection or transfer.
+
+Leakage staging and final truth-side collection both authenticate the exact
+successful operational parent. The leakage first-pass child inventory permits
+`CACHED` only for catalogue import, PDB search, and ProstT5/Foldseek search;
+every track-specific task must be newly `COMPLETED`, and the resume inventory
+must be entirely `CACHED`. Final collection rehashes the operational precheck
+and requires every reused truthless task hash and complete child-file inventory
+to equal its operational parent.
+
+If the reviewed site has no usable bare Git mirror, the controller retries only
+that exact classified staging failure. It streams the existing checksum-bound,
+size-limited immutable source checkout first, followed by the independently
+confirmed M6 runner archive. The dispatcher verifies the exact commit, locked
+environment, pinned helper, source checksum, and runner inventory before the
+run becomes stageable; arbitrary uploads and broader transport retries are not
+enabled.
 
 Each track retains its full raw output remotely, emits compact case evidence
 and a deterministic gzip of every candidate rank, verifies all output
@@ -245,6 +317,21 @@ archives, byte-level rejection of a truth-bearing runner object, all-route
 model exclusion, compact truth joins, output-checksum replay, cache
 invalidation, deterministic query batching, Nextflow fan-out, child-job
 resource evidence, cross-track truthless Nextflow-cache isolation, and the fixed Viper
-resource profiles. A two-case Viper `-stub-run` must then prove real child Slurm
+resource profiles. The MTZ regression additionally proves FWT/PHWT/FC/PHIC are
+omitted, HKL/observations/Free-R are exact, target-derived coefficient mutations
+do not change sanitised bytes or identity, invalid arrays fail closed, and the
+runner-visible MTZ cannot recover the omitted columns. A two-case Viper
+`-stub-run` must then prove real child Slurm
 submission without generating acceptance evidence. The complete locked
 repository gate remains required before an immutable Viper candidate is staged.
+
+The local full-graph cache probe separately changes one checksum-bearing
+protocol input and requires the exact ten-task downstream closure while all 16
+unaffected tasks and child outputs remain byte-identical. It also deletes one
+required child from a cached catalogue bundle and requires an explicit
+`hold_missing_required_child` verifier outcome; an unchanged published aggregate
+does not establish child completeness. This focused probe is not remote M6
+acceptance evidence. The current per-track `cache_invalidation_verified` field
+checks content-key sensitivity only; it cannot close the real mutation gate.
+M6 acceptance still requires a separately checksum-bound observed mutation
+record from the fixed execution authority.

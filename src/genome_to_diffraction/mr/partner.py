@@ -17,7 +17,9 @@ by the required Phenix manifest; no Phenix version is bundled. It writes
 parameter file, capture/native logs, and any combined ``PHASER.1`` PDB/MTZ.
 
 The cache identity is the adapter version plus the two sequence digests, parent
-solution/coordinate/LLG, B model identity, MTZ, and Phenix-manifest checksums.
+solution/coordinate/LLG and original model uncertainty, B model identity, MTZ,
+and Phenix-manifest checksums. A fixed placed parent is not reinterpreted as a
+perfect 100%-identity model.
 Focused tests cover command construction, primary/fallback score
 classification, no-solution, tool/parse failure, and checksum drift. A real
 installed Phenix run is still required for P1 qualification.
@@ -37,15 +39,17 @@ from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
     parse_completed_phaser_outputs,
+    read_phaser_evidence_text,
     read_phaser_solution_metrics,
 )
 from genome_to_diffraction.phenix.runtime import (
@@ -58,11 +62,16 @@ from genome_to_diffraction.schemas.results import (
     PreflightDecision,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionSelection,
+    diffraction_dataset_id,
+)
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v2"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v7-command-bound"
+_PHASE3_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v8-phase3-diffraction"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -98,6 +107,8 @@ class PartnerSearchRequest:
     parent_coordinate: Path
     expected_parent_coordinate_sha256: str
     parent_llg: float
+    parent_model_identity_fraction: float
+    parent_model_uncertainty_source: str
     partner_model: Path
     expected_partner_model_sha256: str
     partner_model_identity_fraction: float
@@ -105,6 +116,7 @@ class PartnerSearchRequest:
     mtz: Path
     phenix_manifest: Path
     output_directory: Path
+    diffraction_selection: DiffractionSelection | None = None
     parent_copy_count: int = 1
     partner_copy_count: int = 1
     selection_plan_id: str | None = None
@@ -188,6 +200,12 @@ def _resolve(request: PartnerSearchRequest) -> _Resolved:
         raise PhaserInputError("A and B must be distinct exact-sequence groups")
     if not math.isfinite(request.parent_llg):
         raise PhaserInputError("parent LLG must be finite")
+    if not math.isfinite(request.parent_model_identity_fraction) or not (
+        0 < request.parent_model_identity_fraction <= 1
+    ):
+        raise PhaserInputError("parent model identity fraction must be in (0, 1]")
+    if not request.parent_model_uncertainty_source.strip():
+        raise PhaserInputError("parent model uncertainty source must not be empty")
     if request.parent_copy_count < 1 or request.partner_copy_count < 1:
         raise PhaserInputError("component copy counts must be positive")
     selection_fields = (
@@ -262,6 +280,25 @@ def _resolve(request: PartnerSearchRequest) -> _Resolved:
     )
     if mtz_sha256 != preflight.mtz_sha256:
         raise PhaserInputError("MTZ checksum differs from preflight")
+    selection = request.diffraction_selection
+    if selection is not None and (
+        selection.crystal_id != request.crystal_id
+        or selection.diffraction_dataset_id
+        != diffraction_dataset_id(
+            crystal_id=request.crystal_id,
+            mtz_sha256=preflight.mtz_sha256,
+        )
+        or selection.mtz_sha256 != preflight.mtz_sha256
+        or selection.preflight_id != preflight.preflight_id
+        or selection.preflight_record_sha256 != canonical_digest(preflight)
+        or selection.observation_dataset_id != preflight.selected_observation_dataset_id
+        or selection.rendered_observation_labels
+        != preflight.selected_observation_labels
+        or selection.selected_space_group != preflight.space_group
+        or selection.resolution_low_a != preflight.resolution_low_a
+        or selection.resolution_high_a != preflight.resolution_high_a
+    ):
+        raise PhaserInputError("partner diffraction selection differs from preflight")
     return _Resolved(
         parent_group=parent_group,
         partner_group=partner_group,
@@ -279,21 +316,43 @@ def _parameters(
     resolved: _Resolved,
     parent_fasta: Path,
     partner_fasta: Path,
+    parent_identity_fraction: float,
     identity_fraction: float,
     parent_copy_count: int,
     partner_copy_count: int,
     threads: int,
+    selection: DiffractionSelection | None,
 ) -> str:
     mtz = json.dumps(str(resolved.mtz))
     parent_sequence = json.dumps(str(parent_fasta))
     partner_sequence = json.dumps(str(partner_fasta))
     parent = json.dumps(str(resolved.parent_coordinate))
     partner = json.dumps(str(resolved.partner_model))
+    labels = (
+        selection.rendered_observation_labels
+        if selection is not None
+        else resolved.preflight.selected_observation_labels
+    )
+    symmetry = (
+        "  crystal_symmetry {\n"
+        f"    space_group = {json.dumps(selection.selected_space_group)}\n"
+        "  }\n"
+        if selection is not None
+        else ""
+    )
+    resolution = (
+        "    resolution {\n"
+        f"      low = {selection.resolution_low_a:.12g}\n"
+        f"      high = {selection.resolution_high_a:.12g}\n"
+        "    }\n"
+        if selection is not None
+        else ""
+    )
     return f"""phaser {{
   mode = MR_AUTO
   hklin = {mtz}
-  labin = {resolved.preflight.selected_observation_labels}
-  composition {{
+  labin = {labels}
+{symmetry}  composition {{
     chain {{
       chain_type = protein
       comp_type = sequence_file
@@ -312,7 +371,7 @@ def _parameters(
     solution_at_origin = True
     coordinates {{
       pdb = {parent}
-      identity = 1.0
+      identity = {parent_identity_fraction:.12g}
     }}
   }}
   ensemble {{
@@ -330,8 +389,12 @@ def _parameters(
     general {{
       root = {_ROOT}
       jobs = {threads}
+      xyzout = True
+      xyzout_ensemble = True
+      keywords = True
     }}
     sgalternative {{ select = none }}
+{resolution}
   }}
 }}
 """
@@ -402,20 +465,30 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
             resolved,
             parent_fasta,
             partner_fasta,
+            request.parent_model_identity_fraction,
             request.partner_model_identity_fraction,
             request.parent_copy_count,
             request.partner_copy_count,
             request.threads,
+            request.diffraction_selection,
         ),
     )
+    parameters_sha256 = sha256_file(parameters)
+    adapter_version = (
+        _PHASE3_ADAPTER_VERSION
+        if request.diffraction_selection is not None
+        else _ADAPTER_VERSION
+    )
     search_identity = {
-        "adapter_version": _ADAPTER_VERSION,
+        "adapter_version": adapter_version,
         "crystal_id": request.crystal_id,
         "parent_solution_id": request.parent_solution_id,
         "parent_sequence_sha256": resolved.parent_group.sha256,
         "partner_sequence_sha256": resolved.partner_group.sha256,
         "parent_coordinate_sha256": resolved.parent_coordinate_sha256,
         "parent_llg": request.parent_llg,
+        "parent_model_identity_fraction": request.parent_model_identity_fraction,
+        "parent_model_uncertainty_source": (request.parent_model_uncertainty_source),
         "partner_model_sha256": resolved.partner_model_sha256,
         "partner_model_identity_fraction": request.partner_model_identity_fraction,
         "mtz_sha256": resolved.mtz_sha256,
@@ -425,6 +498,13 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         "selection_plan_id": request.selection_plan_id,
         "selection_plan_sha256": request.selection_plan_sha256,
         "partner_candidate_id": request.partner_candidate_id,
+        "diffraction_selection_id": (
+            request.diffraction_selection.diffraction_selection_id
+            if request.diffraction_selection is not None
+            else None
+        ),
+        "preflight_record_sha256": canonical_digest(resolved.preflight),
+        "parameters_sha256": parameters_sha256,
     }
     search_id = content_id("partner_", search_identity)
     arguments = ["phenix.phaser", str(parameters)]
@@ -433,13 +513,13 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         command_json,
         {
             "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
+            "adapter_version": adapter_version,
             "created_at": utc_now_iso(),
             "search_id": search_id,
             "arguments": arguments,
             "threads": request.threads,
             "timeout_seconds": request.timeout_seconds,
-            "parameters_sha256": sha256_file(parameters),
+            "parameters_sha256": parameters_sha256,
             "observation_labels": resolved.preflight.selected_observation_labels,
             "observation_dataset_id": (
                 resolved.preflight.selected_observation_dataset_id
@@ -482,10 +562,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         progress_bar.update(1)
 
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_text(
-        capture_log,
-        (completed.stdout + completed.stderr).decode("utf-8", errors="replace"),
-    )
+    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     tool_version = phenix_manifest.phenix_version
@@ -507,7 +584,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         )
     else:
         try:
-            raw_text = raw_log.read_text(encoding="utf-8", errors="replace")
+            raw_text = read_phaser_evidence_text(raw_log)
             if _reported_no_partner_solution(raw_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_partner_solution"
@@ -536,9 +613,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
                         raise PhaserParseError(
                             "partner solution lacks final LLG or TFZ"
                         )
-                    coordinate_text = coordinate.read_text(
-                        encoding="utf-8", errors="replace"
-                    )
+                    coordinate_text = read_phaser_evidence_text(coordinate)
                     fixed_parent_observed = (
                         _FIXED_PARENT_PLACEMENT.search(coordinate_text) is not None
                     )
@@ -592,6 +667,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         partner_candidate_id=request.partner_candidate_id,
         execution_status=status,
         parent_llg=request.parent_llg,
+        parent_model_identity_fraction=request.parent_model_identity_fraction,
+        parent_model_uncertainty_source=request.parent_model_uncertainty_source,
         combined_llg=combined_llg,
         incremental_llg=incremental_llg,
         partner_tfz=partner_tfz,

@@ -262,7 +262,7 @@ def test_enabled_provider_route_authenticates_plan_entry_and_database(
         provider_entry_json=output.entry_json[ProviderKey.PDB_SEQUENCE],
         database_manifest=DATABASE,
         expected_provider=ProviderKey.PDB_SEQUENCE,
-        expected_adapter_version="pdb-sequence-mmseqs-v3",
+        expected_adapter_version="pdb-sequence-mmseqs-v4",
     )
 
     assert route.plan == output.plan
@@ -294,7 +294,7 @@ def test_enabled_provider_route_rejects_entry_checksum_drift(tmp_path: Path) -> 
             provider_entry_json=entry,
             database_manifest=DATABASE,
             expected_provider=ProviderKey.PDB_SEQUENCE,
-            expected_adapter_version="pdb-sequence-mmseqs-v3",
+            expected_adapter_version="pdb-sequence-mmseqs-v4",
         )
 
 
@@ -309,7 +309,7 @@ def test_enabled_provider_route_rejects_database_manifest_drift(tmp_path: Path) 
             provider_entry_json=output.entry_json[ProviderKey.PDB_SEQUENCE],
             database_manifest=database,
             expected_provider=ProviderKey.PDB_SEQUENCE,
-            expected_adapter_version="pdb-sequence-mmseqs-v3",
+            expected_adapter_version="pdb-sequence-mmseqs-v4",
         )
 
 

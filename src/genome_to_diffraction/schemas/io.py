@@ -22,10 +22,12 @@ from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     CrystalManifest,
     DatabaseManifest,
+    GelEvidenceManifest,
     PhenixInstallManifest,
     PipelineConfig,
     RunManifest,
 )
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.providers import ProviderExecutionPlan
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
@@ -44,6 +46,10 @@ from genome_to_diffraction.schemas.results import (
     SourceProteinRecord,
     StructuralSearchHit,
     StructuralSearchResult,
+)
+from genome_to_diffraction.schemas.v2.review import (
+    PhaseIIIReviewDecision,
+    PhaseIIIReviewDecisionFile,
 )
 
 InputFormat = Literal["auto", "json", "yaml", "tsv"]
@@ -197,6 +203,13 @@ def _crystal_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> obje
                 row=row_number,
                 column=field,
             )
+        converted["free_r_test_value"] = _number(
+            row.get("free_r_test_value", ""),
+            converter=int,
+            path=path,
+            row=row_number,
+            column="free_r_test_value",
+        )
         converted["sds_page_mass_kda"] = [
             float(item) for item in _split(row.get("sds_page_mass_kda", ""))
         ]
@@ -218,6 +231,99 @@ def _review_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> objec
         for _, row in rows
     ]
     return {"schema_version": "1.0", "decisions": decisions}
+
+
+_PHASE3_REVIEW_TSV_COLUMNS = frozenset(
+    {
+        "checkpoint",
+        "owned_parent_run_id",
+        "review_package_id",
+        "review_package_manifest_sha256",
+        "crystal_id",
+        "item_id",
+        "decision",
+        "reviewer",
+        "reviewed_at",
+        "reason",
+        "comment",
+    }
+)
+
+
+def _phase3_review_tsv(
+    rows: Iterator[tuple[int, dict[str, str]]], path: Path
+) -> object:
+    metadata_fields = (
+        "checkpoint",
+        "owned_parent_run_id",
+        "review_package_id",
+        "review_package_manifest_sha256",
+    )
+    metadata: dict[str, str] | None = None
+    decisions: list[dict[str, object]] = []
+    for row_number, row in rows:
+        unexpected = sorted(set(row) - _PHASE3_REVIEW_TSV_COLUMNS)
+        if unexpected:
+            raise ContractLoadError(
+                f"{path}:{row_number}:{unexpected[0]}: unexpected TSV column"
+            )
+        row_metadata = {field: row[field].strip() for field in metadata_fields}
+        if metadata is None:
+            metadata = row_metadata
+        elif row_metadata != metadata:
+            raise ContractLoadError(
+                f"{path}:{row_number}:checkpoint: Phase III review TSV mixes "
+                "checkpoint or parent-package metadata"
+            )
+        decisions.append(
+            _drop_nulls(
+                {
+                    "crystal_id": _optional(row["crystal_id"]),
+                    "item_id": _optional(row["item_id"]),
+                    "decision": _optional(row["decision"]),
+                    "reviewer": _optional(row["reviewer"]),
+                    "reviewed_at": _optional(row["reviewed_at"]),
+                    "reason": _optional(row["reason"]),
+                    "comment": _optional(row.get("comment", "")),
+                }
+            )
+        )
+    if metadata is None:
+        raise ContractLoadError(f"{path}:2:row: Phase III review TSV has no decisions")
+    try:
+        decision_file = PhaseIIIReviewDecisionFile.from_content(
+            checkpoint=metadata["checkpoint"],
+            owned_parent_run_id=metadata["owned_parent_run_id"],
+            review_package_id=metadata["review_package_id"],
+            review_package_manifest_sha256=metadata["review_package_manifest_sha256"],
+            decisions=tuple(
+                PhaseIIIReviewDecision.model_validate(decision)
+                for decision in decisions
+            ),
+        )
+    except ValidationError as error:
+        raise ContractLoadError(
+            f"{path}: Phase III review TSV violates its typed contract: {error}"
+        ) from error
+    return decision_file.model_dump(mode="json", exclude_none=False)
+
+
+def _gel_evidence_tsv(rows: Iterator[tuple[int, dict[str, str]]], path: Path) -> object:
+    observations: list[dict[str, object]] = []
+    for row_number, row in rows:
+        converted: dict[str, object] = {
+            key: _optional(value) for key, value in row.items()
+        }
+        for field in ("apparent_mass_kda", "absolute_uncertainty_kda"):
+            converted[field] = _number(
+                row.get(field, ""),
+                converter=float,
+                path=path,
+                row=row_number,
+                column=field,
+            )
+        observations.append(_drop_nulls(converted))
+    return {"schema_version": "2.0", "observations": observations}
 
 
 CONTRACTS: dict[str, ContractSpec] = {
@@ -248,6 +354,22 @@ CONTRACTS: dict[str, ContractSpec] = {
     "database-manifest": ContractSpec(
         DatabaseManifest, "database_manifest.schema.json"
     ),
+    "gel-evidence-manifest": ContractSpec(
+        GelEvidenceManifest,
+        "gel_evidence_manifest.schema.json",
+        _gel_evidence_tsv,
+        (
+            "observation_id",
+            "crystal_id",
+            "method",
+            "apparent_mass_kda",
+            "absolute_uncertainty_kda",
+            "condition",
+            "band_role",
+            "replicate_id",
+            "source",
+        ),
+    ),
     "phenix-install-manifest": ContractSpec(
         PhenixInstallManifest, "phenix_install_manifest.schema.json"
     ),
@@ -256,11 +378,31 @@ CONTRACTS: dict[str, ContractSpec] = {
         ProviderExecutionPlan, "provider_execution_plan.schema.json"
     ),
     "mr-hypothesis": ContractSpec(MrHypothesis, "mr_hypothesis.schema.json"),
+    "mr-resource-plan": ContractSpec(
+        MrResourcePlan,
+        "mr_resource_plan.schema.json",
+    ),
     "review-decisions": ContractSpec(
         ReviewDecisionManifest,
         "review_decision.schema.json",
         _review_tsv,
         ("checkpoint", "item_id", "decision", "reviewer", "reviewed_at"),
+    ),
+    "phase3-review-decisions": ContractSpec(
+        PhaseIIIReviewDecisionFile,
+        tsv_adapter=_phase3_review_tsv,
+        tsv_required_columns=(
+            "checkpoint",
+            "owned_parent_run_id",
+            "review_package_id",
+            "review_package_manifest_sha256",
+            "crystal_id",
+            "item_id",
+            "decision",
+            "reviewer",
+            "reviewed_at",
+            "reason",
+        ),
     ),
     "resource-summary": ContractSpec(ResourceSummaryRecord),
     "run-manifest": ContractSpec(RunManifest),

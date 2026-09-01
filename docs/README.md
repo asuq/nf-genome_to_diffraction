@@ -6,6 +6,11 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [Canonical v0.3 candidate-confidence-first roadmap](v0.3-roadmap.md): the
+  authoritative execution order from one-copy unknown screening through
+  A-seed review, sequential copy completion, refinement/map/sequence reports,
+  remaining M6 and finding closure, pass 2, atlas/package completion, and the
+  final release gates.
 - [v0.2.0 release notes](releases/v0.2.0.md): experimental two-component scope,
   known control outcomes, interpretation limits, and deferred hardening.
 - [v0.1.0 release notes](releases/v0.1.0.md): explicit archival release scope,
@@ -16,12 +21,70 @@ remain authoritative for scientific policy and interface contracts.
 - [Software v0.2 roadmap](v0.2-roadmap.md): active minimal 6RTZ `1A + 1B`
   implementation, explicit `nA + mB`, small controls, milestone testing, and
   deferred robustness backlog.
-- [Phase III roadmap](phase-iii-roadmap.md): approved post-v0.2 hardening,
-  general component-list search through a fixed six-component envelope, M6
-  repair, localisation/gel evidence, and two-pass unknown-crystal analysis.
-- [Phase III finding ledger](phase-iii-finding-ledger.md): current disposition
-  of all 34 original findings plus the post-v0.2 claim, application, model, and
-  component-depth findings with their acceptance regressions.
+- [Phase III technical roadmap](phase-iii-roadmap.md): detailed isolated
+  Phase III hardening on `main`, bounded general component search, M6 repair, and
+  two-pass implementation context subordinate to the canonical v0.3 order.
+- [Phase III fail-closed and clean-break adverse review](adverse-code-review-2026-08-25-fail-closed-clean-break.md):
+  independently verified scientific, scheduler/provider, reviewed-execution,
+  and current-compatibility defects with concrete source evidence.
+- [Phase III fail-closed and clean-break remediation roadmap](phase-iii-fail-closed-clean-break-roadmap.md):
+  mandatory pre-pass-1 scientific fixes, canonical execution migrations, and
+  the complete finding-closure stop gate before the second unknown run.
+- [Phase III finding ledger](phase-iii-finding-ledger.md): original and newer
+  defects, dependency gates, required regressions, and final-disposition rules
+  for v0.3.0.
+- [Phase III compute-worker network policy](phase-iii-worker-network-policy.md):
+  fail-closed Linux network namespaces for every in-job task, separate bounded
+  pre-submit login staging, failure semantics, and remaining site qualification.
+- [Phase III all-eligible model registry](phase-iii-all-model-registry.md):
+  cap-independent processed-model universe, content identity, typed absence,
+  checksum validation, and authoritative schema-v2 B--F planner binding.
+- [Phase III component candidate generation](phase-iii-candidate-generation.md):
+  complete catalogue/evidence joins, parent-specific copies 1--4,
+  conservative localisation reopen, gel priors, model selection, and retained
+  candidate counts.
+- [Phase III component-expansion execution input](phase-iii-component-expansion-input.md):
+  component-specific fixed-coordinate/error evidence, selected candidate,
+  diffraction and Free-R binding, and the explicit unqualified multi-fixed
+  Phaser syntax boundary.
+- [Phase III Phaser interface probe](phase-iii-phenix-interface-probe.md): fixed
+  no-data Marmic capture of the installed `phenix.phaser --show_defaults`
+  interface before per-ensemble output syntax is used.
+- [Phase III Phaser component-coordinate recovery](phase-iii-phaser-placement-output.md):
+  exact source-model-to-combined-chain assignment, `.sol` binding, grouped
+  component PDBs, and atom-complete recombination without guessed chain order.
+- [Dynamic Phaser resource allocation](mr-resource-allocation.md): deterministic
+  reflection/coordinate workload tiers, nf-core-style retry multiplication,
+  hard site caps, provenance, failure semantics, and controller bounds.
+- [Failed MR child evidence](failed-mr-child-evidence.md): private bounded
+  post-failure task inventory, resource/log/result retention, checksum-authenticated
+  collection, and the explicit prohibition on scientific or cache promotion.
+- [Phase III 9ECN control preparation](phase-iii-9ecn-control.md): frozen
+  `2A+2B+2C` identities, expression-tag alignment, modified McrA residues,
+  three component models, and the joint two-copy McrA hypothesis.
+- [Phase III locked offline wheel gate](phase-iii-offline-wheel-gate.md): exact
+  locked backend, purelib wheel inspection/install, packaged schema and source
+  parity, the sole public console entry point, internal-HPC exclusion, and
+  cross-surface version parity.
+- [Phase III composition-attempt fan-out](phase-iii-composition-attempt-fanout.md):
+  complete immutable selected-attempt items, typed empty paths, stub-only
+  Nextflow execution, and byte-identical cached-resume evidence.
+- [Phase III multi-crystal first-copy application](phase-iii-multicrystal-first-copy.md):
+  one shared catalogue/provider preparation, independent manifest-owned
+  crystal funnels, complete joint-A attempts, and separate unapproved reviews.
+- [Phase III complete-catalogue Foldseek batching](phase-iii-foldseek-batching.md):
+  deterministic 128-query Nextflow items, one high-memory task at a time,
+  exact catalogue coverage, retained raw evidence, and cached replay.
+- [Phase III unknown-pass-1 local screen stub](phase-iii-unknown-pass1-screen-stub.md):
+  path-closed synthetic three-crystal fan-out, staged crystallographic review,
+  shared preparation, exact 25-A inventory, typed no-work paths, and cached
+  resume without an HPC or scientific-execution claim.
+- [Phase III offline localisation and wave policy](localisation-adapters.md):
+  one-item-per-group PSORTb 3.0.6 execution, typed blocked DeepTMHMM 1.0,
+  conservative first-wave decisions, exclusion retention, and zero-pack reopen.
+- [Phase III offline localisation runtime](phase-iii-localisation-runtime.md):
+  checksum-pinned PSORTb/DeepTMHMM catalogue batches, mandatory Docker network
+  denial, portable raw evidence, and the live first-copy authority boundary.
 - [Single-component prototype roadmap](single-component-prototype-roadmap.md):
   historical v0.1/M6 plan and preserved single-component evidence; it is no
   longer the active heteromer gate.

@@ -71,8 +71,14 @@ def test_batch_search_partition_is_independent_of_completion_order(
         tmp_path, batch_id="2" * 64, suffix="second", sequence="CCCC"
     )
 
-    forward = _batch_search_records((first, second), "pdb_sequence")
-    reverse = _batch_search_records((second, first), "pdb_sequence")
+    groups = frozenset(
+        {
+            f"seq_{sequence_digest('AAAA')}",
+            f"seq_{sequence_digest('CCCC')}",
+        }
+    )
+    forward = _batch_search_records((first, second), "pdb_sequence", groups)
+    reverse = _batch_search_records((second, first), "pdb_sequence", groups)
 
     assert forward == reverse
     assert [item.search_id for item in forward[0]] == ["srch_first", "srch_second"]
@@ -86,4 +92,13 @@ def test_batch_search_partition_rejects_duplicate_batch_ids(tmp_path: Path) -> N
     )
 
     with pytest.raises(PublicControlError, match="batch is duplicated"):
-        _batch_search_records((first, duplicate), "pdb_sequence")
+        _batch_search_records(
+            (first, duplicate),
+            "pdb_sequence",
+            frozenset(
+                {
+                    f"seq_{sequence_digest('AAAA')}",
+                    f"seq_{sequence_digest('CCCC')}",
+                }
+            ),
+        )

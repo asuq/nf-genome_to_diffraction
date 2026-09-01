@@ -30,5 +30,9 @@ process IMPORT_CATALOGUES {
     cp '${projectDir}/tests/fixtures/stubs/sequence_groups.jsonl' catalogue/sequence_groups.jsonl
     cp '${projectDir}/tests/fixtures/stubs/source_records.jsonl' catalogue/source_records.jsonl
     printf '%s\n' '>seq_f50b9a1db8767fb7cdc8b89cf1a78c9fac1e0e2d5bb5367aeec14709396d5c5e' 'ACDE' > catalogue/exact_sequences.faa
+    python '${projectDir}/tests/scripts/materialise_catalogue_import_stub.py' \
+        --catalogues '${catalogues}' \
+        --config '${pipeline_config}' \
+        --catalogue-directory catalogue
     """
 }

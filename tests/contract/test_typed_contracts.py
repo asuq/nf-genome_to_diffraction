@@ -23,8 +23,10 @@ from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     CrystalEntry,
     CrystalManifest,
+    GelEvidenceManifest,
     SmokeTestStatus,
     require_remote_submission_authorisation,
+    validate_gel_evidence_references,
     validate_manifest_references,
 )
 from genome_to_diffraction.schemas.results import (
@@ -43,7 +45,9 @@ AUTHORITATIVE_SCHEMAS = {
     "catalogue-manifest": "catalogue_manifest.schema.json",
     "crystal-manifest": "crystal_manifest.schema.json",
     "database-manifest": "database_manifest.schema.json",
+    "gel-evidence-manifest": "gel_evidence_manifest.schema.json",
     "mr-hypothesis": "mr_hypothesis.schema.json",
+    "mr-resource-plan": "mr_resource_plan.schema.json",
     "phenix-install-manifest": "phenix_install_manifest.schema.json",
     "pipeline-config": "pipeline_config.schema.json",
     "review-decisions": "review_decision.schema.json",
@@ -65,6 +69,8 @@ class _JsonWireDecodingProbe(ContractModel):
         ("catalogue-manifest", "examples/catalogues.tsv"),
         ("crystal-manifest", "examples/crystal_manifest.json"),
         ("crystal-manifest", "examples/crystals.tsv"),
+        ("gel-evidence-manifest", "examples/gel_evidence_manifest.json"),
+        ("gel-evidence-manifest", "examples/gel_evidence.tsv"),
         ("pipeline-config", "examples/config.yaml"),
         ("provider-execution-plan", "examples/provider_plan.json"),
         ("database-manifest", "tests/fixtures/stubs/database_manifest.json"),
@@ -73,6 +79,7 @@ class _JsonWireDecodingProbe(ContractModel):
             "tests/fixtures/stubs/phenix_install_manifest.json",
         ),
         ("mr-hypothesis", "tests/fixtures/stubs/mr_hypothesis.json"),
+        ("mr-resource-plan", "tests/fixtures/stubs/mr_resource_plan.json"),
         ("review-decisions", "examples/approvals/approved_mr_seeds.tsv"),
     ),
 )
@@ -80,7 +87,10 @@ def test_approved_examples_validate_with_application_models(
     kind: str, relative_path: str
 ) -> None:
     model = load_contract(REPOSITORY / relative_path, kind, progress=False)
-    assert model.model_dump(mode="json")["schema_version"] == "1.0"
+    expected_version = (
+        "2.0" if kind in {"gel-evidence-manifest", "mr-resource-plan"} else "1.0"
+    )
+    assert model.model_dump(mode="json")["schema_version"] == expected_version
 
 
 def test_duplicate_catalogue_ids_fail_with_precise_diagnostic(tmp_path: Path) -> None:
@@ -94,6 +104,107 @@ def test_duplicate_catalogue_ids_fail_with_precise_diagnostic(tmp_path: Path) ->
         ContractValidationError, match="catalogue_id values must be unique"
     ):
         load_contract(path, "catalogue-manifest", progress=False)
+
+
+def test_duplicate_gel_observation_ids_fail(tmp_path: Path) -> None:
+    document = json.loads(
+        (REPOSITORY / "examples/gel_evidence_manifest.json").read_text(encoding="utf-8")
+    )
+    document["observations"].append(dict(document["observations"][0]))
+    path = tmp_path / "duplicate-gel-observation.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(
+        ContractValidationError, match="observation_id values must be unique"
+    ):
+        load_contract(path, "gel-evidence-manifest", progress=False)
+
+
+def test_empty_gel_manifest_is_explicitly_neutral(tmp_path: Path) -> None:
+    path = tmp_path / "no-gel-evidence.json"
+    path.write_text(
+        json.dumps({"schema_version": "2.0", "observations": []}),
+        encoding="utf-8",
+    )
+
+    manifest = load_contract(path, "gel-evidence-manifest", progress=False)
+
+    assert manifest.model_dump(mode="json")["observations"] == []
+
+
+def test_gel_observations_must_reference_supplied_crystals() -> None:
+    gel_evidence = GelEvidenceManifest.model_validate(
+        {
+            "schema_version": "2.0",
+            "observations": [
+                {
+                    "observation_id": "gel_01",
+                    "crystal_id": "unknown_01",
+                    "method": "sds_page",
+                    "apparent_mass_kda": 42.0,
+                    "absolute_uncertainty_kda": 4.0,
+                    "condition": "reducing",
+                    "band_role": "dominant",
+                    "replicate_id": "r1",
+                    "source": "supervisor_measurement",
+                }
+            ],
+        }
+    )
+    matching = CrystalManifest(
+        schema_version="1.0",
+        crystals=(
+            CrystalEntry(
+                crystal_id="unknown_01",
+                mtz="unknown_01.mtz",
+                catalogue_id="catalogue_01",
+                allow_remote_sequence_submission=False,
+            ),
+        ),
+    )
+    mismatched = CrystalManifest(
+        schema_version="1.0",
+        crystals=(
+            CrystalEntry(
+                crystal_id="unknown_02",
+                mtz="unknown_02.mtz",
+                catalogue_id="catalogue_01",
+                allow_remote_sequence_submission=False,
+            ),
+        ),
+    )
+
+    validate_gel_evidence_references(gel_evidence, matching)
+    with pytest.raises(
+        ValueError,
+        match="gel observations reference unknown crystal_id values: unknown_01",
+    ):
+        validate_gel_evidence_references(gel_evidence, mismatched)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("apparent_mass_kda", 0),
+        ("absolute_uncertainty_kda", 0),
+        ("method", "size_exclusion"),
+        ("band_role", "target"),
+    ),
+)
+def test_invalid_gel_evidence_fails_at_observation(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    document = json.loads(
+        (REPOSITORY / "examples/gel_evidence_manifest.json").read_text(encoding="utf-8")
+    )
+    document["observations"][0][field] = value
+    path = tmp_path / f"invalid-gel-{field}.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+
+    with pytest.raises(ContractValidationError) as captured:
+        load_contract(path, "gel-evidence-manifest", progress=False)
+
+    assert f"{path}:/observations/0/{field}" in str(captured.value)
 
 
 def test_missing_required_field_fails_at_exact_path(tmp_path: Path) -> None:

@@ -1,18 +1,100 @@
 """Tests for exact-accession AlphaFold DB retrieval and caching."""
 
 import hashlib
+import io
 import json
+import urllib.error
+from email.message import Message
 from pathlib import Path
+from typing import TypedDict, cast
 
 import gemmi
 import pytest
 
 from genome_to_diffraction.databases.cache import initialise_coordinate_cache
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.manifests import PipelineConfig
+from genome_to_diffraction.schemas.providers import ProviderKey
 from genome_to_diffraction.schemas.results import SequenceGroupRecord
-from genome_to_diffraction.status import ExecutionStatus, ResultParseError
+from genome_to_diffraction.status import (
+    ExecutionStatus,
+    InfrastructureError,
+    ResultParseError,
+    TransientInfrastructureError,
+)
 from genome_to_diffraction.structure_search import AfdbExactRequest, search_afdb_exact
 from genome_to_diffraction.structure_search import afdb_exact as afdb_module
+from genome_to_diffraction.structure_search.provider_plan import (
+    ProviderPlanRequest,
+    resolve_provider_plan,
+)
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+class _ProviderRoute(TypedDict):
+    provider_plan_json: Path
+    provider_entry_json: Path
+
+
+def _provider_route(tmp_path: Path, database_manifest: Path) -> _ProviderRoute:
+    config = load_contract(
+        REPOSITORY / "examples/config.yaml", "pipeline-config", progress=False
+    )
+    assert isinstance(config, PipelineConfig)
+    document = config.model_dump(mode="json")
+    providers = cast(dict[str, object], document["providers"])
+    for key, value in providers.items():
+        cast(dict[str, object], value)["enabled"] = key == ProviderKey.AFDB_EXACT.value
+    config_path = tmp_path / "afdb-provider-config.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+    output = resolve_provider_plan(
+        ProviderPlanRequest(
+            pipeline_config=config_path,
+            database_manifest=database_manifest,
+            output_directory=tmp_path / "afdb-provider-plan",
+        )
+    )
+    return {
+        "provider_plan_json": output.plan_json,
+        "provider_entry_json": output.entry_json[ProviderKey.AFDB_EXACT],
+    }
+
+
+@pytest.mark.parametrize(
+    ("http_status", "expected_error"),
+    (
+        (503, TransientInfrastructureError),
+        (429, TransientInfrastructureError),
+        (403, InfrastructureError),
+    ),
+)
+def test_afdb_only_marks_temporary_http_failures_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+    http_status: int,
+    expected_error: type[InfrastructureError],
+) -> None:
+    def fail(*_args: object, **_kwargs: object) -> object:
+        raise urllib.error.HTTPError(
+            "https://alphafold.ebi.ac.uk/test",
+            http_status,
+            "test failure",
+            Message(),
+            io.BytesIO(b""),
+        )
+
+    monkeypatch.setattr(afdb_module.urllib.request, "urlopen", fail)
+
+    with pytest.raises(expected_error) as captured:
+        afdb_module._http_get(
+            "https://alphafold.ebi.ac.uk/test",
+            accept="application/json",
+            timeout_seconds=1,
+            retry_count=1,
+            maximum_bytes=1024,
+        )
+    assert type(captured.value) is expected_error
 
 
 def _sequence_group(sequence: str) -> SequenceGroupRecord:
@@ -169,6 +251,7 @@ def test_afdb_exact_verifies_api_and_coordinate_sequence_and_caches_model(
             source_records_jsonl=source_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "output with spaces",
+            **_provider_route(tmp_path, manifest_path),
             accession_map_tsv=accession_map,
             progress=False,
         )
@@ -215,6 +298,7 @@ def test_afdb_exact_refseq_only_record_is_ineligible_without_network(
             source_records_jsonl=source_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "ineligible output",
+            **_provider_route(tmp_path, manifest_path),
             progress=False,
         )
     )
@@ -252,6 +336,7 @@ def test_afdb_exact_rejects_non_exact_api_mapping_without_fetching_coordinates(
             source_records_jsonl=source_path,
             database_manifest=manifest_path,
             output_directory=tmp_path / "mismatch output",
+            **_provider_route(tmp_path, manifest_path),
             progress=False,
         )
     )
@@ -292,6 +377,7 @@ def test_afdb_exact_fails_loudly_when_coordinate_sequence_disagrees(
                 source_records_jsonl=source_path,
                 database_manifest=manifest_path,
                 output_directory=tmp_path / "bad coordinate output",
+                **_provider_route(tmp_path, manifest_path),
                 progress=False,
             )
         )

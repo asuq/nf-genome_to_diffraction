@@ -18,6 +18,20 @@ from genome_to_diffraction.mr.copy_report import (
     CopyCountReportRequest,
     build_copy_count_report,
 )
+from genome_to_diffraction.mr.fixed_components import (
+    FixedComponentEvidenceError,
+    FixedComponentEvidenceOutput,
+    FixedComponentEvidenceRequest,
+    FixedComponentUncertainty,
+    build_fixed_component_execution_evidence,
+)
+from genome_to_diffraction.mr.multi_fixed import (
+    CandidateSearchComponent,
+    FixedSearchComponent,
+    MultiFixedSearchManifest,
+    MultiFixedSearchResult,
+    run_multi_fixed_search,
+)
 from genome_to_diffraction.mr.partner import (
     PartnerSearchOutput,
     PartnerSearchRequest,
@@ -26,6 +40,13 @@ from genome_to_diffraction.mr.partner import (
 from genome_to_diffraction.mr.partner_summary import (
     PartnerSummaryRequest,
     summarize_partner_attempts,
+)
+from genome_to_diffraction.mr.per_placement import (
+    ExpectedPhaserComponent,
+    PhaserPerPlacementError,
+    PhaserPerPlacementOutput,
+    PhaserPerPlacementRequest,
+    collect_phaser_per_placement_outputs,
 )
 from genome_to_diffraction.mr.phaser import (
     ParsedPhaserLog,
@@ -44,18 +65,32 @@ __all__ = [
     "AddCopyRunRequest",
     "AddCopySeriesOutput",
     "ApprovedPartnerSearchRequest",
+    "CandidateSearchComponent",
     "CopyCountReportOutput",
     "CopyCountReportRequest",
+    "ExpectedPhaserComponent",
+    "FixedComponentEvidenceError",
+    "FixedComponentEvidenceOutput",
+    "FixedComponentEvidenceRequest",
+    "FixedComponentUncertainty",
+    "FixedSearchComponent",
+    "MultiFixedSearchManifest",
+    "MultiFixedSearchResult",
     "ParsedPhaserLog",
     "PartnerSearchOutput",
     "PartnerSearchRequest",
     "PartnerSummaryRequest",
     "PhaserInputError",
     "PhaserParseError",
+    "PhaserPerPlacementError",
+    "PhaserPerPlacementOutput",
+    "PhaserPerPlacementRequest",
     "PhaserRunOutput",
     "PhaserRunRequest",
     "PlannedPartnerSearchRequest",
     "build_copy_count_report",
+    "build_fixed_component_execution_evidence",
+    "collect_phaser_per_placement_outputs",
     "parse_completed_phaser_outputs",
     "parse_phaser_log",
     "read_phaser_solution_metrics",
@@ -63,6 +98,7 @@ __all__ = [
     "run_additional_copy_series",
     "run_approved_partner_search",
     "run_first_copy_phaser",
+    "run_multi_fixed_search",
     "run_partner_search",
     "run_planned_partner_search",
     "summarize_partner_attempts",

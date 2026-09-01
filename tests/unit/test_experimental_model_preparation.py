@@ -171,3 +171,28 @@ def test_experimental_model_rejects_coordinate_checksum_drift(tmp_path: Path) ->
 
     with pytest.raises(ExperimentalModelInputError, match="checksum mismatch"):
         prepare_experimental_models(_request(tmp_path, sources, mappings, groups))
+
+
+def test_empty_experimental_sources_without_registration_evidence_remain_invalid(
+    tmp_path: Path,
+) -> None:
+    sources, mappings, groups, _, _ = _inputs(tmp_path)
+    sources.write_text("", encoding="utf-8")
+    mappings.write_text("", encoding="utf-8")
+
+    with pytest.raises(ExperimentalModelInputError, match="registration manifest"):
+        prepare_experimental_models(_request(tmp_path, sources, mappings, groups))
+
+
+def test_experimental_model_resolves_staged_relative_coordinate(tmp_path: Path) -> None:
+    sources, mappings, groups, source, _ = _inputs(tmp_path)
+    coordinate = Path(source.coordinate_path)
+    relative_source = source.model_copy(
+        update={"coordinate_path": coordinate.relative_to(sources.parent).as_posix()}
+    )
+    sources.write_text(f"{canonical_json_text(relative_source)}\n", encoding="utf-8")
+
+    output = prepare_experimental_models(_request(tmp_path, sources, mappings, groups))
+
+    assert len(output.records) == 1
+    assert output.records[0].coordinate_id == source.coordinate_id

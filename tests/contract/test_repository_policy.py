@@ -2,14 +2,28 @@
 
 import hashlib
 import json
+import re
+import subprocess
+import tomllib
 from pathlib import Path
 
 import gemmi
+import pytest
 import yaml
 
 from genome_to_diffraction.schemas.results import ProcessedModelRecord
 
 REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+def test_root_nextflow_surface_has_only_intentional_owners() -> None:
+    assert {path.name for path in REPOSITORY.glob("*.nf")} == {
+        "m6_validation.nf",
+        "main.nf",
+        "phase3_application.nf",
+        "prepare_databases.nf",
+        "qualification.nf",
+    }
 
 
 def test_operational_documentation_is_tracked_separately_from_handoff() -> None:
@@ -30,6 +44,24 @@ def test_packaging_only_handoff_files_are_absent() -> None:
         "SHA256SUMS",
     ):
         assert not (REPOSITORY / name).exists()
+
+
+def test_public_distribution_has_one_cli_and_excludes_internal_hpc() -> None:
+    pyproject = tomllib.loads(
+        (REPOSITORY / "pyproject.toml").read_text(encoding="utf-8")
+    )
+    pixi = tomllib.loads((REPOSITORY / "pixi.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["scripts"] == {
+        "genome-to-diffraction": "genome_to_diffraction.cli:main"
+    }
+    assert (
+        "/src/genome_to_diffraction/hpc"
+        in (pyproject["tool"]["hatch"]["build"]["targets"]["wheel"]["exclude"])
+    )
+    assert pixi["tasks"]["nf-gtd-hpc-test"] == (
+        "python -m genome_to_diffraction.hpc.cli"
+    )
 
 
 def test_pilot_afdb_mapping_is_explicit_and_narrow() -> None:
@@ -68,6 +100,97 @@ def test_remote_sequence_submission_defaults_off() -> None:
     assert '"allow_remote_sequence_submission": false' in crystal
 
 
+def test_network_acquisition_processes_use_both_reviewed_controller_labels() -> None:
+    modules = {
+        "REGISTER_PDB_COORDINATES": "modules/local/register_pdb_coordinates.nf",
+        "RETRIEVE_AFDB_EXACT": "modules/local/retrieve_afdb_exact.nf",
+    }
+    for process_name, relative_path in modules.items():
+        source = (REPOSITORY / relative_path).read_text(encoding="utf-8")
+        process = source.split(f"process {process_name}", maxsplit=1)[1].split(
+            "input:",
+            maxsplit=1,
+        )[0]
+        assert "label 'process_network'" in process
+        assert "label 'needs_internet'" in process
+        assert "label 'run_local'" in process
+
+    m6_source = (REPOSITORY / "modules/local/m6_nextflow_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    m6_materialisation = m6_source.split("process M6_STAGE_COORDINATES", maxsplit=1)[
+        1
+    ].split("input:", maxsplit=1)[0]
+    assert "label 'run_local'" in m6_materialisation
+    assert "label 'process_network'" not in m6_materialisation
+    assert "label 'needs_internet'" not in m6_materialisation
+
+    login_labelled = {
+        path.relative_to(REPOSITORY).as_posix()
+        for path in (REPOSITORY / "modules").rglob("*.nf")
+        if any(
+            label in path.read_text(encoding="utf-8")
+            for label in ("label 'needs_internet'", "label 'run_local'")
+        )
+    }
+    assert login_labelled == {
+        *modules.values(),
+        "modules/local/m6_nextflow_tasks.nf",
+    }
+
+    sites = REPOSITORY / "external/nf-helper/conf/sites"
+    marmic = (sites / "marmic.config").read_text(encoding="utf-8")
+    viper = (sites / "viper-cpu.config").read_text(encoding="utf-8")
+    assert (
+        "executor = 'local'"
+        in marmic.split(
+            "withLabel: run_local",
+            maxsplit=1,
+        )[1].split("}", maxsplit=1)[0]
+    )
+    assert (
+        "executor = 'local'"
+        in viper.split(
+            "withLabel: needs_internet",
+            maxsplit=1,
+        )[1].split("}", maxsplit=1)[0]
+    )
+
+
+def test_hpc_tasks_enforce_network_namespace_without_in_job_exception() -> None:
+    wrapper_path = REPOSITORY / "bootstrap" / "nf-gtd-worker-offline-shell"
+    wrapper = wrapper_path.read_text(encoding="utf-8")
+    assert '[[ ! "${SLURM_JOB_ID:-}" =~ ^[0-9]+$ ]]' in wrapper
+    assert "GTD_COMPUTE_NETWORK_ACCESS=false" in wrapper
+    assert (
+        'exec /usr/bin/unshare --user --map-current-user --net -- /bin/bash "$@"'
+        in wrapper
+    )
+    outside_slurm = subprocess.run(
+        ["/bin/bash", str(wrapper_path), "-c", "exit 0"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert outside_slurm.returncode == 78
+    assert "requires a numeric Slurm job context" in outside_slurm.stderr
+
+    sites = ("conf/marmic.config", "conf/viper-cpu.config")
+    for relative_path in sites:
+        config = (REPOSITORY / relative_path).read_text(encoding="utf-8")
+        assert '"${projectDir}/bootstrap/nf-gtd-worker-offline-shell"' in config
+        assert "shell = ['/bin/bash', '-ue']" not in config
+
+    production_sources = (
+        tuple(REPOSITORY.glob("*.nf"))
+        + tuple((REPOSITORY / "modules").rglob("*.nf"))
+        + tuple((REPOSITORY / "workflows").rglob("*.nf"))
+    )
+    for path in production_sources:
+        source = path.read_text(encoding="utf-8")
+        assert re.search(r"(?m)^\s*shell\s+['\"]", source) is None
+
+
 def test_pilot_retention_cap_preserves_the_qualified_8oox_copy_rank() -> None:
     config = yaml.safe_load(
         (REPOSITORY / "examples" / "config.yaml").read_text(encoding="utf-8")
@@ -90,6 +213,212 @@ def test_diverse_funnel_stages_coordinate_sources_under_unique_names() -> None:
     assert "--coordinate-sources '${pdb_coordinate_sources}'" in module
 
 
+def test_phase3_funnel_copies_validated_localisation_bundle() -> None:
+    module = (
+        REPOSITORY / "modules" / "local" / "build_phase3_diverse_first_copy_funnel.nf"
+    ).read_text(encoding="utf-8")
+
+    assert "stageInMode 'copy'" in module
+    assert "--localisation-bundle '${localisation_bundle}'" in module
+
+
+def test_provider_local_processes_have_complete_scheduler_resources() -> None:
+    base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
+    block = base.split("withLabel: process_local", maxsplit=1)[1].split(
+        "withLabel: process_single",
+        maxsplit=1,
+    )[0]
+
+    assert "cpus = 1" in block
+    assert "memory = '1 GB'" in block
+    assert "time = '10 min'" in block
+    for relative in (
+        "modules/local/resolve_provider_plan.nf",
+        "modules/local/emit_disabled_provider_bundle.nf",
+        "modules/local/provider_empty_graph_tasks.nf",
+        "modules/local/merge_pdb_provider_hits.nf",
+    ):
+        module = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert "label 'process_local'" in module
+
+
+def test_phase3_foldseek_batches_retain_unmapped_database_targets() -> None:
+    module = (
+        REPOSITORY / "modules" / "local" / "phase3_foldseek_batch_tasks.nf"
+    ).read_text(encoding="utf-8")
+
+    assert "--retain-unmapped-targets" in module
+    process = module.split(
+        "process SEARCH_PHASE3_FOLDSEEK_BATCH",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    assert "maxForks" not in process
+
+
+def test_phase3_scientific_concurrency_is_scheduler_managed() -> None:
+    first_copy = (
+        REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
+    ).read_text(encoding="utf-8")
+    first_copy_process = first_copy.split(
+        "process RUN_PHASE3_FIRST_COPY_PHASER",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    refinement = (REPOSITORY / "modules/local/run_brief_refinement.nf").read_text(
+        encoding="utf-8"
+    )
+    refinement_process = refinement.split(
+        "process RUN_PHASE3_BRIEF_REFINEMENT",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    no_a = (REPOSITORY / "modules/local/phase3_no_a_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    no_a_process = no_a.split(
+        "process RUN_PHASE3_NO_A_FIRST_COPY",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    beam = (REPOSITORY / "modules/local/phase3_composition_beam_tasks.nf").read_text(
+        encoding="utf-8"
+    )
+    beam_process = beam.split(
+        "process RUN_PHASE3_BEAM_ATTEMPT",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    additional = (REPOSITORY / "modules/local/run_additional_copy_phaser.nf").read_text(
+        encoding="utf-8"
+    )
+    additional_process = additional.split(
+        "process RUN_PHASE3_ADDITIONAL_COPY_PHASER",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    composition = (
+        REPOSITORY / "modules/local/run_phase3_composition_attempt.nf"
+    ).read_text(encoding="utf-8")
+    composition_process = composition.split(
+        "process RUN_PHASE3_COMPOSITION_ATTEMPT",
+        maxsplit=1,
+    )[1].split("input:", maxsplit=1)[0]
+    marmic = (REPOSITORY / "conf/marmic.config").read_text(encoding="utf-8")
+
+    assert "maxForks" not in first_copy_process
+    assert "maxForks" not in refinement_process
+    assert "maxForks" not in no_a_process
+    assert "maxForks" not in beam_process
+    for process in (
+        first_copy_process,
+        additional_process,
+        no_a_process,
+        beam_process,
+        composition_process,
+    ):
+        assert "base_cpus" in process
+        assert "base_memory_gb" in process
+        assert "base_time_hours" in process
+        assert "task.attempt" in process
+    assert "queueSize = 0" in marmic
+
+
+def test_phase3_initial_screen_has_no_joint_copy_admission_limit() -> None:
+    funnel = (REPOSITORY / "src/genome_to_diffraction/ranking/funnel.py").read_text(
+        encoding="utf-8"
+    )
+    cli = (REPOSITORY / "src/genome_to_diffraction/cli.py").read_text(encoding="utf-8")
+    module = (
+        REPOSITORY / "modules/local/build_phase3_diverse_first_copy_funnel.nf"
+    ).read_text(encoding="utf-8")
+
+    for source in (funnel, cli, module):
+        assert "joint-copy-search" not in source
+        assert "joint_copy_search" not in source
+        assert "maximum_joint_copy_count" not in source
+    assert "copy_number_to_search = 1" in funnel
+    assert '"single_copy_then_sequential_completion"' in funnel
+    assert '"searched_copy_count": 1' not in funnel
+    assert "searched_copy_count=copy_number_to_search" in funnel
+
+
+def test_candidate_confidence_path_has_no_static_four_copy_contract() -> None:
+    for relative in (
+        "src/genome_to_diffraction/cli.py",
+        "src/genome_to_diffraction/mr/multi_fixed.py",
+        "src/genome_to_diffraction/mr/per_placement.py",
+        "src/genome_to_diffraction/schemas/v2/component_execution_input.py",
+        "src/genome_to_diffraction/schemas/v2/composition.py",
+        "src/genome_to_diffraction/schemas/v2/phaser_placements.py",
+        "src/genome_to_diffraction/schemas/v2/unknown_assessment.py",
+        "src/genome_to_diffraction/schemas/v2/unknown_screen.py",
+    ):
+        source = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert "copy count 1..4" not in source
+        assert "copy count exceeds four" not in source
+        assert "copy_count > 4" not in source
+        assert "Field(le=4)" not in source
+
+
+def test_phase3_mr_review_stages_canonical_result_bundles() -> None:
+    module = (
+        REPOSITORY / "modules/local/phase3_multicrystal_first_copy_tasks.nf"
+    ).read_text(encoding="utf-8")
+    review_process = module.split(
+        "process BUILD_PHASE3_MR_SEED_REVIEW",
+        maxsplit=1,
+    )[1].split("stub:", maxsplit=1)[0]
+
+    assert 'def resultPrefix = "phase3_first_copy_${item[0]}_"' in review_process
+    assert "result.name.startsWith(resultPrefix)" in review_process
+    assert "first_copy_phaser_${hypothesisId}" in review_process
+    assert "--result-root ." in review_process
+
+
+def test_phase3_mr_retry_policy_is_bounded_and_resource_only() -> None:
+    base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
+    block = base.split("withLabel: process_mr", maxsplit=1)[1].split(
+        "withLabel: process_refine",
+        maxsplit=1,
+    )[0]
+
+    assert "task.exitStatus == 75" in block
+    assert "task.exitStatus == 104" in block
+    assert "task.exitStatus in (130..145)" in block
+    assert "task.exitStatus in (175..177)" in block
+    assert "maxRetries = 1" in block
+    assert "maxErrors = '-1'" in block
+    assert "cpus: 16" in block
+    assert "memory: 64.GB" in block
+    assert "time: 48.h" in block
+    assert "'retry' : 'finish'" in block
+
+
+def test_portable_stub_profiles_fit_two_cpu_ci_runners() -> None:
+    stub_root = REPOSITORY / "tests/fixtures/stubs"
+    portable = (
+        "p6_empty_partner",
+        "composition_attempt_fanout",
+        "phase3_composition_beam",
+        "unknown_pass1_screen",
+        "multi_crystal_fanout",
+        "provider_empty_graph",
+        "localisation_wave",
+    )
+    for name in portable:
+        config = (stub_root / name / "nextflow.config").read_text(encoding="utf-8")
+        block = config.split("withLabel: process_mr", maxsplit=1)[1]
+        assert "cpus = 1" in block, name
+        assert "memory = '1 GB'" in block, name
+    retry = (stub_root / "mr_resource_retry/nextflow.config").read_text(
+        encoding="utf-8"
+    )
+    assert "withLabel: process_mr" not in retry
+
+
+def test_nextflow_process_scripts_avoid_parameterised_runtime_casts() -> None:
+    """Reject the cast form that failed live script construction on Marmic."""
+
+    for module_path in sorted((REPOSITORY / "modules/local").glob("*.nf")):
+        module = module_path.read_text(encoding="utf-8")
+        assert " as List<" not in module, module_path.relative_to(REPOSITORY)
+
+
 def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules
@@ -103,18 +432,32 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     mr_block = wrapper.split("withLabel: process_mr", maxsplit=1)[1].split(
         "withLabel: process_prostt5_search", maxsplit=1
     )[0]
-    assert "cpus = 4" in mr_block
-    assert "memory = '8 GB'" in mr_block
-    assert "25-job prototype fanout" in wrapper
-    assert "withLabel: process_database_download" in wrapper
-    assert "cpus = 100" in wrapper
-    assert "memory = '2000 GB'" in wrapper
-    assert "time = '48 hours'" in wrapper
-    assert "withLabel: process_prostt5_search" in wrapper
-    assert "time = '1000 hours'" in wrapper
+    assert "resourceLimits" in mr_block
+    assert "cpus: 16" in mr_block
+    assert "memory: 64.GB" in mr_block
+    assert "time: 48.h" in mr_block
+    assert "Slurm owns aggregate" in wrapper
+    database_block = wrapper.split("withLabel: process_database_download", maxsplit=1)[
+        1
+    ].split("withLabel: process_search", maxsplit=1)[0]
+    assert "cpus = 100" in database_block
+    assert "memory = '2000 GB'" in database_block
+    assert "time = '48 hours'" in database_block
+    prostt5_block = wrapper.split("withLabel: process_prostt5_search", maxsplit=1)[
+        1
+    ].split("withName: SEARCH_PHASE3_FOLDSEEK_BATCH", maxsplit=1)[0]
+    assert "cpus = 64" in prostt5_block
+    assert "memory = '192 GB'" in prostt5_block
+    assert "time = '24 hours'" in prostt5_block
+    phase3_batch_block = wrapper.split(
+        "withName: SEARCH_PHASE3_FOLDSEEK_BATCH", maxsplit=1
+    )[1].split("withLabel: m6_small", maxsplit=1)[0]
+    assert "cpus = 32" in phase3_batch_block
+    assert "memory = '192 GB'" in phase3_batch_block
+    assert "time = '4 hours'" in phase3_batch_block
     assert "withLabel: m6_pdb_search" in wrapper
     assert "withLabel: m6_foldseek_search" in wrapper
-    assert wrapper.count("cpus = 32") >= 2
+    assert wrapper.count("cpus = 32") >= 3
 
     nextflow_config = (REPOSITORY / "nextflow.config").read_text(encoding="utf-8")
     assert "includeConfig 'conf/marmic.config'" in nextflow_config
@@ -136,7 +479,10 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     assert "max_memory = 192000.MB" in viper_wrapper
     assert "cpus: 64" in viper_wrapper
     assert "memory: 192000.MB" in viper_wrapper
-    assert "maxForks = 7" in viper_wrapper
+    assert "maxForks = 7" not in viper_wrapper
+    assert "cpus: 16" in viper_wrapper
+    assert "memory: 64.GB" in viper_wrapper
+    assert "time: 48.h" in viper_wrapper
     assert "--partition=datatransfer" not in viper_wrapper
     assert "workDir = \"/ptmp/${System.getenv('USER')}" in viper_wrapper
 
@@ -205,7 +551,7 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     )[0]
     assert "load_p0_config" not in m4_body
     assert "export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m4_body
-    assert "export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache" in m4_body
+    assert 'export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"' in m4_body
     additional_copy_workflow = (
         REPOSITORY / "workflows" / "additional_copy_workflow.nf"
     ).read_text(encoding="utf-8")
@@ -223,6 +569,36 @@ def test_hpc_smoke_interface_keeps_cleanup_outside_automatic_operations() -> Non
     assert "--threads '${task.cpus}'" in database_module
     assert "threads: Integer" not in database_module
     assert "database administration" in runbook.lower()
+
+
+def test_failed_unknown_screen_retains_bounded_child_evidence() -> None:
+    """Keep failed MR diagnostics private, bounded, and checksum-authenticated."""
+
+    dispatcher = (REPOSITORY / "bootstrap/nf-gtd-hpc-remote").read_text(
+        encoding="utf-8"
+    )
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    unknown_screen = job.split("run_unknown_screen() {", maxsplit=1)[1].split(
+        "run_unknown_single_component_nextflow() {", maxsplit=1
+    )[0]
+
+    assert unknown_screen.count("genome_to_diffraction.hpc.mr_failure_evidence") == 2
+    assert '--nextflow-log "$RUN/logs/unknown-screen-nextflow-first.log"' in (
+        unknown_screen
+    )
+    assert '--nextflow-log "$RUN/logs/unknown-screen-nextflow-resume.log"' in (
+        unknown_screen
+    )
+    assert '--work-root "$RUN/cache/unknown-screen-nextflow/work"' in unknown_screen
+    assert (
+        '--outdir "$qualification/unknown-screen-failed-mr-children"' in unknown_screen
+    )
+    assert "scientific_evidence_accepted" not in unknown_screen
+    assert "failed MR child checksum row is unsafe" in dispatcher
+    assert "failed MR child checksum differs" in dispatcher
+    assert "failed MR child file count differs" in dispatcher
+    assert "unknown-screen-failed-mr-children/checksums.sha256" in dispatcher
+    assert "unknown-screen-failed-mr-children/file-count" in dispatcher
 
 
 def test_m6_scientific_stage_uses_viper_runtime_manifests() -> None:
@@ -248,6 +624,59 @@ def test_m6_scientific_stage_uses_viper_runtime_manifests() -> None:
     assert "P0_CONFIG" not in m6_body
     assert 'database_manifest="$(<"$run/state/database-manifest")"' in m6_body
     assert 'phenix_manifest="$(<"$run/state/phenix-manifest")"' in m6_body
+
+
+@pytest.mark.parametrize(
+    ("function_name", "next_function_name"),
+    (
+        ("run_m6_scientific", "run_m4_copy_nextflow"),
+        ("run_m4_copy", "run_t12_nextflow"),
+        ("run_t12", "run_database"),
+    ),
+)
+def test_scientific_profiles_use_run_owned_apptainer_caches(
+    function_name: str,
+    next_function_name: str,
+) -> None:
+    """Legacy scientific profiles must never share an account-owned cache."""
+
+    job = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(encoding="utf-8")
+    body = job.split(f"{function_name}() {{", maxsplit=1)[1].split(
+        f"{next_function_name}() {{", maxsplit=1
+    )[0]
+
+    assert '"$RUN/cache/apptainer"' in body
+    if function_name == "run_m6_scientific":
+        assert "load_m6_smoke_site_contract || return 2" in body
+        assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in body
+        site_contract = job.split(
+            "load_m6_smoke_site_contract() {",
+            maxsplit=1,
+        )[1].split("run_m6_stub_nextflow() {", maxsplit=1)[0]
+        assert '[[ "$M6_APPTAINER_CACHE" == "$RUN/cache/apptainer" &&' in (
+            site_contract
+        )
+    else:
+        assert 'export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"' in body
+    assert "/ptmp/ashima/apptainer-cache" not in body
+
+
+def test_only_explicit_transient_failures_receive_one_nextflow_retry() -> None:
+    """Retain scientific finish semantics without retrying deterministic failures."""
+
+    base = (REPOSITORY / "conf/base.config").read_text(encoding="utf-8")
+    assert "errorStrategy = { task.exitStatus == 75 ? 'retry' : 'terminate' }" in base
+    assert "maxRetries = 1" in base
+    for relative_path in (
+        "modules/local/run_additional_copy_phaser.nf",
+        "modules/local/run_approved_partner_phaser.nf",
+        "modules/local/run_planned_partner_phaser.nf",
+        "modules/local/run_brief_refinement.nf",
+    ):
+        process = (REPOSITORY / relative_path).read_text(encoding="utf-8")
+        assert "errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }" in (
+            process
+        )
 
 
 def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
@@ -297,7 +726,23 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert "M6_FIRST_COPY(hypothesis_tasks)" in workflow
     assert "M6_ADDITIONAL_COPY(copy_tasks)" in workflow
     assert "M6_BUILD_SEARCH_BATCHES" in workflow
+    assert "M6_STAGE_COORDINATES" in workflow
     assert "M6_SEARCH_PDB" in modules and "M6_SEARCH_FOLDSEEK" in modules
+    coordinate_materialisation = modules.split("process M6_STAGE_COORDINATES", 1)[
+        1
+    ].split("process M6_PREPARE_ACTIVE_CASE", 1)[0]
+    assert "label 'run_local'" in coordinate_materialisation
+    assert "process_network" not in coordinate_materialisation
+    assert "needs_internet" not in coordinate_materialisation
+    case_process = modules.split("process M6_PREPARE_ACTIVE_CASE", 1)[1].split(
+        "process M6_PREPARE_EARLY_CASE", 1
+    )[0]
+    case_task = task_boundaries.split("def run_m6_prepare_case_task", 1)[1].split(
+        "def _phaser_output", 1
+    )[0]
+    assert "--coordinate-stage" in case_process
+    assert "--database-manifest" not in case_process
+    assert "register_pdb_coordinates" not in case_task
     assert "ThreadPoolExecutor" not in legacy
     assert "ThreadPoolExecutor" not in task_boundaries
     assert "ProcessPoolExecutor" not in task_boundaries
@@ -310,6 +755,32 @@ def test_m6_scientific_fanout_remains_nextflow_owned() -> None:
     assert "withLabel: m6_pdb_search" in viper
     assert "withLabel: m6_foldseek_search" in viper
     assert viper.count("cpus = 32") >= 2
+
+
+def test_control_helpers_expose_no_direct_or_nested_python_schedulers() -> None:
+    """Retain preparation helpers without resurrecting direct scientific drivers."""
+
+    relative_drivers = (
+        "src/genome_to_diffraction/benchmarks/control_slice_run.py",
+        "src/genome_to_diffraction/benchmarks/control_matrix_run.py",
+    )
+    forbidden = (
+        "ThreadPoolExecutor",
+        "ProcessPoolExecutor",
+        "concurrent.futures",
+        "multiprocessing",
+    )
+
+    for relative in relative_drivers:
+        source = (REPOSITORY / relative).read_text(encoding="utf-8")
+        assert all(token not in source for token in forbidden)
+        assert "RunRequest" not in source
+        assert "def run_control_" not in source
+
+    cli = (REPOSITORY / "src/genome_to_diffraction/cli.py").read_text(encoding="utf-8")
+    assert '"run-control-slice"' not in cli
+    assert '"run-control-matrix"' not in cli
+    assert '"run-m6-scientific"' not in cli
 
 
 def test_m6_uses_standard_nextflow_resume_cache_without_store_dir() -> None:
@@ -354,7 +825,7 @@ def test_m6_uses_standard_nextflow_resume_cache_without_store_dir() -> None:
         "tuple(bundles, database_manifest, execution_policy, software_lock, track)"
         in workflow
     )
-    assert workflow.count(".sort { left, right ->") == 4
+    assert workflow.count(".sort { left, right ->") == 7
     assert workflow.count("(left[0] as String) <=> (right[0] as String)") == 3
     for process_name in sorted(former_store_processes):
         assert f"withName: {process_name} {{" not in marmic

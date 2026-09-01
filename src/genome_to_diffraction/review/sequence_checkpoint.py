@@ -39,6 +39,10 @@ from genome_to_diffraction.schemas.results import (
     SequenceMapResult,
     SourceProteinRecord,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionSelection,
+    FreeRIdentity,
+)
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.sequence_checkpoint")
@@ -165,6 +169,7 @@ class LiveSequenceCheckpointRequest:
     stage_bundle: Path
     candidate_result_directories: tuple[Path, ...]
     output_directory: Path
+    crystal_id: str | None = None
     progress: bool = True
 
 
@@ -1178,8 +1183,13 @@ def build_live_sequence_checkpoint(
         label="normal T12 stage manifest",
     )
     stage = _load_object(stage_manifest, "normal T12 stage manifest")
+    expected_profile = (
+        "phase3_reviewed_single_component"
+        if request.crystal_id is not None
+        else "normal_workflow"
+    )
     if not (
-        stage.get("profile") == "normal_workflow"
+        stage.get("profile") == expected_profile
         and stage.get("execution_status") == ExecutionStatus.COMPLETED_SUCCESS.value
         and stage.get("all_approved_seeds_retained") is True
         and stage.get("numeric_score_filter_applied") is False
@@ -1226,6 +1236,8 @@ def build_live_sequence_checkpoint(
         source_records_jsonl=source_records_path,
         preflight_jsonl=preflight_path,
     )
+    if request.crystal_id is not None and request.crystal_id != preflight.crystal_id:
+        raise SequenceCheckpointError("Phase III sequence checkpoint crystal differs")
 
     finalists = _safe_relative_file(
         stage_root, "finalists.tsv", label="normal T12 finalists"
@@ -1262,6 +1274,26 @@ def build_live_sequence_checkpoint(
         if not isinstance(digest, str) or sha256_file(source) != digest:
             raise SequenceCheckpointError(f"normal T12 {name} checksum differs")
         _register_source(retained_sources, Path("provenance") / name, source, digest)
+    if request.crystal_id is not None:
+        copy_assessments = _safe_relative_file(
+            stage_root,
+            "copy_count_assessments.jsonl",
+            label="Phase III copy-count assessments",
+        )
+        copy_assessments_sha256 = stage.get("copy_count_assessments_sha256")
+        if (
+            not isinstance(copy_assessments_sha256, str)
+            or sha256_file(copy_assessments) != copy_assessments_sha256
+        ):
+            raise SequenceCheckpointError(
+                "Phase III copy-count assessment checksum differs"
+            )
+        _register_source(
+            retained_sources,
+            Path("provenance/copy_count_assessments.jsonl"),
+            copy_assessments,
+            copy_assessments_sha256,
+        )
 
     refinements: list[BriefRefinementResult] = []
     sequences: list[SequenceMapResult] = []
@@ -1269,6 +1301,7 @@ def build_live_sequence_checkpoint(
     result_identity: dict[str, object] = {}
     seen_seeds: set[str] = set()
     shared_diffraction: tuple[str, str] | None = None
+    phase3_diffraction_identity: tuple[str, str] | None = None
     for directory in request.candidate_result_directories:
         if directory.is_symlink() or not directory.is_dir():
             raise SequenceCheckpointError("normal T12 result directory is unsafe")
@@ -1285,9 +1318,14 @@ def build_live_sequence_checkpoint(
             label="normal T12 sequence result",
         )
         seed = refinement.seed_solution_id
+        expected_directory = (
+            f"phase3_t12_{request.crystal_id}_{seed}"
+            if request.crystal_id is not None
+            else f"t12_{seed}"
+        )
         if (
             seed in seen_seeds
-            or directory.name != f"t12_{seed}"
+            or directory.name != expected_directory
             or sequence.seed_solution_id != seed
             or refinement.refinement_id != sequence.refinement_id
         ):
@@ -1367,6 +1405,46 @@ def build_live_sequence_checkpoint(
         ):
             source = _safe_relative_file(directory, pointer, label=label)
             evidence_paths[pointer] = source
+        if request.crystal_id is not None:
+            command = _load_object(
+                evidence_paths[refinement.command_pointer],
+                "Phase III refinement command",
+            )
+            try:
+                selection = DiffractionSelection.model_validate(
+                    command.get("diffraction_selection")
+                )
+                free_r = FreeRIdentity.model_validate(command.get("free_r_identity"))
+            except ValidationError as error:
+                raise SequenceCheckpointError(
+                    "Phase III refinement command lacks complete diffraction evidence"
+                ) from error
+            if not (
+                command.get("schema_version") == "2.0"
+                and command.get("refinement_id") == refinement.refinement_id
+                and selection.crystal_id == request.crystal_id
+                and selection.mtz_sha256 == preflight.mtz_sha256
+                and selection.preflight_id == preflight.preflight_id
+                and free_r.crystal_id == request.crystal_id
+                and free_r.mtz_sha256 == preflight.mtz_sha256
+                and free_r.diffraction_selection_id
+                == selection.diffraction_selection_id
+            ):
+                raise SequenceCheckpointError(
+                    "Phase III sequence checkpoint diffraction identities differ"
+                )
+            current_identity = (
+                selection.diffraction_selection_id,
+                free_r.free_r_identity_id,
+            )
+            if (
+                phase3_diffraction_identity is not None
+                and phase3_diffraction_identity != current_identity
+            ):
+                raise SequenceCheckpointError(
+                    "Phase III sequence finalists use different diffraction identities"
+                )
+            phase3_diffraction_identity = current_identity
         evidence_identity: dict[str, str] = {}
         for name, source in sorted(evidence_paths.items()):
             digest = sha256_file(source)
@@ -1458,6 +1536,32 @@ def build_live_sequence_checkpoint(
         "stage_manifest_sha256": sha256_file(stage_manifest),
         "candidate_results": result_identity,
     }
+    extra_manifest: dict[str, object] = {
+        "execution_mode": "normal_workflow",
+        "stage_id": stage_id,
+        "all_finalists_retained": True,
+        "typed_failures_are_evidence": True,
+    }
+    if request.crystal_id is not None:
+        if phase3_diffraction_identity is None:
+            raise SequenceCheckpointError(
+                "Phase III sequence checkpoint has no finalists"
+            )
+        identity.update(
+            {
+                "execution_mode": "phase3_reviewed_single_component",
+                "crystal_id": request.crystal_id,
+                "diffraction_selection_id": phase3_diffraction_identity[0],
+                "free_r_identity_id": phase3_diffraction_identity[1],
+            }
+        )
+        extra_manifest.update(
+            {
+                "execution_mode": "phase3_reviewed_single_component",
+                "diffraction_selection_id": phase3_diffraction_identity[0],
+                "free_r_identity_id": phase3_diffraction_identity[1],
+            }
+        )
     return _publish_sequence_checkpoint(
         run_id=stage_id,
         refinements=tuple(refinements),
@@ -1473,10 +1577,5 @@ def build_live_sequence_checkpoint(
         adapter_version=_LIVE_ADAPTER_VERSION,
         progress=request.progress,
         require_all_completed=False,
-        extra_manifest={
-            "execution_mode": "normal_workflow",
-            "stage_id": stage_id,
-            "all_finalists_retained": True,
-            "typed_failures_are_evidence": True,
-        },
+        extra_manifest=extra_manifest,
     )

@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -35,6 +35,14 @@ if [[ "$PROFILE" == database ]]; then
 fi
 if [[ "$PROFILE" == heteromer-smoke && "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
     printf 'heteromer smoke requires exactly 8 allocated CPUs\n' >&2
+    exit 2
+fi
+if [[ ( "$PROFILE" == unknown-discovery || \
+        "$PROFILE" == unknown-screen || \
+        "$PROFILE" == unknown-single-component || \
+        "$PROFILE" == unknown-pass2 ) && \
+      "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
+    printf 'Phase III unknown profile requires exactly 8 allocated CPUs\n' >&2
     exit 2
 fi
 [[ "$ROOT" =~ $SAFE_PATH_RE && -d "$ROOT/runs" && -d "$ROOT/_locks" ]] || {
@@ -79,6 +87,7 @@ M6_EXECUTION_POLICY_SHA256=""
 M6_APPTAINER_CACHE=""
 M6_SMOKE_CACHE=""
 M6_SMOKE_EXECUTION=""
+M6_CACHE_ROOT=""
 if [[ "$PROFILE" != database ]]; then
     SCRATCH_PARENT="${ROOT%/}/work"
     [[ "$SCRATCH_PARENT" =~ $SAFE_PATH_RE ]] || {
@@ -102,7 +111,7 @@ atomic_text() {
 finalise() {
     local exit_code="$?"
     local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
-    local active_lock="$ROOT/_locks/active-smoke"
+    local active_lock=""
     local cleanup_failed=false reports_json='[]' retained_json='[]'
     trap - EXIT TERM INT
     set +e
@@ -122,15 +131,16 @@ finalise() {
         failure_class=software_failure
         scheduler_state=FAILED
     fi
-    exec 9>"$ROOT/_locks/submit.lock"
-    flock -x 9
     if [[ "$PROFILE" == database ]]; then
+        exec 9>"$ROOT/_locks/submit.lock"
+        flock -x 9
         active_lock="$ROOT/_locks/active-database"
-    fi
-    if [[ -f "$active_lock" ]]; then
-        read -r active_run active_job < "$active_lock" || true
-        if [[ "$active_run" == "$RUN_ID" && "$active_job" == "$SLURM_JOB_ID" ]]; then
-            rm -f -- "$active_lock"
+        if [[ -f "$active_lock" ]]; then
+            read -r active_run active_job < "$active_lock" || true
+            if [[ "$active_run" == "$RUN_ID" && \
+                  "$active_job" == "$SLURM_JOB_ID" ]]; then
+                rm -f -- "$active_lock"
+            fi
         fi
     fi
     if [[ -n "$SCRATCH" && -e "$SCRATCH" ]]; then
@@ -168,8 +178,26 @@ finalise() {
         reports_json='["artifacts/qualification/p2-control-summary.json","artifacts/qualification/p2-control-resume-check.json"]'
         retained_json='["artifacts/p2-control","artifacts/qualification"]'
     elif [[ "$PROFILE" == heteromer-smoke ]]; then
-        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
+        reports_json='["artifacts/qualification/heteromer-smoke-summary.json","artifacts/qualification/heteromer-multicopy-summary.json","artifacts/qualification/heteromer-catalogue-summary.json","artifacts/qualification/heteromer-control-slice-report.json","artifacts/qualification/heteromer-composition-assessments.jsonl","artifacts/qualification/phase3-placement-control-summary.json","artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-summary.json","artifacts/heteromer-smoke/phase3-control/component_C/component_search_result.json","artifacts/heteromer-smoke/phase3-control/component_C/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/phase3-control/wrong_C/component_search_result.json","artifacts/heteromer-smoke/partner/partner_search_result.json","artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json","artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json","artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json","artifacts/heteromer-smoke/catalogue/partner_attempt_summary.json"]'
         retained_json='["artifacts/heteromer-smoke","artifacts/qualification"]'
+    elif [[ "$PROFILE" == phase3-phenix-probe ]]; then
+        reports_json='["artifacts/qualification/phaser-interface-probe.json"]'
+        retained_json='["artifacts/qualification"]'
+    elif [[ "$PROFILE" == phase3-network-probe ]]; then
+        reports_json='["artifacts/qualification/phase3-network-probe-summary.json","artifacts/qualification/network-probe/phase3-network-probe-child.json","artifacts/qualification/network-probe/phase3-network-probe-controller.json"]'
+        retained_json='["artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-discovery ]]; then
+        reports_json='["artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json"]'
+        retained_json='["artifacts/unknown-discovery","artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-screen ]]; then
+        reports_json='["artifacts/unknown-screen/provider_preparation/provider_preparation.json","artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json"]'
+        retained_json='["artifacts/unknown-screen","artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-single-component ]]; then
+        reports_json='["artifacts/unknown-single-component/unknown_single_component_stage_manifest.json","artifacts/unknown-single-component/reviewed_crystals.json","artifacts/unknown-single-component/owned_run_registry/phase3_owned_run_registry.json"]'
+        retained_json='["artifacts/unknown-single-component","artifacts/qualification"]'
+    elif [[ "$PROFILE" == unknown-pass2 ]]; then
+        reports_json='["artifacts/qualification/unknown-pass2-summary.json","artifacts/qualification/unknown-pass2-checksums.sha256"]'
+        retained_json='["artifacts/unknown-pass2","artifacts/qualification"]'
     elif [[ "$PROFILE" == control-slice ]]; then
         reports_json='["artifacts/qualification/control-slice-summary.json","artifacts/qualification/control-slice-case-results.jsonl","artifacts/qualification/control-slice-first-copy-results.jsonl","artifacts/qualification/control-slice-copy-two-results.jsonl","artifacts/qualification/control-slice-refinement-results.jsonl","artifacts/qualification/control-slice-sequence-results.jsonl"]'
         retained_json='["artifacts/control-slice-inputs","artifacts/control-slice","artifacts/qualification"]'
@@ -183,7 +211,7 @@ finalise() {
         reports_json='["artifacts/qualification/m6-nextflow-smoke-summary.json","artifacts/qualification/m6-nextflow-smoke-resume-check.json","artifacts/qualification/m6-nextflow-smoke-resource-evidence.json","artifacts/qualification/m6-nextflow-smoke-contract-evidence.json"]'
         retained_json='["artifacts/m6-nextflow-smoke","artifacts/qualification"]'
     elif [[ "$PROFILE" == m6-operational || "$PROFILE" == m6-leakage ]]; then
-        reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json"]'
+        reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json","artifacts/qualification/m6-resume-child-outputs.json"]'
         retained_json='["artifacts/m6-runner-inputs","artifacts/m6-nextflow-results","artifacts/qualification"]'
     elif [[ "$PROFILE" == m4-copy ]]; then
         reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
@@ -236,6 +264,24 @@ path_within_root() {
     local root="$1"
     local path="$2"
     [[ "$path" == "$root"/* ]]
+}
+
+write_trace_identity_manifest() {
+    local trace="$1"
+    local output="$2"
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "hash") hash_column = i
+                if ($i == "process") process_column = i
+                if ($i == "tag") tag_column = i
+            }
+            if (hash_column == 0 || process_column == 0 || tag_column == 0) exit 2
+            next
+        }
+        { print $process_column "\t" $tag_column "\t" $hash_column }
+    ' "$trace" | LC_ALL=C sort > "$output"
+    [[ -s "$output" ]]
 }
 
 site_resolved_path() {
@@ -613,7 +659,8 @@ run_p1_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p1-${label}.log" \
-        run "$RUN/source/discover_structures.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage discovery \
         "$@" \
         -profile viper-cpu \
         --sequence_groups "$P1_CATALOGUE_OUT/sequence_groups.jsonl" \
@@ -629,7 +676,8 @@ run_p1_model_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p1-model-${label}.log" \
-        run "$RUN/source/prepare_models.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage prepare_predicted_models \
         "$@" \
         -profile viper-cpu \
         --coordinate_sources \
@@ -817,7 +865,8 @@ run_p2_first_copy_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-first-copy-${label}.log" \
-        run "$RUN/source/screen_first_copy.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage first_copy \
         "$@" \
         -profile viper-cpu \
         --coordinate_sources "$P1_PREFETCH_OUT/coordinate_sources.jsonl" \
@@ -1006,7 +1055,8 @@ run_p2_diverse_model_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-diverse-model-${label}.log" \
-        run "$RUN/source/prepare_pdb_models.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage prepare_experimental_models \
         "$@" \
         -profile viper-cpu \
         --coordinate_sources \
@@ -1023,7 +1073,8 @@ run_p2_diverse_first_copy_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-diverse-first-copy-${label}.log" \
-        run "$RUN/source/screen_diverse_first_copy.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage diverse_first_copy \
         "$@" \
         -profile viper-cpu \
         --predicted_coordinate_sources \
@@ -1447,7 +1498,8 @@ run_p2_control_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-p2-control-${label}.log" \
-        run "$RUN/source/screen_first_copy_controls.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage first_copy_controls \
         "$@" \
         -profile viper-cpu \
         --control_bundle "$P2_CONTROL_BUNDLE" \
@@ -1490,9 +1542,11 @@ run_p2_control() {
         return 2
     }
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
     JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
-    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    [[ -x "$GTD" && -x "$PYTHON" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || \
+        return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
 
@@ -1650,6 +1704,927 @@ EOF
     printf 'p2_control_status=both_retained_and_positive_outranks_unrelated_negative\n'
 }
 
+run_phase3_phenix_probe() {
+    local qualification="$RUN/artifacts/qualification"
+    local legacy_manifest refreshed_manifest expected_manifest_sha256
+    local gtd checksums_tmp candidate checksum relative
+
+    [[ -f "$RUN/state/phenix-manifest" && \
+       -f "$RUN/state/phenix-manifest-sha256" ]] || return 2
+    legacy_manifest="$(<"$RUN/state/phenix-manifest")"
+    expected_manifest_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$legacy_manifest" =~ $SAFE_PATH_RE && \
+       -f "$legacy_manifest" && ! -L "$legacy_manifest" && \
+       "$expected_manifest_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_manifest" | awk '{print $1}')" == \
+       "$expected_manifest_sha256" ]] || return 2
+    gtd="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    [[ -x "$gtd" ]] || return 2
+    mkdir -p "$qualification"
+
+    PHASE=preflight
+    printf 'phase=phase3_phenix_manifest_verify profile=phase3-phenix-probe\n'
+    refreshed_manifest="$qualification/phase3-phenix-manifest.json"
+    "$gtd" --log-format json --no-progress phenix verify \
+        --manifest "$legacy_manifest" \
+        --verification-log "$qualification/phase3-phenix-verification.log" \
+        --no-command-timeout
+    cp -- "$legacy_manifest" "$refreshed_manifest"
+
+    PHASE=test
+    printf 'phase=phase3_phaser_interface_probe profile=phase3-phenix-probe\n'
+    "$gtd" --log-format json --no-progress phenix probe-phaser-interface \
+        --manifest "$refreshed_manifest" \
+        --outdir "$qualification/phaser-interface" \
+        --command-timeout-seconds 300
+    cp -- "$qualification/phaser-interface/phaser-interface-probe.json" \
+        "$qualification/phaser-interface-probe.json"
+    cp -- "$qualification/phaser-interface/phenix-phaser-show-defaults.txt" \
+        "$qualification/phenix-phaser-show-defaults.txt"
+
+    checksums_tmp="$qualification/phase3-phenix-probe-checksums.sha256.tmp.$$"
+    : > "$checksums_tmp"
+    for candidate in \
+        "$qualification/phase3-phenix-manifest.json" \
+        "$qualification/phase3-phenix-verification.log" \
+        "$qualification/phaser-interface-probe.json" \
+        "$qualification/phenix-phaser-show-defaults.txt"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s  %s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" \
+        "$qualification/phase3-phenix-probe-checksums.sha256"
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == \
+       "$(<"$RUN/state/commit")" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 'phase3_phenix_probe_status=defaults_captured_no_scientific_execution\n'
+}
+
+run_phase3_network_probe() {
+    local qualification="$RUN/artifacts/qualification"
+    local output="$qualification/network-probe"
+    local execution="$RUN/execution/phase3-network-probe"
+    local nextflow_profile site_config_relative site_config_sha256
+    local worker_shell_relative worker_shell_sha256
+    local site_config worker_shell actual_site_config_sha256
+    local actual_worker_shell_sha256 outer_network_namespace
+    local nextflow java python source_commit helper_commit checksums_tmp
+    local candidate checksum relative
+
+    [[ -f "$RUN/state/hpc-environment-status" && \
+       "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    [[ -f "$RUN/state/nextflow-profile" && \
+       -f "$RUN/state/network-site-config-relative" && \
+       -f "$RUN/state/network-site-config-sha256" && \
+       -f "$RUN/state/network-shell-relative" && \
+       -f "$RUN/state/network-shell-sha256" ]] || return 2
+    nextflow_profile="$(<"$RUN/state/nextflow-profile")"
+    site_config_relative="$(<"$RUN/state/network-site-config-relative")"
+    site_config_sha256="$(<"$RUN/state/network-site-config-sha256")"
+    worker_shell_relative="$(<"$RUN/state/network-shell-relative")"
+    worker_shell_sha256="$(<"$RUN/state/network-shell-sha256")"
+    [[ "$(<"$RUN/state/site-id")" == marmic && \
+       "$nextflow_profile" == marmic && \
+       "$site_config_relative" == conf/marmic.config && \
+       "$worker_shell_relative" == bootstrap/nf-gtd-worker-offline-shell && \
+       "$site_config_sha256" =~ $CHECKSUM_RE && \
+       "$worker_shell_sha256" =~ $CHECKSUM_RE ]] || return 2
+    site_config="$RUN/source/$site_config_relative"
+    worker_shell="$RUN/source/$worker_shell_relative"
+    [[ -f "$site_config" && ! -L "$site_config" && \
+       -f "$worker_shell" && ! -L "$worker_shell" ]] || return 2
+    actual_site_config_sha256="$(sha256sum "$site_config" | awk '{print $1}')"
+    actual_worker_shell_sha256="$(sha256sum "$worker_shell" | awk '{print $1}')"
+    [[ "$actual_site_config_sha256" == "$site_config_sha256" && \
+       "$actual_worker_shell_sha256" == "$worker_shell_sha256" ]] || return 2
+
+    nextflow="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    java="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    python="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$nextflow" && -x "$java" && -x "$python" && \
+       -x /usr/bin/unshare ]] || return 2
+    outer_network_namespace="$(readlink /proc/self/ns/net)"
+    [[ "$outer_network_namespace" =~ ^net:\[[0-9]+\]$ ]] || return 2
+    source_commit="$(<"$RUN/state/commit")"
+    helper_commit="$(git -C "$RUN/source" rev-parse HEAD:external/nf-helper)"
+    [[ "$source_commit" =~ ^[0-9a-f]{40}$ && \
+       "$helper_commit" =~ ^[0-9a-f]{40}$ ]] || return 2
+
+    mkdir -p \
+        "$qualification" \
+        "$output" \
+        "$execution" \
+        "$RUN/cache/nextflow-home" \
+        "$RUN/cache/phase3-network-probe"
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD="$java"
+    export NXF_HOME="$RUN/cache/nextflow-home"
+
+    PHASE=test
+    printf 'phase=phase3_network_probe profile=phase3-network-probe\n'
+    cd "$execution"
+    "$nextflow" \
+        -log "$RUN/logs/phase3-network-probe-nextflow.log" \
+        run "$RUN/source/qualification.nf" \
+        -profile "$nextflow_profile" \
+        -work-dir "$execution/work" \
+        -with-trace "$qualification/phase3-network-probe-trace.tsv" \
+        --qualification_stage phase3_network_probe \
+        --outer_job_id "$SLURM_JOB_ID" \
+        --outer_network_namespace "$outer_network_namespace" \
+        --cache_root "$RUN/cache/phase3-network-probe" \
+        --outdir "$output"
+
+    "$python" -m genome_to_diffraction.execution.network_probe summarise \
+        --child-report "$output/phase3-network-probe-child.json" \
+        --controller-report "$output/phase3-network-probe-controller.json" \
+        --run-id "$RUN_ID" \
+        --site-id marmic \
+        --source-commit "$source_commit" \
+        --nf-helper-commit "$helper_commit" \
+        --output "$qualification/phase3-network-probe-summary.json"
+
+    checksums_tmp="$qualification/phase3-network-probe-checksums.sha256.tmp.$$"
+    : > "$checksums_tmp"
+    for candidate in \
+        "$qualification/phase3-network-probe-summary.json" \
+        "$qualification/phase3-network-probe-trace.tsv" \
+        "$output/phase3-network-probe-child.json" \
+        "$output/phase3-network-probe-controller.json"; do
+        checksum="$(sha256sum "$candidate" | awk '{print $1}')"
+        relative="${candidate#"$RUN/"}"
+        printf '%s  %s\n' "$checksum" "$relative" >> "$checksums_tmp"
+    done
+    mv -f -- "$checksums_tmp" \
+        "$qualification/phase3-network-probe-checksums.sha256"
+
+    PHASE=software
+    [[ "$(git -C "$RUN/source" rev-parse HEAD)" == "$source_commit" ]] || return 3
+    [[ -z "$(git -C "$RUN/source" status --porcelain=v1 --untracked-files=no)" ]] || \
+        return 3
+    printf 'phase3_network_probe_status=child_and_controller_sockets_denied\n'
+}
+
+run_unknown_discovery_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-discovery-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation provider_discovery \
+        --catalogues "$CATALOGUES" \
+        --crystals "$CRYSTALS" \
+        --config "$PIPELINE_CONFIG" \
+        --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --phase3_execution_identity \
+        "$UNKNOWN_DISCOVERY_INPUTS/phase3_execution_identity.json" \
+        --phase3_owned_parent_run_id "$RUN_ID" \
+        --phase3_crystallographic_review_stage \
+        "$UNKNOWN_DISCOVERY_INPUTS/crystallographic_review_stage" \
+        --afdb_accession_map \
+        "$UNKNOWN_DISCOVERY_INPUTS/afdb_accession_map.tsv" \
+        --phase3_localisation_bundle \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle" \
+        --outdir "$UNKNOWN_DISCOVERY_OUT" \
+        --cache_root "$RUN/cache/unknown-discovery-nextflow"
+}
+
+run_unknown_discovery() {
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    local input_id execution_identity_id review_stage_index_id
+    local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    UNKNOWN_DISCOVERY_INPUTS="$RUN/artifacts/unknown-discovery/inputs"
+    UNKNOWN_DISCOVERY_OUT="$RUN/artifacts/unknown-discovery/results"
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_DISCOVERY_OUT" \
+        "$RUN/cache/unknown-discovery-nextflow" \
+        "$RUN/execution"
+    load_p0_config
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    CRYSTALS="$UNKNOWN_DISCOVERY_INPUTS/phase3_crystals.json"
+    input_id="$(<"$RUN/state/unknown-discovery-input-id")"
+    execution_identity_id="$(<"$RUN/state/phase3-execution-identity-id")"
+    review_stage_index_id="$(<"$RUN/state/unknown-review-stage-index-id")"
+    [[ "$input_id" =~ ^unknowninputs_[a-f0-9]{64}$ && \
+       "$execution_identity_id" =~ ^phase3exec_[a-f0-9]{64}$ && \
+       "$review_stage_index_id" =~ ^unknownreviewstages_[a-f0-9]{64}$ && \
+       -d "$UNKNOWN_DISCOVERY_INPUTS" && \
+       -d "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle" && \
+       ! -L "$UNKNOWN_DISCOVERY_INPUTS" ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" && -x "$PYTHON" ]] || \
+        return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    PYTHONPATH="$RUN/source/src" \
+    "$PYTHON" -m genome_to_diffraction.hpc.unknown_inputs \
+        --input-root "$UNKNOWN_DISCOVERY_INPUTS" \
+        --expected-input-id "$input_id" \
+        --expected-execution-identity-id "$execution_identity_id" \
+        --expected-review-stage-index-id "$review_stage_index_id"
+    legacy_phenix_manifest="$PHENIX_MANIFEST"
+    expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
+       "$expected_phenix_sha256" ]] || return 2
+    refreshed_phenix_manifest="$qualification/unknown-discovery-phenix-manifest.json"
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$legacy_phenix_manifest" \
+        --verification-log \
+        "$qualification/unknown-discovery-phenix-verification.log" \
+        --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
+    PHENIX_MANIFEST="$refreshed_phenix_manifest"
+
+    cd "$RUN/execution"
+    PHASE=test
+    printf 'phase=unknown_discovery_first profile=unknown-discovery\n'
+    run_unknown_discovery_nextflow first
+    cp -a "$UNKNOWN_DISCOVERY_OUT/pipeline_info" \
+        "$qualification/unknown-discovery-first-pipeline-info"
+    (
+        cd "$UNKNOWN_DISCOVERY_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-discovery-before-resume.sha256"
+    printf 'phase=unknown_discovery_resume profile=unknown-discovery\n'
+    run_unknown_discovery_nextflow resume -resume
+    cp -a "$UNKNOWN_DISCOVERY_OUT/pipeline_info" \
+        "$qualification/unknown-discovery-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_DISCOVERY_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-discovery-after-resume.sha256"
+    cmp -s \
+        "$qualification/unknown-discovery-before-resume.sha256" \
+        "$qualification/unknown-discovery-after-resume.sha256" || return 4
+    first_trace="$qualification/unknown-discovery-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-discovery-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-discovery-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-discovery-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-discovery-first-task-identities.tsv" \
+        "$qualification/unknown-discovery-resume-task-identities.tsv" || return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$cached" =~ $INTEGER_RE && \
+       "$total" -ge 10 && "$cached" -eq "$total" ]] || return 4
+    "$GTD" --no-progress --log-format json \
+        structure-search validate-phase3-provider-discovery-package \
+        --package "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery"
+    (
+        cd "$UNKNOWN_DISCOVERY_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(
+            find . -xdev -type f \
+                ! -path './pipeline_info/*' \
+                -print | LC_ALL=C sort
+        )
+    ) > "$qualification/unknown-discovery-output-checksums.sha256"
+    [[ -s "$qualification/unknown-discovery-output-checksums.sha256" ]] || return 4
+    sha256sum \
+        "$UNKNOWN_DISCOVERY_INPUTS/unknown_discovery_input_manifest.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/localisation_batch_manifest.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/first_wave_policy.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/group_localisation_evidence.jsonl" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/first_wave_sequence_group_ids.txt" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/excluded_sequence_group_ids.txt" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/gel-evidence.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/raw/psortb-terse.tsv" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/raw/deeptmhmm-topologies.3line" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/localisation_container_execution.json" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/psortb-container.log" \
+        "$UNKNOWN_DISCOVERY_INPUTS/localisation_bundle/container_execution/deeptmhmm-container.log" \
+        "$PHENIX_MANIFEST" \
+        "$UNKNOWN_DISCOVERY_OUT/phase3_provider_discovery/phase3_provider_discovery_manifest.json" \
+        "$qualification/unknown-discovery-before-resume.sha256" \
+        "$qualification/unknown-discovery-after-resume.sha256" \
+        "$qualification/unknown-discovery-output-checksums.sha256" \
+        "$qualification/unknown-discovery-first-task-identities.tsv" \
+        "$qualification/unknown-discovery-resume-task-identities.tsv" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-discovery-checksums.sha256"
+    printf 'unknown_discovery_status=passed\n'
+}
+
+run_unknown_screen_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-screen-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation first_copy \
+        --catalogues "$CATALOGUES" \
+        --crystals "$CRYSTALS" \
+        --config "$PIPELINE_CONFIG" \
+        --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --phase3_execution_identity \
+        "$UNKNOWN_SCREEN_INPUTS/phase3_execution_identity.json" \
+        --phase3_owned_parent_run_id "$RUN_ID" \
+        --phase3_crystallographic_review_stage \
+        "$UNKNOWN_SCREEN_INPUTS/crystallographic_review_stage" \
+        --phase3_provider_discovery "$UNKNOWN_SCREEN_DISCOVERY" \
+        --phase3_provider_preparation "$UNKNOWN_SCREEN_PREPARATION" \
+        --phase3_localisation_bundle \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle" \
+        --maximum_first_copy_jobs 25 \
+        --outdir "$UNKNOWN_SCREEN_OUT" \
+        --cache_root "$RUN/cache/unknown-screen-nextflow"
+}
+
+run_unknown_screen() {
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    local mr_inventory directory outcome_name crystal_id count
+    local expected_mr_total=0 actual_mr_total=0
+    local -a owned_a_packages=()
+    local -a crystallographic_holds=()
+    local -a expected_review_stages=()
+    local -a outcome_ids=()
+    local -a expected_ids=()
+    UNKNOWN_SCREEN_INPUTS="$RUN/artifacts/unknown-screen/inputs"
+    UNKNOWN_SCREEN_DISCOVERY="$RUN/artifacts/unknown-screen/phase3_provider_discovery"
+    UNKNOWN_SCREEN_PREPARATION="$RUN/artifacts/unknown-screen/provider_preparation"
+    UNKNOWN_SCREEN_OUT="$RUN/artifacts/unknown-screen/results"
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_SCREEN_OUT" \
+        "$RUN/cache/unknown-screen-nextflow" \
+        "$RUN/execution"
+    load_p0_config
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    CRYSTALS="$UNKNOWN_SCREEN_INPUTS/phase3_crystals.json"
+    [[ -d "$UNKNOWN_SCREEN_INPUTS" && ! -L "$UNKNOWN_SCREEN_INPUTS" && \
+       -d "$UNKNOWN_SCREEN_INPUTS/localisation_bundle" && \
+       -d "$UNKNOWN_SCREEN_DISCOVERY" && ! -L "$UNKNOWN_SCREEN_DISCOVERY" && \
+       -d "$UNKNOWN_SCREEN_PREPARATION" && ! -L "$UNKNOWN_SCREEN_PREPARATION" ]] || \
+        return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    "$GTD" --no-progress --log-format json \
+        structure-search validate-phase3-provider-discovery-package \
+        --package "$UNKNOWN_SCREEN_DISCOVERY"
+    "$GTD" --no-progress --log-format json \
+        structure-search validate-phase3-provider-login-stage \
+        --preparation "$UNKNOWN_SCREEN_PREPARATION"
+    legacy_phenix_manifest="$PHENIX_MANIFEST"
+    expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
+       "$expected_phenix_sha256" ]] || return 2
+    refreshed_phenix_manifest="$qualification/unknown-screen-phenix-manifest.json"
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$legacy_phenix_manifest" \
+        --verification-log "$qualification/unknown-screen-phenix-verification.log" \
+        --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
+    PHENIX_MANIFEST="$refreshed_phenix_manifest"
+
+    cd "$RUN/execution"
+    PHASE=test
+    printf 'phase=unknown_screen_first profile=unknown-screen\n'
+    if ! run_unknown_screen_nextflow first; then
+        "$PYTHON" -m genome_to_diffraction.hpc.mr_failure_evidence \
+            --run-id "$RUN_ID" \
+            --nextflow-log "$RUN/logs/unknown-screen-nextflow-first.log" \
+            --work-root "$RUN/cache/unknown-screen-nextflow/work" \
+            --outdir "$qualification/unknown-screen-failed-mr-children" \
+            >"$RUN/logs/unknown-screen-failed-mr-children.log" 2>&1 || return 4
+        return 4
+    fi
+    cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
+        "$qualification/unknown-screen-first-pipeline-info"
+    (
+        cd "$UNKNOWN_SCREEN_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-screen-before-resume.sha256"
+    printf 'phase=unknown_screen_resume profile=unknown-screen\n'
+    if ! run_unknown_screen_nextflow resume -resume; then
+        "$PYTHON" -m genome_to_diffraction.hpc.mr_failure_evidence \
+            --run-id "$RUN_ID" \
+            --nextflow-log "$RUN/logs/unknown-screen-nextflow-resume.log" \
+            --work-root "$RUN/cache/unknown-screen-nextflow/work" \
+            --outdir "$qualification/unknown-screen-failed-mr-children" \
+            >"$RUN/logs/unknown-screen-failed-mr-children.log" 2>&1 || return 4
+        return 4
+    fi
+    cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
+        "$qualification/unknown-screen-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_SCREEN_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-screen-after-resume.sha256"
+    cmp -s \
+        "$qualification/unknown-screen-before-resume.sha256" \
+        "$qualification/unknown-screen-after-resume.sha256" || return 4
+    first_trace="$qualification/unknown-screen-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-screen-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    mr_inventory="$qualification/unknown-screen-first-mr-inventory.tsv"
+    printf 'crystal_id\tinitial_mr_task_count\n' > "$mr_inventory"
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "process") process_column = i
+                if ($i == "tag") tag_column = i
+            }
+            next
+        }
+        process_column > 0 && tag_column > 0 &&
+        $process_column ~ /RUN_PHASE3_FIRST_COPY_PHASER$/ {
+            parts_count = split($tag_column, parts, ":")
+            if (parts_count == 3 && parts[1] == "phase3-first-copy") {
+                counts[parts[2]]++
+            }
+        }
+        END {
+            for (crystal_id in counts) {
+                print crystal_id "\t" counts[crystal_id]
+            }
+        }
+    ' "$first_trace" | LC_ALL=C sort >> "$mr_inventory"
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-screen-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-screen-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-screen-first-task-identities.tsv" \
+        "$qualification/unknown-screen-resume-task-identities.tsv" || return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$cached" =~ $INTEGER_RE && \
+       "$total" -ge 8 && "$cached" -eq "$total" ]] || return 4
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "process") process_column = i
+            next
+        }
+        process_column > 0 && $process_column ~ \
+            /(RETRIEVE_AFDB_EXACT|REGISTER_PDB_COORDINATES|SEARCH_PDB_SEQUENCES|SEARCH_PHASE3_FOLDSEEK_BATCH)/ {
+            forbidden++
+        }
+        END { exit forbidden == 0 ? 0 : 1 }
+    ' "$first_trace" || return 4
+    [[ -f "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" ]] || \
+        return 4
+    mapfile -d '' -t owned_a_packages < <(
+        find "$UNKNOWN_SCREEN_OUT" -maxdepth 1 -type d \
+            -name 'phase3_owned_a_review_*' -print0
+    )
+    mapfile -d '' -t crystallographic_holds < <(
+        find "$UNKNOWN_SCREEN_OUT" -maxdepth 1 -type d \
+            -name 'phase3_crystallographic_hold_*' -print0
+    )
+    mapfile -d '' -t expected_review_stages < <(
+        find "$UNKNOWN_SCREEN_INPUTS/crystallographic_review_stage/stages" \
+            -mindepth 1 -maxdepth 1 -type d -print0
+    )
+    [[ "$(( ${#owned_a_packages[@]} + ${#crystallographic_holds[@]} ))" -eq 3 && \
+       "${#expected_review_stages[@]}" -eq 3 ]] || return 4
+    for directory in "${owned_a_packages[@]}"; do
+        outcome_name="${directory##*/}"
+        outcome_ids+=("${outcome_name#phase3_owned_a_review_}")
+    done
+    for directory in "${crystallographic_holds[@]}"; do
+        outcome_name="${directory##*/}"
+        outcome_ids+=("${outcome_name#phase3_crystallographic_hold_}")
+    done
+    for directory in "${expected_review_stages[@]}"; do
+        expected_ids+=("${directory##*/}")
+    done
+    mapfile -t outcome_ids < <(printf '%s\n' "${outcome_ids[@]}" | LC_ALL=C sort -u)
+    mapfile -t expected_ids < <(printf '%s\n' "${expected_ids[@]}" | LC_ALL=C sort -u)
+    [[ "${#outcome_ids[@]}" -eq 3 && "${#expected_ids[@]}" -eq 3 && \
+       "${outcome_ids[*]}" == "${expected_ids[*]}" ]] || return 4
+    for directory in "${owned_a_packages[@]}"; do
+        outcome_name="${directory##*/}"
+        crystal_id="${outcome_name#phase3_owned_a_review_}"
+        count="$(awk -F '\t' -v crystal_id="$crystal_id" \
+            'NR > 1 && $1 == crystal_id { print $2 }' "$mr_inventory")"
+        [[ "$count" == 25 ]] || return 4
+        expected_mr_total=$((expected_mr_total + 25))
+    done
+    for directory in "${crystallographic_holds[@]}"; do
+        outcome_name="${directory##*/}"
+        crystal_id="${outcome_name#phase3_crystallographic_hold_}"
+        count="$(awk -F '\t' -v crystal_id="$crystal_id" \
+            'NR > 1 && $1 == crystal_id { print $2 }' "$mr_inventory")"
+        [[ -z "$count" || "$count" == 0 ]] || return 4
+    done
+    actual_mr_total="$(awk -F '\t' \
+        'NR > 1 { total += $2 } END { print total + 0 }' "$mr_inventory")"
+    [[ "$actual_mr_total" == "$expected_mr_total" ]] || return 4
+    (
+        cd "$UNKNOWN_SCREEN_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(
+            find . -xdev -type f \
+                ! -path './pipeline_info/*' \
+                ! -path './phase3_offline_provider_input/*' \
+                -print | LC_ALL=C sort
+        )
+    ) > "$qualification/unknown-screen-output-checksums.sha256"
+    [[ -s "$qualification/unknown-screen-output-checksums.sha256" ]] || return 4
+    sha256sum \
+        "$UNKNOWN_SCREEN_DISCOVERY/phase3_provider_discovery_manifest.json" \
+        "$UNKNOWN_SCREEN_PREPARATION/provider_preparation.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/localisation_batch_manifest.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/first_wave_policy.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/group_localisation_evidence.jsonl" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/first_wave_sequence_group_ids.txt" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/excluded_sequence_group_ids.txt" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/gel-evidence.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/raw/psortb-terse.tsv" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/raw/deeptmhmm-topologies.3line" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/localisation_container_execution.json" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/psortb-container.log" \
+        "$UNKNOWN_SCREEN_INPUTS/localisation_bundle/container_execution/deeptmhmm-container.log" \
+        "$PHENIX_MANIFEST" \
+        "$UNKNOWN_SCREEN_OUT/phase3_offline_provider_input/phase3_offline_provider_input.json" \
+        "$qualification/unknown-screen-before-resume.sha256" \
+        "$qualification/unknown-screen-after-resume.sha256" \
+        "$qualification/unknown-screen-output-checksums.sha256" \
+        "$qualification/unknown-screen-first-task-identities.tsv" \
+        "$qualification/unknown-screen-resume-task-identities.tsv" \
+        "$mr_inventory" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-screen-checksums.sha256"
+    printf 'unknown_screen_status=passed\n'
+}
+
+run_unknown_single_component_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-single-component-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation reviewed_single_component \
+        --catalogues "$CATALOGUES" \
+        --crystals "$CRYSTALS" \
+        --config "$PIPELINE_CONFIG" \
+        --database_manifest "$EXPECTED_DATABASE_MANIFEST" \
+        --phenix_manifest "$PHENIX_MANIFEST" \
+        --phase3_execution_identity \
+        "$UNKNOWN_SINGLE_REGISTRY/phase3_execution_identity.json" \
+        --phase3_owned_parent_run_id "$UNKNOWN_SCREEN_PARENT_RUN_ID" \
+        --phase3_reviewed_crystal_manifest "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" \
+        --phase3_owned_run_registry "$UNKNOWN_SINGLE_REGISTRY" \
+        --phase3_owned_sequence_parent_run_id "$RUN_ID" \
+        --outdir "$UNKNOWN_SINGLE_OUT" \
+        --cache_root "$RUN/cache/unknown-single-component-nextflow"
+}
+
+run_unknown_single_component() {
+    local root="$RUN/artifacts/unknown-single-component"
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    local legacy_phenix_manifest refreshed_phenix_manifest expected_phenix_sha256
+    UNKNOWN_SINGLE_REGISTRY="$root/owned_run_registry"
+    UNKNOWN_SINGLE_REVIEWED_CRYSTALS="$root/reviewed_crystals.json"
+    UNKNOWN_SINGLE_OUT="$root/results"
+    UNKNOWN_SCREEN_PARENT_RUN_ID="$(<"$RUN/state/unknown-screen-parent-run-id")"
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_SINGLE_OUT" \
+        "$RUN/cache/unknown-single-component-nextflow" \
+        "$RUN/execution"
+    load_p0_config
+    PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    [[ "$UNKNOWN_SCREEN_PARENT_RUN_ID" =~ $RUN_ID_RE && \
+       -d "$UNKNOWN_SINGLE_REGISTRY" && ! -L "$UNKNOWN_SINGLE_REGISTRY" && \
+       -f "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" && \
+       ! -L "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" ]] || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    legacy_phenix_manifest="$PHENIX_MANIFEST"
+    expected_phenix_sha256="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$expected_phenix_sha256" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$legacy_phenix_manifest" | awk '{print $1}')" == \
+       "$expected_phenix_sha256" ]] || return 2
+    refreshed_phenix_manifest="$qualification/unknown-single-component-phenix-manifest.json"
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$legacy_phenix_manifest" \
+        --verification-log \
+        "$qualification/unknown-single-component-phenix-verification.log" \
+        --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
+    PHENIX_MANIFEST="$refreshed_phenix_manifest"
+
+    cd "$RUN/execution"
+    PHASE=test
+    printf 'phase=unknown_single_component_first profile=unknown-single-component\n'
+    run_unknown_single_component_nextflow first
+    cp -a "$UNKNOWN_SINGLE_OUT/pipeline_info" \
+        "$qualification/unknown-single-component-first-pipeline-info"
+    (
+        cd "$UNKNOWN_SINGLE_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-single-component-before-resume.sha256"
+    printf 'phase=unknown_single_component_resume profile=unknown-single-component\n'
+    run_unknown_single_component_nextflow resume -resume
+    cp -a "$UNKNOWN_SINGLE_OUT/pipeline_info" \
+        "$qualification/unknown-single-component-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_SINGLE_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-single-component-after-resume.sha256"
+    [[ -s "$qualification/unknown-single-component-before-resume.sha256" ]] || \
+        return 4
+    cmp -s \
+        "$qualification/unknown-single-component-before-resume.sha256" \
+        "$qualification/unknown-single-component-after-resume.sha256" || return 4
+    first_trace="$qualification/unknown-single-component-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-single-component-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-single-component-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-single-component-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-single-component-first-task-identities.tsv" \
+        "$qualification/unknown-single-component-resume-task-identities.tsv" || \
+        return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$cached" =~ $INTEGER_RE && \
+       "$total" -ge 4 && "$cached" -eq "$total" ]] || return 4
+    awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "process") process_column = i
+            next
+        }
+        process_column > 0 && $process_column ~ \
+            /(RETRIEVE_AFDB_EXACT|REGISTER_PDB_COORDINATES|SEARCH_PDB_SEQUENCES|SEARCH_PHASE3_FOLDSEEK_BATCH|RUN_PHASE3_FIRST_COPY_PHASER)/ {
+            forbidden++
+        }
+        END { exit forbidden == 0 ? 0 : 1 }
+    ' "$first_trace" || return 4
+    cp \
+        "$qualification/unknown-single-component-after-resume.sha256" \
+        "$qualification/unknown-single-component-output-checksums.sha256"
+    sha256sum \
+        "$root/unknown_single_component_stage_manifest.json" \
+        "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" \
+        "$UNKNOWN_SINGLE_REGISTRY/phase3_owned_run_registry.json" \
+        "$PHENIX_MANIFEST" \
+        "$qualification/unknown-single-component-before-resume.sha256" \
+        "$qualification/unknown-single-component-after-resume.sha256" \
+        "$qualification/unknown-single-component-output-checksums.sha256" \
+        "$qualification/unknown-single-component-first-task-identities.tsv" \
+        "$qualification/unknown-single-component-resume-task-identities.tsv" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-single-component-checksums.sha256"
+    printf 'unknown_single_component_status=passed\n'
+}
+
+run_unknown_pass2_nextflow() {
+    local label="$1"
+    shift
+    "$NEXTFLOW" \
+        -log "$RUN/logs/unknown-pass2-nextflow-${label}.log" \
+        run "$RUN/source/phase3_application.nf" \
+        "$@" \
+        -profile marmic \
+        --phase3_operation composition_beam \
+        --phase3_pass2_input_manifest \
+        "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" \
+        --phase3_owned_parent_run_id "$RUN_ID" \
+        --outdir "$UNKNOWN_PASS2_OUT" \
+        --cache_root "$RUN/cache/unknown-pass2-nextflow"
+}
+
+run_unknown_pass2() {
+    local qualification="$RUN/artifacts/qualification"
+    local first_trace resume_trace cache_counts total cached
+    UNKNOWN_PASS2_ROOT="$RUN/artifacts/unknown-pass2"
+    UNKNOWN_PASS2_OUT="$UNKNOWN_PASS2_ROOT/results"
+    [[ -f "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" && \
+       ! -L "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" ]] || return 2
+    mkdir -p \
+        "$qualification" \
+        "$UNKNOWN_PASS2_OUT" \
+        "$RUN/cache/unknown-pass2-nextflow" \
+        "$RUN/cache/apptainer" \
+        "$RUN/execution"
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
+    cd "$RUN/execution"
+    printf 'phase=unknown_pass2_first profile=unknown-pass2\n'
+    run_unknown_pass2_nextflow first
+    cp -a "$UNKNOWN_PASS2_OUT/pipeline_info" \
+        "$qualification/unknown-pass2-first-pipeline-info"
+    (
+        cd "$UNKNOWN_PASS2_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-pass2-before-resume.sha256"
+    [[ -s "$qualification/unknown-pass2-before-resume.sha256" ]] || return 4
+    printf 'phase=unknown_pass2_resume profile=unknown-pass2\n'
+    run_unknown_pass2_nextflow resume -resume
+    cp -a "$UNKNOWN_PASS2_OUT/pipeline_info" \
+        "$qualification/unknown-pass2-resume-pipeline-info"
+    (
+        cd "$UNKNOWN_PASS2_OUT"
+        while IFS= read -r relative; do
+            relative="${relative#./}"
+            sha256sum "$relative"
+        done < <(find . -xdev -type f ! -path './pipeline_info/*' -print | LC_ALL=C sort)
+    ) > "$qualification/unknown-pass2-after-resume.sha256"
+    cmp -s \
+        "$qualification/unknown-pass2-before-resume.sha256" \
+        "$qualification/unknown-pass2-after-resume.sha256" || return 4
+    first_trace="$qualification/unknown-pass2-first-pipeline-info/trace.tsv"
+    resume_trace="$qualification/unknown-pass2-resume-pipeline-info/trace.tsv"
+    [[ -f "$first_trace" && -f "$resume_trace" ]] || return 4
+    write_trace_identity_manifest "$first_trace" \
+        "$qualification/unknown-pass2-first-task-identities.tsv"
+    write_trace_identity_manifest "$resume_trace" \
+        "$qualification/unknown-pass2-resume-task-identities.tsv"
+    cmp -s \
+        "$qualification/unknown-pass2-first-task-identities.tsv" \
+        "$qualification/unknown-pass2-resume-task-identities.tsv" || return 4
+    cache_counts="$(awk -F '\t' '
+        NR == 1 {
+            for (i = 1; i <= NF; i++) if ($i == "status") status_column = i
+            next
+        }
+        status_column > 0 { total++; if ($status_column == "CACHED") cached++ }
+        END { printf "%d %d", total, cached }
+    ' "$resume_trace")"
+    read -r total cached <<< "$cache_counts"
+    [[ "$total" =~ $INTEGER_RE && "$total" -ge 2 && \
+       "$cached" -eq "$total" ]] || return 4
+    "$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" \
+        "$UNKNOWN_PASS2_OUT" \
+        "$qualification/unknown-pass2-summary.json" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+authority_path, output_root, summary_path = map(Path, sys.argv[1:])
+authority = json.loads(authority_path.read_text(encoding="utf-8"))
+items = authority["source"]["items"]
+expected = sorted(item["crystal_id"] for item in items)
+composition_expected = sorted(
+    item["crystal_id"] for item in items if item["mode"] == "composition_beam"
+)
+no_a_expected = sorted(
+    item["crystal_id"] for item in items if item["mode"] == "no_a_expansion"
+)
+terminal = {}
+all_results = []
+for path in sorted(output_root.glob("composition_beam_*/composition_beam_depth_result.json")):
+    record = json.loads(path.read_text(encoding="utf-8"))
+    all_results.append((path, record))
+    if record.get("status") == "terminal":
+        crystal = record.get("crystal_id")
+        if crystal in terminal:
+            raise SystemExit("duplicate terminal pass-2 crystal")
+        terminal[crystal] = record
+if sorted(terminal) != composition_expected:
+    raise SystemExit("pass-2 terminal crystal inventory differs")
+for crystal, record in terminal.items():
+    if (
+        record.get("target_depth", 0) > 6
+        or record.get("global_attempts_used_after", 101) > 100
+        or (record.get("target_depth", 0) >= 4 and not record.get("provisional_component_depth"))
+    ):
+        raise SystemExit(f"pass-2 bound differs for {crystal}")
+no_a_reviews = sorted(
+    path.name.removeprefix("phase3_owned_a_review_")
+    for path in output_root.glob("phase3_owned_a_review_*")
+    if path.is_dir()
+)
+if no_a_reviews != no_a_expected:
+    raise SystemExit("pass-2 no-A review-package inventory differs")
+composition_reviews = sorted(
+    path.name.removeprefix("phase3_pass2_review_")
+    for path in output_root.glob("phase3_pass2_review_*")
+    if path.is_dir()
+)
+if composition_reviews != composition_expected:
+    raise SystemExit("pass-2 composition review-package inventory differs")
+payload = {
+    "schema_version": "1.0",
+    "adapter_version": "phase3-pass2-fixed-profile-v1",
+    "input_id": authority["input_id"],
+    "finding_closure_id": authority["finding_closure_id"],
+    "crystal_ids": expected,
+    "terminal_results": [terminal[crystal] for crystal in composition_expected],
+    "no_a_review_required_crystal_ids": no_a_reviews,
+    "composition_review_required_crystal_ids": composition_reviews,
+    "depth_result_count": len(all_results),
+    "execution_status": (
+        "human_a_review_required" if no_a_reviews else "terminal_complete"
+    ),
+    "complete_composition_claimed": False,
+}
+text = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+summary_path.write_text(text, encoding="utf-8")
+PY
+    cp "$qualification/unknown-pass2-after-resume.sha256" \
+        "$qualification/unknown-pass2-output-checksums.sha256"
+    sha256sum \
+        "$UNKNOWN_PASS2_ROOT/phase3_pass2_input_manifest.json" \
+        "$qualification/unknown-pass2-summary.json" \
+        "$qualification/unknown-pass2-before-resume.sha256" \
+        "$qualification/unknown-pass2-after-resume.sha256" \
+        "$qualification/unknown-pass2-output-checksums.sha256" \
+        "$qualification/unknown-pass2-first-task-identities.tsv" \
+        "$qualification/unknown-pass2-resume-task-identities.tsv" \
+        "$first_trace" \
+        "$resume_trace" \
+        > "$qualification/unknown-pass2-checksums.sha256"
+    printf 'unknown_pass2_status=passed\n'
+}
+
 run_heteromer_smoke() {
     local root="$RUN/artifacts/heteromer-smoke"
     local inputs="$root/inputs"
@@ -1665,12 +2640,19 @@ run_heteromer_smoke() {
     local multicopy_preparation="$multicopy_inputs/preparation_manifest.json"
     local multicopy_parent_result=""
     local multicopy_partner_result="$multicopy_partner/partner_search_result.json"
+    local multicopy_placement_inventory="$multicopy_partner/phaser_per_placement_inventory.json"
+    local phase3_control_inputs="$inputs/phase3-control"
+    local phase3_control_output="$root/phase3-control"
+    local phase3_control_report="$phase3_control_output/phase3-9ecn-control-summary.json"
+    local phase3_control_checksums="$phase3_control_output/phase3-9ecn-control-checksums.sha256"
     local qualification="$RUN/artifacts/qualification"
     local preparation="$inputs/preparation_manifest.json"
     local parent_result=""
     local partner_result="$partner/partner_search_result.json"
+    local partner_placement_inventory="$partner/phaser_per_placement_inventory.json"
     local parent_hypothesis_id parent_sequence_group_id partner_sequence_group_id
     local parent_llg parent_coordinate_relative parent_coordinate_sha256
+    local parent_model_identity_fraction parent_model_uncertainty_source
     local parent_coordinate gate_passed expected_phenix_sha256
     local multicopy_hypothesis_id multicopy_parent_group multicopy_partner_group
     local multicopy_parent_copies multicopy_partner_copies multicopy_partner_sha256
@@ -1696,10 +2678,12 @@ run_heteromer_smoke() {
     local p6_assessments="$qualification/heteromer-composition-assessments.jsonl"
     local p6_parent_group p6_wrong_group p6_wrong_model_sha p6_wrong_identity
     local p6_missing_model_relative p6_scope_relative p6_checksums_tmp
+    local placement_checksums_tmp
     local candidate
     local legacy_phenix_manifest refreshed_phenix_manifest
-    local -a preparation_values=() parent_values=()
+    local -a preparation_values=() parent_values=() partner_native_values=()
     local -a multicopy_values=() multicopy_parent_values=()
+    local -a multicopy_native_values=()
     local -a catalogue_values=() p6_values=() p6_solution_values=()
     local -a p6_checksum_files=()
 
@@ -1728,11 +2712,11 @@ run_heteromer_smoke() {
     sha256sum -c "$RUN/state/heteromer-login-stage.sha256"
     printf 'phase=heteromer_phenix_verify profile=heteromer-smoke\n'
     refreshed_phenix_manifest="$qualification/heteromer-smoke-phenix-manifest.json"
-    "$GTD" --log-format json --no-progress phenix refresh-manifest \
+    "$GTD" --log-format json --no-progress phenix verify \
         --manifest "$legacy_phenix_manifest" \
-        --output "$refreshed_phenix_manifest" \
         --verification-log "$qualification/heteromer-smoke-phenix-verification.log" \
         --no-command-timeout
+    cp -- "$legacy_phenix_manifest" "$refreshed_phenix_manifest"
     PHENIX_MANIFEST="$refreshed_phenix_manifest"
 
     PHASE=test
@@ -1783,7 +2767,7 @@ PY
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$parent"
     mapfile -t parent_values < <(
-        "$PYTHON" - "$parent_result" <<'PY'
+        "$PYTHON" - "$parent_result" "$parent/phaser_command.json" <<'PY'
 import json
 import math
 import re
@@ -1791,10 +2775,13 @@ import sys
 from pathlib import Path, PurePosixPath
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+command = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 llg = document.get("llg")
 relative = document.get("solution_coordinate_path")
 sha256 = document.get("solution_coordinate_sha256")
 packing = document.get("packing_summary")
+identity_percent = command.get("model_identity_percent")
+uncertainty_source = command.get("model_uncertainty_source")
 if (
     document.get("execution_status") != "completed_hit"
     or isinstance(llg, bool)
@@ -1807,17 +2794,31 @@ if (
     or PurePosixPath(relative).name != relative
     or not isinstance(sha256, str)
     or re.fullmatch(r"[a-f0-9]{64}", sha256) is None
+    or isinstance(identity_percent, bool)
+    or not isinstance(identity_percent, (int, float))
+    or not math.isfinite(float(identity_percent))
+    or not 0 < float(identity_percent) <= 100
+    or not isinstance(uncertainty_source, str)
+    or not uncertainty_source.strip()
+    or "\n" in uncertainty_source
+    or "\r" in uncertainty_source
 ):
-    raise SystemExit("fixed 6RTZ A parent did not produce one packed solution")
+    raise SystemExit(
+        "fixed 6RTZ A parent lacks one packed solution or model provenance"
+    )
 print(f"{float(llg):.12g}")
 print(relative)
 print(sha256)
+print(f"{float(identity_percent) / 100:.12g}")
+print(uncertainty_source)
 PY
     )
-    [[ "${#parent_values[@]}" -eq 3 ]] || return 4
+    [[ "${#parent_values[@]}" -eq 5 ]] || return 4
     parent_llg="${parent_values[0]}"
     parent_coordinate_relative="${parent_values[1]}"
     parent_coordinate_sha256="${parent_values[2]}"
+    parent_model_identity_fraction="${parent_values[3]}"
+    parent_model_uncertainty_source="${parent_values[4]}"
     [[ "$parent_llg" =~ ^-?[0-9]+([.][0-9]+)?([eE][+-]?[0-9]+)?$ && \
        "$parent_coordinate_sha256" =~ $CHECKSUM_RE ]] || return 4
     parent_coordinate="$parent/$parent_coordinate_relative"
@@ -1851,6 +2852,42 @@ PY
         --phenix-manifest "$PHENIX_MANIFEST" \
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$partner"
+
+    PHASE=test
+    printf 'phase=heteromer_partner_component_coordinates profile=heteromer-smoke\n'
+    mapfile -t partner_native_values < <(
+        "$PYTHON" - "$partner_result" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+search_id = document.get("search_id")
+tool_version = document.get("tool_version")
+if (
+    not isinstance(search_id, str)
+    or re.fullmatch(r"partner_[a-f0-9]{64}", search_id) is None
+    or not isinstance(tool_version, str)
+    or not tool_version
+):
+    raise SystemExit("fixed 6RTZ partner result lacks execution identity")
+print(search_id)
+print(tool_version)
+PY
+    )
+    [[ "${#partner_native_values[@]}" -eq 2 ]] || return 4
+    "$GTD" --log-format json --no-progress mr collect-per-placement \
+        --crystal-id 6RTZ \
+        --search-id "${partner_native_values[0]}" \
+        --phaser-version "${partner_native_values[1]}" \
+        --output-directory "$partner" \
+        --command-record "$partner/phaser_command.json" \
+        --result-record "$partner_result" \
+        --expected-component A:fixed_parent:1 \
+        --expected-component B:search_partner:1 \
+        --component-model "A:$inputs/models/component_A.pdb" \
+        --component-model "B:$inputs/models/component_B.pdb"
 
     PHASE=test
     printf 'phase=heteromer_gate profile=heteromer-smoke\n'
@@ -1968,7 +3005,8 @@ PY
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$multicopy_parent"
     mapfile -t multicopy_parent_values < <(
-        "$PYTHON" - "$multicopy_parent_result" "$multicopy_parent_copies" <<'PY'
+        "$PYTHON" - "$multicopy_parent_result" "$multicopy_parent_copies" \
+            "$multicopy_parent/phaser_command.json" <<'PY'
 import json
 import math
 import re
@@ -1977,10 +3015,13 @@ from pathlib import Path, PurePosixPath
 
 document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 expected = int(sys.argv[2])
+command = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
 llg = document.get("llg")
 relative = document.get("solution_coordinate_path")
 sha256 = document.get("solution_coordinate_sha256")
 packing = document.get("packing_summary")
+identity_percent = command.get("model_identity_percent")
+uncertainty_source = command.get("model_uncertainty_source")
 if (
     document.get("execution_status") != "completed_hit"
     or isinstance(llg, bool)
@@ -1993,17 +3034,29 @@ if (
     or PurePosixPath(relative).name != relative
     or not isinstance(sha256, str)
     or re.fullmatch(r"[a-f0-9]{64}", sha256) is None
+    or isinstance(identity_percent, bool)
+    or not isinstance(identity_percent, (int, float))
+    or not math.isfinite(float(identity_percent))
+    or not 0 < float(identity_percent) <= 100
+    or not isinstance(uncertainty_source, str)
+    or not uncertainty_source.strip()
+    or "\n" in uncertainty_source
+    or "\r" in uncertainty_source
 ):
-    raise SystemExit("fixed 3U7Q A parent did not produce two packed copies")
+    raise SystemExit("fixed 3U7Q A parent lacks packed copies or model provenance")
 print(f"{float(llg):.12g}")
 print(relative)
 print(sha256)
+print(f"{float(identity_percent) / 100:.12g}")
+print(uncertainty_source)
 PY
     )
-    [[ "${#multicopy_parent_values[@]}" -eq 3 ]] || return 4
+    [[ "${#multicopy_parent_values[@]}" -eq 5 ]] || return 4
     multicopy_parent_llg="${multicopy_parent_values[0]}"
     multicopy_parent_relative="${multicopy_parent_values[1]}"
     multicopy_parent_sha256="${multicopy_parent_values[2]}"
+    multicopy_parent_model_identity_fraction="${multicopy_parent_values[3]}"
+    multicopy_parent_model_uncertainty_source="${multicopy_parent_values[4]}"
     multicopy_parent_coordinate="$multicopy_parent/$multicopy_parent_relative"
     [[ -f "$multicopy_parent_coordinate" && \
        "$(sha256sum "$multicopy_parent_coordinate" | awk '{print $1}')" == \
@@ -2027,6 +3080,8 @@ PY
         --parent-coordinate "$multicopy_parent_coordinate" \
         --expected-parent-coordinate-sha256 "$multicopy_parent_sha256" \
         --parent-llg "$multicopy_parent_llg" \
+        --parent-model-identity-fraction "$multicopy_parent_model_identity_fraction" \
+        --parent-model-uncertainty-source "$multicopy_parent_model_uncertainty_source" \
         --parent-copy-count "$multicopy_parent_copies" \
         --partner-model "$multicopy_inputs/models/component_B.pdb" \
         --expected-partner-model-sha256 "$multicopy_partner_sha256" \
@@ -2037,6 +3092,42 @@ PY
         --phenix-manifest "$PHENIX_MANIFEST" \
         --threads "${SLURM_CPUS_PER_TASK:-1}" \
         --outdir "$multicopy_partner"
+
+    PHASE=test
+    printf 'phase=heteromer_multicopy_component_coordinates profile=heteromer-smoke\n'
+    mapfile -t multicopy_native_values < <(
+        "$PYTHON" - "$multicopy_partner_result" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+document = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+search_id = document.get("search_id")
+tool_version = document.get("tool_version")
+if (
+    not isinstance(search_id, str)
+    or re.fullmatch(r"partner_[a-f0-9]{64}", search_id) is None
+    or not isinstance(tool_version, str)
+    or not tool_version
+):
+    raise SystemExit("fixed 3U7Q partner result lacks execution identity")
+print(search_id)
+print(tool_version)
+PY
+    )
+    [[ "${#multicopy_native_values[@]}" -eq 2 ]] || return 4
+    "$GTD" --log-format json --no-progress mr collect-per-placement \
+        --crystal-id 3U7Q \
+        --search-id "${multicopy_native_values[0]}" \
+        --phaser-version "${multicopy_native_values[1]}" \
+        --output-directory "$multicopy_partner" \
+        --command-record "$multicopy_partner/phaser_command.json" \
+        --result-record "$multicopy_partner_result" \
+        --expected-component A:fixed_parent:2 \
+        --expected-component B:search_partner:2 \
+        --component-model "A:$multicopy_inputs/models/component_A.pdb" \
+        --component-model "B:$multicopy_inputs/models/component_B.pdb"
 
     PHASE=test
     printf 'phase=heteromer_multicopy_gate profile=heteromer-smoke\n'
@@ -2331,6 +3422,8 @@ PY
         --parent-coordinate "$parent_coordinate" \
         --expected-parent-coordinate-sha256 "$parent_coordinate_sha256" \
         --parent-llg "$parent_llg" \
+        --parent-model-identity-fraction "$parent_model_identity_fraction" \
+        --parent-model-uncertainty-source "$parent_model_uncertainty_source" \
         --parent-copy-count 1 \
         --partner-model "$p6_inputs/wrong_partner/model.pdb" \
         --expected-partner-model-sha256 "$p6_wrong_model_sha" \
@@ -2484,6 +3577,176 @@ PY
     ) > "$p6_checksums_tmp"
     mv -f -- "$p6_checksums_tmp" \
         "$qualification/heteromer-smoke-checksums.sha256"
+
+    "$PYTHON" - "$partner_placement_inventory" \
+        "$multicopy_placement_inventory" \
+        "$qualification/phase3-placement-control-summary.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+inventory_paths = (Path(sys.argv[1]), Path(sys.argv[2]))
+summary_path = Path(sys.argv[3])
+expected = {
+    "6RTZ": {"A": ("fixed_parent", 1), "B": ("search_partner", 1)},
+    "3U7Q": {"A": ("fixed_parent", 2), "B": ("search_partner", 2)},
+}
+controls = []
+for inventory_path in inventory_paths:
+    document = json.loads(inventory_path.read_text(encoding="utf-8"))
+    crystal_id = document.get("crystal_id")
+    groups = {
+        row.get("component_label"): (
+            row.get("ensemble_id"),
+            row.get("expected_copy_count"),
+            row.get("observed_copy_count"),
+        )
+        for row in document.get("component_groups", [])
+        if isinstance(row, dict)
+    }
+    expected_groups = expected.get(crystal_id)
+    observed_groups = {
+        label: (ensemble, expected_count)
+        for label, (ensemble, expected_count, observed_count) in groups.items()
+        if expected_count == observed_count
+    }
+    if (
+        document.get("schema_version") != "2.0"
+        or document.get("adapter_version") != "phaser-component-coordinate-inventory-v2"
+        or expected_groups is None
+        or observed_groups != expected_groups
+        or document.get("ordinal_mapping_status")
+        != "verified_exact_sol_to_model_bound_chains"
+        or document.get("recombination_status")
+        != "verified_exact_combined_atom_partition"
+        or document.get("can_create_fixed_component_evidence") is not True
+        or document.get("combined_atom_count") != document.get("recombined_atom_count")
+    ):
+        raise SystemExit(f"invalid native placement inventory for {crystal_id!r}")
+    controls.append(
+        {
+            "crystal_id": crystal_id,
+            "inventory_id": document.get("inventory_id"),
+            "search_id": document.get("search_id"),
+            "phaser_version": document.get("phaser_version"),
+            "placement_count": len(document.get("placements", [])),
+            "component_groups": groups,
+        }
+    )
+controls.sort(key=lambda row: row["crystal_id"])
+summary = {
+    "schema_version": "1.0",
+    "adapter_version": "phase3-placement-known-controls-v1",
+    "profile": "heteromer-smoke",
+    "controls": controls,
+    "component_mapping_passed": True,
+    "recombination_qualified": True,
+    "next_gate": "build_evidence_bound_multi_fixed_component_search",
+    "checksum_file_count": 46,
+}
+summary_path.write_text(
+    json.dumps(summary, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
+    placement_checksums_tmp="$qualification/phase3-placement-control-checksums.sha256.tmp.$$"
+    (
+        cd "$RUN"
+        sha256sum \
+            artifacts/qualification/heteromer-smoke-phenix-manifest.json \
+            artifacts/heteromer-smoke/inputs/preparation_manifest.json \
+            artifacts/heteromer-smoke/inputs/crystals.json \
+            artifacts/heteromer-smoke/inputs/sequence_groups.jsonl \
+            artifacts/heteromer-smoke/inputs/models/component_A.pdb \
+            artifacts/heteromer-smoke/inputs/models/component_B.pdb \
+            artifacts/heteromer-smoke/inputs/derived/6RTZ.mtz \
+            artifacts/heteromer-smoke/parent/normalised_mr_result.json \
+            artifacts/heteromer-smoke/parent/phaser_command.json \
+            artifacts/heteromer-smoke/parent/PHASER.1.pdb \
+            artifacts/heteromer-smoke/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/partner/partner_search_result.jsonl \
+            artifacts/heteromer-smoke/partner/phaser_command.json \
+            artifacts/heteromer-smoke/partner/partner_search.eff \
+            artifacts/heteromer-smoke/partner/PHASER.log \
+            artifacts/heteromer-smoke/partner/phenix.phaser.capture.log \
+            artifacts/heteromer-smoke/partner/PHASER.sol \
+            artifacts/heteromer-smoke/partner/PHASER.1.pdb \
+            artifacts/heteromer-smoke/partner/PHASER.1.mtz \
+            artifacts/heteromer-smoke/partner/component_A.pdb \
+            artifacts/heteromer-smoke/partner/component_B.pdb \
+            artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json \
+            artifacts/qualification/heteromer-smoke-summary.json \
+            artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json \
+            artifacts/heteromer-smoke/inputs/multicopy/crystals.json \
+            artifacts/heteromer-smoke/inputs/multicopy/sequence_groups.jsonl \
+            artifacts/heteromer-smoke/inputs/multicopy/models/component_A.pdb \
+            artifacts/heteromer-smoke/inputs/multicopy/models/component_B.pdb \
+            artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz \
+            artifacts/heteromer-smoke/multicopy/parent/normalised_mr_result.json \
+            artifacts/heteromer-smoke/multicopy/parent/phaser_command.json \
+            artifacts/heteromer-smoke/multicopy/parent/PHASER.1.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search_result.jsonl \
+            artifacts/heteromer-smoke/multicopy/partner/phaser_command.json \
+            artifacts/heteromer-smoke/multicopy/partner/partner_search.eff \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.log \
+            artifacts/heteromer-smoke/multicopy/partner/phenix.phaser.capture.log \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.sol \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/PHASER.1.mtz \
+            artifacts/heteromer-smoke/multicopy/partner/component_A.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/component_B.pdb \
+            artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json \
+            artifacts/qualification/heteromer-multicopy-summary.json \
+            artifacts/qualification/phase3-placement-control-summary.json
+    ) > "$placement_checksums_tmp"
+    mv -f -- "$placement_checksums_tmp" \
+        "$qualification/phase3-placement-control-checksums.sha256"
+
+    PHASE=test
+    printf 'phase=heteromer_phase3_9ecn profile=heteromer-smoke\n'
+    "$GTD" --log-format json --no-progress \
+        benchmark run-9ecn-phase3-control \
+        --preparation "$phase3_control_inputs" \
+        --phenix-manifest "$PHENIX_MANIFEST" \
+        --wrong-c-sequence-groups \
+        "$p6_inputs/wrong_partner/sequence_groups.jsonl" \
+        --wrong-c-sequence-group-id "$p6_wrong_group" \
+        --wrong-c-model "$p6_inputs/wrong_partner/model.pdb" \
+        --wrong-c-control-manifest "$p6_inputs/preparation_manifest.json" \
+        --expected-wrong-c-model-sha256 "$p6_wrong_model_sha" \
+        --wrong-c-model-identity-fraction "$p6_wrong_identity" \
+        --threads "${SLURM_CPUS_PER_TASK:-1}" \
+        --outdir "$phase3_control_output"
+    "$PYTHON" - "$phase3_control_report" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+if (
+    report.get("adapter_version") != "9ecn-phase3-depth-three-control-v3-wrong-c-assessment"
+    or report.get("control") != "9ECN_McrA_McrB_McrG_2A_2B_2C"
+    or report.get("gate_passed") is not True
+    or report.get("component_copy_counts") != {"A": 2, "B": 2, "C": 2}
+    or report.get("exact_identity_claimed_by_search") is not False
+    or report.get("complete_composition_claimed_by_search") is not False
+    or report.get("wrong_c_claim_boundary_passed") is not True
+    or report.get("wrong_c_exact_identity_claimed") is not False
+    or report.get("wrong_c_complete_composition_claimed") is not False
+    or report.get("wrong_c_scientific_status") != "search_evidence_only"
+    or report.get("wrong_c_assessment_claim_eligible") is not False
+    or report.get("wrong_c_assessment_claimed") is not False
+    or not isinstance(report.get("wrong_c_assessment_id"), str)
+    or report.get("wrong_c_execution_status")
+    not in {"completed_hit", "completed_no_hit"}
+):
+    raise SystemExit("fixed 9ECN depth-three control gate failed")
+PY
+    (
+        cd "$phase3_control_output"
+        sha256sum -c "${phase3_control_checksums##*/}"
+    )
     printf 'heteromer_smoke_status=passed\n'
 }
 
@@ -2935,6 +4198,7 @@ expected_process_counts = {
     "M6_PARTITION_DISCOVERY": 2,
     "M6_PREFLIGHT_CASE": 2,
     "M6_APPLY_POLICY": 1,
+    "M6_STAGE_COORDINATES": 1,
     "M6_PREPARE_ACTIVE_CASE": 1,
     "M6_PREPARE_EARLY_CASE": 1,
     "M6_FIRST_COPY": 1,
@@ -2979,7 +4243,10 @@ for label, rows in (
     ("operational resume", operational_resume),
     ("leakage resume", leakage_resume),
 ):
-    if len(rows) != 25 or process_counts(rows) != expected_process_counts:
+    if (
+        len(rows) != sum(expected_process_counts.values())
+        or process_counts(rows) != expected_process_counts
+    ):
         raise SystemExit(f"M6 smoke {label} topology changed")
 if {row["status"] for row in first} != {"COMPLETED"}:
     raise SystemExit("M6 operational first pass was not newly completed")
@@ -2991,8 +4258,8 @@ leakage_completed = [
 ]
 if len(leakage_cached) != 6 or process_counts(leakage_cached) != truthless_process_counts:
     raise SystemExit("M6 leakage resume did not cache exactly six truthless tasks")
-if len(leakage_completed) != 19:
-    raise SystemExit("M6 leakage resume did not complete 19 track-specific tasks")
+if len(leakage_completed) != 20:
+    raise SystemExit("M6 leakage resume did not complete 20 track-specific tasks")
 if len(leakage_cached) + len(leakage_completed) != len(leakage_resume):
     raise SystemExit("M6 leakage resume contains an unexpected task status")
 for process in truthless_process_counts:
@@ -3013,6 +4280,9 @@ evidence = {
     "operational_cached_resume_task_count": len(operational_resume),
     "leakage_cached_truthless_task_count": len(leakage_cached),
     "leakage_completed_track_specific_task_count": len(leakage_completed),
+    "coordinate_stage_process_count": expected_process_counts[
+        "M6_STAGE_COORDINATES"
+    ],
     "truthless_cached_process_counts": dict(sorted(truthless_process_counts.items())),
     "cross_track_truthless_cache_reuse": True,
     "track_specific_cache_reuse": False,
@@ -3041,6 +4311,7 @@ if (
 ):
     raise SystemExit("M6 resource evidence used another site policy")
 jobs = record["jobs"]
+controller_stages = record["controller_stages"]
 search = [
     job for job in jobs
     if job["process"].endswith(("M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"))
@@ -3055,7 +4326,10 @@ process_counts = {
 }
 if (
     not record["per_job_bounds_passed"]
-    or len(jobs) < 20
+    or len(jobs) != 25
+    or len(controller_stages) != 1
+    or not controller_stages[0]["process"].endswith("M6_STAGE_COORDINATES")
+    or controller_stages[0]["status"] != "COMPLETED"
     or process_counts != {"M6_SEARCH_PDB": 2, "M6_SEARCH_FOLDSEEK": 2}
 ):
     raise SystemExit("M6 Slurm smoke child inventory is incomplete")
@@ -3110,6 +4384,7 @@ EOF
   "nextflow_slurm_driver_cpus": 2,
   "nextflow_slurm_driver_memory_gb": 8.0,
   "child_job_count": $child_jobs,
+  "controller_stage_task_count": 1,
   "search_child_job_count": $search_jobs,
   "search_cpus_per_job": 32,
   "peak_running_jobs": $peak_jobs,
@@ -3144,16 +4419,17 @@ run_m6_nextflow() {
         -log "$RUN/logs/nextflow-m6-${M6_TRACK}-${label}.log" \
         run "$RUN/source/m6_validation.nf" \
         "$@" \
-        -profile viper-cpu \
+        -profile "$M6_NEXTFLOW_PROFILE" \
+        --apptainer_cache_dir "$M6_APPTAINER_CACHE" \
         --runner_root "$M6_IMPORT_ROOT" \
         --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
-        --execution_policy "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --execution_policy "$M6_EXECUTION_POLICY" \
         --software_lock "$RUN/source/pixi.lock" \
         --database_manifest "$M6_DATABASE_MANIFEST" \
         --phenix_manifest "$M6_PHENIX_MANIFEST" \
         --track "$M6_TRACK" \
         --outdir "$M6_RESULTS_ROOT" \
-        --cache_root "$RUN/cache/m6-nextflow-$M6_TRACK"
+        --cache_root "$M6_CACHE_ROOT"
 }
 
 run_m6_scientific() {
@@ -3169,13 +4445,24 @@ run_m6_scientific() {
     else
         return 2
     fi
+    load_m6_smoke_site_contract || return 2
     M6_IMPORT_ROOT="$RUN/artifacts/m6-runner-inputs"
     M6_RESULTS_ROOT="$RUN/artifacts/m6-nextflow-results"
+    M6_CACHE_ROOT="$RUN/cache/m6-nextflow-$M6_TRACK"
+    if [[ "$M6_TRACK" == leakage ]]; then
+        [[ -f "$RUN/state/m6-operational-parent-run-id" && \
+           -f "$RUN/state/m6-operational-precheck-sha256" && \
+           -f "$RUN/state/m6-shared-cache-dir" ]] || return 2
+        M6_CACHE_ROOT="$(<"$RUN/state/m6-shared-cache-dir")"
+        [[ "$M6_CACHE_ROOT" =~ $SAFE_PATH_RE && \
+           -d "$M6_CACHE_ROOT" && ! -L "$M6_CACHE_ROOT" ]] || return 2
+    fi
     output="$M6_RESULTS_ROOT/m6_scientific"
     mkdir -p \
         "$qualification" \
         "$M6_RESULTS_ROOT" \
-        "$RUN/cache/m6-nextflow-$M6_TRACK" \
+        "$RUN/cache/apptainer" \
+        "$M6_CACHE_ROOT" \
         "$RUN/execution"
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready && \
@@ -3204,8 +4491,12 @@ run_m6_scientific() {
     [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
-    export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    if [[ "$M6_SITE_ID" == viper-cpu ]]; then
+        export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
+    else
+        unset NF_HELPER_VIPER_COMPUTE_CONTROLLER
+    fi
+    export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"
 
     PHASE=test
     printf 'phase=m6_phenix_verify profile=%s track=%s\n' "$PROFILE" "$M6_TRACK"
@@ -3220,9 +4511,69 @@ run_m6_scientific() {
     cp -a "$M6_RESULTS_ROOT/pipeline_info" \
         "$qualification/m6-first-pipeline-info"
     "$GTD" --log-format json --no-progress benchmark collect-m6-resources \
-        --execution-policy "$RUN/source/benchmarks/m6/execution-nextflow-v1.yaml" \
+        --execution-policy "$M6_EXECUTION_POLICY" \
         --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
         --output "$qualification/m6-child-resource-evidence.json"
+    "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
+        --track "$M6_TRACK" \
+        --trace "$qualification/m6-first-pipeline-info/trace.tsv" \
+        --output "$qualification/m6-first-child-outputs.json"
+    "$RUN/source/.pixi/envs/hpc/bin/python" - \
+        "$qualification/m6-first-pipeline-info/trace.tsv" \
+        "$M6_TRACK" \
+        "$qualification/m6-cross-track-cache-evidence.json" <<'PY'
+import csv
+import json
+import pathlib
+import sys
+
+trace = pathlib.Path(sys.argv[1])
+track = sys.argv[2]
+output = pathlib.Path(sys.argv[3])
+with trace.open(encoding="utf-8", newline="") as handle:
+    rows = list(csv.DictReader(handle, delimiter="\t"))
+if not rows or any(not row.get("process") or not row.get("status") for row in rows):
+    raise SystemExit("M6 first-pass trace is incomplete")
+
+
+def process_name(row):
+    return row["process"].rsplit(":", 1)[-1]
+
+
+truthless = {"M6_IMPORT_CATALOGUE", "M6_SEARCH_PDB", "M6_SEARCH_FOLDSEEK"}
+cached = [row for row in rows if row["status"] == "CACHED"]
+completed = [row for row in rows if row["status"] == "COMPLETED"]
+if track == "operational":
+    if cached or len(completed) != len(rows):
+        raise SystemExit("M6 operational first pass reused an unexpected task")
+else:
+    if (
+        not cached
+        or any(process_name(row) not in truthless for row in cached)
+        or any(
+            row["status"] != ("CACHED" if process_name(row) in truthless else "COMPLETED")
+            for row in rows
+        )
+    ):
+        raise SystemExit("M6 leakage did not reuse only complete truthless tasks")
+output.write_text(
+    json.dumps(
+        {
+            "schema_version": "1.0",
+            "track": track,
+            "first_task_count": len(rows),
+            "truthless_cached_task_count": len(cached),
+            "track_specific_completed_task_count": len(completed),
+            "cross_track_truthless_cache_reuse": track == "leakage",
+            "track_specific_cache_reuse": False,
+        },
+        indent=2,
+        sort_keys=True,
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PY
     before="$qualification/m6-before-resume.sha256"
     after="$qualification/m6-after-resume.sha256"
     (
@@ -3254,12 +4605,19 @@ run_m6_scientific() {
         "$qualification/m6-first-pipeline-info/trace.tsv")"
     [[ "$expected" -gt 0 && "$total" -eq "$expected" && \
        "$cached" -eq "$expected" ]] || return 4
+    "$GTD" --log-format json --no-progress benchmark collect-m6-child-outputs \
+        --track "$M6_TRACK" \
+        --trace "$qualification/m6-resume-pipeline-info/trace.tsv" \
+        --baseline "$qualification/m6-first-child-outputs.json" \
+        --output "$qualification/m6-resume-child-outputs.json"
     cat > "$qualification/m6-resume-cache-evidence.json" <<EOF
 {
   "schema_version": "1.0",
   "cache_mechanism": "nextflow_resume",
   "first_task_count": $expected,
   "cached_resume_task_count": $cached,
+  "first_child_output_sha256": "$(sha256sum "$qualification/m6-first-child-outputs.json" | awk '{print $1}')",
+  "resume_child_output_sha256": "$(sha256sum "$qualification/m6-resume-child-outputs.json" | awk '{print $1}')",
   "fully_cached_resume": true
 }
 EOF
@@ -3320,7 +4678,7 @@ EOF
   "peak_running_jobs": $peak_jobs,
   "peak_aggregate_cpu_count": $peak_cpu,
   "peak_aggregate_memory_gb": $peak_memory,
-  "execution_policy": "m6_nextflow_slurm_v1"
+  "execution_policy": "$M6_EXECUTION_POLICY_ID"
 }
 EOF
     cp "$output/m6_scientific_summary.json" \
@@ -3359,7 +4717,10 @@ EOF
         "$qualification/m6-resume-check.json" \
         "$qualification/m6-runtime-provenance.json" \
         "$qualification/m6-child-resource-evidence.json" \
+        "$qualification/m6-cross-track-cache-evidence.json" \
         "$qualification/m6-resume-cache-evidence.json" \
+        "$qualification/m6-first-child-outputs.json" \
+        "$qualification/m6-resume-child-outputs.json" \
         "$qualification/m6-phenix-verification.log" \
         "$qualification/m6-phaser-log-tails.txt" \
         "$M6_PHENIX_MANIFEST" \
@@ -3375,7 +4736,8 @@ run_m4_copy_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-m4-copy-${label}.log" \
-        run "$RUN/source/screen_additional_copies.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage additional_copy \
         "$@" \
         -profile viper-cpu \
         --seeds "$M4_INPUTS/seeds.tsv" \
@@ -3401,7 +4763,12 @@ run_m4_copy() {
 
     M4_INPUTS="$RUN/artifacts/m4-copy-inputs"
     M4_RESULTS="$RUN/artifacts/m4-copy/copy-two"
-    mkdir -p "$qualification" "$M4_RESULTS" "$RUN/cache/m4-copy" "$RUN/execution"
+    mkdir -p \
+        "$qualification" \
+        "$M4_RESULTS" \
+        "$RUN/cache/apptainer" \
+        "$RUN/cache/m4-copy" \
+        "$RUN/execution"
     [[ -f "$RUN/state/m4-stage-manifest-sha256" && \
        "$(sha256sum "$M4_INPUTS/m4_copy_stage_manifest.json" | awk '{print $1}')" == \
        "$(<"$RUN/state/m4-stage-manifest-sha256")" ]] || {
@@ -3417,7 +4784,7 @@ run_m4_copy() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
     export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
 
     PHASE=test
     printf 'phase=m4_copy_phenix_verify profile=m4-copy\n'
@@ -3554,7 +4921,8 @@ run_t12_nextflow() {
     shift
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-t12-${label}.log" \
-        run "$RUN/source/refine_finalists.nf" \
+        run "$RUN/source/qualification.nf" \
+        --qualification_stage refine_finalists \
         "$@" \
         -profile viper-cpu \
         --finalists "$T12_INPUTS/finalists.tsv" \
@@ -3575,7 +4943,12 @@ run_t12() {
 
     T12_INPUTS="$RUN/artifacts/t12-inputs"
     T12_RESULTS="$RUN/artifacts/t12"
-    mkdir -p "$qualification" "$T12_RESULTS" "$RUN/cache/t12" "$RUN/execution"
+    mkdir -p \
+        "$qualification" \
+        "$T12_RESULTS" \
+        "$RUN/cache/apptainer" \
+        "$RUN/cache/t12" \
+        "$RUN/execution"
     [[ -f "$RUN/state/t12-stage-manifest-sha256" && \
        "$(sha256sum "$T12_INPUTS/t12_stage_manifest.json" | awk '{print $1}')" == \
        "$(<"$RUN/state/t12-stage-manifest-sha256")" ]] || {
@@ -3591,7 +4964,7 @@ run_t12() {
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
     export NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm
-    export NXF_APPTAINER_CACHEDIR=/ptmp/ashima/apptainer-cache
+    export NXF_APPTAINER_CACHEDIR="$RUN/cache/apptainer"
 
     PHASE=test
     printf 'phase=t12_phenix_verify profile=t12\n'
@@ -3903,6 +5276,12 @@ case "$PROFILE" in
     p2-diverse) run_p2_diverse ;;
     p2-control) run_p2_control ;;
     heteromer-smoke) run_heteromer_smoke ;;
+    phase3-phenix-probe) run_phase3_phenix_probe ;;
+    phase3-network-probe) run_phase3_network_probe ;;
+    unknown-discovery) run_unknown_discovery ;;
+    unknown-screen) run_unknown_screen ;;
+    unknown-single-component) run_unknown_single_component ;;
+    unknown-pass2) run_unknown_pass2 ;;
     control-slice) run_control_slice ;;
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;

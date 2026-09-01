@@ -24,6 +24,7 @@
         "catalogue_id": {"type": "string", "minLength": 1},
         "obs_labels": {"type": ["string", "null"]},
         "free_flag_labels": {"type": ["string", "null"]},
+        "free_r_test_value": {"type": ["integer", "null"]},
         "space_group_override": {"type": ["string", "null"]},
         "high_resolution_override": {"type": ["number", "null"], "exclusiveMinimum": 0},
         "low_resolution_override": {"type": ["number", "null"], "exclusiveMinimum": 0},

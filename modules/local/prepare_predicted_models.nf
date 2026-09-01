@@ -7,6 +7,7 @@ process PREPARE_PREDICTED_MODELS {
 
     input:
     coordinate_sources: Path
+    provider_search_results: Path?
     sequence_groups: Path
     phenix_manifest: Path
 
@@ -15,14 +16,21 @@ process PREPARE_PREDICTED_MODELS {
 
     script:
     """
+    args=(
+        --coordinate-sources '${coordinate_sources}'
+        --sequence-groups '${sequence_groups}'
+        --phenix-manifest '${phenix_manifest}'
+        --outdir predicted_model_preparation
+    )
+    if [[ -n '${provider_search_results ?: ''}' ]]; then
+        args+=(--provider-search-results '${provider_search_results ?: ''}')
+    fi
+
     genome-to-diffraction \
         --no-progress \
         --log-format json \
         model prepare-predicted \
-        --coordinate-sources '${coordinate_sources}' \
-        --sequence-groups '${sequence_groups}' \
-        --phenix-manifest '${phenix_manifest}' \
-        --outdir predicted_model_preparation
+        "\${args[@]}"
     """
 
     stub:

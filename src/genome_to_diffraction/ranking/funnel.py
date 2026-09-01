@@ -22,18 +22,33 @@ from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.localisation.batch import (
+    BatchLocalisationGroupEvidence,
+    BatchLocalisationPolicy,
+    validate_catalogue_localisation_batch,
+)
+from genome_to_diffraction.model_registry.all_eligible import (
+    AllEligibleModelRegistryError,
+    AllEligibleModelRegistryOutput,
+    ValidatedProcessedModelInput,
+    build_all_eligible_model_registry,
+)
+from genome_to_diffraction.mr_resources import (
+    build_mr_resource_plan,
+    count_polymer_atoms,
+)
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_contract,
     load_json_document,
 )
 from genome_to_diffraction.schemas.manifests import PipelineConfig, PrototypeProfile
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
@@ -53,6 +68,8 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v6-single-copy"
+_PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
     PrototypeProfile.PILOT: 3,
@@ -108,18 +125,24 @@ class DiverseFirstCopyFunnelRequest:
     pipeline_config: Path
     output_directory: Path
     coordinate_hit_mappings_jsonl: Path | None = None
+    source_records_jsonl: Path | None = None
     crystal_ids: tuple[str, ...] = ()
     maximum_first_copy_jobs: int | None = None
+    localisation_bundle: Path | None = None
+    require_localisation_policy: bool = False
     progress: bool = True
 
 
 @dataclass(frozen=True)
 class DiverseFirstCopyFunnelOutput:
-    """Selected hypotheses plus a self-contained aggregate model registry."""
+    """Selected A hypotheses plus the independent all-eligible model registry."""
 
     hypotheses: tuple[MrHypothesis, ...]
     hypotheses_jsonl: Path
     hypotheses_tsv: Path
+    deferred_cap_hypotheses_jsonl: Path
+    deferred_localisation_hypotheses_jsonl: Path
+    resource_plans_jsonl: Path | None
     model_registry_directory: Path
     manifest_json: Path
 
@@ -142,6 +165,7 @@ class _Candidate:
     coordinate: CoordinateSourceRecord
     model: ProcessedModelRecord
     matthews: MatthewsHypothesis
+    resource_plan: MrResourcePlan | None = None
 
 
 def _read_jsonl[T: BaseModel](
@@ -150,6 +174,7 @@ def _read_jsonl[T: BaseModel](
     *,
     label: str,
     progress: bool,
+    allow_empty: bool = False,
 ) -> tuple[T, ...]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
@@ -171,7 +196,7 @@ def _read_jsonl[T: BaseModel](
                 raise FunnelInputError(
                     f"invalid {label} record at line {line_number}: {resolved}"
                 ) from error
-    if not records:
+    if not records and (not allow_empty or resolved.stat().st_size != 0):
         raise FunnelInputError(f"{label} input is empty: {resolved}")
     return tuple(records)
 
@@ -722,6 +747,7 @@ def _load_diverse_inputs(
             CoordinateSourceRecord,
             label="coordinate sources",
             progress=request.progress,
+            allow_empty=True,
         )
     )
     model_batches = tuple(
@@ -730,6 +756,7 @@ def _load_diverse_inputs(
             ProcessedModelRecord,
             label="processed models",
             progress=request.progress,
+            allow_empty=True,
         )
         for path in request.processed_models_jsonl
     )
@@ -739,6 +766,7 @@ def _load_diverse_inputs(
             CoordinateHitMappingRecord,
             label="coordinate-hit mappings",
             progress=request.progress,
+            allow_empty=True,
         )
         if request.coordinate_hit_mappings_jsonl is not None
         else ()
@@ -795,6 +823,7 @@ def _diverse_priority_features(
     group: SequenceGroupRecord,
     matthews: MatthewsHypothesis,
     mapping: CoordinateHitMappingRecord | None,
+    localisation: BatchLocalisationGroupEvidence | None,
 ) -> dict[str, JsonValue]:
     features = _priority_features(coordinate, model, model_path, group, matthews)
     exact_mapping = (
@@ -828,6 +857,19 @@ def _diverse_priority_features(
                 "source_target_range": [mapping.target_start, mapping.target_end],
             }
         )
+    if localisation is not None:
+        features.update(
+            {
+                "localisation_evidence_id": localisation.evidence_id,
+                "localisation_merged_outcome": localisation.merged_outcome.value,
+                "localisation_wave_disposition": (
+                    localisation.first_wave_disposition.value
+                ),
+                "localisation_wave_eligible": localisation.first_wave_eligible,
+                "psortb_outcome": localisation.psortb_outcome.value,
+                "deeptmhmm_outcome": localisation.deeptmhmm_outcome.value,
+            }
+        )
     return features
 
 
@@ -835,9 +877,14 @@ def _diverse_candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     """Reserve exact mappings before ordering the remaining evidence features."""
 
     exact_mapping = candidate.hypothesis.priority_features.get("exact_sequence_mapping")
+    localisation = candidate.hypothesis.priority_features.get(
+        "localisation_wave_disposition"
+    )
+    localisation_rank = {"active": 0, "neutral": 1}.get(localisation, 0)
     return (
         candidate.hypothesis.crystal_id,
         0 if exact_mapping is True else 1,
+        localisation_rank,
         *_candidate_sort_key(candidate)[1:],
     )
 
@@ -852,18 +899,33 @@ def _make_diverse_candidate(
     preflight: MtzPreflightRecord,
     profile: PrototypeProfile,
     mapping: CoordinateHitMappingRecord | None,
+    localisation: BatchLocalisationGroupEvidence | None,
+    build_resource_plan: bool,
 ) -> _Candidate:
+    copy_number_to_search = 1
     identity = {
         "crystal_id": preflight.crystal_id,
         "sequence_group_id": group.sequence_group_id,
         "model_id": model.model_id,
         "copy_count_expected": matthews.copy_count,
-        "copy_number_to_search": 1,
+        "copy_number_to_search": copy_number_to_search,
         "space_group": preflight.space_group,
         "obs_labels": preflight.selected_observation_labels,
         "search_stage": MrSearchStage.FIRST_COPY.value,
         "resource_profile": profile.value,
     }
+    features = _diverse_priority_features(
+        coordinate, model, model_path, group, matthews, mapping, localisation
+    )
+    if localisation is not None:
+        identity["localisation_evidence_id"] = localisation.evidence_id
+    if build_resource_plan:
+        features.update(
+            {
+                "funnel_adapter": _PHASE3_DIVERSE_ADAPTER_VERSION,
+                "copy_search_mode": "single_copy_then_sequential_completion",
+            }
+        )
     hypothesis = MrHypothesis(
         schema_version="1.0",
         hypothesis_id=content_id("mrhyp_", identity),
@@ -871,18 +933,36 @@ def _make_diverse_candidate(
         sequence_group_id=group.sequence_group_id,
         model_id=model.model_id,
         copy_count_expected=matthews.copy_count,
-        copy_number_to_search=1,
+        copy_number_to_search=copy_number_to_search,
         fixed_solution_id=None,
         space_group=preflight.space_group,
         obs_labels=preflight.selected_observation_labels,
         search_stage=MrSearchStage.FIRST_COPY,
         resource_profile=profile,
-        priority_features=_diverse_priority_features(
-            coordinate, model, model_path, group, matthews, mapping
-        ),
+        priority_features=features,
         status=MrHypothesisStatus.QUEUED,
     )
-    return _Candidate(hypothesis, model_path, coordinate, model, matthews)
+    resource_plan = (
+        build_mr_resource_plan(
+            owner_kind="mr_hypothesis",
+            owner_id=hypothesis.hypothesis_id,
+            reflection_count=preflight.reflection_count,
+            moving_atom_count=count_polymer_atoms(model_path.absolute_path),
+            searched_copy_count=copy_number_to_search,
+            fixed_atom_count=0,
+            symmetry_multiplicity=preflight.general_position_multiplicity,
+        )
+        if build_resource_plan
+        else None
+    )
+    return _Candidate(
+        hypothesis,
+        model_path,
+        coordinate,
+        model,
+        matthews,
+        resource_plan,
+    )
 
 
 def _join_diverse_candidates(
@@ -896,6 +976,8 @@ def _join_diverse_candidates(
     matthews_rows: Sequence[MatthewsHypothesis],
     preflights: Sequence[MtzPreflightRecord],
     crystal_ids: Sequence[str],
+    build_resource_plans: bool,
+    localisation_by_group: dict[str, BatchLocalisationGroupEvidence] | None,
 ) -> list[_Candidate]:
     coordinate_index = _unique_index(
         coordinates, lambda item: item.coordinate_id, label="coordinate ID"
@@ -926,6 +1008,11 @@ def _join_diverse_candidates(
                 "processed model cannot be mapped to coordinate/group: "
                 f"{model.model_id}"
             )
+        localisation = (
+            localisation_by_group.get(group.sequence_group_id)
+            if localisation_by_group is not None
+            else None
+        )
         mapping: CoordinateHitMappingRecord | None = None
         if coordinate.provider == "pdb":
             mapping_id = model.processing_parameters.get("mapping_id")
@@ -1000,6 +1087,8 @@ def _join_diverse_candidates(
                     preflight=preflight,
                     profile=config.prototype.profile,
                     mapping=mapping,
+                    localisation=localisation,
+                    build_resource_plan=build_resource_plans,
                 )
             )
             per_crystal_counts[row.crystal_id] = used + 1
@@ -1011,10 +1100,15 @@ def _select_diverse_candidates(
     candidates: Sequence[_Candidate],
     config: PipelineConfig,
     execution_cap: int | None,
+    *,
+    phase3_screen: bool,
 ) -> tuple[tuple[_Candidate, ...], int]:
     if execution_cap is not None and not 1 <= execution_cap <= 1000:
         raise ValueError("maximum_first_copy_jobs must be between 1 and 1000")
-    requested_cap = execution_cap if execution_cap is not None else 1000
+    maximum_cap = _PHASE3_MAXIMUM_FIRST_COPY_JOBS if phase3_screen else 1000
+    requested_cap = (
+        min(execution_cap, maximum_cap) if execution_cap is not None else maximum_cap
+    )
     per_crystal_cap = min(
         _FIRST_COPY_PROFILE_CAPS[config.prototype.profile],
         config.search_limits.max_first_copy_jobs,
@@ -1062,85 +1156,65 @@ def _select_diverse_candidates(
     return tuple(selected[:global_cap]), per_crystal_cap
 
 
-def _publish_aggregate_models(
+def _publish_all_eligible_models(
     output: Path,
-    selected: Sequence[_Candidate],
     *,
-    input_sha256: dict[str, str],
-) -> tuple[Path, dict[str, _ModelPath]]:
-    registry = output / "model_registry"
-    model_root = registry / "models"
-    model_root.mkdir(parents=True)
-    selected_by_model: dict[str, _Candidate] = {}
-    for candidate in selected:
-        selected_by_model.setdefault(candidate.model.model_id, candidate)
-    aggregate_paths: dict[str, _ModelPath] = {}
-    records: list[ProcessedModelRecord] = []
-    entries: list[dict[str, object]] = []
-    for model_id in sorted(selected_by_model):
-        candidate = selected_by_model[model_id]
-        model = candidate.model
-        relative = Path("models") / model.model_sha256[:2] / f"{model.model_sha256}.pdb"
-        destination = registry / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        payload = candidate.model_path.absolute_path.read_bytes()
-        if destination.exists():
-            if (
-                destination.is_symlink()
-                or sha256_file(destination) != model.model_sha256
-            ):
-                raise FunnelInputError(
-                    f"aggregate model target is unsafe: {destination}"
-                )
-        else:
-            atomic_write_bytes(destination, payload)
-        if sha256_file(destination) != model.model_sha256:
+    models: Sequence[ProcessedModelRecord],
+    coordinates: Sequence[CoordinateSourceRecord],
+    mappings: Sequence[CoordinateHitMappingRecord],
+    model_paths: dict[str, _ModelPath],
+    groups: Sequence[SequenceGroupRecord],
+) -> tuple[AllEligibleModelRegistryOutput, dict[str, _ModelPath]]:
+    """Publish every validated model independently of the A execution cap."""
+
+    coordinate_index = _unique_index(
+        coordinates, lambda item: item.coordinate_id, label="coordinate ID"
+    )
+    group_index = _unique_index(
+        groups, lambda item: item.sequence_group_id, label="sequence-group ID"
+    )
+    mapping_index = _unique_index(
+        mappings, lambda item: item.mapping_id, label="coordinate mapping ID"
+    )
+    registry_inputs: list[ValidatedProcessedModelInput] = []
+    for model in models:
+        coordinate = coordinate_index.get(model.coordinate_id)
+        group = group_index.get(model.full_candidate_sequence_group_id)
+        path = model_paths.get(model.model_id)
+        if coordinate is None or group is None or path is None:
             raise FunnelInputError(
-                f"aggregate model checksum mismatch: {model.model_id}"
+                f"processed model cannot enter all-model registry: {model.model_id}"
             )
-        aggregate_paths[model_id] = _ModelPath(
-            relative.as_posix(), destination, candidate.model_path.retained_fraction
+        mapping_id = model.processing_parameters.get("mapping_id")
+        mapping = mapping_index.get(mapping_id) if isinstance(mapping_id, str) else None
+        registry_inputs.append(
+            ValidatedProcessedModelInput(
+                model=model,
+                coordinate=coordinate,
+                sequence_group=group,
+                model_path=path.absolute_path,
+                retained_fraction=path.retained_fraction,
+                mapping=mapping,
+            )
         )
-        records.append(model)
-        entries.append(
-            {
-                "model_id": model.model_id,
-                "model_path": relative.as_posix(),
-                "model_sha256": model.model_sha256,
-                "retained_fraction": candidate.model_path.retained_fraction,
-                "source_manifest_model_path": candidate.model_path.relative_path,
-            }
+    try:
+        registry_output = build_all_eligible_model_registry(
+            models=registry_inputs,
+            sequence_groups=groups,
+            output_directory=output / "model_registry",
         )
-    records_path = registry / "processed_models.jsonl"
-    atomic_write_text(
-        records_path,
-        "".join(f"{canonical_json_text(item)}\n" for item in records),
-    )
-    manifest_path = registry / "model_preparation_manifest.json"
-    manifest_identity = {
-        "adapter_version": _DIVERSE_ADAPTER_VERSION,
-        "input_sha256": input_sha256,
-        "model_ids": [item.model_id for item in records],
+    except AllEligibleModelRegistryError as error:
+        raise FunnelInputError(str(error)) from error
+    aggregate_paths = {
+        entry.model_id: _ModelPath(
+            entry.model_path,
+            registry_output.registry_directory / entry.model_path,
+            entry.retained_fraction,
+        )
+        for inventory in registry_output.registry.sequence_groups
+        for entry in inventory.models
     }
-    atomic_write_json(
-        manifest_path,
-        {
-            "schema_version": "1.0",
-            "preparation_id": content_id("modelreg_", manifest_identity),
-            "created_at": utc_now_iso(),
-            "adapter_version": _DIVERSE_ADAPTER_VERSION,
-            "scope": "selected_multi_source_model_registry",
-            "processed_model_count": len(records),
-            "entries": entries,
-            "outputs": {
-                "processed_models": {
-                    "path": records_path.name,
-                    "sha256": sha256_file(records_path, progress=False),
-                }
-            },
-        },
-    )
-    return registry, aggregate_paths
+    return registry_output, aggregate_paths
 
 
 def _diverse_input_digests(
@@ -1166,10 +1240,69 @@ def _diverse_input_digests(
     ]
     if request.coordinate_hit_mappings_jsonl is not None:
         paths.append(("coordinate_hit_mappings", request.coordinate_hit_mappings_jsonl))
+    if request.source_records_jsonl is not None:
+        paths.append(("source_records", request.source_records_jsonl))
+    if request.localisation_bundle is not None:
+        paths.extend(
+            (
+                (
+                    "localisation_manifest",
+                    request.localisation_bundle / "localisation_batch_manifest.json",
+                ),
+                (
+                    "localisation_policy",
+                    request.localisation_bundle / "first_wave_policy.json",
+                ),
+                (
+                    "gel_evidence",
+                    request.localisation_bundle / "gel-evidence.json",
+                ),
+            )
+        )
     return {
         name: sha256_file(path.resolve(strict=True), progress=False)
         for name, path in paths
     }
+
+
+def _load_diverse_localisation(
+    request: DiverseFirstCopyFunnelRequest,
+    groups: Sequence[SequenceGroupRecord],
+) -> BatchLocalisationPolicy | None:
+    if request.localisation_bundle is None:
+        if request.require_localisation_policy:
+            raise FunnelInputError(
+                "Phase III first-copy requires its localisation/gel bundle"
+            )
+        return None
+    try:
+        policy = validate_catalogue_localisation_batch(request.localisation_bundle)
+    except InputContractError as error:
+        raise FunnelInputError(f"invalid localisation/gel bundle: {error}") from error
+    if policy.sequence_groups_sha256 != sha256_file(
+        request.sequence_groups_jsonl,
+        progress=False,
+    ):
+        raise FunnelInputError("localisation policy uses different sequence groups")
+    if request.source_records_jsonl is None:
+        if request.require_localisation_policy:
+            raise FunnelInputError(
+                "Phase III localisation requires its exact source records"
+            )
+    elif policy.source_records_sha256 != sha256_file(
+        request.source_records_jsonl,
+        progress=False,
+    ):
+        raise FunnelInputError("localisation policy uses different source records")
+    expected = {group.sequence_group_id for group in groups}
+    observed = {row.sequence_group_id for row in policy.group_evidence}
+    if observed != expected:
+        raise FunnelInputError("localisation policy group coverage differs")
+    if policy.gel_observation_count != 0:
+        raise FunnelInputError(
+            "non-empty gel ranking requires its separately reviewed implementation"
+        )
+    return policy
 
 
 def build_diverse_first_copy_funnel(
@@ -1189,7 +1322,14 @@ def build_diverse_first_copy_funnel(
     model_paths = _diverse_model_paths(request, model_batches)
     models = tuple(item for batch in model_batches for item in batch)
     _unique_index(models, lambda item: item.model_id, label="model ID")
-    candidates = _join_diverse_candidates(
+    localisation_policy = _load_diverse_localisation(request, groups)
+    phase3_screen = request.require_localisation_policy
+    localisation_by_group = (
+        {row.sequence_group_id: row for row in localisation_policy.group_evidence}
+        if localisation_policy is not None
+        else None
+    )
+    all_candidates = _join_diverse_candidates(
         config=config,
         coordinates=coordinates,
         models=models,
@@ -1199,9 +1339,52 @@ def build_diverse_first_copy_funnel(
         matthews_rows=matthews_rows,
         preflights=preflights,
         crystal_ids=request.crystal_ids,
+        build_resource_plans=phase3_screen,
+        localisation_by_group=localisation_by_group,
+    )
+    candidates = [
+        candidate
+        for candidate in all_candidates
+        if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
+        != "excluded"
+    ]
+    deferred_localisation = tuple(
+        candidate.hypothesis.model_copy(
+            update={
+                "priority_features": {
+                    **candidate.hypothesis.priority_features,
+                    "localisation_first_wave_reason": (
+                        "retained_excluded_reopen_only_after_complete_zero_pack"
+                    ),
+                },
+                "status": MrHypothesisStatus.SKIPPED,
+            }
+        )
+        for candidate in sorted(all_candidates, key=_diverse_candidate_sort_key)
+        if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
+        == "excluded"
     )
     selected, per_crystal_cap = _select_diverse_candidates(
-        candidates, config, request.maximum_first_copy_jobs
+        candidates,
+        config,
+        request.maximum_first_copy_jobs,
+        phase3_screen=phase3_screen,
+    )
+    selected_ids = {item.hypothesis.hypothesis_id for item in selected}
+    deferred_cap = tuple(
+        item.hypothesis.model_copy(
+            update={
+                "priority_features": {
+                    **item.hypothesis.priority_features,
+                    "first_copy_execution_disposition": (
+                        "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+                    ),
+                },
+                "status": MrHypothesisStatus.SKIPPED,
+            }
+        )
+        for item in sorted(candidates, key=_diverse_candidate_sort_key)
+        if item.hypothesis.hypothesis_id not in selected_ids
     )
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
@@ -1209,14 +1392,69 @@ def build_diverse_first_copy_funnel(
             f"diverse-funnel output directory is not empty: {output}"
         )
     output.mkdir(parents=True, exist_ok=True)
+    resource_plan_by_hypothesis = {
+        candidate.hypothesis.hypothesis_id: candidate.resource_plan
+        for candidate in all_candidates
+        if candidate.resource_plan is not None
+    }
+    resource_plans_jsonl: Path | None = None
+    if phase3_screen:
+        if len(resource_plan_by_hypothesis) != len(all_candidates):
+            raise FunnelInputError(
+                "Phase III hypothesis lacks its deterministic MR resource plan"
+            )
+        resource_plans_jsonl = output / "mr_resource_plans.jsonl"
+        plan_directory = output / "resource_plans"
+        plan_directory.mkdir()
+        resource_rows = tuple(
+            (
+                hypothesis_id,
+                resource_plan_by_hypothesis[hypothesis_id],
+            )
+            for hypothesis_id in sorted(resource_plan_by_hypothesis)
+        )
+        atomic_write_text(
+            resource_plans_jsonl,
+            "".join(
+                canonical_json_text(
+                    {
+                        "hypothesis_id": hypothesis_id,
+                        "resource_plan": plan.model_dump(mode="json"),
+                    }
+                )
+                + "\n"
+                for hypothesis_id, plan in resource_rows
+            ),
+        )
+        for hypothesis_id, plan in resource_rows:
+            atomic_write_json(
+                plan_directory / f"{hypothesis_id}.json",
+                plan.model_dump(mode="json"),
+            )
     input_sha256 = _diverse_input_digests(request)
-    registry, aggregate_paths = _publish_aggregate_models(
-        output, selected, input_sha256=input_sha256
+    registry_output, aggregate_paths = _publish_all_eligible_models(
+        output,
+        models=models,
+        coordinates=coordinates,
+        mappings=mappings,
+        model_paths=model_paths,
+        groups=groups,
     )
+    registry = registry_output.registry_directory
     hypotheses_jsonl = output / "mr_hypotheses.jsonl"
+    deferred_cap_jsonl = output / "deferred_cap_hypotheses.jsonl"
+    deferred_localisation_jsonl = output / "deferred_localisation_hypotheses.jsonl"
     atomic_write_text(
         hypotheses_jsonl,
         "".join(f"{canonical_json_text(item.hypothesis)}\n" for item in selected),
+    )
+    atomic_write_text(
+        deferred_cap_jsonl,
+        "".join(f"{canonical_json_text(item)}\n" for item in deferred_cap),
+    )
+    atomic_write_text(
+        deferred_localisation_jsonl,
+        "".join(f"{canonical_json_text(item)}\n" for item in deferred_localisation),
     )
     hypothesis_records = output / "hypotheses"
     hypothesis_records.mkdir()
@@ -1231,11 +1469,54 @@ def build_diverse_first_copy_funnel(
     for item in selected:
         crystal_id = item.hypothesis.crystal_id
         per_crystal_counts[crystal_id] = per_crystal_counts.get(crystal_id, 0) + 1
+    adapter_version = (
+        _PHASE3_DIVERSE_ADAPTER_VERSION if phase3_screen else _DIVERSE_ADAPTER_VERSION
+    )
+    phase3_copy_details = (
+        {
+            "copy_search_mode": "single_copy_then_sequential_completion",
+            "initial_searched_copy_count": 1,
+            "expected_copy_count_minimum": config.matthews.min_copy_count,
+            "expected_copy_count_maximum": config.matthews.max_copy_count,
+            "localisation_policy_id": (
+                localisation_policy.policy_id
+                if localisation_policy is not None
+                else None
+            ),
+            "localisation_required": request.require_localisation_policy,
+            "localisation_excluded_sequence_group_count": (
+                localisation_policy.excluded_count
+                if localisation_policy is not None
+                else 0
+            ),
+            "retained_excluded_hypothesis_count": len(deferred_localisation),
+            "retained_cap_deferred_hypothesis_count": len(deferred_cap),
+            "deferred_cap_hypotheses_sha256": sha256_file(deferred_cap_jsonl),
+            "deferred_localisation_hypotheses_sha256": sha256_file(
+                deferred_localisation_jsonl,
+                progress=False,
+            ),
+            "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+            "mr_resource_plan_count": len(resource_plan_by_hypothesis),
+            "mr_resource_plans_sha256": sha256_file(
+                cast(Path, resource_plans_jsonl),
+                progress=False,
+            ),
+            "gel_observation_count": (
+                localisation_policy.gel_observation_count
+                if localisation_policy is not None
+                else 0
+            ),
+        }
+        if phase3_screen
+        else {}
+    )
     manifest_identity = {
-        "adapter_version": _DIVERSE_ADAPTER_VERSION,
+        "adapter_version": adapter_version,
         "input_sha256": input_sha256,
         "hypothesis_ids": [item.hypothesis.hypothesis_id for item in selected],
         "per_crystal_cap": per_crystal_cap,
+        **phase3_copy_details,
     }
     manifest_path = output / "funnel_manifest.json"
     atomic_write_json(
@@ -1244,7 +1525,7 @@ def build_diverse_first_copy_funnel(
             "schema_version": "1.0",
             "funnel_id": content_id("funnel_", manifest_identity),
             "created_at": utc_now_iso(),
-            "adapter_version": _DIVERSE_ADAPTER_VERSION,
+            "adapter_version": adapter_version,
             "scope": "multi_source_first_copy",
             "resource_profile": config.prototype.profile.value,
             "input_sha256": input_sha256,
@@ -1257,6 +1538,7 @@ def build_diverse_first_copy_funnel(
             "global_first_copy_cap": config.search_limits.max_first_copy_jobs,
             "requested_execution_cap": request.maximum_first_copy_jobs,
             "per_model_copy_cap": _copy_cap(config),
+            **phase3_copy_details,
             "diversity_buckets": [
                 "sequence_group_id",
                 "coordinate_provider",
@@ -1264,6 +1546,7 @@ def build_diverse_first_copy_funnel(
             ],
             "ordering_features": [
                 "exact_sequence_mapping",
+                "localisation_wave_disposition",
                 "matthews_physical_status",
                 "matthews_prior",
                 "matthews_rank_within_candidate",
@@ -1274,11 +1557,19 @@ def build_diverse_first_copy_funnel(
             ],
             "model_registry": {
                 "path": registry.name,
-                "processed_models_sha256": sha256_file(
-                    registry / "processed_models.jsonl", progress=False
+                "scope": registry_output.registry.scope,
+                "registry_id": registry_output.registry.registry_id,
+                "registry_manifest_path": registry_output.registry_json.name,
+                "registry_manifest_sha256": sha256_file(
+                    registry_output.registry_json, progress=False
                 ),
-                "manifest_sha256": sha256_file(
-                    registry / "model_preparation_manifest.json", progress=False
+                "processed_models_sha256": (
+                    registry_output.registry.processed_models_sha256
+                ),
+                "sequence_group_count": (registry_output.registry.sequence_group_count),
+                "model_count": registry_output.registry.model_count,
+                "unavailable_sequence_group_count": (
+                    registry_output.registry.unavailable_sequence_group_count
                 ),
             },
             "hypotheses": [
@@ -1290,6 +1581,15 @@ def build_diverse_first_copy_funnel(
                     "coordinate_id": item.coordinate.coordinate_id,
                     "coordinate_provider": item.coordinate.provider,
                     "matthews_hypothesis_id": item.matthews.hypothesis_id,
+                    **(
+                        {
+                            "resource_plan_id": resource_plan_by_hypothesis[
+                                item.hypothesis.hypothesis_id
+                            ].resource_plan_id,
+                        }
+                        if phase3_screen
+                        else {}
+                    ),
                 }
                 for item in selected
             ],
@@ -1309,6 +1609,9 @@ def build_diverse_first_copy_funnel(
         hypotheses=tuple(item.hypothesis for item in selected),
         hypotheses_jsonl=hypotheses_jsonl,
         hypotheses_tsv=hypotheses_tsv,
+        deferred_cap_hypotheses_jsonl=deferred_cap_jsonl,
+        deferred_localisation_hypotheses_jsonl=deferred_localisation_jsonl,
+        resource_plans_jsonl=resource_plans_jsonl,
         model_registry_directory=registry,
         manifest_json=manifest_path,
     )

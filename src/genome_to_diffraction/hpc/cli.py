@@ -33,6 +33,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="deploy the two fixed remote scripts from a pushed commit",
     )
     deploy_tools.add_argument("--revision", required=True)
+    deploy_tools.add_argument(
+        "--source-branch",
+        choices=("main",),
+        default="main",
+        help="fixed remote branch containing the immutable commit",
+    )
+    phenix_migrate = actions.add_parser(
+        "phenix-runtime-migrate",
+        help="create the one strict executable-hashed Phase III Phenix manifest",
+    )
+    phenix_migrate.add_argument("--run-id", required=True)
 
     readiness = actions.add_parser(
         "readiness",
@@ -59,6 +70,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "database-readiness",
         help="inspect the separate fixed database-administration prerequisites",
     )
+    database_runtime_configure = actions.add_parser(
+        "database-runtime-configure",
+        help="restore one absent configuration for an existing immutable database",
+    )
+    database_runtime_configure.add_argument(
+        "--paths-file",
+        type=Path,
+        required=True,
+    )
+    database_runtime_configure.add_argument("--confirm-sha256", required=True)
     database_stage = actions.add_parser(
         "database-stage",
         help="stage an immutable commit for fixed database administration",
@@ -89,11 +110,22 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2-diverse",
             "p2-control",
             "heteromer-smoke",
+            "phase3-phenix-probe",
+            "phase3-network-probe",
+            "unknown-discovery",
+            "unknown-screen",
+            "unknown-single-component",
+            "unknown-pass2",
             "m6-nextflow-smoke",
         ),
     )
     stage.add_argument("--revision", required=True)
     stage.add_argument("--parent-run")
+    stage.add_argument(
+        "--source-branch",
+        choices=("main",),
+        help="fixed remote branch containing the immutable commit",
+    )
 
     submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
     submit.add_argument(
@@ -106,6 +138,12 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2-diverse",
             "p2-control",
             "heteromer-smoke",
+            "phase3-phenix-probe",
+            "phase3-network-probe",
+            "unknown-discovery",
+            "unknown-screen",
+            "unknown-single-component",
+            "unknown-pass2",
             "control-slice",
             "control-matrix",
             "m6-inputs",
@@ -176,6 +214,12 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_inputs_stage.add_argument("--revision", required=True)
     m6_inputs_stage.add_argument("--archive", type=Path, required=True)
     m6_inputs_stage.add_argument("--confirm-archive-sha256", required=True)
+    m6_inputs_stage.add_argument(
+        "--source-branch",
+        choices=("main",),
+        default="main",
+        help="fixed remote branch containing the immutable M6 input commit",
+    )
 
     m6_scientific_stage = actions.add_parser(
         "m6-scientific-stage",
@@ -186,6 +230,16 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_scientific_stage.add_argument("--confirm-archive-sha256", required=True)
     m6_scientific_stage.add_argument(
         "--track", choices=("operational", "leakage"), required=True
+    )
+    m6_scientific_stage.add_argument(
+        "--source-branch",
+        choices=("main",),
+        default="main",
+        help="fixed remote branch containing the immutable M6 commit",
+    )
+    m6_scientific_stage.add_argument(
+        "--operational-parent-run-id",
+        help="required collected operational parent for the leakage track",
     )
 
     t12_stage = actions.add_parser(
@@ -205,7 +259,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, object]:
     if args.operation == "deploy-tools":
-        return controller.deploy_tools(args.revision)
+        return controller.deploy_tools(
+            args.revision,
+            source_branch=args.source_branch,
+        )
+    if args.operation == "phenix-runtime-migrate":
+        return controller.phenix_runtime_migrate(args.run_id)
     if args.operation == "readiness":
         return controller.readiness(args.profile)
     if args.operation == "p0-configure":
@@ -214,6 +273,11 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.p0_inputs_stage(args.confirm_spec_sha256)
     if args.operation == "database-readiness":
         return controller.database_readiness()
+    if args.operation == "database-runtime-configure":
+        return controller.database_runtime_configure(
+            args.paths_file,
+            args.confirm_sha256,
+        )
     if args.operation == "database-stage":
         return controller.database_stage(args.revision)
     if args.operation == "database-submit":
@@ -225,6 +289,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.profile,
             args.revision,
             parent_run_id=args.parent_run,
+            source_branch=args.source_branch,
         )
     if args.operation == "m4-copy-stage":
         return controller.m4_copy_stage(
@@ -244,6 +309,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.revision,
             args.archive,
             args.confirm_archive_sha256,
+            source_branch=args.source_branch,
         )
     if args.operation == "m6-scientific-stage":
         return controller.m6_scientific_stage(
@@ -251,6 +317,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.archive,
             args.confirm_archive_sha256,
             args.track,
+            source_branch=args.source_branch,
+            operational_parent_run_id=args.operational_parent_run_id,
         )
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)

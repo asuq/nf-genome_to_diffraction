@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "crystals": [
+    {
+      "crystal_id": "fanout_crystal_01",
+      "mtz": "stub_01.mtz",
+      "catalogue_id": "stub_catalogue",
+      "sds_page_mass_kda": [],
+      "allow_remote_sequence_submission": false
+    },
+    {
+      "crystal_id": "fanout_crystal_02",
+      "mtz": "stub_02.mtz",
+      "catalogue_id": "stub_catalogue",
+      "sds_page_mass_kda": [],
+      "allow_remote_sequence_submission": false
+    },
+    {
+      "crystal_id": "fanout_crystal_03",
+      "mtz": "stub_03.mtz",
+      "catalogue_id": "stub_catalogue",
+      "sds_page_mass_kda": [],
+      "allow_remote_sequence_submission": false
+    }
+  ]
+}

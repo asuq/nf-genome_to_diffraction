@@ -43,12 +43,15 @@ from genome_to_diffraction.status import (
     ToolExecutionError,
 )
 from genome_to_diffraction.structure_search.provider_plan import (
+    FrozenM6RawProviderAuthorisation,
+    frozen_m6_raw_authorisation_payload,
     load_enabled_provider_route,
+    load_frozen_m6_raw_provider_route,
 )
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.prostt5_foldseek")
-_ADAPTER_VERSION = "prostt5-foldseek-pdb-v5"
+_ADAPTER_VERSION = "prostt5-foldseek-pdb-v6"
 _PROVIDER = "foldseek_prostt5_pdb"
 _RAW_HIT_LIMIT = 1000
 _FAILURE_LOG_TAIL_BYTES = 16 * 1024
@@ -93,6 +96,7 @@ class ProstT5FoldseekSearchRequest:
     output_directory: Path
     provider_plan_json: Path | None = None
     provider_entry_json: Path | None = None
+    frozen_m6_raw_authorisation: FrozenM6RawProviderAuthorisation | None = None
     threads: int = 4
     maximum_hits_per_query: int = 3
     maximum_evalue: float = 1.0e-3
@@ -168,8 +172,24 @@ class _TargetMapping(_SequenceMapping):
 def _bind_provider_route(
     request: ProstT5FoldseekSearchRequest,
 ) -> ProstT5FoldseekSearchRequest:
-    if request.provider_plan_json is None and request.provider_entry_json is None:
-        return request
+    if request.frozen_m6_raw_authorisation is not None:
+        if (
+            request.provider_plan_json is not None
+            or request.provider_entry_json is not None
+        ):
+            raise InputContractError(
+                "ProstT5/Foldseek search cannot mix reviewed and frozen M6 provider "
+                "routes"
+            )
+        route = load_frozen_m6_raw_provider_route(
+            authorisation=request.frozen_m6_raw_authorisation,
+            database_manifest=request.database_manifest,
+            expected_provider=ProviderKey.FOLDSEEK_PROSTT5_PDB,
+            expected_adapter_version=_ADAPTER_VERSION,
+            threads=request.threads,
+            maximum_hits_per_query=request.maximum_hits_per_query,
+        )
+        return replace(request, maximum_hits_per_query=route.raw_hit_cap)
     if request.provider_plan_json is None or request.provider_entry_json is None:
         raise InputContractError(
             "ProstT5/Foldseek search requires both provider plan and provider entry"
@@ -182,6 +202,32 @@ def _bind_provider_route(
         expected_adapter_version=_ADAPTER_VERSION,
     )
     return replace(request, maximum_hits_per_query=route.entry.effective_max_hits)
+
+
+def _provider_authorisation_payload(
+    request: ProstT5FoldseekSearchRequest,
+) -> dict[str, str | int | None]:
+    if request.frozen_m6_raw_authorisation is not None:
+        route = load_frozen_m6_raw_provider_route(
+            authorisation=request.frozen_m6_raw_authorisation,
+            database_manifest=request.database_manifest,
+            expected_provider=ProviderKey.FOLDSEEK_PROSTT5_PDB,
+            expected_adapter_version=_ADAPTER_VERSION,
+            threads=request.threads,
+            maximum_hits_per_query=request.maximum_hits_per_query,
+        )
+        return frozen_m6_raw_authorisation_payload(route)
+    if request.provider_plan_json is None or request.provider_entry_json is None:
+        raise InputContractError(
+            "ProstT5/Foldseek search requires both provider plan and provider entry"
+        )
+    return {
+        "authorisation_scope": "reviewed_provider_plan",
+        "provider_plan_sha256": sha256_file(request.provider_plan_json, progress=False),
+        "provider_entry_sha256": sha256_file(
+            request.provider_entry_json, progress=False
+        ),
+    }
 
 
 def _validate_request(request: ProstT5FoldseekSearchRequest) -> None:
@@ -715,18 +761,10 @@ def search_prostt5_foldseek(
         "prostt5": resources.prostt5.database_id,
         "pdb_sequences": resources.pdb_sequences.database_id,
     }
+    authorisation_payload = _provider_authorisation_payload(request)
     identity_payload = {
         "adapter_version": _ADAPTER_VERSION,
-        "provider_plan_sha256": (
-            None
-            if request.provider_plan_json is None
-            else sha256_file(request.provider_plan_json, progress=False)
-        ),
-        "provider_entry_sha256": (
-            None
-            if request.provider_entry_json is None
-            else sha256_file(request.provider_entry_json, progress=False)
-        ),
+        **authorisation_payload,
         "resources": resource_ids,
         "sequence_groups_sha256": sha256_file(
             request.sequence_groups_jsonl, progress=request.progress, logger=_LOGGER
@@ -911,6 +949,7 @@ def search_prostt5_foldseek(
                 "resources": resource_ids,
                 "tool": "foldseek",
                 "tool_version": foldseek_version,
+                "provider_authorisation": authorisation_payload,
                 "parameters": parameters,
                 "sequence_sha256": record.sha256,
                 "quality_flags": record.quality_flags,
@@ -966,6 +1005,7 @@ def search_prostt5_foldseek(
             "schema_version": "1.0",
             "provider": _PROVIDER,
             "adapter_version": _ADAPTER_VERSION,
+            "provider_authorisation": authorisation_payload,
             "provider_plan_sha256": identity_payload["provider_plan_sha256"],
             "provider_entry_sha256": identity_payload["provider_entry_sha256"],
             "database_id": resources.pdb_foldseek.database_id,

@@ -14,8 +14,18 @@ finalists. The cache identity includes input/checkpoint hashes, the complete
 catalogue, Phenix manifest, protocol version, resolution, and thread count.
 Unit tests cover command construction, parsers, checksum rejection, and failed
 tool execution. Real Phenix qualification remains mandatory on Viper.
+
+The optional Phase III path verifies the dataset-qualified selection against
+its exact preflight and requires a content-address-valid Free-R identity bound
+to that selection. Before Phenix starts, its checksum-bound source MTZ and
+derived parent must retain the exact selected observation dataset/labels,
+HKL-to-observation values, and HKL-to-Free-R mapping; the comparisons are
+retained beside the command. A successful refined MTZ must independently
+preserve the same Free-R mapping. No symmetry/reindexing equivalence, Free-R
+convention, flag, or unqualified Phenix parameter is inferred.
 """
 
+import hashlib
 import logging
 import math
 import re
@@ -24,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import gemmi
+import numpy as np
 from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
@@ -32,6 +43,17 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
+from genome_to_diffraction.diffraction.free_r_identity import (
+    FreeRIdentityError,
+    compare_free_r_membership,
+    load_free_r_identity,
+    verify_free_r_identity_selection,
+)
+from genome_to_diffraction.diffraction.selection import (
+    build_diffraction_command_binding,
+    load_diffraction_selection,
+    verify_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
@@ -39,15 +61,24 @@ from genome_to_diffraction.phenix.runtime import (
 )
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
+    MtzPreflightRecord,
     SequenceGroupRecord,
     SequenceMapCandidate,
     SequenceMapResult,
     SourceProteinRecord,
 )
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+    FreeRIdentity,
+    FreeRMembershipComparison,
+)
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v5"
+_PROTOCOL_VERSION = "phenix-t12-brief-v6"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v10-phase3-source-observations"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -92,6 +123,11 @@ class T12RunRequest:
     resolution: float
     phenix_manifest: Path
     output_directory: Path
+    crystal_id: str | None = None
+    source_mtz: Path | None = None
+    diffraction_selection_json: Path | None = None
+    preflight_jsonl: Path | None = None
+    free_r_identity_json: Path | None = None
     threads: int = 4
     timeout_seconds: float | None = None
     progress: bool = True
@@ -108,6 +144,9 @@ class T12RunOutput:
     sequence_json: Path
     sequence_jsonl: Path
     command_json: Path
+    free_r_comparison: FreeRMembershipComparison | None
+    free_r_comparison_json: Path | None
+    free_r_comparison_jsonl: Path | None
 
 
 def _read_jsonl[T: BaseModel](
@@ -142,6 +181,145 @@ def _verified_file(path: Path, expected: str, *, label: str, progress: bool) -> 
     if actual != expected:
         raise T12InputError(f"{label} checksum mismatch")
     return resolved
+
+
+def _normalised_observation_labels(value: str) -> tuple[str, ...]:
+    labels = tuple(item.strip() for item in value.split(",") if item.strip())
+    if len(labels) not in {2, 4}:
+        raise T12InputError(
+            "observation labels must be one value/sigma pair or anomalous quartet"
+        )
+    return labels
+
+
+def _resolve_phase3_diffraction(
+    request: T12RunRequest,
+) -> tuple[DiffractionSelection, FreeRIdentity] | None:
+    supplied = (
+        request.crystal_id is not None,
+        request.source_mtz is not None,
+        request.diffraction_selection_json is not None,
+        request.preflight_jsonl is not None,
+        request.free_r_identity_json is not None,
+    )
+    if not any(supplied):
+        return None
+    if not all(supplied):
+        raise T12InputError(
+            "Phase III refinement requires crystal ID, source MTZ, diffraction "
+            "selection, preflight, and Free-R identity"
+        )
+    assert request.crystal_id is not None
+    assert request.diffraction_selection_json is not None
+    assert request.preflight_jsonl is not None
+    assert request.free_r_identity_json is not None
+    selection = load_diffraction_selection(request.diffraction_selection_json)
+    if selection.crystal_id != request.crystal_id:
+        raise T12InputError("Phase III refinement crystal identity differs")
+    preflights = _read_jsonl(
+        request.preflight_jsonl,
+        MtzPreflightRecord,
+        label="MTZ preflight",
+    )
+    matching_preflights = tuple(
+        preflight
+        for preflight in preflights
+        if preflight.crystal_id == request.crystal_id
+    )
+    if len(matching_preflights) != 1:
+        raise T12InputError(
+            "Phase III refinement requires exactly one matching MTZ preflight"
+        )
+    verify_diffraction_selection(selection, matching_preflights[0])
+    if _normalised_observation_labels(request.observation_labels) != (
+        selection.observation_labels
+    ):
+        raise T12InputError(
+            "refinement observation labels differ from diffraction selection"
+        )
+    if not math.isclose(
+        request.resolution,
+        selection.resolution_high_a,
+        rel_tol=1e-12,
+        abs_tol=1e-9,
+    ):
+        raise T12InputError(
+            "refinement high-resolution limit differs from diffraction selection"
+        )
+    try:
+        free_r_identity = load_free_r_identity(request.free_r_identity_json)
+        verify_free_r_identity_selection(free_r_identity, selection)
+    except FreeRIdentityError as error:
+        raise T12InputError(str(error)) from error
+    return selection, free_r_identity
+
+
+def _verify_phase3_parent_mtz(
+    *,
+    source_mtz: Path,
+    parent_mtz: Path,
+    selection: DiffractionSelection,
+    free_r_identity: FreeRIdentity,
+) -> tuple[FreeRMembershipComparison, str]:
+    try:
+        source = gemmi.read_mtz_file(str(source_mtz))
+        parent = gemmi.read_mtz_file(str(parent_mtz))
+    except (OSError, RuntimeError, ValueError) as error:
+        raise T12InputError(
+            "Phase III source or parent MTZ cannot be inspected"
+        ) from error
+    try:
+        free_r_comparison = compare_free_r_membership(
+            source=free_r_identity,
+            derived_mtz_path=parent_mtz,
+        )
+    except FreeRIdentityError as error:
+        raise T12InputError(f"parent MTZ {error}") from error
+
+    source_hkl = np.asarray(source.make_miller_array(), dtype=np.int32)
+    parent_hkl = np.asarray(parent.make_miller_array(), dtype=np.int32)
+    source_order = np.lexsort((source_hkl[:, 2], source_hkl[:, 1], source_hkl[:, 0]))
+    parent_order = np.lexsort((parent_hkl[:, 2], parent_hkl[:, 1], parent_hkl[:, 0]))
+    sorted_source_hkl = source_hkl[source_order]
+    if not np.array_equal(sorted_source_hkl, parent_hkl[parent_order]):
+        raise T12InputError(
+            "parent MTZ changed the selected observation HKL membership"
+        )
+    observation_digest = hashlib.sha256()
+    observation_digest.update(sorted_source_hkl.astype("<i4", copy=False).tobytes())
+    for label in selection.observation_labels:
+        source_matches = tuple(
+            column
+            for column in source.columns
+            if column.label == label
+            and column.dataset_id == selection.observation_dataset_id
+        )
+        parent_matches = tuple(
+            column
+            for column in parent.columns
+            if column.label == label
+            and column.dataset_id == selection.observation_dataset_id
+        )
+        if len(source_matches) != 1 or len(parent_matches) != 1:
+            raise T12InputError(
+                "parent MTZ lacks the selected observation dataset and unique labels"
+            )
+        source_values = np.asarray(source_matches[0].array, dtype=np.float32)[
+            source_order
+        ]
+        parent_values = np.asarray(parent_matches[0].array, dtype=np.float32)[
+            parent_order
+        ]
+        if not np.array_equal(source_values, parent_values, equal_nan=True):
+            raise T12InputError(
+                f"parent MTZ changed the selected observation values for {label}"
+            )
+        canonical_values = source_values.copy()
+        canonical_values[np.isnan(canonical_values)] = np.float32(np.nan)
+        observation_digest.update(label.encode("ascii"))
+        observation_digest.update(b"\0")
+        observation_digest.update(canonical_values.astype("<f4", copy=False).tobytes())
+    return free_r_comparison, observation_digest.hexdigest()
 
 
 def _write_catalogue_fasta(
@@ -229,6 +407,22 @@ def _refinement_output_paths(outdir: Path) -> tuple[Path, Path, Path, Path]:
     )
 
 
+def _prepare_attempt_directory(path: Path) -> Path:
+    """Create or verify one empty attempt-owned output directory."""
+
+    if path.is_symlink():
+        raise T12InputError("T12 output directory cannot be a symlink")
+    resolved = path.resolve()
+    if resolved.exists():
+        if not resolved.is_dir():
+            raise T12InputError("T12 output path is not a directory")
+        if any(resolved.iterdir()):
+            raise T12InputError("T12 output directory is not empty")
+    else:
+        resolved.mkdir(parents=True)
+    return resolved
+
+
 def _has_required_map_coefficients(path: Path) -> bool:
     """Return whether the refined MTZ contains both review-map coefficient pairs."""
 
@@ -252,6 +446,42 @@ def _observation_label_argument(labels: str) -> str:
     if not labels.strip() or "\n" in labels:
         raise T12InputError("observation_labels must be one non-empty line")
     return f"data_manager.miller_array.labels.name={labels}"
+
+
+def _free_r_arguments(identity: FreeRIdentity) -> tuple[str, ...]:
+    """Return the officially documented Phenix Free-R selection parameters."""
+
+    if not identity.free_r_label.strip() or "\n" in identity.free_r_label:
+        raise T12InputError("Free-R label must be one non-empty line")
+    if identity.test_flag_value is None:
+        raise T12InputError(
+            "Phase III refinement requires an explicit Free-R test flag value"
+        )
+    return (
+        f"data_manager.miller_array.labels.name={identity.free_r_label}",
+        "data_manager.fmodel.xray_data.r_free_flags.required=True",
+        "data_manager.fmodel.xray_data.r_free_flags.generate=False",
+        "data_manager.fmodel.xray_data.r_free_flags.test_flag_value="
+        f"{identity.test_flag_value}",
+    )
+
+
+def _phase3_refinement_selection_arguments(
+    selection: DiffractionSelection,
+) -> tuple[str, ...]:
+    """Render qualified Phenix refinement symmetry and resolution parameters."""
+
+    if not selection.selected_space_group.strip() or "\n" in (
+        selection.selected_space_group
+    ):
+        raise T12InputError("selected space group must be one non-empty line")
+    return (
+        f"refinement.crystal_symmetry.space_group={selection.selected_space_group}",
+        "data_manager.fmodel.xray_data.low_resolution="
+        f"{selection.resolution_low_a:.12g}",
+        "data_manager.fmodel.xray_data.high_resolution="
+        f"{selection.resolution_high_a:.12g}",
+    )
 
 
 def _combined_log(completed: subprocess.CompletedProcess[bytes]) -> str:
@@ -320,15 +550,29 @@ def _sequence_candidates(
     float | None,
     float | None,
 ]:
-    raw = [
-        (group_id, int(length), float(score))
-        for length, score, group_id in _SCORE.findall(text)
-    ]
+    summaries = list(_SCORE_SUMMARY.finditer(text))
+    if len(summaries) != 1:
+        raise T12InputError("sequence-from-map output lacks one complete score summary")
+    best_z, mean, sd = (float(value) for value in summaries[0].groups())
+    if not all(math.isfinite(value) for value in (best_z, mean, sd)) or sd < 0:
+        raise T12InputError("sequence-from-map score summary contains invalid values")
+
+    raw: list[tuple[str, int, float]] = []
+    for line in text.splitlines():
+        if "Score for sequence" not in line:
+            continue
+        match = _SCORE.search(line)
+        if match is None:
+            raise T12InputError("sequence-from-map output contains a malformed score")
+        length, score, group_id = match.groups()
+        parsed_score = float(score)
+        if not math.isfinite(parsed_score):
+            raise T12InputError("sequence-from-map output contains a non-finite score")
+        raw.append((group_id, int(length), parsed_score))
+    if not raw and (best_z != 0.0 or mean != 0.0):
+        raise T12InputError("sequence-from-map summary claims unreported scores")
+
     ordered = sorted(raw, key=lambda item: (-item[2], item[0]))
-    summary = _SCORE_SUMMARY.search(text)
-    best_z = float(summary.group(1)) if summary else None
-    mean = float(summary.group(2)) if summary else None
-    sd = float(summary.group(3)) if summary else None
     candidates: list[SequenceMapCandidate] = []
     for rank, (group_id, length, score) in enumerate(ordered, start=1):
         group = groups.get(group_id)
@@ -337,9 +581,9 @@ def _sequence_candidates(
             raise T12InputError(
                 f"sequence-from-map output does not map to catalogue group {group_id}"
             )
-        score_z = (
-            None if sd is None or sd == 0.0 or mean is None else (score - mean) / sd
-        )
+        score_z = None if sd == 0.0 else (score - mean) / sd
+        if score_z is not None and not math.isfinite(score_z):
+            raise T12InputError("sequence-from-map score yields a non-finite Z-score")
         candidates.append(
             SequenceMapCandidate(
                 schema_version="1.0",
@@ -348,7 +592,7 @@ def _sequence_candidates(
                 sequence_group_id=group_id,
                 sequence_length=length,
                 raw_score=score,
-                score_z=score_z if score_z is None or math.isfinite(score_z) else None,
+                score_z=score_z,
                 source_record_ids=source[0],
                 source_loci=source[1],
                 warnings=("exact_sequence_group_maps_to_multiple_source_records",)
@@ -360,11 +604,125 @@ def _sequence_candidates(
     return tuple(candidates), best, mean, sd, best_z
 
 
+def _classify_sequence_output(
+    text: str,
+    *,
+    refinement_id: str,
+    groups: dict[str, SequenceGroupRecord],
+    crosswalk: dict[str, tuple[tuple[str, ...], tuple[str, ...]]],
+) -> tuple[
+    ExecutionStatus,
+    tuple[SequenceMapCandidate, ...],
+    float | None,
+    float | None,
+    float | None,
+    float | None,
+    tuple[str, ...],
+]:
+    """Turn malformed scientific or catalogue evidence into a typed failure."""
+
+    try:
+        candidates, best, mean, sd, best_z = _sequence_candidates(
+            text,
+            refinement_id=refinement_id,
+            groups=groups,
+            crosswalk=crosswalk,
+        )
+    except T12InputError, ValidationError, ValueError, OverflowError:
+        return (
+            ExecutionStatus.FAILED_PARSE,
+            (),
+            None,
+            None,
+            None,
+            None,
+            ("sequence_from_map_output_failed_evidence_validation",),
+        )
+    warnings = (
+        ("some_catalogue_groups_received_no_score",)
+        if len(candidates) < len(groups)
+        else ()
+    )
+    return (
+        ExecutionStatus.COMPLETED_HIT
+        if candidates
+        else ExecutionStatus.COMPLETED_NO_HIT,
+        candidates,
+        best,
+        mean,
+        sd,
+        best_z,
+        warnings,
+    )
+
+
 def _write_result(path: Path, result: BaseModel) -> tuple[Path, Path]:
     atomic_write_json(path, result.model_dump(mode="json"))
     jsonl = path.with_suffix(".jsonl")
     atomic_write_text(jsonl, canonical_json_text(result) + "\n")
     return path, jsonl
+
+
+def _assess_refinement_completion(
+    *,
+    returncode: int,
+    required_assets_present: bool,
+    coefficients_valid: bool,
+    final_r_work: float | None,
+    final_r_free: float | None,
+) -> tuple[bool, tuple[str, ...]]:
+    """Classify a zero-exit refinement only after final evidence is parsed."""
+
+    if returncode != 0:
+        return False, ()
+    warnings: list[str] = []
+    if not required_assets_present:
+        warnings.append("phenix_refine_completed_without_required_assets")
+    if required_assets_present and not coefficients_valid:
+        warnings.append("refined_mtz_lacks_required_2mfo_dfc_or_mfo_dfc_coefficients")
+    if final_r_work is None or final_r_free is None:
+        warnings.append("phenix_refine_log_lacks_final_r_work_or_r_free")
+    return not warnings, tuple(warnings)
+
+
+def _phase3_refinement_command_identity(
+    *,
+    refinement_id: str,
+    refine_arguments: list[str],
+    binding: DiffractionCommandBinding,
+    inputs: dict[str, object],
+) -> str:
+    """Bind the verified diffraction selection into the refine command identity."""
+
+    return content_id(
+        "refinecmd_",
+        {
+            "protocol_version": _PHASE3_PROTOCOL_VERSION,
+            "refinement_id": refinement_id,
+            "refine_arguments": refine_arguments,
+            "diffraction_command_binding_id": binding.binding_id,
+            "inputs": inputs,
+        },
+    )
+
+
+def _phase3_sequence_command_identity(
+    *,
+    refinement_id: str,
+    sequence_arguments: list[str],
+    binding: DiffractionCommandBinding,
+) -> str:
+    """Bind the selected high-resolution limit into sequence-from-map identity."""
+
+    return content_id(
+        "seqmapcmd_",
+        {
+            "protocol_version": _PHASE3_PROTOCOL_VERSION,
+            "refinement_id": refinement_id,
+            "sequence_arguments": sequence_arguments,
+            "diffraction_command_binding_id": binding.binding_id,
+        },
+    )
 
 
 def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
@@ -376,6 +734,14 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("threads must be between 1 and 64")
     if request.resolution <= 0:
         raise T12InputError("resolution must be positive")
+    phase3_diffraction = _resolve_phase3_diffraction(request)
+    if phase3_diffraction is None:
+        diffraction_selection = None
+        free_r_identity = None
+        free_r_arguments: tuple[str, ...] = ()
+    else:
+        diffraction_selection, free_r_identity = phase3_diffraction
+        free_r_arguments = _free_r_arguments(free_r_identity)
     observation_label_argument = _observation_label_argument(request.observation_labels)
     parent_coordinate = _verified_file(
         request.parent_coordinate,
@@ -389,6 +755,25 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         label="parent MTZ",
         progress=request.progress,
     )
+    parent_mtz_comparison: FreeRMembershipComparison | None = None
+    parent_observation_membership_sha256: str | None = None
+    if diffraction_selection is not None:
+        assert free_r_identity is not None
+        assert request.source_mtz is not None
+        source_mtz = _verified_file(
+            request.source_mtz,
+            diffraction_selection.mtz_sha256,
+            label="source MTZ",
+            progress=request.progress,
+        )
+        parent_mtz_comparison, parent_observation_membership_sha256 = (
+            _verify_phase3_parent_mtz(
+                source_mtz=source_mtz,
+                parent_mtz=parent_mtz,
+                selection=diffraction_selection,
+                free_r_identity=free_r_identity,
+            )
+        )
     groups = _read_jsonl(
         request.sequence_groups_jsonl, SequenceGroupRecord, label="sequence group"
     )
@@ -405,27 +790,39 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         raise T12InputError("complete sequence catalogue and source crosswalk differ")
     manifest_path = request.phenix_manifest.resolve(strict=True)
     manifest = validate_manifest_environment(manifest_path)
-    outdir = request.output_directory.resolve()
-    outdir.mkdir(parents=True, exist_ok=True)
+    outdir = _prepare_attempt_directory(request.output_directory)
     catalogue_fasta = outdir / "exact_sequence_catalogue.fasta"
     _write_catalogue_fasta(groups, catalogue_fasta, progress=request.progress)
-    refinement_id = content_id(
-        "refine_",
-        {
-            "protocol": _PROTOCOL_VERSION,
-            "seed_solution_id": request.seed_solution_id,
-            "sequence_group_id": request.sequence_group_id,
-            "input_copy_count": request.input_copy_count,
-            "parent_coordinate_sha256": request.parent_coordinate_sha256,
-            "parent_mtz_sha256": request.parent_mtz_sha256,
-            "observation_labels": request.observation_labels,
-            "catalogue_sha256": sha256_file(request.sequence_groups_jsonl),
-            "source_records_sha256": sha256_file(request.source_records_jsonl),
-            "phenix_manifest_sha256": sha256_file(manifest_path),
-            "resolution": request.resolution,
-            "threads": request.threads,
-        },
+    protocol_version = (
+        _PHASE3_PROTOCOL_VERSION
+        if diffraction_selection is not None
+        else _PROTOCOL_VERSION
     )
+    refinement_identity: dict[str, object] = {
+        "protocol": protocol_version,
+        "seed_solution_id": request.seed_solution_id,
+        "sequence_group_id": request.sequence_group_id,
+        "input_copy_count": request.input_copy_count,
+        "parent_coordinate_sha256": request.parent_coordinate_sha256,
+        "parent_mtz_sha256": request.parent_mtz_sha256,
+        "observation_labels": request.observation_labels,
+        "catalogue_sha256": sha256_file(request.sequence_groups_jsonl),
+        "source_records_sha256": sha256_file(request.source_records_jsonl),
+        "phenix_manifest_sha256": sha256_file(manifest_path),
+        "resolution": request.resolution,
+        "threads": request.threads,
+    }
+    if diffraction_selection is not None:
+        refinement_identity["diffraction_selection_id"] = (
+            diffraction_selection.diffraction_selection_id
+        )
+        assert free_r_identity is not None
+        refinement_identity["free_r_identity_id"] = free_r_identity.free_r_identity_id
+        refinement_identity["source_mtz_sha256"] = diffraction_selection.mtz_sha256
+        refinement_identity["parent_observation_membership_sha256"] = (
+            parent_observation_membership_sha256
+        )
+    refinement_id = content_id("refine_", refinement_identity)
     refined_model, refined_mtz, map_path, difference_map_path = (
         _refinement_output_paths(outdir)
     )
@@ -445,21 +842,66 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         str(params_path),
         observation_label_argument,
     ]
+    if diffraction_selection is not None:
+        refine_args.extend(
+            _phase3_refinement_selection_arguments(diffraction_selection)
+        )
+    refine_args.extend(free_r_arguments)
     command_path = outdir / "t12_command.json"
+    command_inputs: dict[str, object] = {
+        "parent_coordinate_sha256": request.parent_coordinate_sha256,
+        "parent_mtz_sha256": request.parent_mtz_sha256,
+        "observation_labels": request.observation_labels,
+        "catalogue_fasta_sha256": sha256_file(catalogue_fasta),
+        "phenix_manifest_sha256": sha256_file(manifest_path),
+    }
     command_record: dict[str, object] = {
         "schema_version": "1.0",
-        "protocol_version": _PROTOCOL_VERSION,
+        "protocol_version": protocol_version,
         "refinement_id": refinement_id,
         "refine_arguments": refine_args,
         "sequence_arguments": None,
-        "inputs": {
-            "parent_coordinate_sha256": request.parent_coordinate_sha256,
-            "parent_mtz_sha256": request.parent_mtz_sha256,
-            "observation_labels": request.observation_labels,
-            "catalogue_fasta_sha256": sha256_file(catalogue_fasta),
-            "phenix_manifest_sha256": sha256_file(manifest_path),
-        },
+        "inputs": command_inputs,
     }
+    diffraction_binding: DiffractionCommandBinding | None = None
+    if diffraction_selection is not None:
+        assert free_r_identity is not None
+        assert parent_mtz_comparison is not None
+        assert parent_observation_membership_sha256 is not None
+        command_inputs["source_mtz_sha256"] = diffraction_selection.mtz_sha256
+        command_inputs["parent_observation_membership_sha256"] = (
+            parent_observation_membership_sha256
+        )
+        diffraction_binding = build_diffraction_command_binding(
+            consumer=DiffractionCommandConsumer.BRIEF_REFINEMENT,
+            command_owner_id=refinement_id,
+            selection=diffraction_selection,
+            free_r_identity=free_r_identity,
+            parent_mtz_comparison=parent_mtz_comparison,
+        )
+        command_record.update(
+            {
+                "schema_version": "2.0",
+                "phase3_refine_command_id": _phase3_refinement_command_identity(
+                    refinement_id=refinement_id,
+                    refine_arguments=refine_args,
+                    binding=diffraction_binding,
+                    inputs=command_inputs,
+                ),
+                "diffraction_selection": diffraction_selection.model_dump(mode="json"),
+                "diffraction_command_binding": diffraction_binding.model_dump(
+                    mode="json"
+                ),
+                "free_r_identity": free_r_identity.model_dump(mode="json"),
+                "parent_free_r_membership_comparison": (
+                    parent_mtz_comparison.model_dump(mode="json")
+                ),
+                "free_r_membership_comparison_status": (
+                    "pending_successful_refined_mtz"
+                ),
+                "free_r_membership_comparison": None,
+            }
+        )
     atomic_write_json(command_path, command_record)
     _LOGGER.info(
         "brief refinement started",
@@ -481,10 +923,70 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         _refinement_metrics(refine_text)
     )
     required_assets = (refined_model, refined_mtz, map_path, difference_map_path)
-    refinement_success = completed.returncode == 0 and all(
-        path.is_file() for path in required_assets
+    required_assets_present = all(path.is_file() for path in required_assets)
+    coefficients_valid = (
+        completed.returncode == 0
+        and required_assets_present
+        and _has_required_map_coefficients(refined_mtz)
     )
-    refinement_warnings: list[str] = []
+    refinement_success, completion_warnings = _assess_refinement_completion(
+        returncode=completed.returncode,
+        required_assets_present=required_assets_present,
+        coefficients_valid=coefficients_valid,
+        final_r_work=final_rw,
+        final_r_free=final_rf,
+    )
+    refinement_warnings = list(completion_warnings)
+    free_r_comparison: FreeRMembershipComparison | None = None
+    free_r_comparison_json: Path | None = None
+    free_r_comparison_jsonl: Path | None = None
+    if free_r_identity is not None:
+        if refinement_success:
+            try:
+                free_r_comparison = compare_free_r_membership(
+                    source=free_r_identity,
+                    derived_mtz_path=refined_mtz,
+                )
+            except FreeRIdentityError as error:
+                refinement_success = False
+                refinement_warnings.append(
+                    "refined_mtz_free_r_membership_comparison_failed"
+                )
+                command_record.update(
+                    {
+                        "free_r_membership_comparison_status": "failed_contract",
+                        "free_r_membership_comparison_error": str(error),
+                    }
+                )
+                _LOGGER.warning(
+                    "refined MTZ failed Free-R membership comparison",
+                    extra={
+                        "refinement_id": refinement_id,
+                        "free_r_identity_id": free_r_identity.free_r_identity_id,
+                        "error": str(error),
+                    },
+                )
+            else:
+                free_r_comparison_json, free_r_comparison_jsonl = _write_result(
+                    outdir / "free_r_membership_comparison.json",
+                    free_r_comparison,
+                )
+                command_record.update(
+                    {
+                        "free_r_membership_comparison_status": "preserved_exact",
+                        "free_r_membership_comparison": free_r_comparison.model_dump(
+                            mode="json"
+                        ),
+                        "free_r_membership_comparison_pointer": (
+                            free_r_comparison_json.name
+                        ),
+                    }
+                )
+        else:
+            command_record["free_r_membership_comparison_status"] = (
+                "not_attempted_refinement_incomplete"
+            )
+        atomic_write_json(command_path, command_record)
     if (
         refinement_success
         and final_rf is not None
@@ -492,16 +994,6 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         and final_rf > initial_rf
     ):
         refinement_warnings.append("r_free_increased_during_brief_refinement")
-    if completed.returncode == 0 and not refinement_success:
-        refinement_warnings.append("phenix_refine_completed_without_required_assets")
-    coefficients_valid = refinement_success and _has_required_map_coefficients(
-        refined_mtz
-    )
-    if refinement_success and not coefficients_valid:
-        refinement_success = False
-        refinement_warnings.append(
-            "refined_mtz_lacks_required_2mfo_dfc_or_mfo_dfc_coefficients"
-        )
     refinement = BriefRefinementResult(
         schema_version="1.0",
         refinement_id=refinement_id,
@@ -542,7 +1034,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         outdir / "brief_refinement_result.json", refinement
     )
     sequence_id = content_id(
-        "seqmap_", {"refinement_id": refinement_id, "protocol": _PROTOCOL_VERSION}
+        "seqmap_", {"refinement_id": refinement_id, "protocol": protocol_version}
     )
     sequence_log = outdir / "phenix.sequence_from_map.log"
     sequence_output_model = outdir / "sequence_from_map.pdb"
@@ -559,6 +1051,14 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "control.verbose=True",
         ]
         command_record["sequence_arguments"] = sequence_args
+        if diffraction_binding is not None:
+            command_record["phase3_sequence_command_id"] = (
+                _phase3_sequence_command_identity(
+                    refinement_id=refinement_id,
+                    sequence_arguments=sequence_args,
+                    binding=diffraction_binding,
+                )
+            )
         atomic_write_json(command_path, command_record)
         _LOGGER.info(
             "sequence-from-map started",
@@ -587,19 +1087,21 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         if sequence_completed.returncode != 0:
             sequence_status = ExecutionStatus.FAILED_TOOL_EXECUTION
         else:
-            candidates, best, mean, sd, best_z = _sequence_candidates(
+            (
+                sequence_status,
+                candidates,
+                best,
+                mean,
+                sd,
+                best_z,
+                parsed_warnings,
+            ) = _classify_sequence_output(
                 sequence_text,
                 refinement_id=refinement_id,
                 groups=group_by_id,
                 crosswalk=crosswalk,
             )
-            sequence_status = (
-                ExecutionStatus.COMPLETED_HIT
-                if candidates
-                else ExecutionStatus.COMPLETED_NO_HIT
-            )
-            if len(candidates) < len(groups):
-                sequence_warnings.append("some_catalogue_groups_received_no_score")
+            sequence_warnings.extend(parsed_warnings)
     sequence = SequenceMapResult(
         schema_version="1.0",
         sequence_assessment_id=sequence_id,
@@ -648,4 +1150,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         sequence_json=sequence_json,
         sequence_jsonl=sequence_jsonl,
         command_json=command_path,
+        free_r_comparison=free_r_comparison,
+        free_r_comparison_json=free_r_comparison_json,
+        free_r_comparison_jsonl=free_r_comparison_jsonl,
     )

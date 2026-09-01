@@ -9,6 +9,10 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.diffraction import (
+    DiffractionSelectionError,
+    build_diffraction_selection,
+)
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.mr import (
     AddCopyRunRequest,
@@ -17,8 +21,11 @@ from genome_to_diffraction.mr import (
     run_additional_copy_series,
 )
 from genome_to_diffraction.mr.add_copy import _phaser_placement_count
+from genome_to_diffraction.mr.stage_add_copy import PhaseIIISeedStageEvidence
+from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
+    CrystalEntry,
     PhenixInstallManifest,
     PrototypeProfile,
 )
@@ -27,6 +34,7 @@ from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    MtzObservationCandidateRecord,
     MtzPreflightRecord,
     NormalisedMrResult,
 )
@@ -115,6 +123,15 @@ def _request(
             {
                 "model_sha256": sha256_file(model),
                 "model_identity_percent": 85.0,
+                "resource_plan": build_mr_resource_plan(
+                    owner_kind="mr_hypothesis",
+                    owner_id=HYPOTHESIS_ID,
+                    reflection_count=1_000_000,
+                    moving_atom_count=4_000,
+                    searched_copy_count=2,
+                    fixed_atom_count=0,
+                    symmetry_multiplicity=2,
+                ).model_dump(mode="json"),
             }
         )
         + "\n",
@@ -211,6 +228,7 @@ def _fake_runtime(
     log_text: str,
     write_solution: bool,
     placement_count: int | tuple[int, ...] = 2,
+    corrupt_evidence: str | None = None,
 ) -> None:
     placement_counts = iter(
         (placement_count,) if isinstance(placement_count, int) else placement_count
@@ -248,6 +266,9 @@ def _fake_runtime(
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"result MTZ")
+        if corrupt_evidence is not None:
+            evidence = working_directory / corrupt_evidence
+            evidence.write_bytes(evidence.read_bytes() + b"\xff")
         return subprocess.CompletedProcess(arguments, 0, b"capture\n", b"")
 
     monkeypatch.setattr(
@@ -259,6 +280,185 @@ def _fake_runtime(
     )
 
 
+def _phase3_request(
+    tmp_path: Path, *, resolution_high_a: float = 2.0
+) -> AddCopyRunRequest:
+    request = _request(tmp_path)
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_text(encoding="utf-8")
+    ).model_copy(
+        update={
+            "resolution_high_a": resolution_high_a,
+            "selected_observation_dataset_id": 1,
+            "observation_candidate_identities": (
+                MtzObservationCandidateRecord(
+                    dataset_id=1,
+                    labels=("I", "SIGI"),
+                    observation_type="intensity",
+                ),
+            ),
+        }
+    )
+    request.preflight_jsonl.write_text(
+        f"{canonical_json_text(preflight)}\n", encoding="utf-8"
+    )
+    selection = build_diffraction_selection(
+        crystal=CrystalEntry(
+            crystal_id=preflight.crystal_id,
+            mtz=str(request.mtz),
+            catalogue_id="catalogue_test",
+        ),
+        preflight=preflight,
+        crystal_manifest_sha256="e" * 64,
+    )
+    selection_path = tmp_path / "phase3 diffraction selection.json"
+    selection_path.write_text(canonical_json_text(selection), encoding="utf-8")
+    return replace(request, diffraction_selection_json=selection_path)
+
+
+def test_phase3_additional_copy_command_binds_selected_diffraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _phase3_request(tmp_path)
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+
+    output = run_additional_copy_phaser(request)
+
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    selection = command["diffraction_selection"]
+    binding = command["diffraction_command_binding"]
+    parameters = output.parameters_file.read_text(encoding="utf-8")
+    assert command["schema_version"] == "2.0"
+    assert command["adapter_version"] == "phenix-add-copy-mr-v8-resource-plan"
+    assert command["phase3_hypothesis_id"].startswith("mrhyp2_")
+    assert binding["consumer"] == "phase3_additional_copy_phaser"
+    assert binding["command_mtz_binding"] == "exact_selected_mtz"
+    assert selection["crystal_id"] == "test_crystal_01"
+    assert selection["observation_labels"] == ["I", "SIGI"]
+    assert 'space_group = "P 21 21 21"' in parameters
+    assert f"low = {selection['resolution_low_a']:.12g}" in parameters
+    assert f"high = {selection['resolution_high_a']:.12g}" in parameters
+
+
+def test_phase3_additional_copy_uses_only_canonical_seed_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    legacy = _phase3_request(tmp_path)
+    assert legacy.review_package_manifest is not None
+    review_manifest = legacy.review_package_manifest
+    review_document = json.loads(review_manifest.read_text(encoding="utf-8"))
+    stage_root = tmp_path / "phase3 seed stage"
+    stage_root.mkdir()
+    stage_manifest = stage_root / "phase3_seed_stage_manifest.json"
+    stage_manifest.write_text("{}\n", encoding="ascii")
+    model_sha = sha256_file(legacy.search_model)
+    evidence = PhaseIIISeedStageEvidence(
+        stage_id="phase3seedstage_" + "1" * 64,
+        review_id=REVIEW_ID,
+        approved_solution_ids=(SEED_ID,),
+        root=stage_root,
+        review_root=review_manifest.parent,
+        review_manifest=review_manifest,
+        review_document=review_document,
+        model_sources={
+            SEED_ID: {
+                "original_first_copy_model_sha256": model_sha,
+                "staged_search_model_sha256": model_sha,
+                "resource_plan": build_mr_resource_plan(
+                    owner_kind="mr_hypothesis",
+                    owner_id=HYPOTHESIS_ID,
+                    reflection_count=1_000_000,
+                    moving_atom_count=4_000,
+                    searched_copy_count=2,
+                    fixed_atom_count=0,
+                    symmetry_multiplicity=2,
+                ).model_dump(mode="json"),
+            }
+        },
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.stage_add_copy.validate_phase3_seed_stage",
+        lambda *args, **kwargs: evidence,
+    )
+    request = replace(
+        legacy,
+        review_validation_json=None,
+        review_package_manifest=None,
+        phase3_seed_stage_manifest=stage_manifest,
+        expected_search_model_sha256=model_sha,
+    )
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+
+    output = run_additional_copy_phaser(request)
+
+    assert output.result.review_id == REVIEW_ID
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == "phenix-add-copy-mr-v8-resource-plan"
+
+
+def test_phase3_additional_copy_rejects_dual_approval_authority(
+    tmp_path: Path,
+) -> None:
+    request = replace(
+        _phase3_request(tmp_path),
+        phase3_seed_stage_manifest=tmp_path / "another-stage.json",
+    )
+
+    with pytest.raises(PhaserInputError, match="rejects legacy approval"):
+        run_additional_copy_phaser(request)
+
+
+def test_phase3_additional_copy_rejects_stale_diffraction_before_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _phase3_request(tmp_path)
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_text(encoding="utf-8")
+    ).model_copy(update={"resolution_high_a": 1.8})
+    request.preflight_jsonl.write_text(
+        f"{canonical_json_text(preflight)}\n", encoding="utf-8"
+    )
+    called = False
+
+    def unexpected(*args: object, **kwargs: object) -> None:
+        nonlocal called
+        del args, kwargs
+        called = True
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.add_copy.capture_from_manifest", unexpected
+    )
+    with pytest.raises(DiffractionSelectionError, match="preflight record digest"):
+        run_additional_copy_phaser(request)
+
+    assert called is False
+
+
+def test_phase3_additional_copy_identity_changes_with_selected_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+    first_root.mkdir()
+    second_root.mkdir()
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=(2, 2),
+    )
+
+    first = run_additional_copy_phaser(_phase3_request(first_root))
+    second = run_additional_copy_phaser(
+        _phase3_request(second_root, resolution_high_a=1.8)
+    )
+
+    first_record = json.loads(first.command_json.read_text(encoding="utf-8"))
+    second_record = json.loads(second.command_json.read_text(encoding="utf-8"))
+    assert first_record["phase3_hypothesis_id"] != second_record["phase3_hypothesis_id"]
+    assert first_record["attempt_id"] != second_record["attempt_id"]
+
+
 def test_packed_additional_copy_advances_child_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -267,6 +467,8 @@ def test_packed_additional_copy_advances_child_state(
 
     output = run_additional_copy_phaser(request)
 
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == "phenix-add-copy-mr-v6"
     assert output.result.execution_status == "completed_hit"
     assert output.result.additional_copy_supported is True
     assert output.result.parent_copy_count == 1
@@ -548,6 +750,29 @@ def test_no_additional_solution_retains_parent_without_absence_claim(
     assert result.rejection_reason == "phaser_reported_no_additional_solution"
 
 
+@pytest.mark.parametrize("corrupt_evidence", ("PHASER.log", "PHASER.1.pdb"))
+def test_additional_copy_rejects_non_utf8_scientific_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_evidence: str,
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        corrupt_evidence=corrupt_evidence,
+    )
+
+    result = run_additional_copy_phaser(request).result
+
+    assert result.execution_status == "failed_parse"
+    assert "not valid UTF-8" in (result.rejection_reason or "")
+    assert result.additional_copy_supported is False
+    assert result.top_solution_packed is False
+    assert result.output_coordinate_path is None
+
+
 def test_no_extension_partial_parent_output_is_not_a_supported_child(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -596,9 +821,11 @@ def test_changed_search_model_fails_before_runtime(
 
 def test_changed_parent_result_fails_before_runtime(tmp_path: Path) -> None:
     request = _request(tmp_path)
-    manifest = json.loads(request.review_package_manifest.read_text(encoding="utf-8"))
+    assert request.review_package_manifest is not None
+    review_manifest = request.review_package_manifest
+    manifest = json.loads(review_manifest.read_text(encoding="utf-8"))
     relative = manifest["items"][0]["copied_assets"]["normalised_result"]
-    parent_result = request.review_package_manifest.parent / relative
+    parent_result = review_manifest.parent / relative
     parent_result.write_text("{}\n", encoding="utf-8")
 
     with pytest.raises(PhaserInputError, match="parent result checksum differs"):
@@ -651,5 +878,9 @@ def test_nextflow_finishes_sibling_attempts_after_contract_failure() -> None:
         encoding="utf-8"
     )
 
-    assert "errorStrategy 'finish'" in module
+    assert "errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }" in module
     assert "--until-expected" in module
+    assert "process RUN_PHASE3_ADDITIONAL_COPY_PHASER" in module
+    assert "--phase3-seed-stage-manifest '${item[4]}'" in module
+    assert "--diffraction-selection '${item[10]}'" in module
+    assert "phase3-add-copy:${item[0]}:${item[1]}" in module

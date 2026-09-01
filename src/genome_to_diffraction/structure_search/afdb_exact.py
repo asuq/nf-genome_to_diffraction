@@ -61,6 +61,7 @@ from genome_to_diffraction.status import (
     InfrastructureError,
     InputContractError,
     ResultParseError,
+    TransientInfrastructureError,
 )
 from genome_to_diffraction.structure_search.provider_plan import (
     load_enabled_provider_route,
@@ -68,7 +69,7 @@ from genome_to_diffraction.structure_search.provider_plan import (
 from genome_to_diffraction.time import utc_now, utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.afdb_exact")
-_ADAPTER_VERSION = "afdb-exact-v2"
+_ADAPTER_VERSION = "afdb-exact-v3"
 _PROVIDER = "afdb_exact"
 _TOOL = "AlphaFold DB prediction API"
 _TOOL_VERSION = "2026-06-field-contract"
@@ -157,8 +158,6 @@ class _GroupOutcome:
 
 
 def _bind_provider_route(request: AfdbExactRequest) -> AfdbExactRequest:
-    if request.provider_plan_json is None and request.provider_entry_json is None:
-        return request
     if request.provider_plan_json is None or request.provider_entry_json is None:
         raise InputContractError(
             "AFDB exact search requires both provider plan and provider entry"
@@ -397,13 +396,18 @@ def _http_get(
                     headers=_selected_headers(error.headers),
                     body=body,
                 )
-            if error.code < 500 or attempt == retry_count:
+            retryable = error.code in {408, 425, 429} or 500 <= error.code < 600
+            if not retryable:
                 raise InfrastructureError(
                     f"AFDB request failed with HTTP {error.code}: {url}"
                 ) from error
+            if attempt == retry_count:
+                raise TransientInfrastructureError(
+                    f"AFDB request failed with temporary HTTP {error.code}: {url}"
+                ) from error
         except (OSError, TimeoutError, urllib.error.URLError) as error:
             if attempt == retry_count:
-                raise InfrastructureError(
+                raise TransientInfrastructureError(
                     f"AFDB request failed: {url}: {error}"
                 ) from error
         if attempt < retry_count:
@@ -869,16 +873,15 @@ def search_afdb_exact(request: AfdbExactRequest) -> AfdbExactOutput:
         if request.accession_map_tsv is not None
         else None
     )
+    if request.provider_plan_json is None or request.provider_entry_json is None:
+        raise InputContractError(
+            "AFDB exact search requires both provider plan and provider entry"
+        )
     parameters = {
-        "provider_plan_sha256": (
-            None
-            if request.provider_plan_json is None
-            else sha256_file(request.provider_plan_json, progress=False)
-        ),
-        "provider_entry_sha256": (
-            None
-            if request.provider_entry_json is None
-            else sha256_file(request.provider_entry_json, progress=False)
+        "authorisation_scope": "reviewed_provider_plan",
+        "provider_plan_sha256": sha256_file(request.provider_plan_json, progress=False),
+        "provider_entry_sha256": sha256_file(
+            request.provider_entry_json, progress=False
         ),
         "metadata_endpoint": _METADATA_URL,
         "metadata_contract": _TOOL_VERSION,

@@ -14,6 +14,29 @@ chain. Iterative placement of copy `n + 1`, for example, must wait for the
 retained result at copy `n`; independent seeds and samples still run as separate
 Nextflow tasks.
 
+Shared single-emission sequence catalogues, model registries, reviews,
+diffraction records, and Phenix manifests must be converted to reusable value
+channels before they accompany a multi-item hypothesis, approved-seed, or
+finalist queue. A singleton queue is consumed by its first sibling and silently
+prevents later candidates from scheduling. The production first-copy,
+additional-copy, and refinement workflows explicitly broadcast these inputs.
+One real local stub supplies three hypotheses, two approved seeds, and two
+finalists through independent singleton queues and requires all seven exact
+tasks followed by a fully cached equivalent resume.
+
+## Retired direct benchmark drivers
+
+Historical direct control and M6 benchmark commands are not registered. Their
+former Python drivers scheduled independent hypotheses, seeds, and refinements
+outside Nextflow, so both the obsolete commands and their fail-only compatibility
+functions were removed. Immutable prior evidence remains readable, and shared
+preparation/classification helpers remain available to Nextflow-owned graphs.
+
+Any future replay of those suites must use a reviewed DSL2 entry point that
+emits one complete channel item per independent hypothesis, seed, and finalist.
+The configured executor, not Python or Bash, must own concurrency, retry,
+resume, and resource evidence.
+
 ## Driver and workers
 
 The reviewed HPC wrapper submits one small Slurm driver. The driver verifies

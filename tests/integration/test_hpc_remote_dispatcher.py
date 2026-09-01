@@ -16,6 +16,21 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.hpc.unknown_inputs import (
+    UNKNOWN_DISCOVERY_SPEC_RELATIVE,
+    build_unknown_discovery_input_bundle,
+)
+from genome_to_diffraction.hpc.unknown_single_inputs import (
+    UNKNOWN_SINGLE_SPEC_RELATIVE,
+    build_unknown_single_component_input_bundle,
+)
+from tests.support.unknown_pass1_fixture import (
+    PUBLIC_STUB_CRYSTAL_IDS,
+    materialise_neutral_localisation_fixture,
+    materialise_unknown_pass1_public_fixture,
+)
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 RUN_ID = "gtd-smoke-20260802T120000Z-0123456789ab-01234567"
 SECOND_RUN_ID = "gtd-smoke-20260802T120001Z-0123456789ab-01234568"
@@ -25,12 +40,27 @@ P2_RUN_ID = "gtd-p2-20260802T120000Z-0123456789ab-01234567"
 P2_DIVERSE_RUN_ID = "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567"
 P2_CONTROL_RUN_ID = "gtd-p2-control-20260802T120000Z-0123456789ab-01234567"
 HETEROMER_RUN_ID = "gtd-heteromer-smoke-20260802T120000Z-0123456789ab-01234567"
+PHASE3_PHENIX_PROBE_RUN_ID = (
+    "gtd-phase3-phenix-probe-20260802T120000Z-0123456789ab-01234567"
+)
+PHASE3_NETWORK_PROBE_RUN_ID = (
+    "gtd-phase3-network-probe-20260802T120000Z-0123456789ab-01234567"
+)
+UNKNOWN_DISCOVERY_RUN_ID = (
+    "gtd-unknown-discovery-20260802T120000Z-0123456789ab-01234567"
+)
+UNKNOWN_SCREEN_RUN_ID = "gtd-unknown-screen-20260802T120001Z-0123456789ab-01234568"
+UNKNOWN_SINGLE_RUN_ID = (
+    "gtd-unknown-single-component-20260802T120002Z-0123456789ab-01234569"
+)
+UNKNOWN_PASS2_RUN_ID = "gtd-unknown-pass2-20260802T120003Z-0123456789ab-01234570"
 CONTROL_MATRIX_RUN_ID = "gtd-control-matrix-20260802T120000Z-0123456789ab-01234567"
 M6_INPUTS_RUN_ID = "gtd-m6-inputs-20260802T120000Z-0123456789ab-01234567"
 M6_NEXTFLOW_SMOKE_RUN_ID = (
     "gtd-m6-nextflow-smoke-20260802T120000Z-0123456789ab-01234567"
 )
 M6_OPERATIONAL_RUN_ID = "gtd-m6-operational-20260802T120000Z-0123456789ab-01234567"
+M6_LEAKAGE_RUN_ID = "gtd-m6-leakage-20260802T120001Z-0123456789ab-01234568"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
@@ -44,11 +74,17 @@ def _restore_test_tree_permissions(tmp_path: Path) -> Iterator[None]:
     for directory, subdirectories, files in os.walk(tmp_path):
         directory_path = Path(directory)
         if not directory_path.is_symlink():
-            directory_path.chmod(0o700)
+            try:
+                directory_path.chmod(0o700)
+            except FileNotFoundError:
+                continue
         for name in (*subdirectories, *files):
             path = directory_path / name
             if not path.is_symlink():
-                path.chmod(0o700)
+                try:
+                    path.chmod(0o700)
+                except FileNotFoundError:
+                    continue
 
 
 def _run(
@@ -146,21 +182,26 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "nf-gtd-hpc-remote",
         "nf-gtd-hpc-smoke-job",
         "nf-gtd-hpc-recover-tools",
+        "nf-gtd-worker-offline-shell",
     ):
         shutil.copy2(REPOSITORY / "bootstrap" / name, bootstrap / name)
         (bootstrap / name).chmod(0o755)
+    shutil.copy2(REPOSITORY / "qualification.nf", source / "qualification.nf")
+    shutil.copytree(REPOSITORY / "src", source / "src")
+    docs = source / "docs"
+    docs.mkdir()
     shutil.copy2(
-        REPOSITORY / "discover_structures.nf", source / "discover_structures.nf"
+        REPOSITORY / "docs/phase-iii-finding-ledger.md",
+        docs / "phase-iii-finding-ledger.md",
     )
-    shutil.copy2(REPOSITORY / "prepare_models.nf", source / "prepare_models.nf")
-    shutil.copy2(REPOSITORY / "prepare_pdb_models.nf", source / "prepare_pdb_models.nf")
+    conf = source / "conf"
+    conf.mkdir()
+    shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
+    qualification_workflows = source / "workflows" / "qualification"
+    qualification_workflows.mkdir(parents=True)
     shutil.copy2(
-        REPOSITORY / "screen_diverse_first_copy.nf",
-        source / "screen_diverse_first_copy.nf",
-    )
-    shutil.copy2(
-        REPOSITORY / "screen_first_copy_controls.nf",
-        source / "screen_first_copy_controls.nf",
+        REPOSITORY / "workflows/qualification/phase3_network_probe.nf",
+        qualification_workflows / "phase3_network_probe.nf",
     )
     m6_benchmarks = source / "benchmarks" / "m6"
     m6_benchmarks.mkdir(parents=True)
@@ -189,11 +230,11 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
         "add",
         "pixi.lock",
         "bootstrap",
-        "discover_structures.nf",
-        "prepare_models.nf",
-        "prepare_pdb_models.nf",
-        "screen_diverse_first_copy.nf",
-        "screen_first_copy_controls.nf",
+        "qualification.nf",
+        "src",
+        "docs",
+        "conf",
+        "workflows",
         "benchmarks",
     )
     _git(
@@ -289,16 +330,34 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "control_6rtz_preparation=\n"
         "control_3u7q_preparation=\n"
         "catalogue_sequence_groups=\n"
+        "provider_plan=\n"
+        "provider_entry=\n"
         "partner_plan=\n"
+        "crystal_id=\n"
+        "search_id=\n"
+        "phaser_version=\n"
+        "parent_model_identity_fraction=\n"
+        "parent_model_uncertainty_source=\n"
         'case " $* " in\n'
         '  *" catalogue import "*) mode=catalogue ;;\n'
+        '  *" structure-search resolve-provider-plan "*) mode=provider_plan ;;\n'
         '  *" structure-search afdb-exact "*) mode=afdb ;;\n'
         '  *" structure-search pdb-sequence "*) mode=pdb ;;\n'
         '  *" structure-search register-pdb-coordinates "*) mode=register ;;\n'
+        '  *" structure-search validate-phase3-provider-discovery-package "*) '
+        "mode=provider_discovery_validate ;;\n"
+        '  *" structure-search stage-phase3-provider-coordinates "*) '
+        "mode=provider_login_stage ;;\n"
+        '  *" structure-search validate-phase3-provider-login-stage "*) '
+        "mode=provider_login_validate ;;\n"
         '  *" benchmark prepare-public-control "*) mode=public_control ;;\n'
         '  *" benchmark prepare-6rtz-heteromer-control "*) mode=heteromer ;;\n'
         '  *" benchmark prepare-3u7q-heteromer-control "*) '
         "mode=heteromer_multicopy ;;\n"
+        '  *" benchmark prepare-9ecn-phase3-control "*) '
+        "mode=heteromer_phase3 ;;\n"
+        '  *" benchmark run-9ecn-phase3-control "*) '
+        "mode=heteromer_phase3_run ;;\n"
         '  *" benchmark prepare-6rtz-partner-catalogue "*) '
         "mode=heteromer_catalogue ;;\n"
         '  *" benchmark prepare-heteromer-control-slice "*) '
@@ -307,11 +366,13 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "mode=heteromer_p6_assess ;;\n"
         '  *" benchmark approve-6rtz-parent "*) mode=heteromer_review ;;\n'
         '  *" phenix refresh-manifest "*) mode=phenix_refresh ;;\n'
+        '  *" phenix probe-phaser-interface "*) mode=phenix_interface ;;\n'
         '  *" phenix verify "*) mode=phenix_verify ;;\n'
         '  *" diffraction preflight "*) mode=preflight ;;\n'
         '  *" matthews enumerate "*) mode=matthews ;;\n'
         '  *" ranking approved-partner-plan "*) mode=partner_plan ;;\n'
         '  *" mr first-copy "*) mode=first_copy ;;\n'
+        '  *" mr collect-per-placement "*) mode=placement_collect ;;\n'
         '  *" mr approved-partner "*) mode=partner ;;\n'
         '  *" mr search-partner "*) mode=partner ;;\n'
         '  *" mr planned-partner "*) mode=partner ;;\n'
@@ -321,7 +382,15 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --manifest ]] || output="$argument"\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$previous" != --output-directory ]] || outdir="$argument"\n'
         '  [[ "$previous" != --output ]] || refreshed="$argument"\n'
+        '  [[ "$previous" != --crystal-id ]] || crystal_id="$argument"\n'
+        '  [[ "$previous" != --search-id ]] || search_id="$argument"\n'
+        '  [[ "$previous" != --phaser-version ]] || phaser_version="$argument"\n'
+        '  [[ "$previous" != --parent-model-identity-fraction ]] || '
+        'parent_model_identity_fraction="$argument"\n'
+        '  [[ "$previous" != --parent-model-uncertainty-source ]] || '
+        'parent_model_uncertainty_source="$argument"\n'
         '  [[ "$previous" != --verification-log ]] || verification_log="$argument"\n'
         '  [[ "$previous" != --protocol ]] || protocol="$argument"\n'
         '  [[ "$previous" != --control-6rtz-preparation ]] || '
@@ -330,6 +399,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         'control_3u7q_preparation="$argument"\n'
         '  [[ "$previous" != --catalogue-sequence-groups ]] || '
         'catalogue_sequence_groups="$argument"\n'
+        '  [[ "$previous" != --provider-plan ]] || provider_plan="$argument"\n'
+        '  [[ "$previous" != --provider-entry ]] || provider_entry="$argument"\n'
         '  [[ "$previous" != --partner-plan ]] || partner_plan="$argument"\n'
         '  previous="$argument"\n'
         "done\n"
@@ -341,7 +412,29 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/sequence_groups.jsonl"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/source_records.jsonl"\n'
+        'elif [[ "$mode" == provider_discovery_validate || '
+        '"$mode" == provider_login_validate ]]; then\n'
+        "  :\n"
+        'elif [[ "$mode" == provider_login_stage ]]; then\n'
+        '  mkdir -p "$outdir/pdb_coordinate_registration" '
+        '"$outdir/afdb_exact_search" "$outdir/esm_atlas_search"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/pdb_coordinate_registration/owned_coordinate_sources.jsonl"\n'
+        '  printf \'{"schema_version":"2.0",'
+        '"preparation_id":"providerstage_stub"}\\n\' '
+        '> "$outdir/provider_preparation.json"\n'
+        'elif [[ "$mode" == provider_plan ]]; then\n'
+        '  [[ "${FAKE_PROVIDER_PLAN_FAIL:-0}" != 1 ]] || exit 17\n'
+        '  mkdir -p "$outdir/entries"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/provider_plan.json"\n'
+        "  for provider in afdb_exact esm_atlas foldseek_prostt5_pdb "
+        "pdb_sequence; do\n"
+        '    printf \'{"schema_version":"1.0","provider":"%s"}\\n\' '
+        '"$provider" > "$outdir/entries/$provider.json"\n'
+        "  done\n"
         'elif [[ "$mode" == afdb ]]; then\n'
+        '  [[ -f "$provider_plan" && -f "$provider_entry" ]] || exit 18\n'
         '  [[ "${FAKE_AFDB_PREFETCH_FAIL:-0}" != 1 ]] || exit 13\n'
         '  mkdir -p "$outdir/raw"\n'
         '  printf \'{"schema_version":"1.0","coordinate_source_count":1}\\n\' '
@@ -354,6 +447,7 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"$outdir/coordinate_sources.jsonl"\n'
         "  printf 'fake login-node HTTP provenance\\n' > \"$outdir/raw/http.log\"\n"
         'elif [[ "$mode" == pdb ]]; then\n'
+        '  [[ -f "$provider_plan" && -f "$provider_entry" ]] || exit 18\n'
         '  [[ "${FAKE_PDB_SEARCH_FAIL:-0}" != 1 ]] || exit 14\n'
         "  command -v mmseqs >/dev/null || exit 16\n"
         '  mkdir -p "$outdir/raw"\n'
@@ -439,6 +533,62 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf \'{"schema_version":"1.0"}\\n\' > '
         '"$outdir/model_preparation_manifest.json"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mr_hypotheses.jsonl"\n'
+        'elif [[ "$mode" == heteromer_phase3 ]]; then\n'
+        '  mkdir -p "$outdir/derived" "$outdir/models"\n'
+        '  printf \'{"adapter_version":"9ecn-fixed-two-a-two-b-two-c-inputs-v1",'
+        '"crystal_id":"9ECN","composition":{"A":2,"B":2,"C":2}}\\n\' '
+        '> "$outdir/preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/crystals.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/sequence_groups.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/processed_models.jsonl"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$outdir/model_preparation_manifest.json"\n'
+        '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mr_hypotheses.jsonl"\n'
+        '  printf "fake 9ECN mtz\\n" > "$outdir/derived/9ECN.mtz"\n'
+        '  printf "fake A3 pdb\\n" > "$outdir/models/component_A.pdb"\n'
+        '  printf "fake B3 pdb\\n" > "$outdir/models/component_B.pdb"\n'
+        '  printf "fake C3 pdb\\n" > "$outdir/models/component_C.pdb"\n'
+        'elif [[ "$mode" == heteromer_phase3_run ]]; then\n'
+        "  paths=(provenance/preparation_manifest.json "
+        "provenance/phenix_manifest.json preflight/mtz_preflight.jsonl "
+        "preflight/xtriage/9ECN.log parent_A/normalised_mr_result.json "
+        "parent_A/phaser_command.json parent_A/PHASER.log "
+        "parent_A/PHASER.1.pdb partner_B/partner_search_result.json "
+        "partner_B/phaser_command.json partner_B/PHASER.log "
+        "partner_B/component_A.pdb partner_B/component_B.pdb "
+        "partner_B/phaser_per_placement_inventory.json component_C_input.json "
+        "component_C/component_search_result.json component_C/phaser_command.json "
+        "component_C/PHASER.log component_C/component_A.pdb "
+        "component_C/component_B.pdb component_C/component_C.pdb "
+        "component_C/phaser_per_placement_inventory.json "
+        "wrong_C_input.json wrong_C_sequence_groups.jsonl "
+        "wrong_C/component_search_result.json wrong_C/phaser_command.json "
+        "wrong_C/PHASER.log wrong_C/composition_assessment.json)\n"
+        '  for relative in "${paths[@]}"; do\n'
+        '    directory="${relative%/*}"\n'
+        '    [[ "$directory" == "$relative" ]] || mkdir -p "$outdir/$directory"\n'
+        '    printf "fake 9ECN retained evidence\\n" > "$outdir/$relative"\n'
+        "  done\n"
+        '  printf \'{"adapter_version":"9ecn-phase3-depth-three-control-v3-'
+        'wrong-c-assessment",'
+        '"control":"9ECN_McrA_McrB_McrG_2A_2B_2C",'
+        '"gate_passed":true,"component_copy_counts":{"A":2,"B":2,"C":2},'
+        '"exact_identity_claimed_by_search":false,'
+        '"complete_composition_claimed_by_search":false,'
+        '"wrong_c_claim_boundary_passed":true,'
+        '"wrong_c_execution_status":"completed_hit",'
+        '"wrong_c_top_solution_packed":true,'
+        '"wrong_c_exact_identity_claimed":false,'
+        '"wrong_c_complete_composition_claimed":false,'
+        '"wrong_c_scientific_status":"search_evidence_only",'
+        '"wrong_c_assessment_claim_eligible":false,'
+        '"wrong_c_assessment_claimed":false,'
+        '"wrong_c_assessment_id":"compassess_'
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}\\n' "
+        '> "$outdir/phase3-9ecn-control-summary.json"\n'
+        '  (cd "$outdir" && sha256sum "${paths[@]}" '
+        "phase3-9ecn-control-summary.json) "
+        '> "$outdir/phase3-9ecn-control-checksums.sha256"\n'
         'elif [[ "$mode" == heteromer_catalogue ]]; then\n'
         '  mkdir -p "$outdir/sources" '
         '"$outdir/partner_model_registry/models"\n'
@@ -627,9 +777,22 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '  printf "fake Phenix verified\\n" > "$verification_log"\n'
         'elif [[ "$mode" == phenix_refresh ]]; then\n'
         '  [[ -n "$verification_log" && -n "$refreshed" ]] || exit 18\n'
+        '  [[ "$refreshed" == *.json ]] || exit 19\n'
+        '  if [[ "${FAKE_PHENIX_REFRESH_FAIL:-0}" == 1 ]]; then\n'
+        '    printf "exact refresh failure\\n" >&2\n'
+        "    exit 27\n"
+        "  fi\n"
         '  mkdir -p "$(dirname "$verification_log")"\n'
         '  printf "fake Phenix refreshed\\n" > "$verification_log"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$refreshed"\n'
+        'elif [[ "$mode" == phenix_interface ]]; then\n'
+        '  mkdir -p "$outdir"\n'
+        '  printf "phaser { keywords { xyzout { ensemble = False } } }\\n" > '
+        '"$outdir/phenix-phaser-show-defaults.txt"\n'
+        '  printf \'{"schema_version":"1.0","probe_id":'
+        '"phaserinterface_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
+        '"scientific_execution_performed":false}\\n\' > '
+        '"$outdir/phaser-interface-probe.json"\n'
         'elif [[ "$mode" == preflight ]]; then\n'
         '  mkdir -p "$outdir/xtriage"\n'
         '  printf \'{"schema_version":"1.0"}\\n\' > "$outdir/mtz_preflight.jsonl"\n'
@@ -704,13 +867,22 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '> "$outdir/normalised_mr_result.json"\n'
         '  cp "$outdir/normalised_mr_result.json" '
         '"$outdir/normalised_mr_result.jsonl"\n'
-        "  printf '{}\\n' > \"$outdir/phaser_command.json\"\n"
+        '  printf \'{"model_identity_percent":35.0,'
+        '"model_uncertainty_source":"fake registered parent model identity"}\\n\' '
+        '> "$outdir/phaser_command.json"\n'
         '  printf "fake parent log\\n" > "$outdir/PHASER.log"\n'
         '  printf "fake parent capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
         'elif [[ "$mode" == partner ]]; then\n'
+        '  if [[ "$crystal_id" == 3U7Q ]]; then\n'
+        '    [[ "$parent_model_identity_fraction" == 0.35 ]] || exit 32\n'
+        '    [[ "$parent_model_uncertainty_source" == '
+        '"fake registered parent model identity" ]] || exit 33\n'
+        "  fi\n"
         '  mkdir -p "$outdir"\n'
         "  parent_copies=1\n"
         "  partner_copies=1\n"
+        "  search_id=\"partner_$(printf '6%.0s' {1..64})\"\n"
+        "  phaser_version=2.1-6048\n"
         "  plan_id=\"partnerplan_$(printf '9%.0s' {1..64})\"\n"
         "  candidate_id=\"partnercand_$(printf '8%.0s' {1..64})\"\n"
         "  partner_seq=\"seq_$(printf 'b%.0s' {1..64})\"\n"
@@ -724,11 +896,22 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         "  else\n"
         '    printf "fake combined pdb\\n" > "$outdir/PHASER.1.pdb"\n'
         '    printf "fake combined mtz\\n" > "$outdir/PHASER.1.mtz"\n'
+        '    printf "SOLU SET LLG=270 TFZ=12\\n" > "$outdir/PHASER.sol"\n'
+        "    placement=1\n"
+        '    printf "SOLU 6DIM ENSE fixed_parent EULER %s 0 0 FRAC 0 0 0 BFAC 0\\n" '
+        '"$placement" >> "$outdir/PHASER.sol"\n'
+        "    for ((i=1; i<=partner_copies; i++)); do\n"
+        "      placement=$((placement + 1))\n"
+        '      printf "SOLU 6DIM ENSE search_partner EULER %s 0 0 '
+        'FRAC 0 0 0 BFAC 0\\n" '
+        '"$placement" >> "$outdir/PHASER.sol"\n'
+        "    done\n"
         '    combined_sha="$(sha256sum "$outdir/PHASER.1.pdb" '
         "| awk '{print $1}')\"\n"
         '    output_mtz_sha="$(sha256sum "$outdir/PHASER.1.mtz" '
         "| awk '{print $1}')\"\n"
         '    printf \'{"execution_status":"completed_hit",'
+        '"search_id":"%s","tool_version":"%s",'
         '"parent_copy_count":%s,"requested_partner_copy_count":%s,'
         '"partner_placement_count":%s,'
         '"selection_plan_id":"%s","partner_candidate_id":"%s",'
@@ -739,7 +922,8 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '"combined_coordinate_path":"PHASER.1.pdb",'
         '"combined_coordinate_sha256":"%s","output_mtz_path":"PHASER.1.mtz",'
         '"output_mtz_sha256":"%s"}\\n\' '
-        '"$parent_copies" "$partner_copies" "$partner_copies" '
+        '"$search_id" "$phaser_version" "$parent_copies" '
+        '"$partner_copies" "$partner_copies" '
         '"$plan_id" "$candidate_id" "$partner_seq" "$combined_sha" '
         '"$output_mtz_sha" > "$outdir/partner_search_result.json"\n'
         "  fi\n"
@@ -752,6 +936,57 @@ def _prepare_remote_layout(tmp_path: Path) -> tuple[Path, Path, dict[str, str], 
         '    printf "fake partner log\\n" > "$outdir/PHASER.log"\n'
         "  fi\n"
         '  printf "fake partner capture\\n" > "$outdir/phenix.phaser.capture.log"\n'
+        'elif [[ "$mode" == placement_collect ]]; then\n'
+        '  [[ -n "$outdir" && -n "$crystal_id" && -n "$search_id" && '
+        '-n "$phaser_version" ]] || exit 20\n'
+        "  copies=1\n"
+        '  [[ "$outdir" != */multicopy/* ]] || copies=2\n'
+        '  printf "fake grouped A coordinates\\n" > "$outdir/component_A.pdb"\n'
+        '  printf "fake grouped B coordinates\\n" > "$outdir/component_B.pdb"\n'
+        '  printf \'{"schema_version":"2.0",'
+        '"inventory_id":"phaserplacements_%s",'
+        '"adapter_version":"phaser-component-coordinate-inventory-v2",'
+        '"crystal_id":"%s","search_id":"%s","phaser_version":"%s",'
+        '"ordinal_mapping_status":"verified_exact_sol_to_model_bound_chains",'
+        '"recombination_status":"verified_exact_combined_atom_partition",'
+        '"can_create_fixed_component_evidence":true,'
+        '"combined_atom_count":%s,"recombined_atom_count":%s,'
+        '"placements":[\' '
+        '"$(printf \'a%.0s\' {1..64})" "$crystal_id" "$search_id" '
+        '"$phaser_version" "$((2 * copies))" "$((2 * copies))" '
+        '> "$outdir/phaser_per_placement_inventory.json"\n'
+        "  placement=0\n"
+        "  for component in A B; do\n"
+        "    component_placements=$copies\n"
+        '    [[ "$component" != A ]] || component_placements=1\n'
+        "    for ((i=1; i<=component_placements; i++)); do\n"
+        "      placement=$((placement + 1))\n"
+        "      [[ \"$placement\" -eq 1 ]] || printf ',' "
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        "      ensemble=fixed_parent\n"
+        '      [[ "$component" == A ]] || ensemble=search_partner\n'
+        '      printf \'{"placement_ordinal":%s,"component_label":"%s",'
+        '"ensemble_id":"%s"}\' "$placement" "$component" "$ensemble" '
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        "    done\n"
+        "  done\n"
+        "  printf '],\"component_groups\":[' "
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        '  printf \'{"component_label":"A","ensemble_id":"fixed_parent",'
+        '"expected_copy_count":%s,"observed_copy_count":%s,'
+        '"placement_ordinals":[1]}\' "$copies" "$copies" '
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        '  printf \',{ "component_label":"B","ensemble_id":"search_partner",'
+        '"expected_copy_count":%s,"observed_copy_count":%s,'
+        '"placement_ordinals":[\' "$copies" "$copies" '
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        "  for ((i=1; i<=copies; i++)); do\n"
+        "    [[ \"$i\" -eq 1 ]] || printf ',' "
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        "    printf '%s' \"$((1 + i))\" "
+        '>> "$outdir/phaser_per_placement_inventory.json"\n'
+        "  done\n"
+        "  printf ']}] }\\n' >> \"$outdir/phaser_per_placement_inventory.json\"\n"
         'elif [[ "$mode" == partner_summary ]]; then\n'
         '  [[ -n "$refreshed" ]] || exit 19\n'
         '  mkdir -p "$(dirname "$refreshed")"\n'
@@ -951,6 +1186,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     status_fields = _decode_protocol(status.stdout)
+    assert status_fields["site_id"] == "marmic"
     assert status_fields["scheduler_state"] == "COMPLETED"
     assert status_fields["failure_class"] == "success"
     assert status_fields["terminal"] == "true"
@@ -963,6 +1199,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=cancelled_environment,
     )
     cancelled_fields = _decode_protocol(cancelled_status.stdout)
+    assert cancelled_fields["site_id"] == "marmic"
     assert cancelled_fields["failure_class"] == "unknown_failure"
     assert cancelled_fields["terminal"] == "true"
 
@@ -972,6 +1209,7 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     log_fields = _decode_protocol(logs.stdout)
+    assert log_fields["site_id"] == "marmic"
     assert (
         "smoke_status=success"
         in base64.b64decode(log_fields["content_base64"]).decode()
@@ -995,6 +1233,9 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     assert (tmp_path / "cancelled-job").read_text(encoding="utf-8").strip() == "123"
+    assert (
+        tmp_path / "remote-root" / "runs" / RUN_ID / "state" / "failure-class"
+    ).read_text(encoding="ascii").strip() == "success"
 
     rejected = _run(
         [str(dispatcher), "clean", RUN_ID, OWNER_ID, "wrong"],
@@ -1011,6 +1252,43 @@ def test_remote_dispatcher_full_fake_scheduler_lifecycle(tmp_path: Path) -> None
         environment=environment,
     )
     assert not (tmp_path / "remote-root" / "runs" / RUN_ID).exists()
+
+
+def test_active_cancel_records_a_collectable_failure_class(tmp_path: Path) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "smoke",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    _run(
+        [str(dispatcher), "submit", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    _run(
+        [str(dispatcher), "cancel", RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+
+    run = tmp_path / "remote-root" / "runs" / RUN_ID
+    assert (run / "state/phase").read_text(encoding="ascii").strip() == (
+        "cancel_requested"
+    )
+    assert (run / "state/failure-class").read_text(encoding="ascii").strip() == (
+        "unknown_failure"
+    )
 
 
 def test_control_matrix_submit_reuses_measured_control_slice_resources(
@@ -1086,16 +1364,107 @@ def test_m6_input_qualification_uses_small_fixed_resources(tmp_path: Path) -> No
     assert "benchmark verify-m6-runner" in m6_body
 
 
-def test_m6_scientific_submit_uses_approved_bounded_resources(tmp_path: Path) -> None:
+def test_unknown_pass2_submit_requires_rg7_authority_and_384_hour_bound(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    run = remote_root / "runs" / UNKNOWN_PASS2_RUN_ID
+    state = run / "state"
+    authority = run / "artifacts/unknown-pass2"
+    state.mkdir(parents=True)
+    authority.mkdir(parents=True)
+    (run / "logs").mkdir()
+    _run(
+        ["git", "clone", "-q", str(tmp_path / "source-origin"), str(run / "source")],
+        cwd=tmp_path,
+    )
+    source_tree = _git(run / "source", "rev-parse", "HEAD^{tree}")
+    ledger_sha256 = hashlib.sha256(
+        (run / "source/docs/phase-iii-finding-ledger.md").read_bytes()
+    ).hexdigest()
+    manifest = authority / "phase3_pass2_input_manifest.json"
+    manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="ascii")
+    (state / "phase").write_text("staged\n", encoding="ascii")
+    (state / "profile").write_text("unknown-pass2\n", encoding="ascii")
+    (state / "commit").write_text(f"{commit}\n", encoding="ascii")
+    for name, value in (
+        ("unknown-pass2-parent-run-id", UNKNOWN_SINGLE_RUN_ID),
+        ("unknown-pass2-input-id", f"phase3pass2inputs_{'1' * 64}"),
+        ("unknown-pass2-input-sha256", "2" * 64),
+        ("unknown-pass2-execution-identity-id", f"phase3exec_{'3' * 64}"),
+        ("unknown-pass2-finding-closure-id", f"phase3closure_{'4' * 64}"),
+        ("unknown-pass2-source-tree", source_tree),
+        ("unknown-pass2-finding-ledger-sha256", ledger_sha256),
+        ("unknown-pass2-file-count", "1"),
+    ):
+        (state / name).write_text(f"{value}\n", encoding="ascii")
+    (state / "unknown-pass2-authority-checksums.sha256").write_text(
+        f"{hashlib.sha256(manifest.read_bytes()).hexdigest()}  {manifest.name}\n",
+        encoding="ascii",
+    )
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", UNKNOWN_PASS2_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert submitted["job_id"] == "123"
+    arguments = (tmp_path / "sbatch-args").read_text().splitlines()
+    assert "--cpus-per-task=8" in arguments
+    assert "--mem=32G" in arguments
+    assert "--time=384:00:00" in arguments
+    stage_body = (
+        dispatcher.read_text(encoding="utf-8")
+        .split("unknown_pass2_inputs_stage_run() {", maxsplit=1)[1]
+        .split("m4_import_stage_run() {", maxsplit=1)[0]
+    )
+    assert '--expected-source-commit "$source_commit"' in stage_body
+    assert '--expected-source-tree "$source_tree"' in stage_body
+    assert '--expected-parent-run-id "$parent_run_id"' in stage_body
+    assert '--expected-finding-ledger-sha256 "$finding_ledger_sha256"' in stage_body
+
+
+@pytest.mark.parametrize(
+    ("site_id", "policy_name", "policy_id"),
+    [
+        ("marmic", "execution-nextflow-marmic-v1.yaml", "m6_nextflow_slurm_marmic_v1"),
+        ("viper-cpu", "execution-nextflow-v1.yaml", "m6_nextflow_slurm_v1"),
+    ],
+)
+def test_m6_scientific_submit_uses_approved_bounded_resources(
+    tmp_path: Path, site_id: str, policy_name: str, policy_id: str
+) -> None:
     dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    _select_fake_dispatcher_site(dispatcher, site_id)
     remote_root = smoke_job.parent.parent
     run = remote_root / "runs" / M6_OPERATIONAL_RUN_ID
     state = run / "state"
     state.mkdir(parents=True)
     (run / "logs").mkdir()
+    policy_relative = f"benchmarks/m6/{policy_name}"
+    policy = run / "source" / policy_relative
+    policy.parent.mkdir(parents=True)
+    shutil.copy2(REPOSITORY / policy_relative, policy)
+    apptainer_cache = run / "cache" / "apptainer"
+    apptainer_cache.mkdir(parents=True)
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
     (state / "phase").write_text("staged\n", encoding="utf-8")
     (state / "profile").write_text("m6-operational\n", encoding="utf-8")
+    (state / "site-id").write_text(f"{site_id}\n", encoding="utf-8")
+    (state / "nextflow-profile").write_text(f"{site_id}\n", encoding="utf-8")
+    (state / "execution-policy-relative").write_text(
+        f"{policy_relative}\n", encoding="utf-8"
+    )
+    (state / "execution-policy-id").write_text(f"{policy_id}\n", encoding="utf-8")
+    (state / "execution-policy-sha256").write_text(
+        f"{hashlib.sha256(policy.read_bytes()).hexdigest()}\n", encoding="utf-8"
+    )
+    (state / "apptainer-cache-dir").write_text(f"{apptainer_cache}\n", encoding="utf-8")
 
     submitted = _decode_protocol(
         _run(
@@ -1106,24 +1475,246 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(tmp_path: Path) ->
     )
 
     assert submitted["job_id"] == "123"
+    assert submitted["site_id"] == site_id
     submitted_arguments = (
         (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
     )
     assert "--cpus-per-task=2" in submitted_arguments
     assert "--mem=8G" in submitted_arguments
     assert "--time=24:00:00" in submitted_arguments
-    m6_body = (
-        smoke_job.read_text(encoding="utf-8")
-        .split("run_m6_scientific() {", maxsplit=1)[1]
-        .split("run_m4_copy_nextflow() {", maxsplit=1)[0]
-    )
+    job_text = smoke_job.read_text(encoding="utf-8")
+    m6_command = job_text.split("run_m6_nextflow() {", maxsplit=1)[1].split(
+        "run_m6_scientific() {", maxsplit=1
+    )[0]
+    m6_body = job_text.split("run_m6_scientific() {", maxsplit=1)[1].split(
+        "run_m4_copy_nextflow() {", maxsplit=1
+    )[0]
     assert "run_m6_nextflow first" in m6_body
     assert "run_m6_nextflow resume -resume" in m6_body
-    assert "m6_validation.nf" in smoke_job.read_text(encoding="utf-8")
+    assert "m6_validation.nf" in job_text
+    assert "load_m6_smoke_site_contract || return 2" in m6_body
+    assert '-profile "$M6_NEXTFLOW_PROFILE"' in m6_command
+    assert '--execution_policy "$M6_EXECUTION_POLICY"' in m6_command
+    assert '--apptainer_cache_dir "$M6_APPTAINER_CACHE"' in m6_command
+    assert "-profile viper-cpu" not in m6_command
+    assert 'if [[ "$M6_SITE_ID" == viper-cpu ]]' in m6_body
     assert "NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m6_body
+    assert "unset NF_HELPER_VIPER_COMPUTE_CONTROLLER" in m6_body
+    assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in m6_body
+    assert '--execution-policy "$M6_EXECUTION_POLICY"' in m6_body
+    assert '"execution_policy": "$M6_EXECUTION_POLICY_ID"' in m6_body
     assert "m6-child-resource-evidence.json" in m6_body
+    assert m6_body.count("benchmark collect-m6-child-outputs") == 2
+    assert m6_body.count('--track "$M6_TRACK"') == 2
+    assert m6_command.count('--track "$M6_TRACK"') == 1
+    assert "m6-first-child-outputs.json" in m6_body
+    assert "m6-resume-child-outputs.json" in m6_body
+    assert "first_child_output_sha256" in m6_body
+    assert "resume_child_output_sha256" in m6_body
+    dispatcher_body = dispatcher.read_text(encoding="utf-8")
+    assert "artifacts/qualification/m6-first-child-outputs.json" in dispatcher_body
+    assert "artifacts/qualification/m6-resume-child-outputs.json" in dispatcher_body
     assert "benchmark run-m6-scientific" not in m6_body
     assert "tool_runtime_timeouts" in m6_body
+
+
+@pytest.mark.parametrize("source_archive", [False, True])
+def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
+    tmp_path: Path, source_archive: bool
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    site_config = dispatcher.parent / "site.paths"
+    site_config.write_text("marmic\n", encoding="ascii")
+    site_config.chmod(0o600)
+    database_paths = _write_database_paths(remote_root)
+    database_manifest = Path(database_paths.read_text().splitlines()[2])
+    database_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    phenix_manifest = tmp_path / "approved-phenix.json"
+    phenix_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+
+    object_bytes = b"bounded M6 object\n"
+    object_sha256 = hashlib.sha256(object_bytes).hexdigest()
+    manifest_bytes = json.dumps(
+        {
+            "schema_version": "1.0",
+            "protocol_id": "m6_independent_prokaryote_homomer_v1",
+            "case_count": 63,
+            "object_count": 1,
+            "cases": [{"case_id": f"M6C{index:03d}"} for index in range(1, 64)],
+            "objects": {
+                object_sha256: {
+                    "sha256": object_sha256,
+                    "size_bytes": len(object_bytes),
+                }
+            },
+        },
+        sort_keys=True,
+    ).encode("ascii")
+    archive_buffer = io.BytesIO()
+    with tarfile.open(fileobj=archive_buffer, mode="w:") as archive:
+        for name, payload in (
+            ("runner_manifest.json", manifest_bytes),
+            (f"objects/{object_sha256}", object_bytes),
+        ):
+            member = tarfile.TarInfo(name)
+            member.size = len(payload)
+            archive.addfile(member, io.BytesIO(payload))
+    archive_bytes = archive_buffer.getvalue()
+    arguments = [
+        M6_OPERATIONAL_RUN_ID,
+        commit,
+        _lock_checksum(tmp_path),
+        OWNER_ID,
+        hashlib.sha256(archive_bytes).hexdigest(),
+        str(len(archive_bytes)),
+        hashlib.sha256(manifest_bytes).hexdigest(),
+        "63",
+        "1",
+        "operational",
+    ]
+
+    rejected = _run(
+        [str(dispatcher), "m6-scientific-stage", *arguments],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=archive_bytes,
+        success=False,
+    )
+    assert _decode_protocol(rejected.stdout)["message"] == (
+        "Marmic M6 requires its fixed Phenix binding"
+    )
+
+    stage_arguments = [*arguments, str(phenix_manifest), phenix_sha256]
+    stage_payload = archive_bytes
+    source_digest = ""
+    if source_archive:
+        source = tmp_path / "source-origin"
+        helper_commit = _git(source / "external/nf-helper", "rev-parse", "HEAD")
+        source_buffer = io.BytesIO()
+        with tarfile.open(fileobj=source_buffer, mode="w:") as source_tar:
+            source_tar.add(source, arcname=".", recursive=True)
+        source_bytes = source_buffer.getvalue()
+        source_digest = hashlib.sha256(source_bytes).hexdigest()
+        stage_arguments.extend([source_digest, str(len(source_bytes)), helper_commit])
+        stage_payload = source_bytes + archive_bytes
+        mirror = remote_root / "_cache/git/nf-genome_to_diffraction.git"
+        mirror.rename(tmp_path / "unavailable-mirror")
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "m6-scientific-stage",
+                *stage_arguments,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+            input_data=stage_payload,
+        ).stdout
+    )
+
+    state = remote_root / "runs" / M6_OPERATIONAL_RUN_ID / "state"
+    assert staged["site_id"] == "marmic"
+    assert (state / "site-id").read_text().strip() == "marmic"
+    assert (state / "nextflow-profile").read_text().strip() == "marmic"
+    assert (state / "execution-policy-id").read_text().strip() == (
+        "m6_nextflow_slurm_marmic_v1"
+    )
+    assert (state / "phenix-manifest").read_text().strip() == str(phenix_manifest)
+    assert (state / "phenix-manifest-sha256").read_text().strip() == phenix_sha256
+    assert (state / "m6-runner-case-count").read_text().strip() == "63"
+    assert (state / "phase").read_text().strip() == "staged"
+    if source_archive:
+        assert (state / "source-archive-sha256").read_text().strip() == source_digest
+        assert not mirror.exists()
+
+
+def test_m6_leakage_binds_only_collected_same_source_operational_cache(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    parent = remote_root / "runs" / M6_OPERATIONAL_RUN_ID
+    child = remote_root / "runs" / M6_LEAKAGE_RUN_ID
+    parent_owner = "2" * 32
+    child_owner = "3" * 32
+    common = {
+        "site-id": "marmic",
+        "commit": commit,
+        "pixi-lock-sha256": "1" * 64,
+        "execution-policy-sha256": "2" * 64,
+        "database-manifest-sha256": "3" * 64,
+        "phenix-manifest-sha256": "4" * 64,
+        "m6-runner-archive-sha256": "5" * 64,
+        "m6-runner-manifest-sha256": "6" * 64,
+    }
+    for root, owner, profile, phase in (
+        (parent, parent_owner, "m6-operational", "completed"),
+        (child, child_owner, "m6-leakage", "staged"),
+    ):
+        state = root / "state"
+        state.mkdir(parents=True)
+        (root / "artifacts/qualification").mkdir(parents=True)
+        (root / "cache").mkdir()
+        (state / "owner-id").write_text(f"{owner}\n", encoding="ascii")
+        (state / "profile").write_text(f"{profile}\n", encoding="ascii")
+        (state / "phase").write_text(f"{phase}\n", encoding="ascii")
+        for name, value in common.items():
+            (state / name).write_text(f"{value}\n", encoding="ascii")
+    (parent / "state/failure-class").write_text("success\n", encoding="ascii")
+    (parent / "state/exit-code").write_text("0\n", encoding="ascii")
+    (parent / "cache/m6-nextflow-operational").mkdir()
+    (parent / "manifest.json").write_text(
+        '{"profile":"m6-operational"}\n', encoding="ascii"
+    )
+    (parent / "state/job-result.json").write_text(
+        '{"scheduler_state":"COMPLETED","failure_class":"success","exit_code":0}\n',
+        encoding="ascii",
+    )
+    (parent / "artifacts/qualification/m6-scientific-summary.json").write_text(
+        '{"schema_version":"2.0","track":"operational"}\n',
+        encoding="ascii",
+    )
+    (parent / "artifacts/qualification/m6-scientific-checksums.sha256").write_text(
+        "retained\n", encoding="ascii"
+    )
+    relatives = (
+        "manifest.json",
+        "state/job-result.json",
+        "artifacts/qualification/m6-scientific-summary.json",
+        "artifacts/qualification/m6-scientific-checksums.sha256",
+    )
+    inventory = "".join(
+        f"{hashlib.sha256((parent / relative).read_bytes()).hexdigest()}  {relative}\n"
+        for relative in relatives
+    )
+    precheck = hashlib.sha256(inventory.encode("ascii")).hexdigest()
+
+    bound = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "m6-leakage-parent-bind",
+                M6_LEAKAGE_RUN_ID,
+                child_owner,
+                M6_OPERATIONAL_RUN_ID,
+                parent_owner,
+                precheck,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert bound["status"] == "ready"
+    assert (child / "state/m6-operational-parent-run-id").read_text().strip() == (
+        M6_OPERATIONAL_RUN_ID
+    )
+    assert (child / "state/m6-shared-cache-dir").read_text().strip() == str(
+        parent / "cache/m6-nextflow-operational"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1254,6 +1845,10 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     assert "Stored process" not in body
     assert '"M6_SEARCH_PDB": 2' in body
     assert '"M6_SEARCH_FOLDSEEK": 2' in body
+    assert '"M6_STAGE_COORDINATES": 1' in body
+    assert 'controller_stages = record["controller_stages"]' in body
+    assert "or len(jobs) != 25" in body
+    assert "or len(controller_stages) != 1" in body
     assert 'len({job["native_job_id"] for job in search}) != 4' in body
     assert '"$stored" -eq 3' not in body
     assert "len(search) != 2" not in body
@@ -1311,6 +1906,7 @@ def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
         "M6_PARTITION_DISCOVERY": 2,
         "M6_PREFLIGHT_CASE": 2,
         "M6_APPLY_POLICY": 1,
+        "M6_STAGE_COORDINATES": 1,
         "M6_PREPARE_ACTIVE_CASE": 1,
         "M6_PREPARE_EARLY_CASE": 1,
         "M6_FIRST_COPY": 1,
@@ -1366,13 +1962,14 @@ def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
         cwd=tmp_path,
         input_data=validator.encode(),
     )
-    assert accepted.stdout.strip() == b"25 25 6 19"
+    assert accepted.stdout.strip() == b"26 26 6 20"
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["cache_mechanism"] == "nextflow_resume"
     assert evidence["leakage_cached_truthless_task_count"] == 6
-    assert evidence["leakage_completed_track_specific_task_count"] == 19
+    assert evidence["leakage_completed_track_specific_task_count"] == 20
+    assert evidence["coordinate_stage_process_count"] == 1
 
-    trace(leakage_resume, mode="LEAKAGE", extra_cached="M6_APPLY_POLICY")
+    trace(leakage_resume, mode="LEAKAGE", extra_cached="M6_STAGE_COORDINATES")
     rejected = _run(
         [
             sys.executable,
@@ -2143,7 +2740,16 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     manifests.mkdir()
     mtz_inputs = allowed / "inputs"
     mtz_inputs.mkdir()
-    (mtz_inputs / "CD6QS2P2G1_5.mtz").write_bytes(b"fixed CD6 test MTZ\n")
+    mtz_payloads = {
+        "AD4QS1P4G2_18": b"fixed AD4 test MTZ\n",
+        "CD4QS2P2G1_15": b"fixed CD4 test MTZ\n",
+        "CD6QS2P2G1_5": b"fixed CD6 test MTZ\n",
+        "public_stub_01": b"fixed public stub 01 MTZ\n",
+        "public_stub_02": b"fixed public stub 02 MTZ\n",
+        "public_stub_03": b"fixed public stub 03 MTZ\n",
+    }
+    for crystal_id, payload in mtz_payloads.items():
+        (mtz_inputs / f"{crystal_id}.mtz").write_bytes(payload)
     database_root = allowed / "databases"
     database_root.mkdir()
     database_manifest = allowed / "database_manifest.json"
@@ -2290,6 +2896,58 @@ def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
         "else\n"
         "  exit 9\n"
         "fi\n",
+    )
+
+
+def test_database_runtime_configuration_restores_existing_immutable_manifest(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    config = _write_database_paths(remote_root)
+    values = config.read_text(encoding="ascii").splitlines()
+    manifest = Path(values[2])
+    payload = config.read_bytes()
+    checksum = hashlib.sha256(payload).hexdigest()
+    encoded = base64.b64encode(payload).decode("ascii")
+    config.unlink()
+
+    absent = _run(
+        [str(dispatcher), "database-runtime-configure", checksum, encoded],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    absent_fields = _decode_protocol(absent.stdout)
+    assert absent_fields["failure_class"] == "environment_failure"
+    assert "manifest_input_invalid" in absent_fields["message"]
+    assert not config.exists()
+
+    manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    configured = _run(
+        [str(dispatcher), "database-runtime-configure", checksum, encoded],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    fields = _decode_protocol(configured.stdout)
+    assert fields == {
+        "operation": "database-runtime-configure",
+        "configured": "true",
+        "database_config_sha256": checksum,
+        "database_config_status": "ready",
+        "manifest_mode": "runtime",
+    }
+    assert config.read_bytes() == payload
+    assert config.stat().st_mode & 0o777 == 0o600
+
+    repeated = _run(
+        [str(dispatcher), "database-runtime-configure", checksum, encoded],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(repeated.stdout)["message"] == (
+        "database configuration already exists"
     )
 
 
@@ -3301,6 +3959,682 @@ def test_p0_input_bundle_is_checksum_gated_immutable_and_configurable(
     assert "checksum differs" in tamper_fields["message"]
 
 
+def test_unknown_discovery_stage_failure_is_collectable_without_outputs(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    p0_config = _write_p0_paths(remote_root)
+    p0_values = p0_config.read_text(encoding="ascii").splitlines()
+    phenix_manifest = Path(p0_values[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    lock_sha256 = hashlib.sha256(
+        (tmp_path / "source-origin/pixi.lock").read_bytes()
+    ).hexdigest()
+    p0_config.unlink()
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_DISCOVERY_RUN_ID,
+            commit,
+            lock_sha256,
+            OWNER_ID,
+            "1",
+            "unknown-discovery",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(failed.stdout)["failure_class"] == "environment_failure"
+
+    run = remote_root / "runs" / UNKNOWN_DISCOVERY_RUN_ID
+    archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert {
+        "events.jsonl",
+        "state/phase",
+        "state/failure-class",
+    } <= names
+    assert (
+        "artifacts/qualification/unknown-discovery-output-checksums.sha256" not in names
+    )
+    (run / "state/failure-class").write_text(
+        "fabricated_failure\n",
+        encoding="ascii",
+    )
+    rejected = _run(
+        [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(rejected.stdout)["failure_class"] == "wrapper_failure"
+
+
+@pytest.mark.parametrize(
+    ("held_crystal", "screen_success"),
+    (("public_stub_02", True), ("public_stub_01", False)),
+)
+def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
+    tmp_path: Path,
+    held_crystal: str,
+    screen_success: bool,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    p0_config = _write_p0_paths(remote_root)
+    p0_values = p0_config.read_text(encoding="ascii").splitlines()
+    phenix_manifest = Path(p0_values[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    lock_sha256 = hashlib.sha256(
+        (tmp_path / "source-origin/pixi.lock").read_bytes()
+    ).hexdigest()
+    staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_DISCOVERY_RUN_ID,
+            commit,
+            lock_sha256,
+            OWNER_ID,
+            "1",
+            "unknown-discovery",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(staged.stdout)["profile"] == "unknown-discovery"
+
+    local_root = tmp_path / "local-unknown-inputs"
+    local_root.mkdir()
+    review_root = local_root / "review"
+    review_root.mkdir()
+    source_origin = tmp_path / "source-origin"
+    source_tree = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"],
+        cwd=source_origin,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    nf_helper_commit = subprocess.run(
+        ["git", "rev-parse", "HEAD:external/nf-helper"],
+        cwd=source_origin,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    p0_mtz_root = remote_root / "p0-inputs/inputs"
+    fixture = materialise_unknown_pass1_public_fixture(
+        review_root,
+        source_commit=commit,
+        source_tree=source_tree,
+        nf_helper_commit=nf_helper_commit,
+        pixi_lock_sha256=lock_sha256,
+        mtz_paths_override={
+            crystal_id: p0_mtz_root / f"{crystal_id}.mtz"
+            for crystal_id in PUBLIC_STUB_CRYSTAL_IDS
+        },
+    )
+    afdb_map = local_root / "afdb_accession_map.tsv"
+    afdb_map.write_text(
+        "source_record_id\tuniprot_accession\n",
+        encoding="ascii",
+    )
+    localisation = materialise_neutral_localisation_fixture(
+        local_root,
+        gel_evidence=review_root / "inputs/gel_evidence.json",
+    )
+    phase3_crystals = local_root / "phase3-crystals.json"
+    atomic_write_json(
+        phase3_crystals,
+        {
+            "schema_version": "1.0",
+            "crystals": [
+                {
+                    "crystal_id": item.crystal_id,
+                    "mtz": str(p0_mtz_root / f"{item.crystal_id}.mtz"),
+                    "catalogue_id": "public_catalogue",
+                    "free_r_test_value": 0,
+                    "allow_remote_sequence_submission": False,
+                }
+                for item in sorted(
+                    fixture.crystals,
+                    key=lambda value: value.crystal_id,
+                )
+            ],
+        },
+    )
+    spec = local_root / UNKNOWN_DISCOVERY_SPEC_RELATIVE
+    spec.parent.mkdir(parents=True)
+    atomic_write_json(
+        spec,
+        {
+            "schema_version": "1.0",
+            "crystallographic_review_stage": str(fixture.review_stage),
+            "crystallographic_review_registry": str(fixture.owned_run_registry),
+            "execution_identity": str(fixture.execution_identity),
+            "afdb_accession_map": str(afdb_map),
+            "crystal_manifest": str(phase3_crystals),
+            "localisation_bundle": str(localisation),
+        },
+    )
+    spec.chmod(0o600)
+    bundle = build_unknown_discovery_input_bundle(
+        repository=local_root,
+        archive_path=local_root / "unknown-inputs.tar",
+    )
+    attached = _run(
+        [
+            str(dispatcher),
+            "unknown-discovery-inputs-stage",
+            UNKNOWN_DISCOVERY_RUN_ID,
+            OWNER_ID,
+            bundle.input_id,
+            bundle.archive_sha256,
+            str(bundle.archive_size_bytes),
+            bundle.execution_identity_id,
+            bundle.review_stage_index_id,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=bundle.archive_path.read_bytes(),
+    )
+    attached_fields = _decode_protocol(attached.stdout)
+    assert attached_fields["input_id"] == bundle.input_id
+    run = remote_root / "runs" / UNKNOWN_DISCOVERY_RUN_ID
+    inputs = run / "artifacts/unknown-discovery/inputs"
+    assert inputs.is_dir() and not inputs.is_symlink()
+    assert (inputs / "unknown_discovery_input_manifest.json").is_file()
+    assert (inputs / "phase3_execution_identity.json").stat().st_mode & 0o777 == 0o444
+
+    submitted = _run(
+        [str(dispatcher), "submit", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(submitted.stdout)["profile"] == "unknown-discovery"
+    sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
+    assert "--cpus-per-task=8" in sbatch
+    assert "--mem=32G" in sbatch
+    assert "--time=24:00:00" in sbatch
+
+    parent_result = {
+        "schema_version": "1.0",
+        "run_id": UNKNOWN_DISCOVERY_RUN_ID,
+        "profile": "unknown-discovery",
+        "scheduler_state": "COMPLETED",
+        "exit_code": 0,
+        "failure_class": "success",
+    }
+    (run / "state/phase").write_text("completed\n", encoding="ascii")
+    (run / "state/failure-class").write_text("success\n", encoding="ascii")
+    (run / "state/exit-code").write_text("0\n", encoding="ascii")
+    atomic_write_json(run / "state/job-result.json", parent_result)
+    provider_package = (
+        run / "artifacts/unknown-discovery/results/phase3_provider_discovery"
+    )
+    provider_package.mkdir(parents=True)
+    atomic_write_json(
+        provider_package / "phase3_provider_discovery_manifest.json",
+        {
+            "schema_version": "2.0",
+            "package_id": "providerdiscovery_" + "d" * 64,
+        },
+    )
+    provider_relative = (
+        "phase3_provider_discovery/phase3_provider_discovery_manifest.json"
+    )
+    provider_digest = hashlib.sha256(
+        (run / "artifacts/unknown-discovery/results" / provider_relative).read_bytes()
+    ).hexdigest()
+    qualification = run / "artifacts/qualification"
+    qualification.mkdir(exist_ok=True)
+    (qualification / "unknown-discovery-output-checksums.sha256").write_text(
+        f"{provider_digest}  {provider_relative}\n",
+        encoding="ascii",
+    )
+    discovery_archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_DISCOVERY_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(discovery_archive), mode="r:gz") as collected:
+        discovery_members = set(collected.getnames())
+    authority_relatives = (
+        "phase3_execution_identity.json",
+        "afdb_accession_map.tsv",
+        "phase3_crystals.json",
+        "crystallographic_review_stage/unknown_pass1_review_stage_index.json",
+        *(
+            f"crystallographic_review_stage/stages/{item.crystal_id}/{name}"
+            for item in sorted(fixture.crystals, key=lambda value: value.crystal_id)
+            for name in (
+                "phase3_review_decision.json",
+                "phase3_review_stage_manifest.json",
+            )
+        ),
+    )
+    assert {
+        f"artifacts/unknown-discovery/inputs/{relative}"
+        for relative in authority_relatives
+    } <= discovery_members
+    assert {
+        f"artifacts/unknown-discovery/inputs/localisation_bundle/{relative}"
+        for relative in (
+            "localisation_batch_manifest.json",
+            "first_wave_policy.json",
+            "group_localisation_evidence.jsonl",
+            "first_wave_sequence_group_ids.txt",
+            "excluded_sequence_group_ids.txt",
+            "gel-evidence.json",
+            "raw/psortb-terse.tsv",
+            "raw/deeptmhmm-topologies.3line",
+            "container_execution/localisation_container_execution.json",
+            "container_execution/psortb-container.log",
+            "container_execution/deeptmhmm-container.log",
+        )
+    } <= discovery_members
+    child_staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_SCREEN_RUN_ID,
+            commit,
+            lock_sha256,
+            "2" * 32,
+            "2",
+            "unknown-screen",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(child_staged.stdout)["profile"] == "unknown-screen"
+    screen_stage = _run(
+        [
+            str(dispatcher),
+            "unknown-screen-stage",
+            UNKNOWN_SCREEN_RUN_ID,
+            "2" * 32,
+            UNKNOWN_DISCOVERY_RUN_ID,
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    screen_fields = _decode_protocol(screen_stage.stdout)
+    assert screen_fields["parent_run_id"] == UNKNOWN_DISCOVERY_RUN_ID
+    child = remote_root / "runs" / UNKNOWN_SCREEN_RUN_ID
+    assert (child / "artifacts/unknown-screen/provider_preparation").is_dir()
+    assert (child / "state/provider-preparation-sha256").is_file()
+    child_submitted = _run(
+        [str(dispatcher), "submit", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(child_submitted.stdout)["profile"] == "unknown-screen"
+    child_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
+    assert "--cpus-per-task=8" in child_sbatch
+    assert "--mem=32G" in child_sbatch
+    assert "--time=96:00:00" in child_sbatch
+    fake_nextflow = child / "source/.pixi/envs/hpc/bin/nextflow"
+    _write_executable(
+        fake_nextflow,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "outdir=\n"
+        "status=COMPLETED\n"
+        "previous=\n"
+        'hold_crystal="${FAKE_UNKNOWN_HOLD_CRYSTAL:-public_stub_02}"\n'
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$argument" != -resume ]] || status=CACHED\n'
+        '  previous="$argument"\n'
+        "done\n"
+        '[[ -n "$outdir" ]] || exit 2\n'
+        'mkdir -p "$outdir/pipeline_info" '
+        '"$outdir/phase3_offline_provider_input" '
+        '"$outdir/phase3_localisation_reopen_stub" '
+        '"$outdir/phase3_owned_a_review_public_stub_01" '
+        '"$outdir/phase3_crystallographic_hold_${hold_crystal}" '
+        '"$outdir/phase3_owned_a_review_public_stub_03"\n'
+        'printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$outdir/phase3_offline_provider_input/'
+        'phase3_offline_provider_input.json"\n'
+        'printf \'{"schema_version":"2.0","status":"stub_not_executed"}\\n\' > '
+        '"$outdir/phase3_localisation_reopen_stub/'
+        'localisation_reopen_plan.json"\n'
+        "for crystal in public_stub_01 public_stub_03; do\n"
+        '  printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$outdir/phase3_owned_a_review_${crystal}/package.json"\n'
+        "done\n"
+        'printf \'{"decision":"hold"}\\n\' > '
+        '"$outdir/phase3_crystallographic_hold_${hold_crystal}/hold.json"\n'
+        'printf "hash\\tprocess\\ttag\\tstatus\\n" > '
+        '"$outdir/pipeline_info/trace.tsv"\n'
+        "for process in VALIDATE_PHASE3_OFFLINE_PROVIDER_INPUT "
+        "VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT ENUMERATE_MATTHEWS "
+        "PREPARE_PREDICTED_MODELS PREPARE_EXPERIMENTAL_MODELS "
+        "DISPATCH_CRYSTAL_ITEM "
+        "BUILD_PHASE3_MR_SEED_REVIEW PLAN_PHASE3_LOCALISATION_REOPEN; do\n"
+        '  printf "%s\\t%s\\t%s\\t%s\\n" "hash-${process}" '
+        '"$process" "$process" "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "done\n"
+        "for crystal in public_stub_01 public_stub_03; do\n"
+        "  for rank in $(seq 1 25); do\n"
+        '    printf "%s\\t%s\\t%s\\t%s\\n" '
+        '"hash-mr-${crystal}-${rank}" "RUN_PHASE3_FIRST_COPY_PHASER" '
+        '"phase3-first-copy:${crystal}:mrhyp_${rank}" "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "  done\n"
+        "done\n"
+        "for name in report.html timeline.html dag.html; do\n"
+        '  printf "stub\\n" > "$outdir/pipeline_info/$name"\n'
+        "done\n",
+    )
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    job_environment["SLURM_CPUS_PER_TASK"] = "8"
+    job_environment["SLURM_TMPDIR"] = str(tmp_path / "unknown-screen-slurm-tmp")
+    job_environment["FAKE_UNKNOWN_HOLD_CRYSTAL"] = held_crystal
+    _run(
+        [str(smoke_job), UNKNOWN_SCREEN_RUN_ID, str(remote_root), "unknown-screen"],
+        cwd=tmp_path,
+        environment=job_environment,
+        success=screen_success,
+    )
+    screen_result = json.loads(
+        (child / "state/job-result.json").read_text(encoding="utf-8")
+    )
+    if not screen_success:
+        assert screen_result["failure_class"] == "test_failure"
+        assert not (
+            child / "artifacts/qualification/unknown-screen-output-checksums.sha256"
+        ).exists()
+        failed_package = (
+            child / "artifacts/qualification/unknown-screen-failed-mr-children"
+        )
+        failed_package.mkdir()
+        failed_manifest = failed_package / "manifest.json"
+        failed_manifest.write_text(
+            '{"cache_reusable":false,"scientific_evidence_accepted":false}\n',
+            encoding="ascii",
+        )
+        failed_digest = hashlib.sha256(failed_manifest.read_bytes()).hexdigest()
+        (failed_package / "checksums.sha256").write_text(
+            f"{failed_digest}  manifest.json\n",
+            encoding="ascii",
+        )
+        (failed_package / "file-count").write_text("1\n", encoding="ascii")
+        failed_archive = _run(
+            [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+        with tarfile.open(fileobj=io.BytesIO(failed_archive), mode="r:gz") as collected:
+            failed_members = set(collected.getnames())
+        assert {
+            "artifacts/qualification/unknown-screen-failed-mr-children/manifest.json",
+            "artifacts/qualification/unknown-screen-failed-mr-children/checksums.sha256",
+            "artifacts/qualification/unknown-screen-failed-mr-children/file-count",
+        } <= failed_members
+        failed_manifest.write_text("tampered\n", encoding="ascii")
+        rejected = _run(
+            [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+            cwd=tmp_path,
+            environment=environment,
+            success=False,
+        )
+        assert _decode_protocol(rejected.stdout)["failure_class"] == "transfer_failure"
+        return
+    assert screen_result["failure_class"] == "success"
+    assert screen_result["scheduler_state"] == "COMPLETED"
+    screen_trace = (
+        child / "artifacts/qualification/unknown-screen-resume-pipeline-info/trace.tsv"
+    ).read_text(encoding="utf-8")
+    assert "RETRIEVE_AFDB_EXACT" not in screen_trace
+    assert "REGISTER_PDB_COORDINATES" not in screen_trace
+    assert screen_trace.count("CACHED") == 59
+    screen_archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(screen_archive), mode="r:gz") as collected:
+        screen_members = set(collected.getnames())
+    assert {
+        f"artifacts/unknown-screen/inputs/{relative}"
+        for relative in authority_relatives
+    } <= screen_members
+    assert {
+        f"artifacts/unknown-screen/inputs/localisation_bundle/{relative}"
+        for relative in (
+            "localisation_batch_manifest.json",
+            "first_wave_policy.json",
+            "group_localisation_evidence.jsonl",
+            "first_wave_sequence_group_ids.txt",
+            "excluded_sequence_group_ids.txt",
+            "gel-evidence.json",
+            "raw/psortb-terse.tsv",
+            "raw/deeptmhmm-topologies.3line",
+            "container_execution/localisation_container_execution.json",
+            "container_execution/psortb-container.log",
+            "container_execution/deeptmhmm-container.log",
+        )
+    } <= screen_members
+    assert (
+        "artifacts/unknown-screen/results/phase3_localisation_reopen_stub/"
+        "localisation_reopen_plan.json" in screen_members
+    )
+    assert (
+        "artifacts/unknown-screen/provider_preparation/"
+        "pdb_coordinate_registration/owned_coordinate_sources.jsonl" in screen_members
+    )
+    assert (
+        "artifacts/qualification/unknown-screen-before-resume.sha256" in screen_members
+    )
+    assert (
+        "artifacts/qualification/unknown-screen-resume-task-identities.tsv"
+        in screen_members
+    )
+    assert (
+        "artifacts/qualification/unknown-screen-first-mr-inventory.tsv"
+        in screen_members
+    )
+
+    decision = local_root / "a-seed.tsv"
+    decision.write_text(
+        "checkpoint\towned_parent_run_id\treview_package_id\t"
+        "review_package_manifest_sha256\tcrystal_id\titem_id\tdecision\t"
+        "reviewer\treviewed_at\treason\n"
+        f"a_seed\t{UNKNOWN_SCREEN_RUN_ID}\treviewpkg_{'1' * 64}\t"
+        f"{'2' * 64}\tcrystal_a\tsolution_1\tapprove\treviewer\t"
+        "2026-08-25T00:00:00Z\tmap inspected\n",
+        encoding="ascii",
+    )
+    single_spec = local_root / UNKNOWN_SINGLE_SPEC_RELATIVE
+    atomic_write_json(
+        single_spec,
+        {
+            "schema_version": "1.0",
+            "decisions": [
+                {
+                    "crystal_id": "crystal_a",
+                    "path": str(decision),
+                    "sha256": hashlib.sha256(decision.read_bytes()).hexdigest(),
+                }
+            ],
+        },
+    )
+    single_spec.chmod(0o600)
+    single_bundle = build_unknown_single_component_input_bundle(
+        repository=local_root,
+        parent_run_id=UNKNOWN_SCREEN_RUN_ID,
+        archive_path=local_root / "unknown-single-inputs.tar",
+    )
+    single_staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            UNKNOWN_SINGLE_RUN_ID,
+            commit,
+            lock_sha256,
+            "3" * 32,
+            "3",
+            "unknown-single-component",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(single_staged.stdout)["profile"] == (
+        "unknown-single-component"
+    )
+    single = remote_root / "runs" / UNKNOWN_SINGLE_RUN_ID
+    fake_python = single / "source/.pixi/envs/hpc/bin/python"
+    fake_python.unlink()
+    _write_executable(
+        fake_python,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'case " $* " in\n'
+        '  *" stage-handoff "*)\n'
+        "    child=\n"
+        "    previous=\n"
+        '    for argument in "$@"; do\n'
+        '      [[ "$previous" != --child-run-root ]] || child="$argument"\n'
+        '      previous="$argument"\n'
+        "    done\n"
+        '    output="$child/artifacts/unknown-single-component"\n'
+        '    mkdir -p "$output/owned_run_registry" '
+        '"$output/a_seed_stages/crystal_a" "$output/hypotheses"\n'
+        '    printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$output/owned_run_registry/phase3_owned_run_registry.json"\n'
+        '    printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$output/owned_run_registry/phase3_execution_identity.json"\n'
+        '    printf \'{"schema_version":"1.0","crystals":[]}\\n\' > '
+        '"$output/reviewed_crystals.json"\n'
+        '    printf \'{"schema_version":"1.0"}\\n\' > '
+        '"$output/unknown_single_component_stage_manifest.json"\n'
+        "    ;;\n"
+        "esac\n",
+    )
+    single_attached = _run(
+        [
+            str(dispatcher),
+            "unknown-single-component-stage",
+            UNKNOWN_SINGLE_RUN_ID,
+            "3" * 32,
+            UNKNOWN_SCREEN_RUN_ID,
+            "2" * 32,
+            single_bundle.input_id,
+            single_bundle.archive_sha256,
+            str(single_bundle.archive_size_bytes),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        input_data=single_bundle.archive_path.read_bytes(),
+    )
+    single_fields = _decode_protocol(single_attached.stdout)
+    assert single_fields["parent_run_id"] == UNKNOWN_SCREEN_RUN_ID
+    assert (single / "state/unknown-single-stage-sha256").is_file()
+    single_submitted = _run(
+        [str(dispatcher), "submit", UNKNOWN_SINGLE_RUN_ID, "3" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(single_submitted.stdout)["profile"] == (
+        "unknown-single-component"
+    )
+    single_sbatch = (tmp_path / "sbatch-args").read_text(encoding="utf-8")
+    assert "--time=120:00:00" in single_sbatch
+    single_nextflow = single / "source/.pixi/envs/hpc/bin/nextflow"
+    _write_executable(
+        single_nextflow,
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "outdir=\n"
+        "status=COMPLETED\n"
+        "previous=\n"
+        'for argument in "$@"; do\n'
+        '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$argument" != -resume ]] || status=CACHED\n'
+        '  previous="$argument"\n'
+        "done\n"
+        'mkdir -p "$outdir/pipeline_info" "$outdir/owned_sequence_review_stub"\n'
+        'printf \'{"schema_version":"2.0"}\\n\' > '
+        '"$outdir/owned_sequence_review_stub/package.json"\n'
+        'printf "hash\\tprocess\\ttag\\tstatus\\n" > '
+        '"$outdir/pipeline_info/trace.tsv"\n'
+        "for process in VALIDATE_TASK05_INPUTS MTZ_PREFLIGHT "
+        "STAGE_PHASE3_APPROVED_MR_SEEDS RUN_BRIEF_REFINEMENT "
+        "BUILD_LIVE_SEQUENCE_CHECKPOINT; do\n"
+        '  printf "%s\\t%s\\t%s\\t%s\\n" "hash-${process}" '
+        '"$process" "$process" "$status" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "done\n"
+        "for name in report.html timeline.html dag.html; do\n"
+        '  printf "stub\\n" > "$outdir/pipeline_info/$name"\n'
+        "done\n",
+    )
+    single_job_environment = dict(environment)
+    single_job_environment["SLURM_JOB_ID"] = "123"
+    single_job_environment["SLURM_CPUS_PER_TASK"] = "8"
+    single_job_environment["SLURM_TMPDIR"] = str(tmp_path / "unknown-single-slurm-tmp")
+    _run(
+        [
+            str(smoke_job),
+            UNKNOWN_SINGLE_RUN_ID,
+            str(remote_root),
+            "unknown-single-component",
+        ],
+        cwd=tmp_path,
+        environment=single_job_environment,
+    )
+    single_result = json.loads(
+        (single / "state/job-result.json").read_text(encoding="utf-8")
+    )
+    assert single_result["failure_class"] == "success"
+    single_trace = (
+        single
+        / "artifacts/qualification"
+        / "unknown-single-component-resume-pipeline-info/trace.tsv"
+    ).read_text(encoding="utf-8")
+    assert single_trace.count("CACHED") == 5
+    assert "RUN_PHASE3_FIRST_COPY_PHASER" not in single_trace
+    single_archive = _run(
+        [str(dispatcher), "collect", UNKNOWN_SINGLE_RUN_ID, "3" * 32],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(single_archive), mode="r:gz") as collected:
+        single_members = set(collected.getnames())
+    assert (
+        "artifacts/unknown-single-component/operator_decisions/decisions/"
+        "crystal_a.tsv" in single_members
+    )
+    assert (
+        "artifacts/unknown-single-component/results/owned_sequence_review_stub/"
+        "package.json" in single_members
+    )
+
+
 def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
     tmp_path: Path,
 ) -> None:
@@ -3725,11 +5059,17 @@ def _install_fake_p1_runtime(run: Path) -> None:
         'printf \'%s\\n\' "$*" >> "$PWD/fake-nextflow-commands.log"\n'
         'for argument in "$@"; do\n'
         '  [[ "$argument" != */main.nf ]] || mode=p0\n'
-        '  [[ "$argument" != */prepare_models.nf ]] || mode=model\n'
-        '  [[ "$argument" != */prepare_pdb_models.nf ]] || mode=p2div-model\n'
-        '  [[ "$argument" != */screen_first_copy.nf ]] || mode=p2\n'
-        '  [[ "$argument" != */screen_diverse_first_copy.nf ]] || mode=p2div\n'
-        '  [[ "$argument" != */screen_first_copy_controls.nf ]] || mode=p2control\n'
+        '  if [[ "$previous" == --qualification_stage ]]; then\n'
+        '    case "$argument" in\n'
+        "      prepare_predicted_models) mode=model ;;\n"
+        "      prepare_experimental_models) mode=p2div-model ;;\n"
+        "      first_copy) mode=p2 ;;\n"
+        "      diverse_first_copy) mode=p2div ;;\n"
+        "      first_copy_controls) mode=p2control ;;\n"
+        "      discovery) mode=discovery ;;\n"
+        "      *) exit 11 ;;\n"
+        "    esac\n"
+        "  fi\n"
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
@@ -3950,7 +5290,9 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
         encoding="utf-8"
     )
     assert "phase=p1_login_catalogue_import profile=p1" in login_prefetch_log
+    assert "phase=p1_login_provider_plan profile=p1" in login_prefetch_log
     assert "phase=p1_login_afdb_prefetch profile=p1" in login_prefetch_log
+    assert (run / "artifacts/p1/provider-plan/provider_plan.json").is_file()
     assert (run / "state/p1-login-prefetch.sha256").is_file()
     assert (run / "artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl").is_file()
     _install_fake_p1_runtime(run)
@@ -4004,7 +5346,9 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
         encoding="utf-8"
     )
     assert "--afdb_accession_map" not in nextflow_commands
-    assert "prepare_models.nf" in nextflow_commands
+    assert "qualification.nf --qualification_stage prepare_predicted_models" in (
+        nextflow_commands
+    )
     assert "--phenix_manifest" in nextflow_commands
 
     archive_path = tmp_path / "p1-collected.tar.gz"
@@ -4033,8 +5377,39 @@ def test_p1_job_uses_fixed_real_search_profile_and_collects_qualification(
     ) in names
     assert "state/p1-login-prefetch.sha256" in names
     assert "logs/p1-login-prefetch.log" in names
+    assert "artifacts/p1/provider-plan/provider_plan.json" in names
+    assert "artifacts/p1/provider-plan/entries/afdb_exact.json" in names
+    assert "artifacts/p1/provider-plan/entries/pdb_sequence.json" in names
     assert "artifacts/p1/afdb-login-prefetch/search_manifest.json" in names
     assert "artifacts/p1/afdb-login-prefetch/coordinate_sources.jsonl" in names
+
+
+def test_p1_stage_refuses_missing_reviewed_provider_plan(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    _write_p0_paths(smoke_job.parent.parent)
+    failing_environment = dict(environment)
+    failing_environment["FAKE_PROVIDER_PLAN_FAIL"] = "1"
+
+    failed = _run(
+        [
+            str(dispatcher),
+            "stage",
+            P1_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "p1",
+        ],
+        cwd=tmp_path,
+        environment=failing_environment,
+        success=False,
+    )
+
+    assert _decode_protocol(failed.stdout)["failure_class"] == "software_failure"
+    run = smoke_job.parent.parent / "runs" / P1_RUN_ID
+    assert (run / "state/phase").read_text(encoding="ascii").strip() == ("stage_failed")
+    assert not (run / "artifacts/p1/afdb-login-prefetch").exists()
 
 
 def test_p1_stage_classifies_login_node_afdb_transfer_failure(tmp_path: Path) -> None:
@@ -4340,6 +5715,411 @@ def test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile(
     assert "artifacts/qualification/p2-control-artifact-sha256.tsv" in names
 
 
+def test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    legacy = tmp_path / "phenix-2.1-6048.json"
+    legacy.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    legacy_sha = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "phase3-phenix-probe",
+                str(legacy),
+                legacy_sha,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["phase"] == "staged"
+
+    migrated = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "phenix-runtime-migrate",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                OWNER_ID,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    strict = tmp_path / "phenix-2.1-6048-strict-v1.json"
+    run = dispatcher.parent.parent / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
+    assert migrated["strict_manifest"] == str(strict)
+    assert (
+        migrated["strict_manifest_sha256"]
+        == hashlib.sha256(strict.read_bytes()).hexdigest()
+    )
+    assert (run / "state/phenix-manifest").read_text().strip() == str(strict)
+    assert (run / "state/phenix-strict-manifest-sha256").read_text().strip() == (
+        migrated["strict_manifest_sha256"]
+    )
+
+
+def test_staged_phase3_phenix_probe_logs_expose_migration_failure(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    legacy = tmp_path / "phenix-2.1-6048.json"
+    legacy.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    legacy_sha = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "phase3-phenix-probe",
+            str(legacy),
+            legacy_sha,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = dispatcher.parent.parent / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
+    migration_log = run / "logs/phenix-runtime-migration.log"
+    migration_log.write_text(
+        "## phenix.phaser\n"
+        "path=/fixed/phenix.phaser\n"
+        "executable_sha256=" + "a" * 64 + "\n"
+        'probe_args=["--help"]\n'
+        "exit=1\n"
+        "result=failed\n"
+        "reason=exact migration failure\n"
+        "verbose help that must not dominate diagnostics\n",
+        encoding="ascii",
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert result["log_path"] == str(migration_log)
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert "## phenix.phaser" in content
+    assert "result=failed" in content
+    assert "reason=exact migration failure" in content
+    assert "verbose help" not in content
+
+
+def test_unknown_screen_stage_failure_exposes_login_acquisition_log(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / UNKNOWN_SCREEN_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    (run / "state/owner-id").write_text("2" * 32 + "\n", encoding="ascii")
+    (run / "state/profile").write_text("unknown-screen\n", encoding="ascii")
+    (run / "state/phase").write_text("stage_failed\n", encoding="ascii")
+    login_log = run / "logs/unknown-screen-login-stage.log"
+    login_log.write_text("exact acquisition failure\n", encoding="ascii")
+
+    result = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", UNKNOWN_SCREEN_RUN_ID, "2" * 32, "200"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert result["log_path"] == str(login_log)
+    assert base64.b64decode(result["content_base64"]).decode() == (
+        "exact acquisition failure\n"
+    )
+
+
+def test_phase3_phenix_migration_retains_exact_command_failure(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    legacy = tmp_path / "phenix-2.1-6048.json"
+    legacy.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+    legacy_sha = hashlib.sha256(legacy.read_bytes()).hexdigest()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "phase3-phenix-probe",
+            str(legacy),
+            legacy_sha,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    failed_environment = {**environment, "FAKE_PHENIX_REFRESH_FAIL": "1"}
+    _run(
+        [
+            str(dispatcher),
+            "phenix-runtime-migrate",
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            OWNER_ID,
+        ],
+        cwd=tmp_path,
+        environment=failed_environment,
+        success=False,
+    )
+
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                OWNER_ID,
+                "20",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert result["log_path"].endswith("/logs/phenix-runtime-migration-command.log")
+    assert content == "exact refresh failure\n"
+
+
+def test_phase3_phenix_probe_is_fixed_and_collectable(tmp_path: Path) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                PHASE3_PHENIX_PROBE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "phase3-phenix-probe",
+                str(phenix_manifest),
+                phenix_sha256,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert staged["profile"] == "phase3-phenix-probe"
+    run = remote_root / "runs" / PHASE3_PHENIX_PROBE_RUN_ID
+
+    submitted = _decode_protocol(
+        _run(
+            [str(dispatcher), "submit", PHASE3_PHENIX_PROBE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "phase3-phenix-probe"
+    job_environment = dict(environment)
+    job_environment["SLURM_JOB_ID"] = "123"
+    _run(
+        [
+            str(smoke_job),
+            PHASE3_PHENIX_PROBE_RUN_ID,
+            str(remote_root),
+            "phase3-phenix-probe",
+        ],
+        cwd=tmp_path,
+        environment=job_environment,
+    )
+
+    result = json.loads((run / "state/job-result.json").read_text(encoding="utf-8"))
+    assert result["failure_class"] == "success"
+    probe = json.loads(
+        (run / "artifacts/qualification/phaser-interface-probe.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert probe["scientific_execution_performed"] is False
+    assert (run / "artifacts/qualification/phenix-phaser-show-defaults.txt").is_file()
+    assert (
+        run / "artifacts/qualification/phase3-phenix-probe-checksums.sha256"
+    ).is_file()
+
+    archive = _run(
+        [str(dispatcher), "collect", PHASE3_PHENIX_PROBE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+    assert "artifacts/qualification/phaser-interface-probe.json" in names
+    assert "artifacts/qualification/phenix-phaser-show-defaults.txt" in names
+    assert "artifacts/qualification/phase3-phenix-probe-checksums.sha256" in names
+
+
+def test_phase3_network_probe_stages_only_the_tracked_marmic_policy(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                PHASE3_NETWORK_PROBE_RUN_ID,
+                commit,
+                _lock_checksum(tmp_path),
+                OWNER_ID,
+                "1",
+                "phase3-network-probe",
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert staged["profile"] == "phase3-network-probe"
+    run = remote_root / "runs" / PHASE3_NETWORK_PROBE_RUN_ID
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    contract = manifest["phase3_network_site_contract"]
+    assert contract["nextflow_profile"] == "marmic"
+    assert contract["site_config"] == "conf/marmic.config"
+    assert contract["worker_shell"] == "bootstrap/nf-gtd-worker-offline-shell"
+    assert (
+        contract["site_config_sha256"]
+        == hashlib.sha256((run / "source/conf/marmic.config").read_bytes()).hexdigest()
+    )
+    assert (
+        contract["worker_shell_sha256"]
+        == hashlib.sha256(
+            (run / "source/bootstrap/nf-gtd-worker-offline-shell").read_bytes()
+        ).hexdigest()
+    )
+
+    submitted = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "submit",
+                PHASE3_NETWORK_PROBE_RUN_ID,
+                OWNER_ID,
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    assert submitted["profile"] == "phase3-network-probe"
+    arguments = (tmp_path / "sbatch-args").read_text(encoding="utf-8").splitlines()
+    assert "--cpus-per-task=2" in arguments
+    assert "--mem=8G" in arguments
+    assert "--time=00:45:00" in arguments
+
+
+def test_phase3_network_probe_uses_the_canonical_qualification_root() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split("run_phase3_network_probe() {", maxsplit=1)[1]
+    invocation = phase.split("\n}\n", maxsplit=1)[0]
+
+    assert 'run "$RUN/source/qualification.nf"' in invocation
+    assert "--qualification_stage phase3_network_probe" in invocation
+    assert '--cache_root "$RUN/cache/phase3-network-probe"' in invocation
+    assert "-main-script workflows/qualification/phase3_network_probe.nf" not in (
+        invocation
+    )
+
+
+def test_heteromer_multicopy_partner_preserves_parent_model_uncertainty() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split(
+        "printf 'phase=heteromer_multicopy_partner_B profile=heteromer-smoke\\n'",
+        maxsplit=1,
+    )[1]
+    invocation = phase.split("\n\n", maxsplit=1)[0]
+
+    assert (
+        '--parent-model-identity-fraction "$multicopy_parent_model_identity_fraction"'
+        in invocation
+    )
+    assert (
+        '--parent-model-uncertainty-source "$multicopy_parent_model_uncertainty_source"'
+        in invocation
+    )
+
+
+def test_heteromer_wrong_partner_preserves_parent_model_uncertainty() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split(
+        "printf 'phase=heteromer_p6_wrong_partner profile=heteromer-smoke\\n'",
+        maxsplit=1,
+    )[1]
+    invocation = phase.split("\n    mapfile", maxsplit=1)[0]
+
+    assert (
+        '--parent-model-identity-fraction "$parent_model_identity_fraction"'
+        in invocation
+    )
+    assert (
+        '--parent-model-uncertainty-source "$parent_model_uncertainty_source"'
+        in invocation
+    )
+
+
+def test_9ecn_wrong_c_uses_the_frozen_distinct_control_model() -> None:
+    wrapper = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text(
+        encoding="utf-8"
+    )
+    phase = wrapper.split(
+        "printf 'phase=heteromer_phase3_9ecn profile=heteromer-smoke\\n'",
+        maxsplit=1,
+    )[1]
+    invocation = phase.split('\n    "$PYTHON"', maxsplit=1)[0]
+
+    assert "--wrong-c-sequence-groups" in invocation
+    assert '"$p6_inputs/wrong_partner/sequence_groups.jsonl"' in invocation
+    assert '--wrong-c-sequence-group-id "$p6_wrong_group"' in invocation
+    assert '--wrong-c-model "$p6_inputs/wrong_partner/model.pdb"' in invocation
+    assert (
+        '--wrong-c-control-manifest "$p6_inputs/preparation_manifest.json"'
+        in invocation
+    )
+    assert '--expected-wrong-c-model-sha256 "$p6_wrong_model_sha"' in invocation
+    assert '--wrong-c-model-identity-fraction "$p6_wrong_identity"' in invocation
+
+
 def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     tmp_path: Path,
 ) -> None:
@@ -4376,6 +6156,10 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     ).is_file()
     assert (
         run / "artifacts/heteromer-smoke/inputs/multicopy/preparation_manifest.json"
+    ).is_file()
+    assert (
+        run
+        / "artifacts/heteromer-smoke/inputs/phase3-control/preparation_manifest.json"
     ).is_file()
     assert (
         run
@@ -4426,6 +6210,10 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert str(p6_inputs / "component_scope_decision.json") in staged_paths
     assert str(p6_inputs / "wrong_partner/sequence_groups.jsonl") in staged_paths
     assert str(p6_inputs / "wrong_partner/model.pdb") in staged_paths
+    assert (
+        str(run / "artifacts/heteromer-smoke/inputs/phase3-control/derived/9ECN.mtz")
+        in staged_paths
+    )
 
     submitted = _decode_protocol(
         _run(
@@ -4552,17 +6340,88 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         "artifacts/qualification/heteromer-composition-assessments.jsonl",
     }
     assert expected_p6_checksums <= checksum_paths
+    placement_checksum_paths = {
+        line.split(maxsplit=1)[1]
+        for line in (
+            run / "artifacts/qualification/phase3-placement-control-checksums.sha256"
+        )
+        .read_text(encoding="utf-8")
+        .splitlines()
+    }
+    assert len(placement_checksum_paths) == 46
+    assert {
+        "artifacts/heteromer-smoke/partner/PHASER.sol",
+        "artifacts/heteromer-smoke/partner/component_A.pdb",
+        "artifacts/heteromer-smoke/partner/component_B.pdb",
+        "artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json",
+        "artifacts/heteromer-smoke/multicopy/partner/PHASER.sol",
+        "artifacts/heteromer-smoke/multicopy/partner/component_A.pdb",
+        "artifacts/heteromer-smoke/multicopy/partner/component_B.pdb",
+        "artifacts/heteromer-smoke/multicopy/partner/phaser_per_placement_inventory.json",
+        "artifacts/qualification/phase3-placement-control-summary.json",
+    } <= placement_checksum_paths
+    placement_summary = json.loads(
+        (
+            run / "artifacts/qualification/phase3-placement-control-summary.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert placement_summary["component_mapping_passed"] is True
+    assert placement_summary["recombination_qualified"] is True
+    assert [row["crystal_id"] for row in placement_summary["controls"]] == [
+        "3U7Q",
+        "6RTZ",
+    ]
+    phase3_control_root = run / "artifacts/heteromer-smoke/phase3-control"
+    phase3_control = json.loads(
+        (phase3_control_root / "phase3-9ecn-control-summary.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert phase3_control["gate_passed"] is True
+    assert phase3_control["component_copy_counts"] == {"A": 2, "B": 2, "C": 2}
+    assert phase3_control["exact_identity_claimed_by_search"] is False
+    assert phase3_control["complete_composition_claimed_by_search"] is False
+    assert phase3_control["wrong_c_claim_boundary_passed"] is True
+    assert phase3_control["wrong_c_execution_status"] == "completed_hit"
+    assert phase3_control["wrong_c_top_solution_packed"] is True
+    assert phase3_control["wrong_c_exact_identity_claimed"] is False
+    assert phase3_control["wrong_c_complete_composition_claimed"] is False
+    assert phase3_control["wrong_c_scientific_status"] == "search_evidence_only"
+    assert phase3_control["wrong_c_assessment_claim_eligible"] is False
+    assert phase3_control["wrong_c_assessment_claimed"] is False
+    phase3_checksum_paths = {
+        line.split(maxsplit=1)[1]
+        for line in (phase3_control_root / "phase3-9ecn-control-checksums.sha256")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    }
+    assert len(phase3_checksum_paths) >= 20
+    assert {
+        "partner_B/phaser_per_placement_inventory.json",
+        "component_C/component_search_result.json",
+        "component_C/phaser_per_placement_inventory.json",
+        "wrong_C/component_search_result.json",
+        "wrong_C/composition_assessment.json",
+        "phase3-9ecn-control-summary.json",
+    } <= phase3_checksum_paths
     log = (run / "logs/heteromer-smoke.log").read_text(encoding="utf-8")
     assert "phase=heteromer_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_component_review profile=heteromer-smoke" in log
     assert "phase=heteromer_partner_B profile=heteromer-smoke" in log
+    assert (
+        "phase=heteromer_partner_component_coordinates profile=heteromer-smoke" in log
+    )
     assert "phase=heteromer_multicopy_parent_A profile=heteromer-smoke" in log
     assert "phase=heteromer_multicopy_partner_B profile=heteromer-smoke" in log
+    assert (
+        "phase=heteromer_multicopy_component_coordinates profile=heteromer-smoke" in log
+    )
     assert "phase=heteromer_catalogue_plan profile=heteromer-smoke" in log
     assert "phase=heteromer_catalogue_partner profile=heteromer-smoke" in log
     assert "phase=heteromer_p6_missing_partner profile=heteromer-smoke" in log
     assert "phase=heteromer_p6_wrong_partner profile=heteromer-smoke" in log
     assert "phase=heteromer_p6_gate profile=heteromer-smoke" in log
+    assert "phase=heteromer_phase3_9ecn profile=heteromer-smoke" in log
 
     archive = _run(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
@@ -4578,12 +6437,37 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
     assert "artifacts/qualification/heteromer-catalogue-summary.json" in names
     assert "artifacts/qualification/heteromer-control-slice-report.json" in names
     assert "artifacts/qualification/heteromer-composition-assessments.jsonl" in names
+    assert "artifacts/qualification/phase3-placement-control-summary.json" in names
+    assert "artifacts/qualification/phase3-placement-control-checksums.sha256" in names
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-summary.json"
+        in names
+    )
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/phase3-9ecn-control-checksums.sha256"
+        in names
+    )
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/component_C/"
+        "phaser_per_placement_inventory.json" in names
+    )
+    assert (
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/"
+        "component_search_result.json" in names
+    )
     assert "artifacts/heteromer-smoke/parent/normalised_mr_result.json" in names
     assert (
         "artifacts/heteromer-smoke/component_checkpoint/approved_mr_seed_stage/"
         "live_m4_stage_manifest.json"
     ) in names
     assert "artifacts/heteromer-smoke/partner/partner_search_result.json" in names
+    assert "artifacts/heteromer-smoke/partner/PHASER.sol" in names
+    assert "artifacts/heteromer-smoke/partner/component_A.pdb" in names
+    assert "artifacts/heteromer-smoke/partner/component_B.pdb" in names
+    assert "artifacts/heteromer-smoke/partner/PHASER.1.1.pdb" not in names
+    assert (
+        "artifacts/heteromer-smoke/partner/phaser_per_placement_inventory.json" in names
+    )
     assert "artifacts/heteromer-smoke/p6/missing-plan/partner_search_plan.json" in names
     assert "artifacts/heteromer-smoke/p6/missing-partner-summary.json" in names
     assert (
@@ -4609,6 +6493,13 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         "artifacts/heteromer-smoke/multicopy/partner/partner_search_result.json"
         in names
     )
+    for relative in (
+        "PHASER.sol",
+        "component_A.pdb",
+        "component_B.pdb",
+        "phaser_per_placement_inventory.json",
+    ):
+        assert f"artifacts/heteromer-smoke/multicopy/partner/{relative}" in names
     assert "artifacts/heteromer-smoke/catalogue/plan/partner_search_plan.json" in names
     assert (
         "artifacts/heteromer-smoke/catalogue/partner/partner_search_result.json"
@@ -4628,6 +6519,116 @@ def test_heteromer_collection_allowlist_has_no_duplicate_p6_report() -> None:
         )
         == 1
     )
+
+
+def test_heteromer_collection_accepts_large_3u7q_mtz_evidence(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            HETEROMER_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "heteromer-smoke",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / HETEROMER_RUN_ID
+    fixed_paths = (
+        "artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz",
+        "artifacts/heteromer-smoke/multicopy/partner/PHASER.1.mtz",
+    )
+    for relative in fixed_paths:
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        os.truncate(path, 20 * 1024 * 1024 + 1)
+
+    archive = _run(
+        [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+
+    assert set(fixed_paths) <= names
+
+
+def test_heteromer_collection_retains_partial_9ecn_parent_evidence(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = dispatcher.parent.parent
+    p0_paths = _write_p0_paths(remote_root)
+    phenix_manifest = Path(p0_paths.read_text(encoding="ascii").splitlines()[6])
+    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    p0_paths.unlink()
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            HETEROMER_RUN_ID,
+            commit,
+            _lock_checksum(tmp_path),
+            OWNER_ID,
+            "1",
+            "heteromer-smoke",
+            str(phenix_manifest),
+            phenix_sha256,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    run = remote_root / "runs" / HETEROMER_RUN_ID
+    relative_paths = (
+        "artifacts/heteromer-smoke/phase3-control/preflight/mtz_preflight.jsonl",
+        "artifacts/heteromer-smoke/phase3-control/preflight/xtriage/9ECN.log",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/composition.fasta",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/normalised_mr_result.json",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/normalised_mr_result.jsonl",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/phaser_command.json",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.log",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/phenix.phaser.capture.log",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.sol",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.1.pdb",
+        "artifacts/heteromer-smoke/phase3-control/parent_A/PHASER.1.mtz",
+        "artifacts/heteromer-smoke/phase3-control/partner_B/partner_search_result.json",
+        "artifacts/heteromer-smoke/phase3-control/component_C/component_search_result.json",
+        "artifacts/heteromer-smoke/phase3-control/component_C/phaser_per_placement_inventory.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C_input.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C_sequence_groups.jsonl",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/component_search_result.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/phaser_command.json",
+        "artifacts/heteromer-smoke/phase3-control/wrong_C/PHASER.log",
+    )
+    for relative in relative_paths:
+        path = run / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("retained partial 9ECN evidence\n", encoding="ascii")
+
+    archive = _run(
+        [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    ).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = set(collected.getnames())
+
+    assert set(relative_paths) <= names
 
 
 def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
@@ -4837,7 +6838,7 @@ def test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package(
     commands = (run / "execution/fake-nextflow-commands.log").read_text(
         encoding="utf-8"
     )
-    assert "screen_diverse_first_copy.nf" in commands
+    assert "qualification.nf --qualification_stage diverse_first_copy" in commands
     assert "--maximum_first_copy_jobs 25" in commands
 
     archive_path = tmp_path / "p2-diverse-collected.tar.gz"
@@ -5295,7 +7296,7 @@ def test_p2_diverse_stage_classifies_coordinate_registration_failure(
     ).strip() == "transfer_failure"
 
 
-def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
+def test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit(
     tmp_path: Path,
 ) -> None:
     dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
@@ -5331,6 +7332,27 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
         cwd=tmp_path,
         environment=environment,
     )
+    _run(
+        [
+            str(dispatcher),
+            "stage",
+            PHASE3_NETWORK_PROBE_RUN_ID,
+            commit,
+            lock_checksum,
+            OWNER_ID,
+            "1",
+            "phase3-network-probe",
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    parallel = _run(
+        [str(dispatcher), "submit", PHASE3_NETWORK_PROBE_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(parallel.stdout)["profile"] == "phase3-network-probe"
+
     third_run = "gtd-smoke-20260802T120002Z-0123456789ab-01234569"
     _run(
         [
@@ -5346,41 +7368,20 @@ def test_remote_dispatcher_classifies_scheduler_rejection_and_concurrency(
         cwd=tmp_path,
         environment=environment,
     )
-    active_environment = dict(environment)
-    active_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
     concurrent = _run(
         [str(dispatcher), "submit", third_run, OWNER_ID],
         cwd=tmp_path,
-        environment=active_environment,
-        success=False,
-    )
-    assert _decode_protocol(concurrent.stdout)["failure_class"] == (
-        "scheduler_rejection"
-    )
-
-    fourth_run = "gtd-smoke-20260802T120003Z-0123456789ab-0123456a"
-    _run(
-        [
-            str(dispatcher),
-            "stage",
-            fourth_run,
-            commit,
-            lock_checksum,
-            OWNER_ID,
-            "1",
-            "smoke",
-        ],
-        cwd=tmp_path,
         environment=environment,
     )
-    stale_lock_environment = dict(environment)
-    stale_lock_environment["FAKE_SQUEUE_FAIL"] = "1"
-    recovered = _run(
-        [str(dispatcher), "submit", fourth_run, OWNER_ID],
+    assert _decode_protocol(concurrent.stdout)["job_id"] == "123"
+
+    duplicate = _run(
+        [str(dispatcher), "submit", third_run, OWNER_ID],
         cwd=tmp_path,
-        environment=stale_lock_environment,
+        environment=environment,
+        success=False,
     )
-    assert _decode_protocol(recovered.stdout)["job_id"] == "123"
+    assert _decode_protocol(duplicate.stdout)["failure_class"] == "wrapper_failure"
 
 
 def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(
@@ -5431,7 +7432,7 @@ def test_remote_dispatcher_classifies_node_failure_and_oversized_collection(
 
     smoke_log = tmp_path / "remote-root" / "runs" / RUN_ID / "logs" / "smoke.log"
     smoke_log.touch()
-    os.truncate(smoke_log, 20 * 1024 * 1024 + 1)
+    os.truncate(smoke_log, 128 * 1024 * 1024 + 1)
     oversized = _run(
         [str(dispatcher), "collect", RUN_ID, OWNER_ID],
         cwd=tmp_path,

@@ -44,7 +44,9 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     evaluate_m6,
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
+    M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
+    collect_m6_child_output_evidence,
     collect_m6_resource_evidence,
     load_m6_execution_policy,
 )
@@ -63,6 +65,7 @@ from genome_to_diffraction.benchmarks.m6_nextflow import (
     M6CatalogueTask,
     M6HypothesisGroupTask,
     M6TrackPlanRequest,
+    _coordinate_stage_outcome,
     build_m6_search_batches,
     plan_m6_nextflow_track,
     run_m6_assemble_case_task,
@@ -499,6 +502,9 @@ def _synthetic_collection_protocol(tmp_path: Path) -> Path:
     path = tmp_path / "synthetic-m6-protocol.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     (tmp_path / "execution-nextflow-v1.yaml").write_bytes(EXECUTION_POLICY.read_bytes())
+    (tmp_path / "execution-nextflow-marmic-v1.yaml").write_bytes(
+        MARMIC_EXECUTION_POLICY.read_bytes()
+    )
     load_m6_protocol(path)
     return path
 
@@ -1001,6 +1007,9 @@ def _synthetic_collection(
     reported_identity_by_case: dict[str, str] | None = None,
     edge_observation_by_case: dict[str, M6EdgeObservation] | None = None,
     protocol_path: Path = PROTOCOL,
+    controller_stage: bool = False,
+    site_id: str = "viper-cpu",
+    shared_task_hash: str = "aa/000000",
 ) -> Path:
     scientific = _synthetic_scientific_output(
         tmp_path,
@@ -1026,6 +1035,18 @@ def _synthetic_collection(
         ),
     ):
         (qualification / destination).write_bytes(source.read_bytes())
+    (qualification / "m6-scientific-checksums.sha256").write_text(
+        "".join(
+            f"{sha256_file(qualification / name)}  {name}\n"
+            for name in (
+                "m6-scientific-summary.json",
+                "m6-execution-verification.json",
+                "m6-case-results.jsonl",
+                "m6-candidate-rankings.jsonl.gz",
+            )
+        ),
+        encoding="ascii",
+    )
     profile = f"m6-{track}"
     run_id = f"gtd-{profile}-20260817T000000Z-{commit[:12]}-01234567"
     nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
@@ -1034,7 +1055,11 @@ def _synthetic_collection(
         "resume_equivalent": True,
     }
     if nextflow:
-        resume_record.update(first_task_count=1, cached_resume_task_count=1)
+        task_count = 1 + int(controller_stage)
+        resume_record.update(
+            first_task_count=task_count,
+            cached_resume_task_count=task_count,
+        )
     _write_json(
         qualification / "m6-resume-check.json",
         resume_record,
@@ -1050,57 +1075,138 @@ def _synthetic_collection(
         "tool_runtime_timeouts": False,
     }
     if nextflow:
+        execution_policy_id = (
+            "m6_nextflow_slurm_marmic_v1"
+            if site_id == "marmic"
+            else "m6_nextflow_slurm_v1"
+        )
+        execution_policy_path = (
+            MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
+        )
         runtime.update(
             execution_model="nextflow_dsl2_slurm_fanout",
-            execution_policy="m6_nextflow_slurm_v1",
+            execution_policy=execution_policy_id,
             child_job_count=1,
             peak_running_jobs=1,
             peak_aggregate_cpu_count=32,
             peak_aggregate_memory_gb=16.0,
             maximum_concurrent_phenix_attempts=0,
         )
-        _write_json(
-            qualification / "m6-child-resource-evidence.json",
-            {
-                "schema_version": "1.0",
-                "execution_policy_id": "m6_nextflow_slurm_v1",
-                "execution_policy_sha256": sha256_file(EXECUTION_POLICY),
-                "child_job_count": 1,
-                "maximum_cpu_per_job": 32,
-                "maximum_memory_gb_per_job": 16.0,
-                "maximum_scheduler_hours_per_job": 24.0,
-                "maximum_peak_rss_gb": 8.0,
-                "maximum_observed_cpu_percent": 3100.0,
-                "peak_running_jobs": 1,
-                "peak_aggregate_cpus": 32,
-                "peak_aggregate_memory_gb": 16.0,
-                "peak_concurrent_phenix_jobs": 0,
-                "per_job_bounds_passed": True,
-                "jobs": [
-                    {
-                        "process": "M6_SEARCH_FOLDSEEK",
-                        "tag": "batch",
-                        "status": "COMPLETED",
-                        "native_job_id": "101",
-                        "requested_cpus": 32,
-                        "requested_memory_gb": 16.0,
-                        "requested_time_hours": 24.0,
-                        "start": "2026-08-17T00:00:00Z",
-                        "complete": "2026-08-17T01:00:00Z",
-                        "peak_rss_gb": 8.0,
-                        "observed_cpu_percent": 3100.0,
-                        "phenix_job": False,
-                    }
-                ],
-            },
+        resources = {
+            "schema_version": "1.0",
+            "execution_policy_id": execution_policy_id,
+            "execution_policy_sha256": sha256_file(execution_policy_path),
+            "child_job_count": 1,
+            "maximum_cpu_per_job": 32,
+            "maximum_memory_gb_per_job": 16.0,
+            "maximum_scheduler_hours_per_job": 24.0,
+            "maximum_peak_rss_gb": 8.0,
+            "maximum_observed_cpu_percent": 3100.0,
+            "peak_running_jobs": 1,
+            "peak_aggregate_cpus": 32,
+            "peak_aggregate_memory_gb": 16.0,
+            "peak_concurrent_phenix_jobs": 0,
+            "per_job_bounds_passed": True,
+            "jobs": [
+                {
+                    "process": "M6_SEARCH_FOLDSEEK",
+                    "tag": "batch",
+                    "status": "CACHED" if track == "leakage" else "COMPLETED",
+                    "native_job_id": "101",
+                    "requested_cpus": 32,
+                    "requested_memory_gb": 16.0,
+                    "requested_time_hours": 24.0,
+                    "start": "2026-08-17T00:00:00Z",
+                    "complete": "2026-08-17T01:00:00Z",
+                    "peak_rss_gb": 8.0,
+                    "observed_cpu_percent": 3100.0,
+                    "phenix_job": False,
+                }
+            ],
+        }
+        if controller_stage:
+            resources["controller_stages"] = [
+                {
+                    "process": "M6_STAGE_COORDINATES",
+                    "tag": "case",
+                    "status": "COMPLETED",
+                    "native_job_id": "-",
+                    "requested_cpus": 1,
+                    "requested_memory_gb": 2.0,
+                    "requested_time_hours": 1.0,
+                    "start": "2026-08-17T00:00:00Z",
+                    "complete": "2026-08-17T00:05:00Z",
+                    "peak_rss_gb": 1.0,
+                    "observed_cpu_percent": 95.0,
+                    "phenix_job": False,
+                }
+            ]
+        _write_json(qualification / "m6-child-resource-evidence.json", resources)
+        first_trace = qualification / "m6-first-pipeline-info/trace.tsv"
+        resume_trace = qualification / "m6-resume-pipeline-info/trace.tsv"
+        first_trace.parent.mkdir()
+        resume_trace.parent.mkdir()
+        jobs = cast(list[dict[str, object]], resources["jobs"])
+        controller_jobs = cast(
+            list[dict[str, object]], resources.get("controller_stages", [])
+        )
+        tasks = [*jobs, *controller_jobs]
+        rows: list[tuple[str, str, str, Path, str]] = []
+        for index, task in enumerate(tasks):
+            work = tmp_path / f"{track}-task-{index}"
+            output = work / "result"
+            output.mkdir(parents=True)
+            (output / "evidence.json").write_text(
+                f'{{"task":"{task["process"]}"}}\n', encoding="utf-8"
+            )
+            rows.append(
+                (
+                    str(task["process"]),
+                    str(task["tag"]),
+                    (
+                        shared_task_hash
+                        if str(task["process"]).endswith("M6_SEARCH_FOLDSEEK")
+                        else f"aa/{index:06d}"
+                    ),
+                    work,
+                    str(task["status"]),
+                )
+            )
+        for trace, resume_phase in ((first_trace, False), (resume_trace, True)):
+            trace.write_text(
+                "process\ttag\tstatus\thash\tworkdir\n"
+                + "".join(
+                    f"{process}\t{tag}\t"
+                    f"{'CACHED' if resume_phase else first_status}\t"
+                    f"{task_hash}\t{work}\n"
+                    for process, tag, task_hash, work, first_status in rows
+                ),
+                encoding="utf-8",
+            )
+        first_outputs = qualification / "m6-first-child-outputs.json"
+        resumed_outputs = qualification / "m6-resume-child-outputs.json"
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                track=track, trace=first_trace, output=first_outputs
+            )
+        )
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                track=track,
+                trace=resume_trace,
+                baseline=first_outputs,
+                output=resumed_outputs,
+            )
         )
         _write_json(
             qualification / "m6-resume-cache-evidence.json",
             {
                 "schema_version": "1.0",
                 "cache_mechanism": "nextflow_resume",
-                "first_task_count": 1,
-                "cached_resume_task_count": 1,
+                "first_task_count": task_count,
+                "cached_resume_task_count": task_count,
+                "first_child_output_sha256": sha256_file(first_outputs),
+                "resume_child_output_sha256": sha256_file(resumed_outputs),
                 "fully_cached_resume": True,
             },
         )
@@ -1109,7 +1215,7 @@ def _synthetic_collection(
         root / "manifest.json",
         {
             "run_id": run_id,
-            "site_id": "viper-cpu",
+            "site_id": site_id,
             "profile": profile,
             "commit": commit,
             "nf_helper_commit": "c" * 40,
@@ -1130,6 +1236,28 @@ def _synthetic_collection(
     (state / "exit-code").write_text("0\n", encoding="ascii")
     (state / "m6-runner-archive-sha256").write_text("5" * 64, encoding="ascii")
     (state / "m6-runner-manifest-sha256").write_text("1" * 64, encoding="ascii")
+    if track == "leakage":
+        operational = tmp_path / "collection-operational"
+        operational_manifest = json.loads(
+            (operational / "manifest.json").read_text(encoding="utf-8")
+        )
+        precheck_paths = (
+            "manifest.json",
+            "state/job-result.json",
+            "artifacts/qualification/m6-scientific-summary.json",
+            "artifacts/qualification/m6-scientific-checksums.sha256",
+        )
+        inventory = "".join(
+            f"{sha256_file(operational / relative)}  {relative}\n"
+            for relative in precheck_paths
+        )
+        (state / "m6-operational-parent-run-id").write_text(
+            f"{operational_manifest['run_id']}\n", encoding="ascii"
+        )
+        (state / "m6-operational-precheck-sha256").write_text(
+            f"{hashlib.sha256(inventory.encode('ascii')).hexdigest()}\n",
+            encoding="ascii",
+        )
     return root
 
 
@@ -1149,7 +1277,7 @@ def test_m6_collection_rejects_legacy_tracks_for_corrected_acceptance(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v1",
-        commit="b" * 40,
+        commit="a" * 40,
         protocol_path=protocol_path,
     )
 
@@ -1163,6 +1291,69 @@ def test_m6_collection_rejects_legacy_tracks_for_corrected_acceptance(
                 operational_collection=operational,
                 leakage_collection=leakage,
                 output=tmp_path / "collected-evidence.json",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing_parent", "wrong_parent", "wrong_precheck", "wrong_cached_task"],
+)
+def test_m6_collection_revalidates_leakage_operational_parent(
+    tmp_path: Path, mutation: str
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        shared_task_hash=(
+            "bb/000000" if mutation == "wrong_cached_task" else "aa/000000"
+        ),
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+    )
+    parent = leakage / "state/m6-operational-parent-run-id"
+    precheck = leakage / "state/m6-operational-precheck-sha256"
+    if mutation == "missing_parent":
+        parent.unlink()
+    elif mutation == "wrong_parent":
+        parent.write_text(
+            "gtd-m6-operational-20260817T000000Z-aaaaaaaaaaaa-deadbeef\n",
+            encoding="ascii",
+        )
+    elif mutation == "wrong_precheck":
+        precheck.write_text(f"{'f' * 64}\n", encoding="ascii")
+
+    with pytest.raises(
+        PublicControlError,
+        match=(
+            "missing collected M6 state"
+            if mutation == "missing_parent"
+            else (
+                "cached truthless tasks differ"
+                if mutation == "wrong_cached_task"
+                else "does not bind the collected operational parent"
+            )
+        ),
+    ):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "rejected-evidence.json",
             )
         )
 
@@ -1210,7 +1401,17 @@ def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
         )
 
 
-def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("site_id", "policy_id", "controller_stage"),
+    [
+        ("viper-cpu", "m6_nextflow_slurm_v1", False),
+        ("viper-cpu", "m6_nextflow_slurm_v1", True),
+        ("marmic", "m6_nextflow_slurm_marmic_v1", True),
+    ],
+)
+def test_m6_collection_accepts_two_identity_bearing_tracks(
+    tmp_path: Path, site_id: str, policy_id: str, controller_stage: bool
+) -> None:
     protocol_path = _synthetic_collection_protocol(tmp_path)
     protocol = load_m6_protocol(protocol_path)
     operational = _synthetic_collection(
@@ -1219,13 +1420,17 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> No
         adapter_version="m6-nextflow-run-v2",
         commit="a" * 40,
         protocol_path=protocol_path,
+        controller_stage=controller_stage,
+        site_id=site_id,
     )
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v2",
-        commit="b" * 40,
+        commit="a" * 40,
         protocol_path=protocol_path,
+        controller_stage=controller_stage,
+        site_id=site_id,
     )
     truth = _private_truth_file(tmp_path, protocol_path, protocol)
 
@@ -1239,15 +1444,139 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(tmp_path: Path) -> No
         )
     )
 
-    assert result.evidence.execution_policy_id == "m6_nextflow_slurm_v1"
+    assert result.evidence.execution_policy_id == policy_id
     assert result.evidence.maximum_cpu_count == 32
     assert result.evidence.child_job_count == 2
-    assert result.evidence.execution_policy_sha256 == sha256_file(EXECUTION_POLICY)
+    assert result.evidence.execution_policy_sha256 == sha256_file(
+        MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
+    )
     assert result.evidence.private_truth_map_sha256 == sha256_file(truth)
     assert result.evidence.provenance.track_source_commits == {
         "operational": "a" * 40,
-        "leakage": "b" * 40,
+        "leakage": "a" * 40,
     }
+
+
+def test_m6_collection_rejects_mixed_source_commits(tmp_path: Path) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="marmic",
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="marmic",
+    )
+    truth = _private_truth_file(tmp_path, protocol_path, protocol)
+
+    with pytest.raises(PublicControlError, match="disagree on commit"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=truth,
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "mixed-source-evidence.json",
+            )
+        )
+
+
+def test_m6_collection_rejects_tracks_from_different_reviewed_sites(
+    tmp_path: Path,
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="marmic",
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+        site_id="viper-cpu",
+    )
+
+    with pytest.raises(PublicControlError, match="same reviewed HPC site"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "not-written.json",
+            )
+        )
+
+
+@pytest.mark.parametrize("mutation", ["missing", "changed"])
+def test_m6_collection_refuses_incomplete_cached_child_evidence(
+    tmp_path: Path, mutation: str
+) -> None:
+    protocol_path = _synthetic_collection_protocol(tmp_path)
+    protocol = load_m6_protocol(protocol_path)
+    operational = _synthetic_collection(
+        tmp_path,
+        track="operational",
+        adapter_version="m6-nextflow-run-v2",
+        commit="a" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+    )
+    leakage = _synthetic_collection(
+        tmp_path,
+        track="leakage",
+        adapter_version="m6-nextflow-run-v2",
+        commit="b" * 40,
+        protocol_path=protocol_path,
+        controller_stage=True,
+    )
+    qualification = operational / "artifacts/qualification"
+    resumed_path = qualification / "m6-resume-child-outputs.json"
+    if mutation == "missing":
+        resumed_path.unlink()
+    else:
+        resumed = json.loads(resumed_path.read_text(encoding="utf-8"))
+        resumed["tasks"][0]["outputs"][0]["sha256"] = "f" * 64
+        _write_json(resumed_path, resumed)
+        resume_cache_path = qualification / "m6-resume-cache-evidence.json"
+        resume_cache = json.loads(resume_cache_path.read_text(encoding="utf-8"))
+        resume_cache["resume_child_output_sha256"] = sha256_file(resumed_path)
+        _write_json(resume_cache_path, resume_cache)
+
+    with pytest.raises(PublicControlError, match="child output evidence"):
+        collect_m6_evidence(
+            M6CollectionRequest(
+                protocol=protocol_path,
+                private_truth_map=_private_truth_file(
+                    tmp_path, protocol_path, protocol
+                ),
+                operational_collection=operational,
+                leakage_collection=leakage,
+                output=tmp_path / "not-written.json",
+            )
+        )
 
 
 def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
@@ -1267,7 +1596,7 @@ def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v2",
-        commit="b" * 40,
+        commit="a" * 40,
         protocol_path=protocol_path,
     )
     evidence_path = tmp_path / "collected-evidence.json"
@@ -1339,7 +1668,7 @@ def test_collect_then_evaluate_holds_when_edge_descriptor_lacks_matching_evidenc
         tmp_path,
         track="leakage",
         adapter_version="m6-nextflow-run-v2",
-        commit="b" * 40,
+        commit="a" * 40,
         edge_observation_by_case={case.case_id: contradictory},
         protocol_path=protocol_path,
     )
@@ -1448,13 +1777,22 @@ def test_m6_evaluator_holds_on_an_unexpected_execution_failure(
     assert "unexpected_execution_failures" in result.failed_gates
 
 
-def test_m6_evaluator_binds_the_nextflow_execution_policy(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("policy_id", "policy_path"),
+    [
+        ("m6_nextflow_slurm_v1", EXECUTION_POLICY),
+        ("m6_nextflow_slurm_marmic_v1", MARMIC_EXECUTION_POLICY),
+    ],
+)
+def test_m6_evaluator_binds_the_nextflow_execution_policy(
+    tmp_path: Path, policy_id: str, policy_path: Path
+) -> None:
     protocol = load_m6_protocol(PROTOCOL)
     payload = _evidence(protocol).model_dump(mode="json")
     payload.update(
         maximum_cpu_count=32,
-        execution_policy_id="m6_nextflow_slurm_v1",
-        execution_policy_sha256=sha256_file(EXECUTION_POLICY),
+        execution_policy_id=policy_id,
+        execution_policy_sha256=sha256_file(policy_path),
         child_job_count=1,
     )
     evidence_path = tmp_path / "evidence.json"
@@ -1520,12 +1858,13 @@ def _prepared_manifest(
     config = tmp_path / "config.json"
     policy = tmp_path / "policy.json"
     catalogue.write_text(f">loc_{'a' * 64}\nACDEFGHIK\n", encoding="ascii")
-    write_m6_mtz_variant(
+    sanitisation = write_m6_mtz_variant(
         _m6_source_mtz(),
         reflections,
         opaque_id="M6C001",
         variation="ordinary",
     )
+    assert sanitisation is not None
     _write_json(
         config,
         {
@@ -1603,7 +1942,12 @@ def _prepared_manifest(
             "protocol_id": protocol.protocol_id,
             "protocol_sha256": sha256_file(PROTOCOL),
             "cases": [
-                {"case_id": case.case_id, "objects": objects} for case in protocol.cases
+                {
+                    "case_id": case.case_id,
+                    "objects": objects,
+                    "reflection_sanitisation": sanitisation.model_dump(mode="json"),
+                }
+                for case in protocol.cases
             ],
         },
     )
@@ -1640,6 +1984,49 @@ def test_m6_runner_bundle_is_truth_isolated_and_deterministic(
     assert "8GKV" not in manifest_text
     assert "NP_414916.1" not in manifest_text
     assert "expected_asu_copy_count" not in manifest_text
+    assert "reflection_sanitisation" not in manifest_text
+    runner_manifest = json.loads(manifest_text)
+    first_case = next(
+        case for case in runner_manifest["cases"] if case["case_id"] == "M6C001"
+    )
+    reflections = next(
+        item for item in first_case["objects"] if item["role"] == "reflections"
+    )
+    runner_mtz = gemmi.read_mtz_file(
+        str(first.runner_manifest.parent / "objects" / reflections["object"])
+    )
+    assert tuple(column.label for column in runner_mtz.columns) == (
+        "H",
+        "K",
+        "L",
+        "FP",
+        "SIGFP",
+        "FreeR_flag",
+    )
+
+
+def test_m6_runner_requires_sanitisation_for_every_ordinary_case(
+    tmp_path: Path,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    preparation = _prepared_manifest(tmp_path, protocol)
+    payload = json.loads(preparation.read_text(encoding="utf-8"))
+    first = next(case for case in payload["cases"] if case["case_id"] == "M6C001")
+    first.pop("reflection_sanitisation")
+    _write_json(preparation, payload)
+
+    with pytest.raises(
+        PublicControlError,
+        match="ordinary M6 case requires reflection sanitisation: M6C001",
+    ):
+        build_m6_runner_bundle(
+            M6RunnerBundleRequest(
+                protocol=PROTOCOL,
+                preparation_manifest=preparation,
+                output_directory=tmp_path / "runner",
+                archive=tmp_path / "runner.tar",
+            )
+        )
 
 
 def test_m6_nextflow_plan_emits_case_and_unique_catalogue_tasks(
@@ -1747,6 +2134,9 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     assert manifest["foldseek_batch_count"] == 1
     assert manifest["pdb_threads"] == 32
     assert manifest["foldseek_threads"] == 32
+    assert manifest["adapter_version"] == "m6-nextflow-query-batch-v2"
+    assert manifest["raw_discovery_hit_cap_per_query_route"] == 25
+    assert manifest["accepted_model_hit_cap_per_query_route"] == 3
     first_batch_task = next((output / "prostt5_foldseek_batches").glob("*/task.json"))
     first_batch = json.loads(first_batch_task.read_text(encoding="utf-8"))
     changed_database = tmp_path / "changed-database.json"
@@ -1791,6 +2181,129 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
 
 
 @pytest.mark.parametrize(
+    "mutation",
+    ["missing", "changed"],
+)
+def test_m6_cached_child_inventory_refuses_missing_or_changed_outputs(
+    tmp_path: Path, mutation: str
+) -> None:
+    work = tmp_path / "work"
+    catalogue = work / "m6_catalogue_bundle" / "catalogue"
+    catalogue.mkdir(parents=True)
+    source_records = catalogue / "source_records.jsonl"
+    source_records.write_text('{"source_record_id":"source_a"}\n', encoding="utf-8")
+    (work / "m6_catalogue_bundle.json").write_text("{}\n", encoding="utf-8")
+    (catalogue / "sequence_groups.jsonl").write_text(
+        '{"sequence_group_id":"sequence_a"}\n', encoding="utf-8"
+    )
+    first_trace = tmp_path / "first.tsv"
+    resume_trace = tmp_path / "resume.tsv"
+    for trace, status in ((first_trace, "COMPLETED"), (resume_trace, "CACHED")):
+        trace.write_text(
+            "process\ttag\tstatus\thash\tworkdir\n"
+            f"M6_IMPORT_CATALOGUE\tm6-import:a\t{status}\taa/123456\t{work}\n",
+            encoding="utf-8",
+        )
+
+    baseline_path = tmp_path / "first-child-outputs.json"
+    baseline = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            track="operational", trace=first_trace, output=baseline_path
+        )
+    )
+    resumed = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            track="operational",
+            trace=resume_trace,
+            baseline=baseline_path,
+            output=tmp_path / "cached-child-outputs.json",
+        )
+    )
+
+    assert baseline.phase == "first"
+    assert baseline.task_count == 1
+    assert resumed.phase == "resume"
+    assert resumed.baseline_sha256 == sha256_file(baseline_path)
+    assert [item.relative_path for item in baseline.tasks[0].outputs] == [
+        "m6_catalogue_bundle.json",
+        "m6_catalogue_bundle/catalogue/sequence_groups.jsonl",
+        "m6_catalogue_bundle/catalogue/source_records.jsonl",
+    ]
+
+    if mutation == "missing":
+        source_records.unlink()
+    else:
+        source_records.write_text('{"source_record_id":"mutated"}\n', encoding="utf-8")
+
+    with pytest.raises(PublicControlError, match="missing or changed child outputs"):
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                track="operational",
+                trace=resume_trace,
+                baseline=baseline_path,
+                output=tmp_path / "rejected-child-outputs.json",
+            )
+        )
+
+
+def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
+    tmp_path: Path,
+) -> None:
+    import_work = tmp_path / "import-work"
+    policy_work = tmp_path / "policy-work"
+    for work, payload in ((import_work, "import"), (policy_work, "policy")):
+        work.mkdir()
+        (work / "result.json").write_text(f'{{"task":"{payload}"}}\n', encoding="utf-8")
+    first_trace = tmp_path / "leakage-first.tsv"
+    resume_trace = tmp_path / "leakage-resume.tsv"
+    header = "process\ttag\tstatus\thash\tworkdir\n"
+    first_trace.write_text(
+        header
+        + f"M6_IMPORT_CATALOGUE\timport\tCACHED\taa/000001\t{import_work}\n"
+        + f"M6_APPLY_POLICY\tpolicy\tCOMPLETED\taa/000002\t{policy_work}\n",
+        encoding="utf-8",
+    )
+    resume_trace.write_text(
+        header
+        + f"M6_IMPORT_CATALOGUE\timport\tCACHED\taa/000001\t{import_work}\n"
+        + f"M6_APPLY_POLICY\tpolicy\tCACHED\taa/000002\t{policy_work}\n",
+        encoding="utf-8",
+    )
+    baseline_path = tmp_path / "leakage-first-child-outputs.json"
+    baseline = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            track="leakage", trace=first_trace, output=baseline_path
+        )
+    )
+    resumed = collect_m6_child_output_evidence(
+        M6ChildOutputEvidenceRequest(
+            track="leakage",
+            trace=resume_trace,
+            baseline=baseline_path,
+            output=tmp_path / "leakage-resume-child-outputs.json",
+        )
+    )
+
+    assert [task.status for task in baseline.tasks] == ["COMPLETED", "CACHED"]
+    assert {task.status for task in resumed.tasks} == {"CACHED"}
+
+    first_trace.write_text(
+        header
+        + f"M6_IMPORT_CATALOGUE\timport\tCOMPLETED\taa/000001\t{import_work}\n"
+        + f"M6_APPLY_POLICY\tpolicy\tCACHED\taa/000002\t{policy_work}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PublicControlError, match="child output evidence is invalid"):
+        collect_m6_child_output_evidence(
+            M6ChildOutputEvidenceRequest(
+                track="leakage",
+                trace=first_trace,
+                output=tmp_path / "rejected-leakage-child-outputs.json",
+            )
+        )
+
+
+@pytest.mark.parametrize(
     ("policy_path", "site_id", "policy_id", "queue_size", "submit_rate_limit"),
     [
         (
@@ -1824,7 +2337,9 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
         "M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t16 GB\t1d\t"
         "2026-08-17T00:00:00+00:00\t2026-08-17T01:00:00+00:00\t8 GB\t3100%\n"
         "M6_FIRST_COPY\th1\tCOMPLETED\t102\t2\t4 GB\t24h\t"
-        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t0\t190%\n",
+        "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t0\t190%\n"
+        "M6_STAGE_COORDINATES\tc1\tCOMPLETED\t-\t1\t2 GB\t1h\t"
+        "2026-08-17T00:10:00+00:00\t2026-08-17T00:15:00+00:00\t0\t20%\n",
         encoding="utf-8",
     )
 
@@ -1847,6 +2362,9 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     assert evidence.execution_policy_id == policy_id
     assert evidence.execution_policy_sha256 == sha256_file(policy_path)
     assert evidence.child_job_count == 2
+    assert len(evidence.controller_stages) == 1
+    assert evidence.controller_stages[0].process == "M6_STAGE_COORDINATES"
+    assert evidence.controller_stages[0].native_job_id == "-"
     assert evidence.peak_running_jobs == 2
     assert evidence.peak_aggregate_cpus == 34
     assert evidence.peak_concurrent_phenix_jobs == 1
@@ -1972,7 +2490,7 @@ def test_m6_nextflow_early_case_retains_catalogue_and_assembles(
         preflight,
         catalogue,
         None,
-        ROOT / "tests/fixtures/stubs/database_manifest.json",
+        None,
         tmp_path / "case",
     )
     assert (case / "all_sequence_groups.jsonl").is_file()
@@ -1997,6 +2515,15 @@ def test_m6_nextflow_early_case_retains_catalogue_and_assembles(
     assert record.typed_outcome == "completed_map_only_mtz"
     assert record.candidate_count == record.retained_candidate_count
     assert record.candidate_count > 0
+
+
+def test_m6_coordinate_stage_preserves_typed_empty_outcomes(tmp_path: Path) -> None:
+    hits = tmp_path / "selected-hits.jsonl"
+    hits.write_text("", encoding="utf-8")
+    assert _coordinate_stage_outcome(None, hits) == "completed_no_model"
+    hits.write_text("{}\n", encoding="utf-8")
+    assert _coordinate_stage_outcome("missing_pdb_model", hits) == "completed_no_model"
+    assert _coordinate_stage_outcome(None, hits) is None
 
 
 def test_m6_runner_verifier_rejects_changed_object(tmp_path: Path) -> None:
@@ -2133,6 +2660,7 @@ def _policy_hit(
     *,
     hit_id: str,
     provider: str,
+    provider_rank: int = 1,
     pdb_id: str,
     target_sha256: str,
     identity: float,
@@ -2143,7 +2671,7 @@ def _policy_hit(
         hit_id=hit_id,
         sequence_group_id=group.sequence_group_id,
         provider=provider,
-        provider_rank=1,
+        provider_rank=provider_rank,
         target_id=f"{pdb_id.lower()}_A",
         model_key=f"pdb:{pdb_id}:legacy_seqres_suffix:A",
         target_chain_or_entity="A",
@@ -2353,27 +2881,255 @@ def test_m6_model_policy_filters_every_route_and_retains_candidates(
     ]
 
 
-def _m6_source_mtz() -> gemmi.Mtz:
+def test_m6_leakage_filters_before_cap_deterministically_and_types_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    group = _policy_group("ACDEFGHIK")
+    groups = tmp_path / "groups.jsonl"
+    groups.write_text(f"{canonical_json_text(group)}\n", encoding="utf-8")
+    source = SourceProteinRecord(
+        schema_version="1.0",
+        source_record_id="src_candidate",
+        catalogue_id="opaque",
+        original_protein_id="loc_candidate",
+        original_header="loc_candidate",
+        sequence_group_id=group.sequence_group_id,
+        source_annotation_provider="test",
+    )
+    sources = tmp_path / "sources.jsonl"
+    sources.write_text(f"{canonical_json_text(source)}\n", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    _write_json(
+        policy,
+        {
+            "schema_version": "1.0",
+            "mode": "query_relative_leakage",
+            "maximum_model_identity_fraction": 0.7,
+            "minimum_exclusion_coverage_fraction": 0.8,
+            "exact_deposition_removed_by_trusted_transition": True,
+            "applies_to_all_model_routes": True,
+            "retain_rejected_model_annotations": True,
+            "candidate_policy": "retain_all",
+            "score_policy": "llg_tfz_annotations_only",
+        },
+    )
+    database = tmp_path / "database.json"
+    database.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        m6_model_policy_module,
+        "_mmseqs_version",
+        lambda _path: ("18.8cc5c", "db_pdb_sequences"),
+    )
+    ranked_hits = tuple(
+        _policy_hit(
+            group,
+            hit_id=hit_id,
+            provider="pdb_sequence_mmseqs",
+            provider_rank=rank,
+            pdb_id=pdb_id,
+            target_sha256=target_sha256,
+            identity=identity,
+            coverage=coverage,
+        )
+        for rank, hit_id, pdb_id, target_sha256, identity, coverage in (
+            (1, "hit_exact", "8GKV", group.sha256, 1.0, 1.0),
+            (2, "hit_close_a", "2ABC", "a" * 64, 0.90, 0.95),
+            (3, "hit_close_b", "3ABC", "b" * 64, 0.75, 0.85),
+            (4, "hit_safe_fourth", "4ABC", "c" * 64, 0.65, 1.0),
+            (5, "hit_safe_fifth", "5ABC", "d" * 64, 0.60, 1.0),
+            (6, "hit_safe_sixth", "6ABC", "e" * 64, 0.55, 1.0),
+            (7, "hit_safe_seventh", "7ABC", "f" * 64, 0.50, 1.0),
+        )
+    )
+    ranked_foldseek_hits = tuple(
+        _policy_hit(
+            group,
+            hit_id=hit.hit_id.replace("hit_", "hit_foldseek_", 1),
+            provider="foldseek_prostt5_pdb",
+            provider_rank=hit.provider_rank,
+            pdb_id=cast(str, hit.pdb_id),
+            target_sha256=cast(str, hit.raw_metrics["target_sequence_sha256"]),
+            identity=0.1,
+            coverage=0.7,
+        )
+        for hit in ranked_hits
+    )
+
+    def run_policy(
+        name: str,
+        hits: tuple[StructuralSearchHit, ...],
+        *,
+        foldseek_hits: tuple[StructuralSearchHit, ...] = (),
+        policy_path: Path = policy,
+        case_id: str = "M6C013",
+    ) -> m6_model_policy_module.M6ModelPolicyOutput:
+        pdb_hits = tmp_path / f"{name}-pdb.jsonl"
+        pdb_hits.write_text(
+            "".join(f"{canonical_json_text(hit)}\n" for hit in hits),
+            encoding="utf-8",
+        )
+        foldseek_path = tmp_path / f"{name}-foldseek.jsonl"
+        foldseek_path.write_text(
+            "".join(f"{canonical_json_text(hit)}\n" for hit in foldseek_hits),
+            encoding="utf-8",
+        )
+        return apply_m6_model_policy(
+            M6ModelPolicyRequest(
+                protocol=PROTOCOL,
+                case_id=case_id,
+                model_policy=policy_path,
+                database_manifest=database,
+                sequence_groups_jsonl=groups,
+                source_records_jsonl=sources,
+                pdb_hits_jsonl=pdb_hits,
+                prostt5_hits_jsonl=foldseek_path,
+                output_directory=tmp_path / name,
+            )
+        )
+
+    ordered = run_policy("ordered", ranked_hits, foldseek_hits=ranked_foldseek_hits)
+    permuted = run_policy(
+        "permuted",
+        tuple(reversed(ranked_hits)),
+        foldseek_hits=tuple(reversed(ranked_foldseek_hits)),
+    )
+    expected_safe = {
+        "hit_safe_fourth",
+        "hit_safe_fifth",
+        "hit_safe_sixth",
+        "hit_foldseek_safe_fourth",
+        "hit_foldseek_safe_fifth",
+        "hit_foldseek_safe_sixth",
+    }
+    assert {hit.hit_id for hit in ordered.accepted_hits} == expected_safe
+    assert {hit.hit_id for hit in permuted.accepted_hits} == expected_safe
+    assert (
+        ordered.accepted_hits_jsonl.read_bytes()
+        == permuted.accepted_hits_jsonl.read_bytes()
+    )
+    assert (
+        ordered.rejected_models_jsonl.read_bytes()
+        == permuted.rejected_models_jsonl.read_bytes()
+    )
+    assert (
+        ordered.candidate_ranking_jsonl.read_bytes()
+        == permuted.candidate_ranking_jsonl.read_bytes()
+    )
+    report = json.loads(ordered.report_json.read_text(encoding="utf-8"))
+    assert report["raw_discovery_hit_cap_per_query_route"] == 25
+    assert report["accepted_hit_cap_per_query_route"] == 3
+    assert report["filter_applied_before_accepted_hit_cap"] is True
+    assert report["accepted_model_status"] == "completed_hit"
+    assert report["rejection_reason_counts"] == {
+        "accepted_hit_cap": 2,
+        "exact_deposited_coordinates": 2,
+        "query_relative_leakage": 4,
+    }
+
+    all_excluded = run_policy(
+        "all-excluded",
+        ranked_hits[:3],
+        foldseek_hits=ranked_foldseek_hits[:3],
+    )
+    assert all_excluded.accepted_hits == ()
+    assert all_excluded.accepted_hits_jsonl.read_text(encoding="utf-8") == ""
+    empty_report = json.loads(all_excluded.report_json.read_text(encoding="utf-8"))
+    assert empty_report["accepted_model_status"] == "completed_no_model"
+    empty_ranking = [
+        json.loads(line)
+        for line in all_excluded.candidate_ranking_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+    assert empty_ranking == [
+        {
+            "accepted_model_hit_count": 0,
+            "all_candidate_records_retained": True,
+            "case_id": "M6C013",
+            "rank": 1,
+            "rejected_model_hit_count": 6,
+            "schema_version": "1.0",
+            "sequence_group_id": group.sequence_group_id,
+            "sequence_sha256": group.sha256,
+            "source_record_count": 1,
+        }
+    ]
+
+    operational_policy = tmp_path / "operational-policy.json"
+    _write_json(
+        operational_policy,
+        {
+            "schema_version": "1.0",
+            "mode": "operational",
+            "maximum_model_identity_fraction": None,
+            "minimum_exclusion_coverage_fraction": None,
+            "exact_deposition_removed_by_trusted_transition": True,
+            "applies_to_all_model_routes": True,
+            "retain_rejected_model_annotations": True,
+            "candidate_policy": "retain_all",
+            "score_policy": "llg_tfz_annotations_only",
+        },
+    )
+    operational = run_policy(
+        "operational",
+        ranked_hits,
+        foldseek_hits=ranked_foldseek_hits,
+        policy_path=operational_policy,
+        case_id="M6C001",
+    )
+    assert {hit.hit_id for hit in operational.accepted_hits} == {
+        "hit_close_a",
+        "hit_close_b",
+        "hit_foldseek_close_a",
+        "hit_foldseek_close_b",
+    }
+    operational_report = json.loads(operational.report_json.read_text(encoding="utf-8"))
+    assert operational_report["policy_considered_model_count"] == 6
+    assert operational_report["prepolicy_deferred_model_count"] == 8
+    assert operational_report["filter_applied_before_accepted_hit_cap"] is False
+
+
+def _m6_source_mtz(
+    *,
+    target_derived_scale: float = 1.0,
+    include_observations: bool = True,
+    free_r_mode: str = "valid",
+) -> gemmi.Mtz:
     mtz = gemmi.Mtz(with_base=True)
     mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
     mtz.set_cell_for_all(gemmi.UnitCell(50, 60, 70, 90, 90, 90))
     mtz.add_dataset("8GKV truth-bearing dataset")
-    for label, column_type in (
-        ("FreeR_flag", "I"),
-        ("FP", "F"),
-        ("SIGFP", "Q"),
-        ("FWT", "F"),
-        ("PHWT", "P"),
-    ):
-        mtz.add_column(label, column_type)
-    rows = np.asarray(
-        [
-            [index, 1, 1, 0, index * 10, index, index * 8, index * 5]
-            for index in range(1, 11)
-        ],
-        dtype=np.float32,
+    columns: list[tuple[str, str]] = []
+    if free_r_mode != "missing":
+        columns.append(("FreeR_flag", "I"))
+    if free_r_mode == "duplicate":
+        columns.append(("R-free-flags", "I"))
+    if include_observations:
+        columns.extend((("FP", "F"), ("SIGFP", "Q")))
+    columns.extend(
+        (
+            ("FWT", "F"),
+            ("PHWT", "P"),
+            ("FC", "F"),
+            ("PHIC", "P"),
+        )
     )
-    mtz.set_data(rows)
+    for label, column_type in columns:
+        mtz.add_column(label, column_type)
+    rows: list[list[float]] = []
+    for index in range(1, 11):
+        values: dict[str, float] = {
+            "FreeR_flag": 0 if free_r_mode == "constant" else index % 2,
+            "R-free-flags": (index + 1) % 2,
+            "FP": index * 10,
+            "SIGFP": index,
+            "FWT": index * 8 * target_derived_scale,
+            "PHWT": index * 5 * target_derived_scale,
+            "FC": index * 7 * target_derived_scale,
+            "PHIC": index * 3 * target_derived_scale,
+        }
+        rows.append([index, 1, 1, *(values[label] for label, _ in columns)])
+    mtz.set_data(np.asarray(rows, dtype=np.float32))
     mtz.update_reso()
     return mtz
 
@@ -2415,3 +3171,124 @@ def test_m6_mtz_variants_are_sanitised_and_typed(
     assert warning is None or warning in warnings
     assert "8GKV" not in mtz.title
     assert all("8GKV" not in item.dataset_name for item in mtz.datasets)
+
+
+def test_m6_ordinary_mtz_whitelists_runner_arrays_and_is_deterministic(
+    tmp_path: Path,
+) -> None:
+    source = _m6_source_mtz()
+    source_hkl = np.asarray(source.make_miller_array()).copy()
+    source_fp = np.asarray(source.column_with_label("FP").array).copy()
+    source_sigfp = np.asarray(source.column_with_label("SIGFP").array).copy()
+    source_free_r = np.asarray(source.column_with_label("FreeR_flag").array).copy()
+    first = tmp_path / "first.mtz"
+    second = tmp_path / "second.mtz"
+    changed_extras = tmp_path / "changed-extras.mtz"
+
+    first_record = write_m6_mtz_variant(
+        source,
+        first,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+    second_record = write_m6_mtz_variant(
+        _m6_source_mtz(),
+        second,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+    changed_record = write_m6_mtz_variant(
+        _m6_source_mtz(target_derived_scale=97.0),
+        changed_extras,
+        opaque_id="M6C001",
+        variation="ordinary",
+    )
+
+    assert first_record is not None
+    assert first_record == second_record == changed_record
+    assert first.read_bytes() == second.read_bytes() == changed_extras.read_bytes()
+    output = gemmi.read_mtz_file(str(first))
+    assert tuple(column.label for column in output.columns) == (
+        "H",
+        "K",
+        "L",
+        "FP",
+        "SIGFP",
+        "FreeR_flag",
+    )
+    assert np.array_equal(np.asarray(output.make_miller_array()), source_hkl)
+    assert np.array_equal(np.asarray(output.column_with_label("FP").array), source_fp)
+    assert np.array_equal(
+        np.asarray(output.column_with_label("SIGFP").array),
+        source_sigfp,
+    )
+    assert np.array_equal(
+        np.asarray(output.column_with_label("FreeR_flag").array),
+        source_free_r,
+    )
+    serialised = canonical_json_text(first_record.model_dump(mode="json"))
+    assert "/" not in serialised
+    assert all(label not in serialised for label in ("FWT", "PHWT", "FC", "PHIC"))
+
+
+def test_m6_ordinary_mtz_selects_equivalent_arrays_and_refuses_conflicts(
+    tmp_path: Path,
+) -> None:
+    equivalent_source = tmp_path / "equivalent-source.mtz"
+    conflicting_source = tmp_path / "conflicting-source.mtz"
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        equivalent_source,
+        opaque_id="M6C059",
+        variation="equivalent_observation_arrays",
+    )
+    write_m6_mtz_variant(
+        _m6_source_mtz(),
+        conflicting_source,
+        opaque_id="M6C060",
+        variation="conflicting_observation_arrays",
+    )
+
+    selected = tmp_path / "selected.mtz"
+    record = write_m6_mtz_variant(
+        gemmi.read_mtz_file(str(equivalent_source)),
+        selected,
+        opaque_id="M6C059",
+        variation="ordinary",
+    )
+
+    assert record is not None
+    assert record.observation_labels == ("FX", "SIGFX")
+    assert tuple(
+        column.label for column in gemmi.read_mtz_file(str(selected)).columns
+    ) == ("H", "K", "L", "FX", "SIGFX", "FreeR_flag")
+    with pytest.raises(PublicControlError, match="observation selection"):
+        write_m6_mtz_variant(
+            gemmi.read_mtz_file(str(conflicting_source)),
+            tmp_path / "refused.mtz",
+            opaque_id="M6C060",
+            variation="ordinary",
+        )
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    (
+        (_m6_source_mtz(include_observations=False), "observation selection"),
+        (_m6_source_mtz(free_r_mode="missing"), "Free-R array"),
+        (_m6_source_mtz(free_r_mode="duplicate"), "exactly one"),
+        (_m6_source_mtz(free_r_mode="constant"), "constant"),
+    ),
+)
+def test_m6_ordinary_mtz_fails_closed_on_missing_or_ambiguous_arrays(
+    tmp_path: Path,
+    source: gemmi.Mtz,
+    message: str,
+) -> None:
+    with pytest.raises(PublicControlError, match=message):
+        write_m6_mtz_variant(
+            source,
+            tmp_path / "invalid.mtz",
+            opaque_id="M6C001",
+            variation="ordinary",
+        )

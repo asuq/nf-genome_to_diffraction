@@ -4,8 +4,8 @@ nextflow.enable.types = true
 // The Python bridge revalidates the approved stage and review-owned A evidence.
 process RUN_APPROVED_PARTNER_PHASER {
     tag 'approved-partner:6RTZ'
-    label 'process_mr'
-    errorStrategy 'finish'
+    label 'process_mr_fixed'
+    errorStrategy { task.exitStatus == 75 ? 'retry' : 'finish' }
     publishDir params.outdir, mode: 'copy', overwrite: true
     stageInMode 'copy'
 

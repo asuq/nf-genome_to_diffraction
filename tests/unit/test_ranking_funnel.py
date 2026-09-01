@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.model_registry import load_all_eligible_model_registry
 from genome_to_diffraction.ranking import (
     DiverseFirstCopyFunnelRequest,
     ExactPredictedFunnelRequest,
@@ -20,8 +21,13 @@ from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
     MatthewsHypothesis,
+    MrHypothesis,
+    MrHypothesisStatus,
     PhysicalStatus,
     ProcessedModelRecord,
+)
+from tests.support.unknown_pass1_fixture import (
+    materialise_neutral_localisation_fixture,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -218,6 +224,7 @@ def _diverse_request(tmp_path: Path) -> DiverseFirstCopyFunnelRequest:
         ),
         coordinate_hit_mappings_jsonl=mappings,
         sequence_groups_jsonl=base.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
         matthews_hypotheses_jsonl=base.matthews_hypotheses_jsonl,
         mtz_preflight_jsonl=base.mtz_preflight_jsonl,
         pipeline_config=base.pipeline_config,
@@ -259,6 +266,254 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
         "coordinate_provider",
         "model_variant_type",
     ]
+
+
+def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    rows = tuple(
+        _matthews(
+            copy_count=copy_count,
+            rank=rank,
+            physical_status=PhysicalStatus.PLAUSIBLE,
+        )
+        for rank, copy_count in enumerate((5, 1, 2, 3, 4), start=1)
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        "".join(f"{canonical_json_text(row)}\n" for row in rows),
+        encoding="utf-8",
+    )
+    localisation = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    result = build_diverse_first_copy_funnel(
+        replace(
+            request,
+            require_localisation_policy=True,
+            localisation_bundle=localisation,
+        )
+    )
+
+    assert len(result.hypotheses) == 6
+    assert {
+        (item.copy_count_expected, item.copy_number_to_search)
+        for item in result.hypotheses
+    } == {(1, 1), (2, 1), (5, 1)}
+    assert all(
+        item.priority_features["copy_search_mode"]
+        == "single_copy_then_sequential_completion"
+        for item in result.hypotheses
+    )
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["adapter_version"] == (
+        "multi-source-first-copy-funnel-v6-single-copy"
+    )
+    assert result.resource_plans_jsonl is not None
+    resource_rows = tuple(
+        json.loads(line)
+        for line in result.resource_plans_jsonl.read_text(encoding="utf-8").splitlines()
+    )
+    assert {row["resource_plan"]["base_cpus"] for row in resource_rows} <= {4, 6, 8}
+    assert {row["resource_plan"]["searched_copy_count"] for row in resource_rows} == {1}
+    assert {row["resource_plan"]["owner_id"] for row in resource_rows} == {
+        item.hypothesis_id for item in result.hypotheses
+    } | {
+        json.loads(line)["hypothesis_id"]
+        for path in (
+            result.deferred_cap_hypotheses_jsonl,
+            result.deferred_localisation_hypotheses_jsonl,
+        )
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    }
+    assert all(
+        "resource_plan" not in item.model_dump(mode="json")
+        for item in result.hypotheses
+    )
+    assert manifest["copy_search_mode"] == ("single_copy_then_sequential_completion")
+    assert manifest["initial_searched_copy_count"] == 1
+    assert manifest["expected_copy_count_minimum"] == 1
+    assert manifest["expected_copy_count_maximum"] == 16
+    assert "maximum_joint_copy_count" not in manifest
+    assert manifest["per_model_copy_cap"] == 3
+    assert manifest["per_crystal_first_copy_cap"] == 25
+
+
+def _phase3_localisation_bundle(
+    tmp_path: Path,
+    *,
+    sequence_groups_jsonl: Path,
+    source_records_jsonl: Path,
+    psortb_label: str = "Cytoplasmic",
+    deeptmhmm_type: str = "GLOB",
+    deeptmhmm_topology_label: str = "O",
+) -> Path:
+    evidence_root = tmp_path / "phase3 localisation evidence"
+    evidence_root.mkdir(parents=True)
+    gel = evidence_root / "gel-evidence.json"
+    gel.write_text(
+        '{"schema_version":"2.0","observations":[]}\n',
+        encoding="ascii",
+    )
+    return materialise_neutral_localisation_fixture(
+        evidence_root,
+        gel_evidence=gel,
+        sequence_groups_jsonl=sequence_groups_jsonl,
+        source_records_jsonl=source_records_jsonl,
+        psortb_label=psortb_label,
+        deeptmhmm_type=deeptmhmm_type,
+        deeptmhmm_topology_label=deeptmhmm_topology_label,
+    )
+
+
+def test_phase3_diverse_funnel_requires_complete_localisation_authority(
+    tmp_path: Path,
+) -> None:
+    request = replace(
+        _diverse_request(tmp_path),
+        require_localisation_policy=True,
+    )
+
+    with pytest.raises(FunnelInputError, match="requires its localisation/gel"):
+        build_diverse_first_copy_funnel(request)
+    assert not request.output_directory.exists()
+
+
+def test_phase3_diverse_funnel_binds_active_localisation_evidence(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    bundle = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    result = build_diverse_first_copy_funnel(
+        replace(
+            request,
+            require_localisation_policy=True,
+            localisation_bundle=bundle,
+        )
+    )
+
+    assert len(result.hypotheses) == 4
+    assert all(
+        item.priority_features["localisation_wave_disposition"] == "active"
+        for item in result.hypotheses
+    )
+    assert all(
+        isinstance(item.priority_features["localisation_evidence_id"], str)
+        for item in result.hypotheses
+    )
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["localisation_required"] is True
+    assert manifest["localisation_excluded_sequence_group_count"] == 0
+    assert manifest["gel_observation_count"] == 0
+    assert manifest["localisation_policy_id"].startswith("batchlocalpolicy_")
+
+
+def test_phase3_diverse_funnel_requires_bound_source_records(tmp_path: Path) -> None:
+    request = _diverse_request(tmp_path)
+    bundle = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    with pytest.raises(FunnelInputError, match="requires its exact source records"):
+        build_diverse_first_copy_funnel(
+            replace(
+                request,
+                require_localisation_policy=True,
+                localisation_bundle=bundle,
+                source_records_jsonl=None,
+            )
+        )
+
+
+def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path)
+    bundle = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+        psortb_label="CytoplasmicMembrane",
+        deeptmhmm_type="TM",
+        deeptmhmm_topology_label="M",
+    )
+
+    result = build_diverse_first_copy_funnel(
+        replace(
+            request,
+            require_localisation_policy=True,
+            localisation_bundle=bundle,
+        )
+    )
+
+    assert result.hypotheses == ()
+    deferred = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in result.deferred_localisation_hypotheses_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    )
+    assert len(deferred) == 4
+    assert all(item.status is MrHypothesisStatus.SKIPPED for item in deferred)
+    assert all(
+        item.priority_features["localisation_first_wave_reason"]
+        == "retained_excluded_reopen_only_after_complete_zero_pack"
+        for item in deferred
+    )
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["localisation_excluded_sequence_group_count"] == 1
+    assert manifest["retained_excluded_hypothesis_count"] == 4
+    assert manifest["selected_hypothesis_count"] == 0
+
+
+@pytest.mark.parametrize("all_providers_empty", (False, True))
+def test_diverse_funnel_preserves_documented_empty_model_batches(
+    tmp_path: Path, *, all_providers_empty: bool
+) -> None:
+    request = _diverse_request(tmp_path)
+    empty_indexes = (0, 1) if all_providers_empty else (0,)
+    for index in empty_indexes:
+        request.coordinate_sources_jsonl[index].write_text("", encoding="utf-8")
+        request.processed_models_jsonl[index].write_text("", encoding="utf-8")
+        manifest_path = request.model_preparation_manifests[index]
+        preparation = json.loads(manifest_path.read_text(encoding="utf-8"))
+        preparation["processed_model_count"] = 0
+        preparation["entries"] = []
+        manifest_path.write_text(json.dumps(preparation), encoding="utf-8")
+    if all_providers_empty:
+        assert request.coordinate_hit_mappings_jsonl is not None
+        request.coordinate_hit_mappings_jsonl.write_text("", encoding="utf-8")
+
+    output = build_diverse_first_copy_funnel(request)
+    registry = load_all_eligible_model_registry(
+        output.model_registry_directory / "all_model_registry.json"
+    )
+
+    if all_providers_empty:
+        assert output.hypotheses == ()
+        assert output.hypotheses_jsonl.read_bytes() == b""
+        assert registry.manifest.model_count == 0
+        assert registry.manifest.unavailable_sequence_group_count == 1
+        assert registry.manifest.sequence_groups[0].unavailable_reason is not None
+    else:
+        assert len(output.hypotheses) == 2
+        assert all(
+            item.priority_features["structural_source_class"] == "experimental"
+            for item in output.hypotheses
+        )
+        assert registry.manifest.model_count == 1
 
 
 def test_diverse_funnel_reserves_exact_mapping_before_homologue(
@@ -362,6 +617,10 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
     assert manifest["per_crystal_first_copy_cap"] == 25
     assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
     assert manifest["excluded_by_caps_count"] == 5
+    registry = load_all_eligible_model_registry(
+        result.model_registry_directory / "all_model_registry.json"
+    )
+    assert registry.manifest.model_count == 30
 
 
 def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
@@ -373,3 +632,44 @@ def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["per_crystal_first_copy_cap"] == 1
     assert manifest["requested_execution_cap"] == 1
+    deferred = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in result.deferred_cap_hypotheses_jsonl.read_text().splitlines()
+        if line
+    )
+    assert len(deferred) == manifest["candidate_count_before_caps"] - 1
+    assert all(
+        item.status is MrHypothesisStatus.SKIPPED
+        and item.priority_features["first_copy_execution_disposition"]
+        == "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+        for item in deferred
+    )
+
+
+def test_diverse_a_cap_does_not_change_all_model_registry_identity(
+    tmp_path: Path,
+) -> None:
+    cap_one_request = replace(
+        _diverse_request(tmp_path / "cap one"), maximum_first_copy_jobs=1
+    )
+    cap_two_request = replace(
+        _diverse_request(tmp_path / "cap two"), maximum_first_copy_jobs=2
+    )
+
+    cap_one = build_diverse_first_copy_funnel(cap_one_request)
+    cap_two = build_diverse_first_copy_funnel(cap_two_request)
+    registry_one = load_all_eligible_model_registry(
+        cap_one.model_registry_directory / "all_model_registry.json"
+    )
+    registry_two = load_all_eligible_model_registry(
+        cap_two.model_registry_directory / "all_model_registry.json"
+    )
+
+    assert len(cap_one.hypotheses) == 1
+    assert len(cap_two.hypotheses) == 2
+    assert registry_one.manifest.registry_id == registry_two.manifest.registry_id
+    assert (
+        cap_one.model_registry_directory / "all_model_registry.json"
+    ).read_bytes() == (
+        cap_two.model_registry_directory / "all_model_registry.json"
+    ).read_bytes()

@@ -19,9 +19,11 @@ and legacy/new collection, while DSL2 stub tests cover the complete graph.
 import csv
 import gzip
 import json
+import os
 import shutil
+import tempfile
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, Self, cast
@@ -47,6 +49,8 @@ from genome_to_diffraction.benchmarks.m6_identity import (
     verify_m6_identity_decision_evidence,
 )
 from genome_to_diffraction.benchmarks.m6_model_policy import (
+    M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE,
+    M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
     M6ModelPolicyRequest,
     apply_m6_model_policy,
 )
@@ -65,7 +69,6 @@ from genome_to_diffraction.benchmarks.m6_verification import (
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -121,14 +124,22 @@ from genome_to_diffraction.structure_search import (
     search_pdb_sequences,
     search_prostt5_foldseek,
 )
+from genome_to_diffraction.structure_search.provider_plan import (
+    FrozenM6RawProviderAuthorisation,
+)
 
 _PLAN_ADAPTER = "m6-nextflow-plan-v1"
 _CATALOGUE_ADAPTER = "m6-nextflow-catalogue-v1"
-_PDB_ADAPTER = "m6-nextflow-pdb-search-v1"
-_FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v1"
+_QUERY_BATCH_ADAPTER = "m6-nextflow-query-batch-v2"
+_PDB_ADAPTER = "m6-nextflow-pdb-search-v2"
+_FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v2"
+_MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
-_CASE_ADAPTER = "m6-nextflow-case-v1"
+_COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v1"
+_CASE_ADAPTER = "m6-nextflow-case-v2"
+_SEED_ADAPTER = "m6-nextflow-seeds-v2"
 _CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
+_M6_SEED_CAP = 5
 _RUN_ADAPTER = "m6-nextflow-run-v2"
 _MATERIALISED_SUFFIX = {
     "application/json": ".json",
@@ -223,7 +234,7 @@ class M6HypothesisGroupTask(ContractModel):
     """One case-local dynamically sized hypothesis group for Nextflow."""
 
     schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-nextflow-case-v1"]
+    adapter_version: Literal["m6-nextflow-case-v2"]
     case_id: str
     catalogue_key: Sha256Hex
     early_outcome: str | None = None
@@ -785,7 +796,7 @@ def build_m6_search_batches(
         for groups in batches:
             batch_id = canonical_digest(
                 {
-                    "adapter_version": "m6-nextflow-query-batch-v1",
+                    "adapter_version": _QUERY_BATCH_ADAPTER,
                     "provider": provider,
                     "sequences": [
                         {
@@ -804,7 +815,9 @@ def build_m6_search_batches(
             parameters = (
                 {
                     "threads": threads,
-                    "maximum_hits_per_query": 3,
+                    "maximum_hits_per_query": (
+                        M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+                    ),
                     "maximum_evalue": 1.0e-5,
                     "minimum_query_coverage": 0.5,
                     "maximum_query_length": 10_000,
@@ -812,7 +825,9 @@ def build_m6_search_batches(
                 if provider == "pdb_sequence"
                 else {
                     "threads": threads,
-                    "maximum_hits_per_query": 3,
+                    "maximum_hits_per_query": (
+                        M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+                    ),
                     "maximum_evalue": 1.0e-3,
                     "minimum_query_coverage": 0.5,
                     "maximum_query_length": 10_000,
@@ -871,7 +886,7 @@ def build_m6_search_batches(
         output / "batch_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-query-batch-v1",
+            "adapter_version": _QUERY_BATCH_ADAPTER,
             "catalogue_count": len(memberships),
             "catalogue_record_count": sum(len(ids) for ids in memberships.values()),
             "unique_sequence_count": len(unique_groups),
@@ -889,6 +904,12 @@ def build_m6_search_batches(
             ),
             "foldseek_maximum_residues": (
                 policy.search_batching.foldseek.maximum_residues
+            ),
+            "raw_discovery_hit_cap_per_query_route": (
+                M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE
+            ),
+            "accepted_model_hit_cap_per_query_route": (
+                M6_ACCEPTED_HIT_CAP_PER_QUERY_ROUTE
             ),
             "database_manifest_sha256": database_sha256,
             "execution_policy_sha256": execution_policy_sha256,
@@ -947,8 +968,13 @@ def run_m6_pdb_search_task(
             sequence_groups_jsonl=batch / "sequence_groups.jsonl",
             database_manifest=database,
             output_directory=output / "search",
+            frozen_m6_raw_authorisation=FrozenM6RawProviderAuthorisation(
+                batch_task_json=batch / "task.json",
+                execution_policy=policy_path,
+                software_lock=lock_path,
+            ),
             threads=threads,
-            maximum_hits_per_query=3,
+            maximum_hits_per_query=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
             maximum_evalue=1.0e-5,
             minimum_query_coverage=0.5,
             maximum_query_length=10_000,
@@ -1009,8 +1035,13 @@ def run_m6_foldseek_search_task(
             sequence_groups_jsonl=batch / "sequence_groups.jsonl",
             database_manifest=database,
             output_directory=output / "search",
+            frozen_m6_raw_authorisation=FrozenM6RawProviderAuthorisation(
+                batch_task_json=batch / "task.json",
+                execution_policy=policy_path,
+                software_lock=lock_path,
+            ),
             threads=threads,
-            maximum_hits_per_query=3,
+            maximum_hits_per_query=M6_RAW_DISCOVERY_HIT_CAP_PER_QUERY_ROUTE,
             maximum_evalue=1.0e-3,
             minimum_query_coverage=0.5,
             maximum_query_length=10_000,
@@ -1042,14 +1073,36 @@ def run_m6_foldseek_search_task(
     return output
 
 
+def _iter_typed_jsonl[T](path: Path, model: type[T]) -> Iterator[T]:
+    """Parse one typed JSONL stream without materialising the whole file."""
+
+    try:
+        with path.open(encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    yield model.model_validate_json(line)  # ty: ignore[unresolved-attribute]
+                except ValueError as error:
+                    raise PublicControlError(
+                        f"invalid M6 JSONL line {line_number}: {path}"
+                    ) from error
+    except (OSError, UnicodeError) as error:
+        raise PublicControlError(f"cannot read M6 JSONL: {path}") from error
+
+
 def _batch_search_records(
-    bundles: tuple[Path, ...], provider: str
+    bundles: tuple[Path, ...],
+    provider: str,
+    selected_group_ids: frozenset[str],
 ) -> tuple[
     tuple[StructuralSearchResult, ...], tuple[StructuralSearchHit, ...], dict[str, str]
 ]:
     results: list[StructuralSearchResult] = []
     hits: list[StructuralSearchHit] = []
     manifests: dict[str, str] = {}
+    result_ids: set[str] = set()
+    hit_ids: set[str] = set()
     loaded: list[tuple[M6SearchBatchTask, Path]] = []
     for directory in bundles:
         root = directory.resolve(strict=True)
@@ -1063,15 +1116,23 @@ def _batch_search_records(
     if len(batch_ids) != len(set(batch_ids)):
         raise PublicControlError(f"M6 {provider} search batch is duplicated")
     for task, root in sorted(loaded, key=lambda item: item[0].batch_id):
-        results.extend(
-            _jsonl(root / "search/search_results.jsonl", StructuralSearchResult)
-        )
-        hits.extend(_jsonl(root / "search/structural_hits.jsonl", StructuralSearchHit))
+        for record in _iter_typed_jsonl(
+            root / "search/search_results.jsonl", StructuralSearchResult
+        ):
+            if record.search_id in result_ids:
+                raise PublicControlError(f"M6 {provider} search records are duplicated")
+            result_ids.add(record.search_id)
+            if record.sequence_group_id in selected_group_ids:
+                results.append(record)
+        for hit in _iter_typed_jsonl(
+            root / "search/structural_hits.jsonl", StructuralSearchHit
+        ):
+            if hit.hit_id in hit_ids:
+                raise PublicControlError(f"M6 {provider} search records are duplicated")
+            hit_ids.add(hit.hit_id)
+            if hit.sequence_group_id in selected_group_ids:
+                hits.append(hit)
         manifests[task.batch_id] = sha256_file(root / "bundle_manifest.json")
-    result_ids = [item.search_id for item in results]
-    hit_ids = [item.hit_id for item in hits]
-    if len(result_ids) != len(set(result_ids)) or len(hit_ids) != len(set(hit_ids)):
-        raise PublicControlError(f"M6 {provider} search records are duplicated")
     results.sort(
         key=lambda item: (item.sequence_group_id, item.provider, item.search_id)
     )
@@ -1103,19 +1164,13 @@ def partition_m6_discovery_task(
     )
     group_ids = frozenset(cast(list[str], membership["sequence_group_ids"]))
     pdb_search, pdb_hits, pdb_manifests = _batch_search_records(
-        pdb_results, "pdb_sequence"
+        pdb_results, "pdb_sequence", group_ids
     )
     fold_search, fold_hits, fold_manifests = _batch_search_records(
-        foldseek_results, "prostt5_foldseek"
+        foldseek_results, "prostt5_foldseek", group_ids
     )
-    selected_pdb = tuple(
-        record for record in pdb_search if record.sequence_group_id in group_ids
-    )
-    selected_fold = tuple(
-        record for record in fold_search if record.sequence_group_id in group_ids
-    )
-    if {record.sequence_group_id for record in selected_pdb} != group_ids or {
-        record.sequence_group_id for record in selected_fold
+    if {record.sequence_group_id for record in pdb_search} != group_ids or {
+        record.sequence_group_id for record in fold_search
     } != group_ids:
         raise PublicControlError(
             f"M6 batched discovery lost catalogue candidates: {task.catalogue_key}"
@@ -1124,20 +1179,19 @@ def partition_m6_discovery_task(
     output.mkdir(parents=True, exist_ok=False)
     shutil.copy2(catalogue / "catalogue_task.json", output / "catalogue_task.json")
     for label, records, hits, manifests in (
-        ("pdb_bundle", selected_pdb, pdb_hits, pdb_manifests),
-        ("foldseek_bundle", selected_fold, fold_hits, fold_manifests),
+        ("pdb_bundle", pdb_search, pdb_hits, pdb_manifests),
+        ("foldseek_bundle", fold_search, fold_hits, fold_manifests),
     ):
         root = output / label
         search = root / "search"
         search.mkdir(parents=True)
-        selected_hits = tuple(hit for hit in hits if hit.sequence_group_id in group_ids)
         atomic_write_text(
             search / "search_results.jsonl",
             "".join(f"{canonical_json_text(record)}\n" for record in records),
         )
         atomic_write_text(
             search / "structural_hits.jsonl",
-            "".join(f"{canonical_json_text(hit)}\n" for hit in selected_hits),
+            "".join(f"{canonical_json_text(hit)}\n" for hit in hits),
         )
         atomic_write_json(
             search / "search_manifest.json",
@@ -1147,7 +1201,7 @@ def partition_m6_discovery_task(
                 "catalogue_key": task.catalogue_key,
                 "provider": label,
                 "query_count": len(records),
-                "hit_count": len(selected_hits),
+                "hit_count": len(hits),
                 "source_batch_manifest_sha256": dict(sorted(manifests.items())),
             },
         )
@@ -1403,7 +1457,7 @@ def run_m6_model_policy_task(
     shutil.copy2(case_root / "task.json", output / "case_task.json")
     _write_bundle_manifest(
         output,
-        adapter="m6-nextflow-model-policy-v1",
+        adapter=_MODEL_POLICY_ADAPTER,
         kind="trusted_model_policy",
         task_id=case_task.case_id,
         inputs={
@@ -1474,12 +1528,92 @@ def _write_selected_inputs(
     return groups_path, sources_path, hits_path
 
 
+def _coordinate_stage_outcome(stimulus: str | None, hits: Path) -> str | None:
+    if stimulus == "missing_pdb_model" or not hits.read_text(encoding="utf-8").strip():
+        return "completed_no_model"
+    return None
+
+
+def run_m6_coordinate_stage_task(
+    case_task_directory: Path,
+    catalogue_bundle: Path,
+    policy_bundle: Path,
+    database_manifest: Path,
+    output_directory: Path,
+) -> Path:
+    """Resolve one bounded hit set before offline M6 case preparation."""
+
+    case_root, task = _load_case_task(case_task_directory)
+    catalogue, catalogue_task = _load_catalogue_bundle(catalogue_bundle)
+    if catalogue_task.catalogue_key != task.catalogue_key:
+        raise PublicControlError("M6 coordinate stage catalogue join changed")
+    policy = policy_bundle.resolve(strict=True)
+    policy_manifest = M6BundleManifest.model_validate_json(
+        (policy / "bundle_manifest.json").read_text(encoding="utf-8")
+    )
+    if policy_manifest.task_id != task.case_id:
+        raise PublicControlError("M6 coordinate stage policy join changed")
+    database = database_manifest.resolve(strict=True)
+    output = output_directory.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    groups, sources, hits = _write_selected_inputs(catalogue, policy, output)
+    registration_root = output / "registration"
+    stimulus = edge_stimulus(_fault(case_root, task))
+    stage_outcome = _coordinate_stage_outcome(stimulus, hits)
+    if stage_outcome is not None:
+        registration_root.mkdir()
+        atomic_write_text(registration_root / "coordinate_sources.jsonl", "")
+        atomic_write_text(registration_root / "coordinate_hit_mappings.jsonl", "")
+        atomic_write_json(
+            registration_root / "registration_manifest.json",
+            {"schema_version": "1.0", "status": "completed_no_model"},
+        )
+    else:
+        register_pdb_coordinates(
+            PdbCoordinateRegistrationRequest(
+                structural_hits_jsonl=hits,
+                sequence_groups_jsonl=groups,
+                database_manifest=database,
+                output_directory=registration_root,
+                maximum_hits_per_sequence_group=3,
+                maximum_mappings=25,
+                materialise_coordinate_objects=True,
+                allow_network_acquisition=False,
+                progress=False,
+            )
+        )
+    _write_bundle_manifest(
+        output,
+        adapter=_COORDINATE_STAGE_ADAPTER,
+        kind="coordinate_stage",
+        task_id=task.case_id,
+        inputs={
+            "case_task": case_root / "task.json",
+            "catalogue": catalogue / "bundle_manifest.json",
+            "policy": policy / "bundle_manifest.json",
+            "database_manifest": database,
+            "selected_sequence_groups": groups,
+            "selected_source_records": sources,
+            "selected_structural_hits": hits,
+        },
+        outputs={
+            "coordinate_sources": registration_root / "coordinate_sources.jsonl",
+            "coordinate_hit_mappings": (
+                registration_root / "coordinate_hit_mappings.jsonl"
+            ),
+            "registration": registration_root / "registration_manifest.json",
+        },
+        early_outcome=stage_outcome,
+    )
+    return output
+
+
 def run_m6_prepare_case_task(
     case_task_directory: Path,
     preflight_bundle: Path,
     catalogue_bundle: Path,
     policy_bundle: Path | None,
-    database_manifest: Path,
+    coordinate_stage_bundle: Path | None,
     output_directory: Path,
 ) -> Path:
     """Prepare one blind case and emit zero or more first-copy hypotheses."""
@@ -1549,33 +1683,76 @@ def run_m6_prepare_case_task(
     )
     fault = _fault(case_root, task)
     stimulus = edge_stimulus(fault)
+    stage_root: Path | None = None
+    stage_manifest: M6BundleManifest | None = None
+    stage_sources: Path | None = None
+    stage_mappings: Path | None = None
+    if coordinate_stage_bundle is not None:
+        stage_root = coordinate_stage_bundle.resolve(strict=True)
+        stage_manifest = M6BundleManifest.model_validate_json(
+            (stage_root / "bundle_manifest.json").read_text(encoding="utf-8")
+        )
+        if (
+            stage_manifest.adapter_version != _COORDINATE_STAGE_ADAPTER
+            or stage_manifest.task_id != task.case_id
+        ):
+            raise PublicControlError("M6 coordinate stage identity changed")
+        for name, selected in (
+            ("selected_sequence_groups", groups_path),
+            ("selected_source_records", sources_path),
+            ("selected_structural_hits", hits_path),
+        ):
+            if stage_manifest.input_sha256.get(name) != sha256_file(selected):
+                raise PublicControlError("M6 coordinate stage selected inputs changed")
+        stage_sources = stage_root / "registration/coordinate_sources.jsonl"
+        stage_mappings = stage_root / "registration/coordinate_hit_mappings.jsonl"
+        stage_registration = stage_root / "registration/registration_manifest.json"
+        if (
+            sha256_file(stage_sources)
+            != stage_manifest.output_sha256.get("coordinate_sources")
+            or sha256_file(stage_mappings)
+            != stage_manifest.output_sha256.get("coordinate_hit_mappings")
+            or sha256_file(stage_registration)
+            != stage_manifest.output_sha256.get("registration")
+        ):
+            raise PublicControlError("M6 coordinate stage outputs changed")
+        shutil.copy2(
+            stage_root / "bundle_manifest.json",
+            output / "coordinate_stage_manifest.json",
+        )
     typed_outcome: str | None = None
     hypothesis_count = 0
     hypothesis_ids: tuple[str, ...] = ()
     if stimulus == "missing_pdb_model":
+        if stage_manifest is not None and stage_manifest.early_outcome is None:
+            raise PublicControlError(
+                "M6 missing-model case has an inconsistent coordinate stage"
+            )
         write_missing_model_stimulus(
             accepted_hits=hits_path,
             output_directory=output / "missing-model-stimulus",
         )
         typed_outcome = "completed_no_model"
     elif not hits_path.read_text(encoding="utf-8").strip():
+        if stage_manifest is not None and stage_manifest.early_outcome is None:
+            raise PublicControlError(
+                "M6 no-hit case has an inconsistent coordinate stage"
+            )
         typed_outcome = "completed_no_model"
     else:
-        registration = register_pdb_coordinates(
-            PdbCoordinateRegistrationRequest(
-                structural_hits_jsonl=hits_path,
-                sequence_groups_jsonl=groups_path,
-                database_manifest=database_manifest.resolve(strict=True),
-                output_directory=output / "coordinate-registration",
-                maximum_hits_per_sequence_group=3,
-                maximum_mappings=25,
-                progress=False,
+        if (
+            stage_manifest is None
+            or stage_sources is None
+            or stage_mappings is None
+            or stage_manifest.early_outcome is not None
+        ):
+            raise PublicControlError(
+                "active M6 case lacks a ready trusted coordinate stage"
             )
-        )
         models = prepare_experimental_models(
             ExperimentalModelPreparationRequest(
-                coordinate_sources_jsonl=registration.coordinate_sources_jsonl,
-                coordinate_hit_mappings_jsonl=registration.mappings_jsonl,
+                coordinate_sources_jsonl=stage_sources,
+                coordinate_hit_mappings_jsonl=stage_mappings,
                 sequence_groups_jsonl=groups_path,
                 output_directory=output / "model-preparation",
                 progress=False,
@@ -1594,10 +1771,10 @@ def run_m6_prepare_case_task(
         )
         funnel = build_diverse_first_copy_funnel(
             DiverseFirstCopyFunnelRequest(
-                coordinate_sources_jsonl=(registration.coordinate_sources_jsonl,),
+                coordinate_sources_jsonl=(stage_sources,),
                 processed_models_jsonl=(models.records_jsonl,),
                 model_preparation_manifests=(models.manifest_json,),
-                coordinate_hit_mappings_jsonl=registration.mappings_jsonl,
+                coordinate_hit_mappings_jsonl=stage_mappings,
                 sequence_groups_jsonl=groups_path,
                 matthews_hypotheses_jsonl=matthews.jsonl_path,
                 mtz_preflight_jsonl=preflight / "preflight/mtz_preflight.jsonl",
@@ -1637,18 +1814,21 @@ def run_m6_prepare_case_task(
         outputs["missing_model_route"] = (
             output / "missing-model-stimulus/model_route_manifest.json"
         )
+    bundle_inputs = {
+        "case_task": case_root / "task.json",
+        "preflight": preflight / "bundle_manifest.json",
+        "catalogue": catalogue / "bundle_manifest.json",
+        "policy": policy / "bundle_manifest.json",
+    }
+    if stage_root is not None:
+        bundle_inputs["coordinate_stage"] = stage_root / "bundle_manifest.json"
+        outputs["coordinate_stage"] = output / "coordinate_stage_manifest.json"
     _write_bundle_manifest(
         output,
         adapter=_CASE_ADAPTER,
         kind="case_preparation",
         task_id=task.case_id,
-        inputs={
-            "case_task": case_root / "task.json",
-            "preflight": preflight / "bundle_manifest.json",
-            "catalogue": catalogue / "bundle_manifest.json",
-            "policy": policy / "bundle_manifest.json",
-            "database_manifest": database_manifest.resolve(strict=True),
-        },
+        inputs=bundle_inputs,
         outputs=outputs,
         early_outcome=typed_outcome,
         hypothesis_count=hypothesis_count,
@@ -1693,16 +1873,73 @@ def _case_plan(case_bundle: Path) -> M6HypothesisGroupTask:
 def _first_rank(
     attempt: PhaserRunOutput,
     hypothesis: MrHypothesis,
-    candidate_rank: dict[str, int],
+    candidate_rank: Mapping[str, int],
 ) -> tuple[object, ...]:
     result = attempt.result
     return (
         -(result.llg if result.llg is not None else float("-inf")),
         -(result.tfz if result.tfz is not None else float("-inf")),
         candidate_rank.get(hypothesis.sequence_group_id, 10**9),
-        -hypothesis.copy_count_expected,
         hypothesis.hypothesis_id,
     )
+
+
+def _m6_seed_advancement_rows(
+    case_id: str,
+    eligible: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    selected_hypothesis_ids: set[str],
+    candidate_rank: Mapping[str, int],
+) -> tuple[dict[str, object], ...]:
+    """Retain the disposition and ranking evidence for every eligible seed."""
+
+    return tuple(
+        {
+            "schema_version": "1.0",
+            "case_id": case_id,
+            "hypothesis_id": hypothesis.hypothesis_id,
+            "sequence_group_id": hypothesis.sequence_group_id,
+            "model_id": hypothesis.model_id,
+            "expected_copy_count": hypothesis.copy_count_expected,
+            "llg": attempt.result.llg,
+            "tfz": attempt.result.tfz,
+            "candidate_rank": candidate_rank.get(hypothesis.sequence_group_id),
+            "advancement_rank": rank,
+            "advancement_disposition": (
+                "selected"
+                if hypothesis.hypothesis_id in selected_hypothesis_ids
+                else "deferred_seed_cap"
+            ),
+            "eligible_hypothesis_retained": True,
+        }
+        for rank, (attempt, hypothesis) in enumerate(eligible, start=1)
+    )
+
+
+def _rank_m6_seed_candidates(
+    packed: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    candidate_rank: Mapping[str, int],
+) -> tuple[tuple[PhaserRunOutput, MrHypothesis], ...]:
+    """Order every eligible copy hypothesis without a copy-count preference."""
+
+    return tuple(
+        sorted(
+            packed,
+            key=lambda item: _first_rank(item[0], item[1], candidate_rank),
+        )
+    )
+
+
+def _select_m6_seed_candidates(
+    packed: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    candidate_rank: Mapping[str, int],
+) -> tuple[
+    tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+    tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
+]:
+    """Return every eligible hypothesis and the unchanged five-seed slice."""
+
+    eligible = _rank_m6_seed_candidates(packed, candidate_rank)
+    return eligible, eligible[:_M6_SEED_CAP]
 
 
 def run_m6_select_seeds_task(
@@ -1716,7 +1953,12 @@ def run_m6_select_seeds_task(
     plan = _case_plan(case)
     case_id = plan.case_id
     expected = plan.hypothesis_count
-    attempts = tuple(_phaser_output(path) for path in first_copy_results)
+    attempts = tuple(
+        sorted(
+            (_phaser_output(path) for path in first_copy_results),
+            key=lambda attempt: attempt.result.hypothesis_id,
+        )
+    )
     if len(attempts) != expected:
         raise PublicControlError(
             f"M6 first-copy result count changed for {case_id}: "
@@ -1741,21 +1983,8 @@ def run_m6_select_seeds_task(
             attempt, expected_copy_count=hypothesis.copy_count_expected
         ):
             packed.append((attempt, hypothesis))
-    best_by_model: dict[tuple[str, str], tuple[PhaserRunOutput, MrHypothesis]] = {}
-    for item in packed:
-        key = (item[1].sequence_group_id, item[1].model_id)
-        current = best_by_model.get(key)
-        if (
-            current is None
-            or item[1].copy_count_expected > current[1].copy_count_expected
-        ):
-            best_by_model[key] = item
-    selected = tuple(
-        sorted(
-            best_by_model.values(),
-            key=lambda item: _first_rank(item[0], item[1], candidate_rank),
-        )[:5]
-    )
+    eligible, selected = _select_m6_seed_candidates(tuple(packed), candidate_rank)
+    selected_hypothesis_ids = {hypothesis.hypothesis_id for _, hypothesis in selected}
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
     all_results = output / "first-copy-results"
@@ -1800,21 +2029,36 @@ def run_m6_select_seeds_task(
         seeds_jsonl,
         "".join(f"{json.dumps(row, sort_keys=True)}\n" for row in rows),
     )
+    advancement_path = output / "seed_advancement.jsonl"
+    advancement_rows = _m6_seed_advancement_rows(
+        case_id,
+        eligible,
+        selected_hypothesis_ids,
+        candidate_rank,
+    )
+    atomic_write_text(
+        advancement_path,
+        "".join(f"{canonical_json_text(row)}\n" for row in advancement_rows),
+    )
     atomic_write_json(
         output / "seed_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v1",
+            "adapter_version": _SEED_ADAPTER,
             "case_id": case_id,
             "first_copy_attempt_count": len(attempts),
+            "advancement_eligible_count": len(eligible),
+            "advancement_deferred_count": len(eligible) - len(selected),
             "selected_seed_count": len(selected),
             "typed_outcome": (None if selected else "completed_no_credible_seed"),
             "all_first_copy_attempts_retained": True,
+            "all_advancement_eligible_hypotheses_retained": True,
+            "copy_count_advancement_preference": "none",
         },
     )
     _write_bundle_manifest(
         output,
-        adapter="m6-nextflow-seeds-v1",
+        adapter=_SEED_ADAPTER,
         kind="seed_selection",
         task_id=case_id,
         inputs={
@@ -1827,6 +2071,7 @@ def run_m6_select_seeds_task(
         outputs={
             "seed_plan": output / "seed_plan.json",
             "seed_tasks": seeds_jsonl,
+            "seed_advancement": advancement_path,
         },
     )
     return output
@@ -1844,27 +2089,33 @@ def run_m6_empty_seeds_task(case_bundle: Path, output_directory: Path) -> Path:
     (output / "first-copy-results").mkdir()
     (output / "seed_tasks").mkdir()
     atomic_write_text(output / "seed_tasks.jsonl", "")
+    atomic_write_text(output / "seed_advancement.jsonl", "")
     atomic_write_json(
         output / "seed_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v1",
+            "adapter_version": _SEED_ADAPTER,
             "case_id": plan.case_id,
             "first_copy_attempt_count": 0,
+            "advancement_eligible_count": 0,
+            "advancement_deferred_count": 0,
             "selected_seed_count": 0,
             "typed_outcome": plan.early_outcome or "completed_no_credible_seed",
             "all_first_copy_attempts_retained": True,
+            "all_advancement_eligible_hypotheses_retained": True,
+            "copy_count_advancement_preference": "none",
         },
     )
     _write_bundle_manifest(
         output,
-        adapter="m6-nextflow-seeds-v1",
+        adapter=_SEED_ADAPTER,
         kind="seed_selection",
         task_id=plan.case_id,
         inputs={"case_plan": case / "case_plan.json"},
         outputs={
             "seed_plan": output / "seed_plan.json",
             "seed_tasks": output / "seed_tasks.jsonl",
+            "seed_advancement": output / "seed_advancement.jsonl",
         },
     )
     return output
@@ -2199,25 +2450,31 @@ def run_m6_assemble_case_task(
     if add_root.is_dir():
         for path in sorted(add_root.glob("*/additional_copy_series_results.jsonl")):
             copy_rows.extend(_jsonl(path, AdditionalCopyResult))
-    refinements: list[BriefRefinementResult] = []
-    sequences: list[SequenceMapResult] = []
-    refinement_by_seed: dict[str, Path] = {}
+    refinement_children: list[
+        tuple[M6FinalistTask, BriefRefinementResult, SequenceMapResult, Path]
+    ] = []
     for directory in refinement_results:
         root = directory.resolve(strict=True)
         task_record = M6FinalistTask.model_validate_json(
             (root / "finalist_task.json").read_text(encoding="utf-8")
         )
-        refinements.append(
-            BriefRefinementResult.model_validate_json(
-                (root / "t12/brief_refinement_result.json").read_text(encoding="utf-8")
-            )
+        refinement = BriefRefinementResult.model_validate_json(
+            (root / "t12/brief_refinement_result.json").read_text(encoding="utf-8")
         )
-        sequences.append(
-            SequenceMapResult.model_validate_json(
-                (root / "t12/sequence_map_result.json").read_text(encoding="utf-8")
-            )
+        sequence = SequenceMapResult.model_validate_json(
+            (root / "t12/sequence_map_result.json").read_text(encoding="utf-8")
         )
-        refinement_by_seed[task_record.seed_solution_id] = root
+        refinement_children.append((task_record, refinement, sequence, root))
+    seed_ids = [item[0].seed_solution_id for item in refinement_children]
+    if len(seed_ids) != len(set(seed_ids)):
+        raise PublicControlError("duplicate M6 refinement result")
+    refinement_children.sort(key=lambda item: item[0].seed_solution_id)
+    refinements = [item[1] for item in refinement_children]
+    sequences = [item[2] for item in refinement_children]
+    refinement_by_seed = {
+        task_record.seed_solution_id: root
+        for task_record, _, _, root in refinement_children
+    }
     seed_rows = _jsonl_dicts(seed_bundle / "seed_tasks.jsonl")
     selected_rows: list[dict[str, object]] = []
     first_by_hypothesis = {row.hypothesis_id: row for row in first_results}
@@ -2397,6 +2654,67 @@ def run_m6_assemble_case_task(
     return output
 
 
+def _atomic_concatenate_jsonl(destination: Path, sources: tuple[Path, ...]) -> None:
+    """Concatenate canonical JSONL sources with bounded memory and atomic publish."""
+
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as output:
+            temporary = Path(output.name)
+            for source in sources:
+                with source.open("rb") as stream:
+                    for line in stream:
+                        text = line.decode("utf-8").rstrip("\r\n")
+                        if text:
+                            output.write(text.encode("utf-8") + b"\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, destination)
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+
+
+def _atomic_gzip(source: Path, destination: Path) -> None:
+    """Write one deterministic gzip stream without loading its source into memory."""
+
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as raw:
+            temporary = Path(raw.name)
+            with (
+                gzip.GzipFile(
+                    filename="",
+                    mode="wb",
+                    compresslevel=9,
+                    fileobj=raw,
+                    mtime=0,
+                ) as compressed,
+                source.open("rb") as stream,
+            ):
+                shutil.copyfileobj(stream, compressed, length=1024 * 1024)
+            raw.flush()
+            os.fsync(raw.fileno())
+        os.replace(temporary, destination)
+    except BaseException:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+        raise
+
+
 def run_m6_aggregate_track_task(
     case_evidence: tuple[Path, ...],
     runner_root: Path,
@@ -2439,22 +2757,12 @@ def run_m6_aggregate_track_task(
         case_results,
         "".join(f"{json.dumps(row, sort_keys=True)}\n" for row in records),
     )
-    atomic_write_text(
+    _atomic_concatenate_jsonl(
         rankings,
-        "".join(
-            line + "\n"
-            for case_id in expected_ids
-            for line in (by_id[case_id] / "candidate_ranking.jsonl")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line
-        ),
+        tuple(by_id[case_id] / "candidate_ranking.jsonl" for case_id in expected_ids),
     )
     rankings_gzip = output / "m6_candidate_rankings.jsonl.gz"
-    atomic_write_bytes(
-        rankings_gzip,
-        gzip.compress(rankings.read_bytes(), compresslevel=9, mtime=0),
-    )
+    _atomic_gzip(rankings, rankings_gzip)
     atomic_write_text(
         policies,
         "".join(
@@ -2477,16 +2785,9 @@ def run_m6_aggregate_track_task(
         (sequences, "sequence_results.jsonl"),
         (sequence_summary, "sequence_summary.jsonl"),
     ):
-        atomic_write_text(
+        _atomic_concatenate_jsonl(
             destination,
-            "".join(
-                line + "\n"
-                for case_id in expected_ids
-                for line in (by_id[case_id] / source_name)
-                .read_text(encoding="utf-8")
-                .splitlines()
-                if line
-            ),
+            tuple(by_id[case_id] / source_name for case_id in expected_ids),
         )
     for case_id in expected_ids:
         shutil.copytree(by_id[case_id], output / "cases" / case_id)

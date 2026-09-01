@@ -1,2 +1,2 @@
-crystal_id	mtz	catalogue_id	obs_labels	free_flag_labels	space_group_override	high_resolution_override	low_resolution_override	sds_page_mass_kda	sds_page_condition	sds_page_band_roles	sds_page_tolerance_fraction	allow_remote_sequence_submission	notes
-test_crystal_01	/absolute/path/to/test_crystal_01.mtz	example_archaeon_refseq	NA	NA	NA	NA	NA	42.0	reducing	dominant	0.30	false	Ground truth stored separately
+crystal_id	mtz	catalogue_id	obs_labels	free_flag_labels	free_r_test_value	space_group_override	high_resolution_override	low_resolution_override	sds_page_mass_kda	sds_page_condition	sds_page_band_roles	sds_page_tolerance_fraction	allow_remote_sequence_submission	notes
+test_crystal_01	/absolute/path/to/test_crystal_01.mtz	example_archaeon_refseq	NA	NA	NA	NA	NA	NA	42.0	reducing	dominant	0.30	false	Ground truth stored separately

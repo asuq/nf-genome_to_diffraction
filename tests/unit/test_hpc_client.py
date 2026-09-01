@@ -7,11 +7,13 @@ import json
 import subprocess
 import tarfile
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
+from types import SimpleNamespace
 
 import pytest
 
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.hpc.client import (
     DATABASE_STAGE_TIMEOUT_SECONDS,
     MAX_LOG_BYTES,
@@ -22,17 +24,43 @@ from genome_to_diffraction.hpc.client import (
     SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
     HpcController,
     SshTransport,
+    SubprocessGitRepository,
+    _extract_approved_archive,
+    _failure_signature,
 )
 from genome_to_diffraction.hpc.models import (
     ConfigurationError,
     FailureClass,
     HpcConfig,
+    LocalRunRecord,
     RemoteOperationError,
     ValidationError,
+    load_local_run,
+)
+from genome_to_diffraction.hpc.unknown_inputs import (
+    UNKNOWN_DISCOVERY_SPEC_RELATIVE,
+)
+from tests.support.unknown_pass1_fixture import (
+    materialise_neutral_localisation_fixture,
+    materialise_unknown_pass1_public_fixture,
 )
 
 COMMIT = "1" * 40
+TREE = "2" * 40
 REPOSITORY = Path(__file__).resolve().parents[2]
+
+
+def _run_git(repository: Path, *arguments: str) -> str:
+    result = subprocess.run(
+        ["git", *arguments],
+        cwd=repository,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise AssertionError(result.stderr or result.stdout)
+    return result.stdout.strip()
 
 
 @dataclass
@@ -40,6 +68,8 @@ class FakeGit:
     dirty: bool = False
     repository: Path | None = None
     reachable: bool = True
+    main_checks: list[str] = field(default_factory=list)
+    branch_checks: list[tuple[str, str]] = field(default_factory=list)
 
     def ensure_clean(self) -> None:
         if self.dirty:
@@ -50,14 +80,25 @@ class FakeGit:
             raise ValidationError("revision")
         return COMMIT
 
+    def resolve_tree(self, commit: str) -> str:
+        if commit != COMMIT:
+            raise ValidationError("tree")
+        return TREE
+
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         if commit != COMMIT or self.repository is None:
             raise ValidationError("commit file")
         return self.repository.joinpath(*path.parts).read_bytes()
 
     def ensure_reachable_from_origin_main(self, commit: str) -> None:
+        self.main_checks.append(commit)
         if commit != COMMIT or not self.reachable:
             raise ValidationError("commit is unavailable from origin/main")
+
+    def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        self.branch_checks.append((commit, branch))
+        if commit != COMMIT or not self.reachable or branch != "main":
+            raise ValidationError("commit is unavailable from approved remote branch")
 
     def create_source_archive(
         self, commit: str, destination: Path
@@ -75,15 +116,18 @@ class FakeTransport:
     status_responses: list[dict[str, str]] = field(default_factory=list)
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
+    unknown_discovery_archive: bytes = b""
     m4_import_archive: bytes = b""
     control_slice_archive: bytes = b""
     control_matrix_archive: bytes = b""
     m6_inputs_archive: bytes = b""
     m6_scientific_archive: bytes = b""
+    m6_scientific_stage_error: RemoteOperationError | None = None
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
     stage_site_id: str = "marmic"
     log_payload: bytes = b"line one\nline two\n"
+    log_response: dict[str, str] | None = None
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
@@ -94,9 +138,25 @@ class FakeTransport:
         if operation == "status" and self.status_responses:
             return self.status_responses.pop(0)
         if operation == "logs":
+            if self.log_response is not None:
+                return self.log_response
             return {
+                "operation": "logs",
                 "run_id": arguments[0],
                 "content_base64": base64.b64encode(self.log_payload).decode(),
+            }
+        if operation == "m6-leakage-parent-bind":
+            return {
+                "run_id": arguments[0],
+                "parent_run_id": arguments[2],
+                "operational_precheck_sha256": arguments[4],
+            }
+        if operation == "phenix-runtime-migrate":
+            return {
+                "run_id": arguments[0],
+                "strict_manifest": "/approved/phenix-strict-v1.json",
+                "strict_manifest_sha256": "f" * 64,
+                "status": "ready",
             }
         response = {
             "run_id": arguments[0] if arguments else "",
@@ -133,6 +193,15 @@ class FakeTransport:
     def collect(self, run_id: str, owner_id: str) -> bytes:
         self.calls.append(("collect", (run_id, owner_id)))
         return self.archive
+
+    def collect_to_path(
+        self,
+        run_id: str,
+        owner_id: str,
+        destination: Path,
+    ) -> None:
+        self.calls.append(("collect", (run_id, owner_id)))
+        destination.write_bytes(self.archive)
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         self.calls.append(("review-collect", (run_id, owner_id, manifest_sha256)))
@@ -212,6 +281,57 @@ class FakeTransport:
             "site_id": self.stage_site_id,
         }
 
+    def unknown_discovery_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-discovery-inputs-stage", tuple(arguments)))
+        self.unknown_discovery_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "input_id": arguments[2],
+            "archive_sha256": arguments[3],
+        }
+
+    def unknown_screen_stage(
+        self,
+        arguments: Sequence[str],
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-screen-stage", tuple(arguments)))
+        return {
+            "run_id": arguments[0],
+            "parent_run_id": arguments[2],
+            "provider_preparation_sha256": "f" * 64,
+        }
+
+    def unknown_single_component_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-single-component-stage", tuple(arguments)))
+        assert archive_path.is_file()
+        return {
+            "run_id": arguments[0],
+            "parent_run_id": arguments[2],
+            "input_id": arguments[4],
+        }
+
+    def unknown_pass2_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        self.calls.append(("unknown-pass2-inputs-stage", tuple(arguments)))
+        assert archive_path.is_file()
+        return {
+            "run_id": arguments[0],
+            "parent_run_id": arguments[2],
+            "input_id": arguments[4],
+            "finding_closure_id": arguments[8],
+        }
+
     def m4_import_stage(
         self, arguments: Sequence[str], archive_path: Path
     ) -> dict[str, str]:
@@ -253,10 +373,15 @@ class FakeTransport:
         self, arguments: Sequence[str], archive_path: Path
     ) -> dict[str, str]:
         self.calls.append(("m6-scientific-stage", tuple(arguments)))
+        if self.m6_scientific_stage_error is not None:
+            error = self.m6_scientific_stage_error
+            self.m6_scientific_stage_error = None
+            raise error
         self.m6_scientific_archive = archive_path.read_bytes()
         return {
             "run_id": arguments[0],
             "remote_operation": "m6-scientific-stage",
+            "site_id": self.stage_site_id,
         }
 
     def t12_stage(
@@ -653,6 +778,57 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
     )
 
 
+def _owned_terminal_files(
+    controller: HpcController,
+    run_id: str,
+    *,
+    failure_class: str = "test_failure",
+    exit_code: int = 1,
+    scheduler_state: str = "FAILED",
+) -> dict[str, bytes]:
+    record = controller._owned_run(run_id)
+    job_id = "12345"
+    manifest = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "site_id": record.site_id,
+        "project": "nf-genome_to_diffraction",
+        "profile": record.profile,
+        "iteration": record.iteration,
+        "commit": record.commit,
+        "nf_helper_commit": "2" * 40,
+        "pixi_lock_sha256": hashlib.sha256(
+            (controller.config.repository / "pixi.lock").read_bytes()
+        ).hexdigest(),
+        "pixi_executable": "/approved/pixi",
+        "pixi_version": "0.76.2",
+        "source_snapshot_status": "immutable",
+    }
+    result = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "profile": record.profile,
+        "job_id": job_id,
+        "started_at": "2026-08-25T00:00:00Z",
+        "completed_at": "2026-08-25T00:01:00Z",
+        "scheduler_state": scheduler_state,
+        "exit_code": exit_code,
+        "failure_class": failure_class,
+        "standard_output": f"logs/slurm-{job_id}.out",
+        "standard_error": f"logs/slurm-{job_id}.out",
+        "application_log": f"logs/{record.profile}.log",
+        "structured_test_reports": [],
+        "retained_artifacts": [],
+    }
+    return {
+        "manifest.json": json.dumps(manifest).encode(),
+        "state/job-id": f"{job_id}\n".encode(),
+        "state/job-result.json": json.dumps(result).encode(),
+        "state/phase": b"completed\n",
+        "state/failure-class": f"{failure_class}\n".encode(),
+    }
+
+
 def test_viper_controller_rejects_legacy_marmic_run_record(tmp_path: Path) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
@@ -808,6 +984,12 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
         transport.run("database-stage", ["1" * 40])
     with pytest.raises(RemoteOperationError, match="transport timeout") as collection:
         transport.collect("gtd-p0-20260802T120000Z-0123456789ab-01234567", "1" * 32)
+    with pytest.raises(RemoteOperationError, match="transport timeout") as streamed:
+        transport.collect_to_path(
+            "gtd-p0-20260802T120000Z-0123456789ab-01234567",
+            "1" * 32,
+            tmp_path / "collection.tar.gz",
+        )
     with pytest.raises(RemoteOperationError, match="transport timeout") as review:
         transport.review_collect(
             "gtd-p2-diverse-20260802T120000Z-0123456789ab-01234567",
@@ -819,11 +1001,13 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     assert p0_staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert staging.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert collection.value.failure_class is FailureClass.TRANSFER_FAILURE
+    assert streamed.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert review.value.failure_class is FailureClass.TRANSFER_FAILURE
     assert timeouts == [
         SSH_OPERATION_TIMEOUT_SECONDS,
         P0_STAGE_TIMEOUT_SECONDS,
         DATABASE_STAGE_TIMEOUT_SECONDS,
+        SSH_COLLECTION_TIMEOUT_SECONDS,
         SSH_COLLECTION_TIMEOUT_SECONDS,
         SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS,
     ]
@@ -846,6 +1030,146 @@ def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     )
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "malformed-line",
+        "invalid-key",
+        "invalid-base64",
+        "invalid-utf8",
+        "duplicate-key",
+        "missing-operation",
+        "different-operation",
+        "missing-run",
+        "different-run",
+        "missing-site",
+        "different-site",
+    ),
+)
+def test_ssh_transport_rejects_unauthenticated_remote_protocol_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    owned_run = "gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765"
+
+    def field(key: str, value: str) -> bytes:
+        return key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8"))
+
+    records = [
+        field("operation", "status"),
+        field("run_id", owned_run),
+        field("site_id", "marmic"),
+    ]
+    if mutation == "malformed-line":
+        records.append(b"unexpected-unframed-output")
+    elif mutation == "invalid-key":
+        records.append(field("not-a-field", "value"))
+    elif mutation == "invalid-base64":
+        records.append(b"profile\tnot-base64")
+    elif mutation == "invalid-utf8":
+        records.append(b"profile\t" + base64.b64encode(b"\xff"))
+    elif mutation == "duplicate-key":
+        records.append(field("run_id", owned_run))
+    elif mutation == "missing-operation":
+        records.pop(0)
+    elif mutation == "different-operation":
+        records[0] = field("operation", "logs")
+    elif mutation == "missing-run":
+        records.pop(1)
+    elif mutation == "different-run":
+        records[1] = field("run_id", "gtd-other-owned-run")
+    elif mutation == "missing-site":
+        records.pop(2)
+    elif mutation == "different-site":
+        records[2] = field("site_id", "viper-cpu")
+    payload = b"\n".join(records) + b"\n"
+
+    def respond(
+        command: Sequence[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, stdout=payload, stderr=b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+
+    with pytest.raises(RemoteOperationError, match="remote") as error:
+        SshTransport(_config(tmp_path)).run("status", [owned_run, "owner"])
+
+    assert error.value.failure_class is FailureClass.TRANSFER_FAILURE
+
+
+@pytest.mark.parametrize(
+    ("operation", "reported_operation", "site_id"),
+    (
+        ("status", "status", "marmic"),
+        ("database-stage", "stage", "marmic"),
+    ),
+)
+def test_ssh_transport_accepts_current_owned_dispatcher_protocol(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    reported_operation: str,
+    site_id: str | None,
+) -> None:
+    owned_run = "gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765"
+    records = {
+        "operation": reported_operation,
+        "run_id": owned_run,
+    }
+    if site_id is not None:
+        records["site_id"] = site_id
+    payload = b"".join(
+        key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8")) + b"\n"
+        for key, value in records.items()
+    )
+
+    def respond(
+        command: Sequence[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, stdout=payload, stderr=b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+
+    assert SshTransport(_config(tmp_path)).run(operation, [owned_run, "owner"]) == (
+        records
+    )
+
+
+def test_ssh_transport_rejects_logs_without_site_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owned_run = "gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765"
+
+    def field(key: str, value: str) -> bytes:
+        return key.encode("ascii") + b"\t" + base64.b64encode(value.encode("utf-8"))
+
+    payload = (
+        b"\n".join(
+            (
+                field("operation", "logs"),
+                field("run_id", owned_run),
+                field("content_base64", ""),
+            )
+        )
+        + b"\n"
+    )
+
+    def respond(
+        command: Sequence[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(command, 0, stdout=payload, stderr=b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+
+    with pytest.raises(RemoteOperationError, match="mandatory site identity"):
+        SshTransport(_config(tmp_path)).run(
+            "logs",
+            [owned_run, "owner", "200"],
+        )
+
+
 def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
@@ -858,6 +1182,17 @@ def test_deploy_tools_sends_only_commit_and_verified_checksums(tmp_path: Path) -
     assert arguments[0] == COMMIT
     assert len(arguments) == 3
     assert all(len(value) == 64 for value in arguments[1:])
+
+
+def test_deploy_tools_accepts_only_main(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    result = controller.deploy_tools("HEAD", source_branch="main")
+
+    assert result["source_branch"] == "main"
+    with pytest.raises(ValidationError, match="source branch"):
+        controller.deploy_tools("HEAD", source_branch="dev/phase3")
 
 
 def test_deploy_tools_recovers_only_from_approved_bootstrap_failures(
@@ -983,8 +1318,68 @@ def test_remote_log_payload_has_a_local_byte_limit(tmp_path: Path) -> None:
         controller.logs(run_id, 200)
 
 
-def test_heteromer_stage_binds_only_the_preserved_phenix_identity(
-    tmp_path: Path,
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ({"run_id": "OWNED_RUN", "content_base64": ""}, "operation"),
+        (
+            {
+                "operation": "status",
+                "run_id": "OWNED_RUN",
+                "content_base64": "",
+            },
+            "operation",
+        ),
+        ({"operation": "logs", "content_base64": ""}, "run identity"),
+        (
+            {
+                "operation": "logs",
+                "run_id": "different-run",
+                "content_base64": "",
+            },
+            "run identity",
+        ),
+        ({"operation": "logs", "run_id": "OWNED_RUN"}, "content"),
+    ],
+)
+def test_remote_logs_reject_missing_or_unowned_evidence(
+    tmp_path: Path, response: dict[str, str], message: str
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.log_response = {
+        key: run_id if value == "OWNED_RUN" else value
+        for key, value in response.items()
+    }
+
+    with pytest.raises(RemoteOperationError, match=message) as error:
+        controller.logs(run_id, 200)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+
+
+def test_remote_logs_accept_explicit_owned_zero_byte_payload(tmp_path: Path) -> None:
+    transport = FakeTransport(log_payload=b"")
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+
+    result = controller.logs(run_id, 200)
+
+    assert result["operation"] == "logs"
+    assert result["run_id"] == run_id
+    assert result["log"] == ""
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        "heteromer-smoke",
+        "phase3-phenix-probe",
+    ],
+)
+def test_phenix_bound_stage_uses_only_the_preserved_runtime_identity(
+    tmp_path: Path, profile: str
 ) -> None:
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
@@ -1021,12 +1416,503 @@ def test_heteromer_stage_binds_only_the_preserved_phenix_identity(
         encoding="ascii",
     )
 
-    staged = controller.stage("heteromer-smoke", "HEAD")
+    staged = controller.stage(profile, "HEAD")
 
-    assert staged["profile"] == "heteromer-smoke"
+    assert staged["profile"] == profile
+    assert staged["source_branch"] == "main"
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.main_checks == [COMMIT]
+    assert controller.git.branch_checks == []
     operation, arguments = transport.calls[-1]
     assert operation == "stage"
-    assert arguments[5:] == ("heteromer-smoke", phenix_path, phenix_sha256)
+    assert arguments[5:] == (profile, phenix_path, phenix_sha256)
+
+
+def test_unknown_discovery_stage_attaches_only_fixed_private_inputs(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    phenix_path = "/approved/site/phenix/manifest.json"
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "\n".join(
+            [
+                "/approved/site",
+                "/approved/site/catalogues.json",
+                "/approved/site/crystals.json",
+                "/approved/site/config.yaml",
+                "/approved/site/databases",
+                "/approved/site/database_manifest.json",
+                phenix_path,
+            ]
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    phenix_sha256 = "a" * 64
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": phenix_sha256,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    fixture_root = tmp_path / "unknown-review"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    afdb_map = tmp_path / "unknown-afdb.tsv"
+    afdb_map.write_text(
+        "source_record_id\tuniprot_accession\n",
+        encoding="ascii",
+    )
+    localisation = materialise_neutral_localisation_fixture(
+        tmp_path,
+        gel_evidence=fixture_root / "inputs/gel_evidence.json",
+    )
+    phase3_crystals = tmp_path / "phase3-crystals.json"
+    phase3_crystals.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "crystals": [
+                    {
+                        "crystal_id": item.crystal_id,
+                        "mtz": f"/approved/site/inputs/{item.crystal_id}.mtz",
+                        "catalogue_id": "public_catalogue",
+                        "free_r_test_value": 0,
+                        "allow_remote_sequence_submission": False,
+                    }
+                    for item in sorted(
+                        fixture.crystals,
+                        key=lambda value: value.crystal_id,
+                    )
+                ],
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    spec = tmp_path / UNKNOWN_DISCOVERY_SPEC_RELATIVE
+    spec.parent.mkdir(parents=True)
+    spec.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "crystallographic_review_stage": str(fixture.review_stage),
+                "crystallographic_review_registry": str(fixture.owned_run_registry),
+                "execution_identity": str(fixture.execution_identity),
+                "afdb_accession_map": str(afdb_map),
+                "crystal_manifest": str(phase3_crystals),
+                "localisation_bundle": str(localisation),
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    spec.chmod(0o600)
+
+    staged = controller.stage("unknown-discovery", "HEAD")
+
+    assert staged["profile"] == "unknown-discovery"
+    assert staged["source_branch"] == "main"
+    unknown_input_id = staged["unknown_input_id"]
+    assert isinstance(unknown_input_id, str)
+    assert unknown_input_id.startswith("unknowninputs_")
+    assert transport.unknown_discovery_archive
+    assert str(tmp_path).encode() not in transport.unknown_discovery_archive
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-2][1][5:] == (
+        "unknown-discovery",
+        phenix_path,
+        phenix_sha256,
+    )
+    assert transport.calls[-1][0] == "unknown-discovery-inputs-stage"
+
+
+def test_unknown_screen_stage_requires_and_binds_owned_discovery_parent(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "/approved/site\n"
+        "/approved/site/catalogues.json\n"
+        "/approved/site/crystals.json\n"
+        "/approved/site/config.yaml\n"
+        "/approved/site/databases\n"
+        "/approved/site/database_manifest.json\n"
+        "/approved/site/phenix/manifest.json\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": "a" * 64,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    parent = LocalRunRecord(
+        run_id=("gtd-unknown-discovery-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb"),
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="c" * 32,
+        profile="unknown-discovery",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+
+    staged = controller.stage(
+        "unknown-screen",
+        "HEAD",
+        parent_run_id=parent.run_id,
+    )
+
+    assert staged["profile"] == "unknown-screen"
+    assert staged["unknown_discovery_parent_run_id"] == parent.run_id
+    assert staged["provider_preparation_sha256"] == "f" * 64
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-2][1][5:] == (
+        "unknown-screen",
+        "/approved/site/phenix/manifest.json",
+        "a" * 64,
+    )
+    assert transport.calls[-1] == (
+        "unknown-screen-stage",
+        (
+            staged["run_id"],
+            load_local_run(
+                controller.config.local_state_root,
+                str(staged["run_id"]),
+            ).owner_id,
+            parent.run_id,
+            parent.owner_id,
+        ),
+    )
+
+
+def test_unknown_screen_stage_rejects_missing_parent(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="requires an owned"):
+        controller.stage("unknown-screen", "HEAD")
+
+
+def test_unknown_screen_stage_rejects_a_different_source_commit(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+    parent = LocalRunRecord(
+        run_id="gtd-unknown-discovery-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit="e" * 40,
+        owner_id="c" * 32,
+        profile="unknown-discovery",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+
+    with pytest.raises(ValidationError, match="exact discovery source commit"):
+        controller.stage(
+            "unknown-screen",
+            "HEAD",
+            parent_run_id=parent.run_id,
+        )
+
+
+def test_unknown_single_component_stage_binds_confirmed_a_decisions(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    paths = qualification / "hpc-p0.paths"
+    paths.write_text(
+        "/approved/site\n"
+        "/approved/site/catalogues.json\n"
+        "/approved/site/crystals.json\n"
+        "/approved/site/config.yaml\n"
+        "/approved/site/databases\n"
+        "/approved/site/database_manifest.json\n"
+        "/approved/site/phenix/manifest.json\n",
+        encoding="ascii",
+    )
+    paths.chmod(0o600)
+    (qualification / "p0-inputs.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "database_manifest_sha256": "b" * 64,
+                "phenix_manifest_sha256": "a" * 64,
+            }
+        )
+        + "\n",
+        encoding="ascii",
+    )
+    parent = LocalRunRecord(
+        run_id="gtd-unknown-screen-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="d" * 32,
+        profile="unknown-screen",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+    decision = tmp_path / "a-seed.tsv"
+    decision.write_text(
+        "checkpoint\towned_parent_run_id\treview_package_id\t"
+        "review_package_manifest_sha256\tcrystal_id\titem_id\tdecision\t"
+        "reviewer\treviewed_at\treason\n"
+        f"a_seed\t{parent.run_id}\treviewpkg_{'1' * 64}\t{'2' * 64}\t"
+        "crystal_a\tsolution_1\tapprove\treviewer\t"
+        "2026-08-25T00:00:00Z\tmap inspected\n",
+        encoding="ascii",
+    )
+    spec = (
+        tmp_path
+        / ".untracked/phase3-unknown-pass1/unknown-single-component-inputs.json"
+    )
+    spec.parent.mkdir(parents=True)
+    atomic_write_json(
+        spec,
+        {
+            "schema_version": "1.0",
+            "decisions": [
+                {
+                    "crystal_id": "crystal_a",
+                    "path": str(decision),
+                    "sha256": sha256_file(decision, progress=False),
+                }
+            ],
+        },
+    )
+    spec.chmod(0o600)
+
+    staged = controller.stage(
+        "unknown-single-component",
+        "HEAD",
+        parent_run_id=parent.run_id,
+    )
+
+    assert staged["profile"] == "unknown-single-component"
+    assert staged["unknown_screen_parent_run_id"] == parent.run_id
+    assert staged["unknown_single_decision_count"] == "1"
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-1][0] == "unknown-single-component-stage"
+
+
+def test_unknown_single_component_stage_rejects_missing_parent(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="requires an owned"):
+        controller.stage("unknown-single-component", "HEAD")
+
+
+def test_unknown_single_component_stage_rejects_a_different_source_commit(
+    tmp_path: Path,
+) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+    parent = LocalRunRecord(
+        run_id="gtd-unknown-screen-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit="e" * 40,
+        owner_id="d" * 32,
+        profile="unknown-screen",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+
+    with pytest.raises(ValidationError, match="exact screen source commit"):
+        controller.stage(
+            "unknown-single-component",
+            "HEAD",
+            parent_run_id=parent.run_id,
+        )
+
+
+def test_unknown_pass2_stage_requires_parent_and_attaches_rg7_archive(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    ledger = tmp_path / "docs/phase-iii-finding-ledger.md"
+    ledger.parent.mkdir()
+    ledger.write_text("# exact tracked ledger\n", encoding="utf-8")
+    parent = LocalRunRecord(
+        run_id=("gtd-unknown-single-component-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb"),
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="d" * 32,
+        profile="unknown-single-component",
+        iteration=1,
+        parent_run_id=None,
+    )
+    parent.write(controller.config.local_state_root)
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
+        lambda _repository: ("/approved/phenix.json", "a" * 64),
+    )
+
+    def bundle(
+        *,
+        repository: Path,
+        archive_path: Path,
+        expected_source_commit: str,
+        expected_source_tree: str,
+        expected_parent_run_id: str,
+        expected_finding_ledger_sha256: str,
+    ) -> SimpleNamespace:
+        assert repository == tmp_path
+        assert expected_source_commit == COMMIT
+        assert expected_source_tree == TREE
+        assert expected_parent_run_id == parent.run_id
+        assert expected_finding_ledger_sha256 == sha256_file(
+            tmp_path / "docs/phase-iii-finding-ledger.md"
+        )
+        archive_path.write_bytes(b"pass2 archive")
+        return SimpleNamespace(
+            input_id=f"phase3pass2inputs_{'1' * 64}",
+            archive_path=archive_path,
+            archive_sha256=sha256_file(archive_path),
+            archive_size_bytes=archive_path.stat().st_size,
+            execution_identity_id=f"phase3exec_{'2' * 64}",
+            finding_closure_id=f"phase3closure_{'3' * 64}",
+            file_count=12,
+            crystal_ids=(
+                "AD4QS1P4G2_18",
+                "CD4QS2P2G1_15",
+                "CD6QS2P2G1_5",
+            ),
+            source_commit=expected_source_commit,
+            source_tree=expected_source_tree,
+            parent_run_id=expected_parent_run_id,
+            finding_ledger_sha256=expected_finding_ledger_sha256,
+        )
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client.build_unknown_pass2_input_bundle",
+        bundle,
+    )
+
+    staged = controller.stage(
+        "unknown-pass2",
+        "HEAD",
+        parent_run_id=parent.run_id,
+    )
+
+    assert staged["profile"] == "unknown-pass2"
+    assert staged["unknown_pass1_parent_run_id"] == parent.run_id
+    assert staged["finding_closure_id"] == f"phase3closure_{'3' * 64}"
+    assert transport.calls[-2][0] == "stage"
+    assert transport.calls[-1][0] == "unknown-pass2-inputs-stage"
+
+
+def test_unknown_pass2_stage_rejects_missing_parent(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="requires an owned"):
+        controller.stage("unknown-pass2", "HEAD")
+
+
+def test_phenix_runtime_migration_installs_fixed_local_binding(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    qualification = tmp_path / ".untracked/m0-qualification"
+    qualification.mkdir(parents=True)
+    record = LocalRunRecord(
+        run_id="gtd-phase3-phenix-probe-20260829T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        site_id="marmic",
+        commit=COMMIT,
+        owner_id="d" * 32,
+        profile="phase3-phenix-probe",
+        iteration=1,
+        parent_run_id=None,
+    )
+    record.write(controller.config.local_state_root)
+
+    migrated = controller.phenix_runtime_migrate(record.run_id)
+
+    binding = qualification / "hpc-phase3-phenix.paths"
+    assert migrated["strict_manifest_sha256"] == "f" * 64
+    assert binding.read_text(encoding="ascii") == (
+        "/approved/phenix-strict-v1.json\n" + "f" * 64 + "\n"
+    )
+    assert binding.stat().st_mode & 0o777 == 0o600
+    assert transport.calls[-1] == (
+        "phenix-runtime-migrate",
+        (record.run_id, record.owner_id),
+    )
+
+
+def test_network_probe_defaults_to_phase3_without_exposing_probe_inputs(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.stage("phase3-network-probe", "HEAD")
+
+    assert staged["profile"] == "phase3-network-probe"
+    assert staged["source_branch"] == "main"
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.main_checks == [COMMIT]
+    assert controller.git.branch_checks == []
+    operation, arguments = transport.calls[-1]
+    assert operation == "stage"
+    assert arguments[5:] == ("phase3-network-probe",)
+
+
+def test_stage_rejects_the_retired_development_branch(tmp_path: Path) -> None:
+    controller = _controller(tmp_path, FakeTransport())
+
+    with pytest.raises(ValidationError, match="source branch"):
+        controller.stage("smoke", "HEAD", source_branch="dev/phase3")
+
+
+def test_main_stage_accepts_the_fixed_m6_nextflow_smoke(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport(stage_site_id="marmic")
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.stage(
+        "m6-nextflow-smoke",
+        "HEAD",
+        source_branch="main",
+    )
+
+    assert staged["profile"] == "m6-nextflow-smoke"
+    assert staged["source_branch"] == "main"
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.branch_checks == []
+    assert controller.git.main_checks == [COMMIT]
 
 
 @pytest.mark.parametrize("site_id", ["marmic", "viper-cpu"])
@@ -1212,8 +2098,15 @@ def test_control_matrix_stage_streams_only_fixed_viper_archive(
     assert all("/" not in argument for argument in arguments)
 
 
+@pytest.mark.parametrize(
+    ("site_id", "source_branch"),
+    (("viper-cpu", "main"), ("marmic", "main")),
+)
 def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    site_id: str,
+    source_branch: str,
 ) -> None:
     archive = tmp_path / ".untracked" / "m6-runner.tar"
     archive.parent.mkdir()
@@ -1237,13 +2130,20 @@ def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
     )
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
-    controller.config = _config(tmp_path, site_id="viper-cpu")
+    controller.config = _config(tmp_path, site_id=site_id)
 
-    result = controller.m6_inputs_stage("HEAD", archive, archive_sha256)
+    result = controller.m6_inputs_stage(
+        "HEAD",
+        archive,
+        archive_sha256,
+        source_branch=source_branch,
+    )
 
     assert result["profile"] == "m6-inputs"
     assert result["case_count"] == 63
     assert result["object_count"] == 64
+    assert result["site_id"] == site_id
+    assert result["source_branch"] == source_branch
     assert transport.m6_inputs_archive == archive.read_bytes()
     operation, arguments = transport.calls[-1]
     assert operation == "m6-inputs-stage"
@@ -1258,8 +2158,16 @@ def test_m6_inputs_stage_streams_confirmed_truth_isolated_archive(
 
 
 @pytest.mark.parametrize("track", ["operational", "leakage"])
+@pytest.mark.parametrize(
+    ("site_id", "source_branch"),
+    [("viper-cpu", "main"), ("marmic", "main")],
+)
 def test_m6_scientific_stage_streams_one_fixed_bounded_track(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, track: str
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    track: str,
+    site_id: str,
+    source_branch: str,
 ) -> None:
     archive = tmp_path / ".untracked" / "m6-runner.tar"
     archive.parent.mkdir()
@@ -1280,13 +2188,73 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
         "genome_to_diffraction.hpc.client._inspect_m6_runner_archive",
         inspect,
     )
-    transport = FakeTransport()
+    transport = FakeTransport(stage_site_id=site_id)
     controller = _controller(tmp_path, transport)
-    controller.config = _config(tmp_path, site_id="viper-cpu")
+    controller.config = _config(tmp_path, site_id=site_id)
+    if site_id == "marmic":
+        monkeypatch.setattr(
+            "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
+            lambda repository: ("/approved/site/phenix/manifest.json", "a" * 64),
+        )
+    operational_parent_run_id = None
+    if track == "leakage":
+        parent = LocalRunRecord(
+            run_id="gtd-m6-operational-20260825T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+            site_id=site_id,
+            commit=COMMIT,
+            owner_id="d" * 32,
+            profile="m6-operational",
+            iteration=1,
+            parent_run_id=None,
+        )
+        parent.write(controller.config.local_state_root)
+        operational_parent_run_id = parent.run_id
+        collected = controller.config.local_state_root / parent.run_id / "collected"
+        (collected / "state").mkdir(parents=True)
+        (collected / "artifacts/qualification").mkdir(parents=True)
+        atomic_write_json(
+            collected / "manifest.json",
+            {
+                "run_id": parent.run_id,
+                "profile": "m6-operational",
+                "commit": COMMIT,
+                "site_id": site_id,
+            },
+        )
+        atomic_write_json(
+            collected / "state/job-result.json",
+            {
+                "run_id": parent.run_id,
+                "profile": "m6-operational",
+                "scheduler_state": "COMPLETED",
+                "failure_class": "success",
+                "exit_code": 0,
+            },
+        )
+        atomic_write_json(
+            collected / "artifacts/qualification/m6-scientific-summary.json",
+            {
+                "schema_version": "2.0",
+                "adapter_version": "m6-nextflow-run-v2",
+                "track": "operational",
+            },
+        )
+        (
+            collected / "artifacts/qualification/m6-scientific-checksums.sha256"
+        ).write_text("a" * 64 + "  result.json\n", encoding="ascii")
 
-    result = controller.m6_scientific_stage("HEAD", archive, archive_sha256, track)
+    result = controller.m6_scientific_stage(
+        "HEAD",
+        archive,
+        archive_sha256,
+        track,
+        source_branch=source_branch,
+        operational_parent_run_id=operational_parent_run_id,
+    )
 
     assert result["profile"] == f"m6-{track}"
+    assert result["site_id"] == site_id
+    assert result["source_branch"] == source_branch
     assert result["driver_cpu_count"] == 2
     assert result["driver_memory_gb"] == 8.0
     assert result["maximum_cpu_count"] == 32
@@ -1294,10 +2262,122 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     assert result["maximum_concurrent_phenix_attempts"] == "scheduler_managed"
     assert result["scheduler_ceiling_hours"] == 24.0
     assert transport.m6_scientific_archive == archive.read_bytes()
-    operation, arguments = transport.calls[-1]
+    operation, arguments = next(
+        item for item in transport.calls if item[0] == "m6-scientific-stage"
+    )
     assert operation == "m6-scientific-stage"
-    assert arguments[-1] == track
-    assert all("/" not in argument for argument in arguments)
+    assert arguments[9] == track
+    if site_id == "marmic":
+        assert arguments[10:] == (
+            "/approved/site/phenix/manifest.json",
+            "a" * 64,
+        )
+        assert all("/" not in argument for argument in arguments[:10])
+    else:
+        assert len(arguments) == 10
+        assert all("/" not in argument for argument in arguments)
+    if track == "leakage":
+        bind_operation, bind_arguments = transport.calls[-1]
+        assert bind_operation == "m6-leakage-parent-bind"
+        assert bind_arguments[2] == operational_parent_run_id
+    assert isinstance(controller.git, FakeGit)
+    assert controller.git.main_checks == [COMMIT]
+    assert controller.git.branch_checks == []
+
+
+@pytest.mark.parametrize(
+    ("site_id", "source_branch"),
+    [("viper-cpu", "dev/phase3"), ("marmic", "dev/phase3")],
+)
+@pytest.mark.parametrize("operation", ["inputs", "scientific"])
+def test_m6_stage_rejects_the_retired_development_branch(
+    tmp_path: Path,
+    site_id: str,
+    source_branch: str,
+    operation: str,
+) -> None:
+    archive = tmp_path / "m6-runner.tar"
+    archive.write_bytes(b"not inspected after the branch refusal")
+    transport = FakeTransport(stage_site_id=site_id)
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id=site_id)
+
+    with pytest.raises(ValidationError, match=f"M6 site {site_id} requires"):
+        if operation == "inputs":
+            controller.m6_inputs_stage(
+                "HEAD",
+                archive,
+                "a" * 64,
+                source_branch=source_branch,
+            )
+        else:
+            controller.m6_scientific_stage(
+                "HEAD",
+                archive,
+                "a" * 64,
+                "operational",
+                source_branch=source_branch,
+            )
+
+    assert transport.calls == []
+
+
+@pytest.mark.parametrize(
+    "message",
+    ["bare Git mirror is absent", "configured Git mirror is not bare"],
+)
+def test_m6_scientific_stage_streams_bounded_source_before_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, message: str
+) -> None:
+    archive = tmp_path / ".untracked" / "m6-runner.tar"
+    archive.parent.mkdir()
+    archive.write_bytes(b"confirmed M6 runner")
+    archive_sha256 = hashlib.sha256(archive.read_bytes()).hexdigest()
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._inspect_m6_runner_archive",
+        lambda candidate, **_kwargs: (
+            candidate,
+            archive_sha256,
+            candidate.stat().st_size,
+            "9" * 64,
+            63,
+            64,
+        ),
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
+        lambda _repository: ("/approved/site/phenix/manifest.json", "a" * 64),
+    )
+    transport = FakeTransport(
+        stage_site_id="marmic",
+        m6_scientific_stage_error=RemoteOperationError(
+            message, failure_class=FailureClass.FILESYSTEM_FAILURE
+        ),
+    )
+    controller = _controller(tmp_path, transport)
+
+    staged = controller.m6_scientific_stage(
+        "HEAD",
+        archive,
+        archive_sha256,
+        "operational",
+        source_branch="main",
+    )
+
+    assert staged["site_id"] == "marmic"
+    assert [operation for operation, _ in transport.calls] == [
+        "m6-scientific-stage",
+        "m6-scientific-stage",
+    ]
+    first_arguments = transport.calls[0][1]
+    fallback_arguments = transport.calls[1][1]
+    assert fallback_arguments[:12] == first_arguments
+    assert fallback_arguments[12:] == (
+        hashlib.sha256(b"source archive").hexdigest(),
+        "14",
+        "2" * 40,
+    )
+    assert transport.m6_scientific_archive == b"source archiveconfirmed M6 runner"
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])
@@ -1351,6 +2431,84 @@ def test_stage_uses_source_archive_for_exact_unavailable_git_mirror(
     assert [call[0] for call in transport.calls] == ["stage", "stage-archive"]
 
 
+def test_source_archive_contains_exact_commit_not_unrelated_git_history(
+    tmp_path: Path,
+) -> None:
+    helper = tmp_path / "helper"
+    helper.mkdir()
+    _run_git(helper, "init", "--quiet")
+    _run_git(helper, "config", "user.name", "Test")
+    _run_git(helper, "config", "user.email", "test@example.invalid")
+    (helper / "README.md").write_text("helper\n", encoding="ascii")
+    _run_git(helper, "add", "README.md")
+    _run_git(helper, "commit", "--quiet", "-m", "helper")
+    helper_commit = _run_git(helper, "rev-parse", "HEAD")
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    _run_git(repository, "init", "--quiet")
+    _run_git(repository, "branch", "-M", "main")
+    _run_git(repository, "config", "user.name", "Test")
+    _run_git(repository, "config", "user.email", "test@example.invalid")
+    _run_git(
+        repository,
+        "remote",
+        "add",
+        "origin",
+        "git@github.com:example/repository.git",
+    )
+    (repository / "pixi.lock").write_text("locked\n", encoding="ascii")
+    _run_git(repository, "add", "pixi.lock")
+    _run_git(repository, "commit", "--quiet", "-m", "base")
+    _run_git(
+        repository,
+        "-c",
+        "protocol.file.allow=always",
+        "submodule",
+        "add",
+        "--quiet",
+        str(helper),
+        "external/nf-helper",
+    )
+    _run_git(repository, "commit", "--quiet", "-am", "add helper")
+    commit = _run_git(repository, "rev-parse", "HEAD")
+
+    _run_git(repository, "checkout", "--quiet", "-b", "unrelated-history")
+    unrelated = hashlib.shake_256(b"unrelated-history").digest(3 * 1024 * 1024)
+    (repository / "unrelated.bin").write_bytes(unrelated)
+    _run_git(repository, "add", "unrelated.bin")
+    _run_git(repository, "commit", "--quiet", "-m", "unrelated large history")
+    _run_git(repository, "checkout", "--quiet", "main")
+
+    archive = tmp_path / "source.tar"
+    digest, size, archived_helper = SubprocessGitRepository(
+        repository
+    ).create_source_archive(commit, archive)
+
+    assert size < len(unrelated)
+    assert digest == hashlib.sha256(archive.read_bytes()).hexdigest()
+    assert archived_helper == helper_commit
+    extracted = tmp_path / "extracted"
+    extracted.mkdir()
+    with tarfile.open(archive) as source_archive:
+        source_archive.extractall(extracted, filter="data")
+    assert _run_git(extracted, "rev-parse", "HEAD") == commit
+    assert (
+        _run_git(
+            extracted,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--ignore-submodules=none",
+        )
+        == ""
+    )
+    assert _run_git(extracted / "external/nf-helper", "rev-parse", "HEAD") == (
+        helper_commit
+    )
+    assert not (extracted / "unrelated.bin").exists()
+
+
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])
 def test_scientific_readiness_accepts_no_path_or_run_authority(
     tmp_path: Path, profile: str
@@ -1395,6 +2553,40 @@ def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(
     )
     with pytest.raises(ConfigurationError, match="conservative absolute"):
         controller.p0_configure(paths_file, checksum)
+
+
+def test_database_runtime_configuration_is_create_only_and_checksum_confirmed(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    paths_file = tmp_path / "database.paths"
+    payload = (
+        "/approved/database-admin\n"
+        "/approved/database-admin/databases\n"
+        "/approved/database-admin/manifests/database.json\n"
+        "800000000000\n"
+        "200000000000\n"
+        "600000000000\n"
+        "200000000000\n"
+    )
+    paths_file.write_text(payload, encoding="ascii")
+    paths_file.chmod(0o600)
+    checksum = hashlib.sha256(payload.encode("ascii")).hexdigest()
+
+    with pytest.raises(ValidationError, match="exactly equal"):
+        controller.database_runtime_configure(paths_file, "0" * 64)
+    result = controller.database_runtime_configure(paths_file, checksum)
+
+    assert result["operation"] == "database-runtime-configure"
+    operation, arguments = transport.calls[-1]
+    assert operation == "database-runtime-configure"
+    assert arguments[0] == checksum
+    assert base64.b64decode(arguments[1]).decode("ascii") == payload
+
+    paths_file.write_text(payload.replace("800000000000", "0800000000000"))
+    with pytest.raises(ValidationError, match="canonical integers"):
+        controller.database_runtime_configure(paths_file, checksum)
 
 
 def test_p0_input_staging_is_frozen_rewritten_and_checksum_gated(
@@ -1512,16 +2704,12 @@ def test_database_start_has_a_separate_local_authority_boundary(
 def test_database_failed_staging_archive_requires_collected_owned_evidence(
     tmp_path: Path,
 ) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "software_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-        }
-    ).encode()
-    transport = FakeTransport(archive=_archive({"state/job-result.json": job_result}))
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     run_id = str(controller.database_stage("HEAD")["run_id"])
+    transport.archive = _archive(
+        _owned_terminal_files(controller, run_id, failure_class="software_failure")
+    )
 
     with pytest.raises(ValidationError, match="collect the terminal database run"):
         controller.database_archive_failed(run_id, run_id)
@@ -1541,6 +2729,20 @@ def test_database_failed_staging_archive_requires_collected_owned_evidence(
     cancelled_root.mkdir()
     cancelled_controller = _controller(cancelled_root, cancelled_transport)
     cancelled_run = str(cancelled_controller.database_stage("HEAD")["run_id"])
+
+    with pytest.raises(RemoteOperationError, match="required terminal evidence"):
+        cancelled_controller.collect(cancelled_run)
+    with pytest.raises(ValidationError, match="collect the terminal database run"):
+        cancelled_controller.database_archive_failed(cancelled_run, cancelled_run)
+
+    cancelled_transport.archive = _archive(
+        _owned_terminal_files(
+            cancelled_controller,
+            cancelled_run,
+            failure_class="unknown_failure",
+            scheduler_state="CANCELLED",
+        )
+    )
     cancelled_controller.collect(cancelled_run)
     assert (
         cancelled_controller.database_archive_failed(cancelled_run, cancelled_run)[
@@ -1587,29 +2789,69 @@ def test_wait_reports_bounded_queue_timeout_without_cancelling(
 
     result = controller.wait(run_id)
 
-    assert result["failure_class"] == FailureClass.QUEUE_TIMEOUT
+    assert result["terminal"] == "false"
+    assert result["wait_timeout_class"] == FailureClass.QUEUE_TIMEOUT
+    assert "failure_class" not in result
     assert all(operation != "cancel" for operation, _ in transport.calls)
 
 
-def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "test_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-        }
-    ).encode()
-    transport = FakeTransport(
-        archive=_archive(
-            {
-                "manifest.json": b"{}\n",
-                "state/job-result.json": job_result,
-                "logs/smoke.log": b"failed\n",
-            }
-        )
-    )
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ({"terminal": "false"}, "scheduler state"),
+        ({"scheduler_state": "UNKNOWN", "terminal": "false"}, "scheduler state"),
+        ({"scheduler_state": "running", "terminal": "false"}, "scheduler state"),
+        ({"scheduler_state": "PENDING"}, "terminal"),
+        ({"scheduler_state": "PENDING", "terminal": "true"}, "terminal"),
+        ({"scheduler_state": "RUNNING", "terminal": "true"}, "terminal"),
+        ({"scheduler_state": "COMPLETED", "terminal": "false"}, "terminal"),
+        ({"scheduler_state": "COMPLETED", "terminal": "TRUE"}, "terminal"),
+    ],
+)
+def test_wait_rejects_unsupported_or_inconsistent_scheduler_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: dict[str, str],
+    message: str,
+) -> None:
+    transport = FakeTransport(status_responses=[response])
     controller = _controller(tmp_path, transport)
     run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.time.sleep", lambda _: None)
+
+    with pytest.raises(RemoteOperationError, match=message) as error:
+        controller.wait(run_id)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+
+
+def test_wait_accepts_explicit_running_and_terminal_scheduler_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = FakeTransport(
+        status_responses=[
+            {"scheduler_state": "RUNNING", "terminal": "false"},
+            {"scheduler_state": "COMPLETED", "terminal": "true"},
+        ]
+    )
+    controller = _controller(tmp_path, transport)
+    controller.config = replace(controller.config, execution_timeout_seconds=2)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.time.sleep", lambda _: None)
+
+    result = controller.wait(run_id)
+
+    assert result["scheduler_state"] == "COMPLETED"
+    assert result["terminal"] == "true"
+
+
+def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    files["logs/smoke.log"] = b"failed\n"
+    transport.archive = _archive(files)
 
     result = controller.collect(run_id)
 
@@ -1617,6 +2859,159 @@ def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) 
     assert (Path(str(result["destination"])) / "logs" / "smoke.log").read_text() == (
         "failed\n"
     )
+
+
+def test_collection_accepts_owned_successful_terminal_evidence(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.archive = _archive(
+        _owned_terminal_files(
+            controller,
+            run_id,
+            failure_class="success",
+            exit_code=0,
+            scheduler_state="COMPLETED",
+        )
+    )
+
+    result = controller.collect(run_id)
+
+    assert result["failure_signature"] is None
+    assert (Path(str(result["destination"])) / "state" / "job-result.json").is_file()
+
+
+def test_collection_accepts_owned_stage_failure_without_scheduler_evidence(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    del files["state/job-id"]
+    del files["state/job-result.json"]
+    files["state/phase"] = b"stage_failed\n"
+    files["state/failure-class"] = b"transfer_failure\n"
+    files["logs/stage.log"] = b"exact stage failure\n"
+    transport.archive = _archive(files)
+
+    result = controller.collect(run_id)
+
+    destination = Path(str(result["destination"]))
+    assert result["failure_signature"] is not None
+    assert not (destination / "state/job-result.json").exists()
+    assert (destination / "logs/stage.log").read_text(encoding="ascii") == (
+        "exact stage failure\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "tampering",
+    (
+        "missing_result",
+        "malformed_result",
+        "non_object_result",
+        "missing_failure_class",
+        "unsupported_failure_class",
+        "wrong_result_run",
+        "wrong_result_profile",
+        "wrong_manifest_run",
+        "wrong_manifest_profile",
+        "wrong_manifest_site",
+        "wrong_manifest_source",
+        "wrong_manifest_lock",
+        "missing_job_id",
+        "wrong_job_id",
+        "active_scheduler",
+        "success_nonzero",
+        "failed_zero",
+        "missing_started_at",
+        "wrong_application_log",
+        "invalid_retained_artifacts",
+    ),
+)
+def test_collection_rejects_unauthenticated_terminal_evidence_before_publication(
+    tmp_path: Path,
+    tampering: str,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    manifest = json.loads(files["manifest.json"])
+    result = json.loads(files["state/job-result.json"])
+
+    if tampering == "missing_result":
+        del files["state/job-result.json"]
+    elif tampering == "malformed_result":
+        files["state/job-result.json"] = b"{invalid"
+    elif tampering == "non_object_result":
+        files["state/job-result.json"] = b"[]"
+    elif tampering == "missing_failure_class":
+        del result["failure_class"]
+    elif tampering == "unsupported_failure_class":
+        result["failure_class"] = "invented_failure"
+    elif tampering == "wrong_result_run":
+        result["run_id"] = "gtd-smoke-20260825T000000Z-111111111111-00000000"
+    elif tampering == "wrong_result_profile":
+        result["profile"] = "p0"
+    elif tampering == "wrong_manifest_run":
+        manifest["run_id"] = "gtd-smoke-20260825T000000Z-111111111111-00000000"
+    elif tampering == "wrong_manifest_profile":
+        manifest["profile"] = "p0"
+    elif tampering == "wrong_manifest_site":
+        manifest["site_id"] = "viper-cpu"
+    elif tampering == "wrong_manifest_source":
+        manifest["commit"] = "f" * 40
+    elif tampering == "wrong_manifest_lock":
+        manifest["pixi_lock_sha256"] = "f" * 64
+    elif tampering == "missing_job_id":
+        del files["state/job-id"]
+    elif tampering == "wrong_job_id":
+        result["job_id"] = "54321"
+    elif tampering == "active_scheduler":
+        result["scheduler_state"] = "RUNNING"
+    elif tampering == "success_nonzero":
+        result["failure_class"] = "success"
+        result["scheduler_state"] = "COMPLETED"
+    elif tampering == "failed_zero":
+        result["exit_code"] = 0
+    elif tampering == "missing_started_at":
+        del result["started_at"]
+    elif tampering == "wrong_application_log":
+        result["application_log"] = "logs/p0.log"
+    elif tampering == "invalid_retained_artifacts":
+        result["retained_artifacts"] = "artifacts/smoke"
+    else:
+        raise AssertionError(tampering)
+
+    files["manifest.json"] = json.dumps(manifest).encode()
+    if tampering not in {"missing_result", "malformed_result", "non_object_result"}:
+        files["state/job-result.json"] = json.dumps(result).encode()
+    transport.archive = _archive(files)
+    destination = controller.config.local_state_root / run_id / "collected"
+
+    with pytest.raises(RemoteOperationError) as error:
+        controller.collect(run_id)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+    assert not destination.exists()
+
+
+def test_collection_accepts_control_mtz_above_the_previous_file_limit(
+    tmp_path: Path,
+) -> None:
+    relative = "artifacts/heteromer-smoke/inputs/multicopy/derived/3U7Q.mtz"
+    archive = _archive({relative: bytes(20 * 1024 * 1024 + 1)})
+
+    extracted = _extract_approved_archive(
+        archive,
+        tmp_path / "collected",
+        progress=False,
+    )
+
+    assert extracted == [relative]
+    assert (tmp_path / "collected" / relative).stat().st_size == (20 * 1024 * 1024 + 1)
 
 
 def test_collection_rejects_path_traversal(tmp_path: Path) -> None:
@@ -1630,9 +3025,12 @@ def test_collection_rejects_path_traversal(tmp_path: Path) -> None:
 
 
 def test_collection_rejects_symlinked_parent(tmp_path: Path) -> None:
-    transport = FakeTransport(archive=_archive({"logs/smoke.log": b"bad"}))
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     run_id = str(controller.stage("smoke", "HEAD")["run_id"])
+    files = _owned_terminal_files(controller, run_id)
+    files["logs/smoke.log"] = b"bad"
+    transport.archive = _archive(files)
     destination = tmp_path / ".untracked" / "hpc-test" / run_id / "collected"
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -1842,18 +3240,13 @@ def test_review_collection_does_not_filter_on_numeric_screen(tmp_path: Path) -> 
 
 
 def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "test_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-        }
-    ).encode()
-    transport = FakeTransport(archive=_archive({"state/job-result.json": job_result}))
+    transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     first = str(controller.stage("smoke", "HEAD")["run_id"])
+    transport.archive = _archive(_owned_terminal_files(controller, first))
     controller.collect(first)
     second = str(controller.stage("smoke", "HEAD", parent_run_id=first)["run_id"])
+    transport.archive = _archive(_owned_terminal_files(controller, second))
     controller.collect(second)
 
     with pytest.raises(ValidationError, match="occurred twice"):
@@ -1861,36 +3254,92 @@ def test_same_failure_twice_stops_the_feedback_chain(tmp_path: Path) -> None:
 
 
 def test_distinct_application_diagnostics_do_not_collide(tmp_path: Path) -> None:
-    job_result = json.dumps(
-        {
-            "failure_class": "environment_failure",
-            "exit_code": 1,
-            "scheduler_state": "FAILED",
-            "application_log": "logs/smoke.log",
-        }
-    ).encode()
     transport = FakeTransport()
     controller = _controller(tmp_path, transport)
     first = str(controller.stage("smoke", "HEAD")["run_id"])
-    transport.archive = _archive(
-        {
-            "state/job-result.json": job_result,
-            "logs/smoke.log": b"package resolution failed\n",
-        }
+    files = _owned_terminal_files(
+        controller, first, failure_class="environment_failure"
     )
+    files["logs/smoke.log"] = b"package resolution failed\n"
+    transport.archive = _archive(files)
     first_result = controller.collect(first)
     second = str(controller.stage("smoke", "HEAD", parent_run_id=first)["run_id"])
-    transport.archive = _archive(
-        {
-            "state/job-result.json": job_result,
-            "logs/smoke.log": b"phenix.xtriage probe timed out\n",
-        }
+    files = _owned_terminal_files(
+        controller, second, failure_class="environment_failure"
     )
+    files["logs/smoke.log"] = b"phenix.xtriage probe timed out\n"
+    transport.archive = _archive(files)
     second_result = controller.collect(second)
 
     assert first_result["failure_signature"] != second_result["failure_signature"]
     third = controller.stage("smoke", "HEAD", parent_run_id=second)
     assert third["iteration"] == 3
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        None,
+        b"{invalid",
+        b"[]",
+        b'{"failure_class":"invented_failure","exit_code":1,"scheduler_state":"FAILED"}',
+        b'{"failure_class":"success","exit_code":1,"scheduler_state":"COMPLETED"}',
+        b'{"failure_class":"test_failure","exit_code":0,"scheduler_state":"FAILED"}',
+    ),
+)
+def test_failure_signature_rejects_missing_or_contradictory_terminal_evidence(
+    tmp_path: Path,
+    payload: bytes | None,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    if payload is not None:
+        (state / "job-result.json").write_bytes(payload)
+
+    with pytest.raises(RemoteOperationError) as error:
+        _failure_signature(tmp_path)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+
+
+@pytest.mark.parametrize("profile", ("heteromer-smoke", "phase3-phenix-probe"))
+def test_phase3_failure_signatures_bind_normalised_application_logs(
+    tmp_path: Path,
+    profile: str,
+) -> None:
+    signatures: list[str | None] = []
+    diagnostics = ("same Phaser error", "same Phaser error", "different Phaser error")
+    for index, diagnostic in enumerate(diagnostics, start=1):
+        destination = tmp_path / profile / str(index)
+        state = destination / "state"
+        logs = destination / "logs"
+        state.mkdir(parents=True)
+        logs.mkdir()
+        (state / "job-result.json").write_text(
+            json.dumps(
+                {
+                    "failure_class": "test_failure",
+                    "exit_code": 1,
+                    "scheduler_state": "FAILED",
+                    "application_log": f"logs/{profile}.log",
+                }
+            ),
+            encoding="utf-8",
+        )
+        run_id = f"gtd-{profile}-20260825T01000{index}Z-{index:012x}-{index:08x}"
+        (logs / f"{profile}.log").write_text(
+            f"run={run_id}\n"
+            f"time=2026-08-25T01:00:0{index}Z\n"
+            f"source={index:040x}\n"
+            f"slurm-{index}\n"
+            f"error={diagnostic}\n",
+            encoding="utf-8",
+        )
+        signatures.append(_failure_signature(destination))
+
+    assert signatures[0] is not None
+    assert signatures[0] == signatures[1]
+    assert signatures[0] != signatures[2]
 
 
 def test_unowned_run_cannot_be_cancelled(tmp_path: Path) -> None:

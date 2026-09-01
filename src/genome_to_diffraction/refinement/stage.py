@@ -26,12 +26,14 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
+    CopyCountAssessment,
     MrHypothesis,
     MtzPreflightRecord,
+    NormalisedMrResult,
     SequenceGroupRecord,
     SourceProteinRecord,
 )
@@ -70,7 +72,7 @@ class LiveT12StageRequest:
     """Normal-workflow inputs after explicit MR-seed approval and copy search."""
 
     approved_stage: Path
-    review_package: Path
+    review_package: Path | None
     additional_copy_results: tuple[Path, ...]
     hypotheses_jsonl: Path
     sequence_groups_jsonl: Path
@@ -80,6 +82,7 @@ class LiveT12StageRequest:
     phenix_manifest: Path
     output_directory: Path
     progress: bool = True
+    phase3_seed_stage_manifest: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +93,7 @@ class LiveT12StageOutput:
     finalists: Path
     copy_report_tsv: Path
     copy_report_markdown: Path
+    copy_assessments_jsonl: Path | None
     seed_count: int
 
 
@@ -648,80 +652,124 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
     """
 
     approved_root = _directory(request.approved_stage, "approved M4 stage")
-    review_root = _directory(request.review_package, "MR review package")
     output_path = request.output_directory
     if output_path.is_symlink() or output_path.exists():
         raise T12StageError(f"live T12 stage output already exists: {output_path}")
     output = output_path.absolute()
     output.mkdir(parents=True)
 
-    approved_manifest_path = _regular(
-        approved_root / "live_m4_stage_manifest.json", "live M4 stage manifest"
-    )
-    approved_manifest = _load_object(approved_manifest_path, "live M4 stage manifest")
-    if (
-        approved_manifest.get("stage_kind") != "normal_workflow_post_mr_seed"
-        or approved_manifest.get("all_approved_seeds_retained") is not True
-        or approved_manifest.get("numeric_score_filter_applied") is not False
-        or approved_manifest.get("execution_status")
-        != ExecutionStatus.COMPLETED_SUCCESS.value
-    ):
-        raise T12StageError("live M4 stage is not accepted retain-all evidence")
-    approved_ids = _string_list(
-        approved_manifest.get("approved_solution_ids"), "approved solution IDs"
-    )
+    validation_path: Path | None = None
+    decisions_path: Path | None = None
+    if request.phase3_seed_stage_manifest is None:
+        if request.review_package is None:
+            raise T12StageError("legacy live T12 requires its MR review package")
+        review_root = _directory(request.review_package, "MR review package")
+        approved_manifest_path = _regular(
+            approved_root / "live_m4_stage_manifest.json", "live M4 stage manifest"
+        )
+        approved_manifest = _load_object(
+            approved_manifest_path, "live M4 stage manifest"
+        )
+        if (
+            approved_manifest.get("stage_kind") != "normal_workflow_post_mr_seed"
+            or approved_manifest.get("all_approved_seeds_retained") is not True
+            or approved_manifest.get("numeric_score_filter_applied") is not False
+            or approved_manifest.get("execution_status")
+            != ExecutionStatus.COMPLETED_SUCCESS.value
+        ):
+            raise T12StageError("live M4 stage is not accepted retain-all evidence")
+        approved_ids = _string_list(
+            approved_manifest.get("approved_solution_ids"), "approved solution IDs"
+        )
+        approved_seeds_path = _regular(
+            approved_root / "approved_seeds.tsv", "approved seed table"
+        )
+        additional_seeds_path = _regular(
+            approved_root / "additional_copy_seeds.tsv", "additional-copy seed table"
+        )
+        validation_path = _regular(
+            approved_root / "validated_mr_seed_decisions.json",
+            "MR decision validation",
+        )
+        decisions_path = _regular(
+            approved_root / "approved_mr_seeds.tsv", "MR seed decisions"
+        )
+        if (
+            sha256_file(approved_seeds_path)
+            != approved_manifest.get("approved_seeds_sha256")
+            or sha256_file(additional_seeds_path)
+            != approved_manifest.get("additional_copy_seeds_sha256")
+            or sha256_file(validation_path)
+            != approved_manifest.get("validation_sha256")
+            or sha256_file(decisions_path) != approved_manifest.get("decisions_sha256")
+        ):
+            raise T12StageError("live M4 stage file checksum differs from its manifest")
+        validation = _load_object(validation_path, "MR decision validation")
+        review_id = _required_string(validation.get("review_id"), "MR review ID")
+        if (
+            validation.get("execution_status")
+            != ExecutionStatus.COMPLETED_SUCCESS.value
+            or validation.get("checkpoint") != "mr_seed"
+            or validation.get("approved_solution_ids") != list(approved_ids)
+            or approved_manifest.get("review_id") != review_id
+        ):
+            raise T12StageError("MR decision validation differs from the live M4 stage")
+        review_manifest_path = _regular(
+            review_root / "mr_seed_review_manifest.json", "MR review manifest"
+        )
+        review_manifest_sha = sha256_file(review_manifest_path)
+        review_manifest = _load_object(review_manifest_path, "MR review manifest")
+        if (
+            review_manifest_sha != approved_manifest.get("review_manifest_sha256")
+            or review_manifest_sha != validation.get("package_manifest_sha256")
+            or review_manifest.get("package_id")
+            != approved_manifest.get("review_package_id")
+            or review_manifest.get("package_id") != validation.get("package_id")
+        ):
+            raise T12StageError(
+                "MR review package differs from the approved live stage"
+            )
+    else:
+        from genome_to_diffraction.mr.stage_add_copy import (
+            validate_phase3_seed_stage,
+        )
+
+        if request.review_package is not None:
+            raise T12StageError("Phase III live T12 rejects a legacy review package")
+        try:
+            phase3 = validate_phase3_seed_stage(
+                request.phase3_seed_stage_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+            )
+        except (OSError, ValueError) as error:
+            raise T12StageError(f"Phase III seed stage is invalid: {error}") from error
+        if phase3.root != approved_root:
+            raise T12StageError("Phase III seed-stage manifest belongs to another root")
+        approved_manifest_path = request.phase3_seed_stage_manifest.resolve(strict=True)
+        approved_manifest = _load_object(
+            approved_manifest_path, "Phase III seed-stage manifest"
+        )
+        approved_ids = phase3.approved_solution_ids
+        if not approved_ids:
+            raise T12StageError("Phase III live T12 has no approved A seed")
+        approved_seeds_path = _regular(
+            approved_root / "approved_seeds.tsv", "approved seed table"
+        )
+        additional_seeds_path = _regular(
+            approved_root / "additional_copy_seeds.tsv", "additional-copy seed table"
+        )
+        review_root = phase3.review_root
+        review_manifest_path = phase3.review_manifest
+        review_manifest_sha = sha256_file(review_manifest_path)
+        review_manifest = phase3.review_document
+        review_id = phase3.review_id
+
     if approved_manifest.get("approved_seed_count") != len(approved_ids):
         raise T12StageError("live M4 approved seed count is inconsistent")
-
-    approved_seeds_path = _regular(
-        approved_root / "approved_seeds.tsv", "approved seed table"
-    )
-    additional_seeds_path = _regular(
-        approved_root / "additional_copy_seeds.tsv", "additional-copy seed table"
-    )
-    validation_path = _regular(
-        approved_root / "validated_mr_seed_decisions.json", "MR decision validation"
-    )
-    decisions_path = _regular(
-        approved_root / "approved_mr_seeds.tsv", "MR seed decisions"
-    )
-    if (
-        sha256_file(approved_seeds_path)
-        != approved_manifest.get("approved_seeds_sha256")
-        or sha256_file(additional_seeds_path)
-        != approved_manifest.get("additional_copy_seeds_sha256")
-        or sha256_file(validation_path) != approved_manifest.get("validation_sha256")
-        or sha256_file(decisions_path) != approved_manifest.get("decisions_sha256")
-    ):
-        raise T12StageError("live M4 stage file checksum differs from its manifest")
     approved_rows = _read_approved_seed_rows(approved_seeds_path)
     additional_rows = _read_approved_seed_rows(additional_seeds_path, allow_empty=True)
     if set(approved_rows) != set(approved_ids):
         raise T12StageError("approved seed table identities differ from the stage")
-
-    validation = _load_object(validation_path, "MR decision validation")
-    review_id = _required_string(validation.get("review_id"), "MR review ID")
-    if (
-        validation.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
-        or validation.get("checkpoint") != "mr_seed"
-        or validation.get("approved_solution_ids") != list(approved_ids)
-        or approved_manifest.get("review_id") != review_id
-    ):
-        raise T12StageError("MR decision validation differs from the live M4 stage")
-
-    review_manifest_path = _regular(
-        review_root / "mr_seed_review_manifest.json", "MR review manifest"
-    )
-    review_manifest_sha = sha256_file(review_manifest_path)
-    review_manifest = _load_object(review_manifest_path, "MR review manifest")
-    if (
-        review_manifest_sha != approved_manifest.get("review_manifest_sha256")
-        or review_manifest_sha != validation.get("package_manifest_sha256")
-        or review_manifest.get("package_id")
-        != approved_manifest.get("review_package_id")
-        or review_manifest.get("package_id") != validation.get("package_id")
-    ):
-        raise T12StageError("MR review package differs from the approved live stage")
     raw_items = review_manifest.get("items")
     if not isinstance(raw_items, list):
         raise T12StageError("MR review manifest has no item inventory")
@@ -748,7 +796,15 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
     ):
         raise T12StageError("live M4 model-source identities are inconsistent")
 
-    seed_inputs: dict[str, tuple[MrHypothesis, _SupportedState, dict[str, object]]] = {}
+    seed_inputs: dict[
+        str,
+        tuple[
+            MrHypothesis,
+            _SupportedState,
+            dict[str, object],
+            NormalisedMrResult,
+        ],
+    ] = {}
     required_additional_ids: set[str] = set()
     for seed_id in approved_ids:
         raw_source = raw_model_sources.get(seed_id)
@@ -764,16 +820,21 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         if hypothesis is None:
             raise T12StageError(f"approved hypothesis is absent: {hypothesis_id}")
         expected_count = source.get("expected_copy_count")
+        placed_copy_count = source.get("placed_copy_count")
         requires_additional = source.get("requires_additional_copy")
         if (
-            item.get("hypothesis_id") != hypothesis.hypothesis_id
+            isinstance(placed_copy_count, bool)
+            or not isinstance(placed_copy_count, int)
+            or not 1 <= placed_copy_count <= hypothesis.copy_count_expected
+            or item.get("hypothesis_id") != hypothesis.hypothesis_id
             or item.get("sequence_group_id") != hypothesis.sequence_group_id
             or source.get("sequence_group_id") != hypothesis.sequence_group_id
             or expected_count != hypothesis.copy_count_expected
-            or requires_additional is not (hypothesis.copy_count_expected > 1)
+            or requires_additional
+            is not (placed_copy_count < hypothesis.copy_count_expected)
             or row.get("expected_copy_count") != str(hypothesis.copy_count_expected)
             or row.get("requires_additional_copy")
-            != str(hypothesis.copy_count_expected > 1).lower()
+            != str(placed_copy_count < hypothesis.copy_count_expected).lower()
         ):
             raise T12StageError(f"approved seed metadata is inconsistent: {seed_id}")
         staged_model_sha = _sha256_value(
@@ -818,17 +879,48 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             or sha256_file(solution_mtz) != solution_mtz_sha
         ):
             raise T12StageError(f"first-copy review asset checksum mismatch: {seed_id}")
+        normalised_result = _owned_regular(
+            review_root,
+            copied.get("normalised_result"),
+            "first-copy normalised result",
+        )
+        if sha256_file(normalised_result) != copied_sha.get("normalised_result"):
+            raise T12StageError(f"first-copy result checksum mismatch: {seed_id}")
+        normalised_records = _read_jsonl(
+            normalised_result,
+            NormalisedMrResult,
+            "first-copy normalised result",
+        )
+        if len(normalised_records) != 1:
+            raise T12StageError(f"first-copy result count differs: {seed_id}")
+        first_result = normalised_records[0]
+        placed_copy_count = source.get("placed_copy_count")
+        requires_additional = source.get("requires_additional_copy")
+        if (
+            isinstance(placed_copy_count, bool)
+            or not isinstance(placed_copy_count, int)
+            or not 1 <= placed_copy_count <= hypothesis.copy_count_expected
+            or requires_additional
+            is not (placed_copy_count < hypothesis.copy_count_expected)
+            or first_result.hypothesis_id != hypothesis.hypothesis_id
+            or first_result.execution_status is not ExecutionStatus.COMPLETED_HIT
+            or first_result.placed_copy_count != placed_copy_count
+            or first_result.solution_coordinate_sha256 != coordinate_sha
+        ):
+            raise T12StageError(
+                f"first-copy placed-copy evidence is invalid: {seed_id}"
+            )
         root_state = _SupportedState(
             solution_id=seed_id,
-            copy_count=1,
+            copy_count=placed_copy_count,
             coordinate=coordinate,
             coordinate_sha256=coordinate_sha,
             solution_mtz=solution_mtz,
             solution_mtz_sha256=solution_mtz_sha,
             source_kind="first_copy_review_solution",
         )
-        seed_inputs[seed_id] = (hypothesis, root_state, source)
-        if hypothesis.copy_count_expected > 1:
+        seed_inputs[seed_id] = (hypothesis, root_state, source, first_result)
+        if requires_additional:
             required_additional_ids.add(seed_id)
 
     if set(additional_rows) != required_additional_ids:
@@ -873,7 +965,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
     group_ids = {group.sequence_group_id for group in groups}
     source_group_ids = {source.sequence_group_id for source in sources}
     candidate_group_ids = {
-        hypothesis.sequence_group_id for hypothesis, _, _ in seed_inputs.values()
+        hypothesis.sequence_group_id for hypothesis, _, _, _ in seed_inputs.values()
     }
     if source_group_ids != group_ids or not candidate_group_ids.issubset(group_ids):
         raise T12StageError(
@@ -893,7 +985,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         or selected_preflight.selected_observation_labels is None
     ):
         raise T12StageError("live T12 refinement requires labelled FreeR observations")
-    for hypothesis, _, _ in seed_inputs.values():
+    for hypothesis, _, _, _ in seed_inputs.values():
         if (
             hypothesis.crystal_id != selected_preflight.crystal_id
             or hypothesis.obs_labels != selected_preflight.selected_observation_labels
@@ -928,6 +1020,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         "|---|---:|---:|---:|---|",
     ]
     candidate_documents: list[dict[str, object]] = []
+    copy_assessments: list[CopyCountAssessment] = []
     iterator = tqdm(
         approved_ids,
         desc="Stage live T12 parents",
@@ -935,10 +1028,10 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         disable=not request.progress,
     )
     for seed_id in iterator:
-        hypothesis, root_state, model_source = seed_inputs[seed_id]
+        hypothesis, root_state, model_source, first_result = seed_inputs[seed_id]
         series: _CopySeries | None = None
         retained = root_state
-        if hypothesis.copy_count_expected > 1:
+        if model_source.get("requires_additional_copy") is True:
             series = _load_copy_series(
                 result_roots[seed_id],
                 seed_solution_id=seed_id,
@@ -977,15 +1070,99 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                     f"retained state differs from typed copy result: {seed_id}"
                 )
 
+        if request.phase3_seed_stage_manifest is not None:
+            assessment_identity = {
+                "adapter_version": "phase3-copy-count-assessment-v1",
+                "seed_solution_id": seed_id,
+                "first_result_sha256": copied_sha["normalised_result"],
+                "attempt_ids": (
+                    [item.attempt_id for item in series.results]
+                    if series is not None
+                    else []
+                ),
+            }
+            final_execution_status = (
+                final_result.execution_status
+                if final_result is not None
+                else first_result.execution_status
+            )
+            final_top_solution_packed = (
+                final_result.top_solution_packed
+                if final_result is not None
+                else first_result.packing_summary.get("top_solution_packed") is True
+            )
+            final_placement_count = (
+                final_result.phaser_placement_count
+                if final_result is not None
+                else first_result.placed_copy_count
+            )
+            copy_assessments.append(
+                CopyCountAssessment(
+                    schema_version="1.0",
+                    assessment_id=content_id(
+                        "copyassessment_",
+                        assessment_identity,
+                    ),
+                    review_id=review_id,
+                    seed_solution_id=seed_id,
+                    hypothesis_id=hypothesis.hypothesis_id,
+                    sequence_group_id=hypothesis.sequence_group_id,
+                    expected_copy_count=hypothesis.copy_count_expected,
+                    best_supported_copy_count=retained.copy_count,
+                    attempted_transition_count=len(attempted_numbers),
+                    reached_expected_copy_count=reached_expected,
+                    final_execution_status=final_execution_status,
+                    final_llg=(
+                        final_result.llg
+                        if final_result is not None
+                        else first_result.llg
+                    ),
+                    final_tfz=(
+                        final_result.tfz
+                        if final_result is not None
+                        else first_result.tfz
+                    ),
+                    final_llg_delta_from_parent=(
+                        final_result.llg_delta_from_parent
+                        if final_result is not None
+                        else None
+                    ),
+                    final_top_solution_packed=final_top_solution_packed,
+                    final_placement_count=final_placement_count,
+                    terminal_reason=(
+                        "expected_copy_count_reached"
+                        if reached_expected
+                        else "additional_copy_not_supported"
+                    ),
+                    review_flags=(
+                        ()
+                        if reached_expected
+                        else (
+                            "expected_copy_count_not_reached",
+                            "possible_residual_content_or_special_position",
+                            "copy_absence_not_proven",
+                        )
+                    ),
+                )
+            )
+
         finalist_rows.append(
             "\t".join(
                 (
                     seed_id,
                     hypothesis.sequence_group_id,
                     str(retained.copy_count),
-                    str(coordinate_out),
+                    (
+                        coordinate_out.relative_to(output).as_posix()
+                        if request.phase3_seed_stage_manifest is not None
+                        else str(coordinate_out)
+                    ),
                     retained.coordinate_sha256,
-                    str(diffraction_mtz),
+                    (
+                        diffraction_mtz.relative_to(output).as_posix()
+                        if request.phase3_seed_stage_manifest is not None
+                        else str(diffraction_mtz)
+                    ),
                     diffraction_sha,
                     str(selected_preflight.resolution_high_a),
                     selected_preflight.selected_observation_labels,
@@ -1146,6 +1323,13 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         + "\n".join(report_markdown_rows)
         + "\n",
     )
+    copy_assessments_jsonl: Path | None = None
+    if request.phase3_seed_stage_manifest is not None:
+        copy_assessments_jsonl = output / "copy_count_assessments.jsonl"
+        atomic_write_text(
+            copy_assessments_jsonl,
+            "".join(f"{canonical_json_text(item)}\n" for item in copy_assessments),
+        )
 
     stage_identity = {
         "approved_stage_manifest_sha256": sha256_file(approved_manifest_path),
@@ -1168,13 +1352,33 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             for item in candidate_documents
         ],
     }
+    if copy_assessments_jsonl is not None:
+        stage_identity["copy_count_assessments_sha256"] = sha256_file(
+            copy_assessments_jsonl
+        )
+    if request.phase3_seed_stage_manifest is None:
+        assert decisions_path is not None
+        assert validation_path is not None
+        approval_identity = {
+            "approved_decisions_sha256": sha256_file(decisions_path),
+            "approved_validation_sha256": sha256_file(validation_path),
+        }
+        schema_version = "1.0"
+        profile = "normal_workflow"
+    else:
+        approval_identity = {
+            "phase3_seed_stage_id": approved_manifest.get("stage_id"),
+            "phase3_decision_file_id": review_id,
+        }
+        schema_version = "2.0"
+        profile = "phase3_reviewed_single_component"
     manifest = output / "t12_stage_manifest.json"
     atomic_write_json(
         manifest,
         {
-            "schema_version": "1.0",
+            "schema_version": schema_version,
             "stage_id": content_id("t12stage_", stage_identity),
-            "profile": "normal_workflow",
+            "profile": profile,
             "selection_policy": "retain_all_best_checksum_authenticated_copy_states",
             "review_id": review_id,
             "seed_count": len(candidate_documents),
@@ -1182,8 +1386,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             "numeric_score_filter_applied": False,
             "failed_addition_proves_absence": False,
             **stage_identity,
-            "approved_decisions_sha256": sha256_file(decisions_path),
-            "approved_validation_sha256": sha256_file(validation_path),
+            **approval_identity,
             "diffraction_mtz_free_flag_status": selected_preflight.free_flag_status,
             "observation_labels": selected_preflight.selected_observation_labels,
             "resolution_high_a": selected_preflight.resolution_high_a,
@@ -1207,5 +1410,6 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         finalists=finalists,
         copy_report_tsv=copy_report_tsv,
         copy_report_markdown=copy_report_markdown,
+        copy_assessments_jsonl=copy_assessments_jsonl,
         seed_count=len(candidate_documents),
     )

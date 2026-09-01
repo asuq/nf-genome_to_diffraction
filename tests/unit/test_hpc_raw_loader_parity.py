@@ -14,8 +14,10 @@ from genome_to_diffraction.hpc.client import (
 )
 from genome_to_diffraction.hpc.m4_import import _load_object as load_m4_object
 from genome_to_diffraction.hpc.models import (
+    FailureClass,
     HpcConfig,
     HpcInterfaceError,
+    RemoteOperationError,
     load_local_run,
 )
 from genome_to_diffraction.hpc.p0_inputs import _load_spec
@@ -94,11 +96,18 @@ def test_p0_spec_loader_rejects_ambiguous_numeric_documents(
 
 
 @pytest.mark.parametrize("mutation", ("duplicate", "non-finite"))
-def test_optional_failure_signature_fails_closed_on_ambiguous_job_result(
+def test_failure_signature_rejects_ambiguous_job_result(
     tmp_path: Path, mutation: str
 ) -> None:
     result = tmp_path / "state" / "job-result.json"
     result.parent.mkdir()
     result.write_text(_contents(mutation), encoding="utf-8")
 
-    assert _failure_signature(tmp_path) is None
+    with pytest.raises(
+        RemoteOperationError, match=r"job-result\.json is invalid"
+    ) as error:
+        _failure_signature(tmp_path)
+
+    assert error.value.failure_class == FailureClass.TRANSFER_FAILURE
+    assert error.value.__cause__ is not None
+    assert "/root/value" in str(error.value.__cause__)

@@ -1,11 +1,18 @@
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from genome_to_diffraction.checksums import sha256_file
-from genome_to_diffraction.ids import sequence_digest
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.ids import canonical_json_text, content_id, sequence_digest
+from genome_to_diffraction.review.phase3_package import (
+    PhaseIIIReviewPackageError,
+    build_owned_phase3_composition_review_package,
+    build_owned_phase3_sequence_review_package,
+    validate_phase3_review_package,
+)
 from genome_to_diffraction.review.sequence_checkpoint import (
     LiveSequenceCheckpointRequest,
     SequenceCheckpointError,
@@ -13,6 +20,23 @@ from genome_to_diffraction.review.sequence_checkpoint import (
     build_live_sequence_checkpoint,
     build_sequence_checkpoint,
 )
+from genome_to_diffraction.schemas.results import CopyCountAssessment
+from genome_to_diffraction.schemas.v2 import (
+    ExecutionArtifactIdentity,
+    PhaseIIIExecutionIdentity,
+    PhaseIIIReviewCheckpoint,
+)
+from genome_to_diffraction.schemas.v2.diffraction import (
+    DiffractionSelection,
+    DiffractionValueSource,
+    FreeRConventionStatus,
+    FreeRDistributionSummary,
+    FreeRFlagCount,
+    FreeRIdentity,
+    diffraction_dataset_id,
+)
+from genome_to_diffraction.status import ExecutionStatus
+from tests.support.unknown_pass1_fixture import materialise_unknown_pass1_public_fixture
 
 
 def _write_jsonl(path: Path, records: list[dict[str, object]]) -> None:
@@ -387,6 +411,149 @@ def _live_request(
     )
 
 
+def _phase3_live_request(tmp_path: Path) -> LiveSequenceCheckpointRequest:
+    request = _live_request(tmp_path)
+    stage_manifest_path = request.stage_bundle / "t12_stage_manifest.json"
+    stage_manifest = json.loads(stage_manifest_path.read_text(encoding="utf-8"))
+    stage_manifest["schema_version"] = "2.0"
+    stage_manifest["profile"] = "phase3_reviewed_single_component"
+    assessments = tuple(
+        CopyCountAssessment(
+            schema_version="1.0",
+            assessment_id=content_id(
+                "copyassessment_",
+                {
+                    "adapter_version": "phase3-copy-count-assessment-v1",
+                    "seed_solution_id": candidate["seed_solution_id"],
+                    "first_result_sha256": "a" * 64,
+                    "attempt_ids": [],
+                },
+            ),
+            review_id="phase3-review-fixture",
+            seed_solution_id=str(candidate["seed_solution_id"]),
+            hypothesis_id=f"hypothesis_{candidate['seed_solution_id']}",
+            sequence_group_id=str(candidate["sequence_group_id"]),
+            expected_copy_count=int(candidate["best_supported_copy_count"]),
+            best_supported_copy_count=int(candidate["best_supported_copy_count"]),
+            attempted_transition_count=0,
+            reached_expected_copy_count=True,
+            final_execution_status=ExecutionStatus.COMPLETED_HIT,
+            final_top_solution_packed=True,
+            final_placement_count=int(candidate["best_supported_copy_count"]),
+            terminal_reason="expected_copy_count_reached",
+        )
+        for candidate in stage_manifest["candidates"]
+    )
+    copy_assessments = request.stage_bundle / "copy_count_assessments.jsonl"
+    copy_assessments.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in assessments),
+        encoding="utf-8",
+    )
+    stage_manifest["copy_count_assessments_sha256"] = sha256_file(copy_assessments)
+    stage_manifest_path.write_text(
+        json.dumps(stage_manifest, sort_keys=True),
+        encoding="utf-8",
+    )
+    preflight = json.loads(
+        (request.stage_bundle / "inputs/preflight.jsonl").read_text(encoding="utf-8")
+    )
+    crystal_id = str(preflight["crystal_id"])
+    mtz_sha256 = str(preflight["mtz_sha256"])
+    dataset_id = diffraction_dataset_id(crystal_id=crystal_id, mtz_sha256=mtz_sha256)
+    selection = DiffractionSelection.from_content(
+        crystal_id=crystal_id,
+        diffraction_dataset_id=dataset_id,
+        mtz_sha256=mtz_sha256,
+        preflight_id=str(preflight["preflight_id"]),
+        preflight_record_sha256="a" * 64,
+        crystal_manifest_sha256="b" * 64,
+        observation_dataset_id=1,
+        observation_labels=("F", "SIGF"),
+        observation_type="amplitude",
+        selected_space_group="P 1",
+        resolution_low_a=50.0,
+        resolution_high_a=2.0,
+        observation_source=DiffractionValueSource.MTZ_PREFLIGHT_AUTOMATIC,
+        space_group_source=DiffractionValueSource.MTZ_HEADER,
+        resolution_low_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+        resolution_high_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+    )
+    free_r = FreeRIdentity.from_content(
+        diffraction_selection_id=selection.diffraction_selection_id,
+        diffraction_dataset_id=dataset_id,
+        crystal_id=crystal_id,
+        mtz_sha256=mtz_sha256,
+        observation_dataset_id=1,
+        free_r_dataset_id=1,
+        free_r_label="FreeR_flag",
+        distribution=FreeRDistributionSummary(
+            reflection_count=2,
+            distinct_flag_values=2,
+            flag_counts=(
+                FreeRFlagCount(flag_value=0, reflection_count=1),
+                FreeRFlagCount(flag_value=1, reflection_count=1),
+            ),
+        ),
+        hkl_set_sha256="c" * 64,
+        hkl_to_flag_membership_sha256="d" * 64,
+        convention_status=FreeRConventionStatus.UNRESOLVED,
+    )
+    directories: list[Path] = []
+    for original in request.candidate_result_directories:
+        refinement = json.loads(
+            (original / "brief_refinement_result.json").read_text(encoding="utf-8")
+        )
+        directory = original.with_name(
+            f"phase3_t12_{crystal_id}_{refinement['seed_solution_id']}"
+        )
+        original.rename(directory)
+        command = {
+            "schema_version": "2.0",
+            "refinement_id": refinement["refinement_id"],
+            "diffraction_selection": selection.model_dump(mode="json"),
+            "free_r_identity": free_r.model_dump(mode="json"),
+        }
+        (directory / "t12_command.json").write_text(
+            json.dumps(command, sort_keys=True), encoding="utf-8"
+        )
+        directories.append(directory)
+    return replace(
+        request,
+        crystal_id=crystal_id,
+        candidate_result_directories=tuple(directories),
+    )
+
+
+def _phase3_sequence_execution(
+    tmp_path: Path,
+    request: LiveSequenceCheckpointRequest,
+) -> Path:
+    fixture_root = tmp_path / "identity-fixture"
+    fixture_root.mkdir()
+    fixture = materialise_unknown_pass1_public_fixture(fixture_root)
+    original = PhaseIIIExecutionIdentity.model_validate_json(
+        fixture.execution_identity.read_bytes()
+    )
+    mtz = request.stage_bundle / "inputs/diffraction.mtz"
+    assert request.crystal_id is not None
+    artifact = ExecutionArtifactIdentity.from_content(
+        scope="crystal",
+        owner_id=request.crystal_id,
+        role="mtz",
+        sha256=sha256_file(mtz),
+        size_bytes=mtz.stat().st_size,
+    )
+    values = original.model_dump(
+        mode="python",
+        exclude={"schema_version", "execution_identity_id"},
+    )
+    values["crystal_artifacts"] = (artifact,)
+    identity = PhaseIIIExecutionIdentity.from_content(**values)
+    path = tmp_path / "phase3-sequence-execution.json"
+    atomic_write_json(path, identity.model_dump(mode="json"))
+    return path
+
+
 def test_sequence_checkpoint_publishes_bounded_and_full_views(tmp_path: Path) -> None:
     output = build_sequence_checkpoint(_request(tmp_path))
 
@@ -504,6 +671,207 @@ def test_live_sequence_checkpoint_retains_typed_candidate_failure(
     assert (
         output.manifest_json.parent / f"assets/{failed_seed}/staged_parent.pdb"
     ).is_file()
+
+
+def test_phase3_live_sequence_checkpoint_binds_one_crystal_and_full_catalogue(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    output = build_live_sequence_checkpoint(request)
+
+    manifest = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert manifest["execution_mode"] == "phase3_reviewed_single_component"
+    assert manifest["crystal_context"]["crystal_id"] == request.crystal_id
+    assert manifest["diffraction_selection_id"].startswith("diffsel_")
+    assert manifest["free_r_identity_id"].startswith("freerid_")
+    assert manifest["finalist_count"] == 2
+    assert manifest["full_scored_row_count"] == 60
+    assert manifest["automatic_approval"] is False
+    assert (output.manifest_json.parent / "provenance/sequence_groups.jsonl").is_file()
+    assert (output.manifest_json.parent / "provenance/source_records.jsonl").is_file()
+
+
+@pytest.mark.parametrize("mutation", ["directory", "selection", "free_r", "refinement"])
+def test_phase3_live_sequence_checkpoint_rejects_cross_crystal_evidence(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    directory = request.candidate_result_directories[0]
+    if mutation == "directory":
+        renamed = directory.with_name(
+            directory.name.replace(str(request.crystal_id), "other")
+        )
+        directory.rename(renamed)
+        request = replace(
+            request,
+            candidate_result_directories=(
+                renamed,
+                *request.candidate_result_directories[1:],
+            ),
+        )
+    else:
+        command_path = directory / "t12_command.json"
+        command = json.loads(command_path.read_text(encoding="utf-8"))
+        if mutation == "selection":
+            command["diffraction_selection"]["crystal_id"] = "other"
+        elif mutation == "free_r":
+            command["free_r_identity"]["crystal_id"] = "other"
+        else:
+            command["refinement_id"] = "refine_" + "f" * 64
+        command_path.write_text(json.dumps(command, sort_keys=True), encoding="utf-8")
+
+    with pytest.raises(SequenceCheckpointError, match=r"identities|diffraction"):
+        build_live_sequence_checkpoint(request)
+
+
+def test_phase3_live_sequence_checkpoint_rejects_mismatched_preflight_crystal(
+    tmp_path: Path,
+) -> None:
+    request = replace(_phase3_live_request(tmp_path), crystal_id="other")
+
+    with pytest.raises(SequenceCheckpointError, match="crystal differs"):
+        build_live_sequence_checkpoint(request)
+
+
+def test_owned_phase3_sequence_package_retains_full_catalogue_and_coot_assets(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    checkpoint = build_live_sequence_checkpoint(request)
+    execution_identity = _phase3_sequence_execution(tmp_path, request)
+
+    package = build_owned_phase3_sequence_review_package(
+        sequence_checkpoint=checkpoint.manifest_json.parent,
+        execution_identity=execution_identity,
+        owned_parent_run_id="gtd-unknown-single-component-public-fixture",
+        crystal_id=str(request.crystal_id),
+        output_directory=tmp_path / "owned-sequence-package",
+    )
+
+    manifest = validate_phase3_review_package(package.manifest.parent)
+    assert manifest.checkpoint is PhaseIIIReviewCheckpoint.SEQUENCE
+    assert manifest.parent_profile == "unknown-single-component"
+    assert manifest.crystal_id == request.crystal_id
+    assert len(manifest.permitted_targets) == 10
+    assert "approve|no_assignment|retain_alternative" in package.review_table.read_text(
+        encoding="ascii"
+    )
+    assert any(
+        "brief_refine_001.mtz" in item.relative_path
+        for item in manifest.evidence_inventory
+    )
+    assert any(
+        "sequence_groups.jsonl" in item.relative_path
+        for item in manifest.evidence_inventory
+    )
+
+
+def test_owned_phase3_composition_package_targets_exact_refined_states(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    checkpoint = build_live_sequence_checkpoint(request)
+    execution_identity = _phase3_sequence_execution(tmp_path, request)
+
+    package = build_owned_phase3_composition_review_package(
+        sequence_checkpoint=checkpoint.manifest_json.parent,
+        execution_identity=execution_identity,
+        owned_parent_run_id="gtd-unknown-single-component-public-fixture",
+        crystal_id=str(request.crystal_id),
+        output_directory=tmp_path / "owned-composition-package",
+    )
+
+    manifest = validate_phase3_review_package(package.manifest.parent)
+    checkpoint_document = json.loads(
+        checkpoint.manifest_json.read_text(encoding="utf-8")
+    )
+    assert manifest.checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+    assert manifest.parent_profile == "unknown-single-component"
+    assert manifest.crystal_id == request.crystal_id
+    assert {item.item_id for item in manifest.permitted_targets} == {
+        str(item["seed_solution_id"])
+        for item in checkpoint_document["candidate_outcomes"]
+    }
+    assert "approve|defer|reject|retain_partial" in package.review_table.read_text(
+        encoding="ascii"
+    )
+    assert any(
+        "brief_refinement_result.json" in item.relative_path
+        for item in manifest.evidence_inventory
+    )
+
+
+@pytest.mark.parametrize("mutation", ["parent", "outcome", "refinement", "all_failed"])
+def test_owned_phase3_composition_package_rejects_unsupported_states(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    checkpoint = build_live_sequence_checkpoint(request)
+    execution_identity = _phase3_sequence_execution(tmp_path, request)
+    root = checkpoint.manifest_json.parent
+    parent = "gtd-unknown-single-component-public-fixture"
+    if mutation == "parent":
+        parent = "gtd-unknown-screen-public-fixture"
+    elif mutation == "refinement":
+        next((root / "evidence").rglob("brief_refinement_result.json")).write_text(
+            "{}\n", encoding="ascii"
+        )
+    else:
+        manifest = json.loads(checkpoint.manifest_json.read_text(encoding="utf-8"))
+        if mutation == "outcome":
+            manifest["candidate_outcomes"][0]["seed_solution_id"] = "sol_unknown"
+        else:
+            for outcome in manifest["candidate_outcomes"]:
+                outcome["refinement_execution_status"] = "failed_tool_execution"
+        checkpoint.manifest_json.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(PhaseIIIReviewPackageError):
+        build_owned_phase3_composition_review_package(
+            sequence_checkpoint=root,
+            execution_identity=execution_identity,
+            owned_parent_run_id=parent,
+            crystal_id=str(request.crystal_id),
+            output_directory=tmp_path / "owned-composition-package",
+        )
+
+
+@pytest.mark.parametrize("mutation", ["parent", "mtz", "table", "asset", "extra"])
+def test_owned_phase3_sequence_package_rejects_unowned_or_mutated_evidence(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    request = _phase3_live_request(tmp_path)
+    checkpoint = build_live_sequence_checkpoint(request)
+    execution_identity = _phase3_sequence_execution(tmp_path, request)
+    root = checkpoint.manifest_json.parent
+    parent = "gtd-unknown-single-component-public-fixture"
+    if mutation == "parent":
+        parent = "gtd-unknown-screen-public-fixture"
+    elif mutation == "mtz":
+        manifest = json.loads(checkpoint.manifest_json.read_text(encoding="utf-8"))
+        manifest["crystal_context"]["mtz_sha256"] = "f" * 64
+        checkpoint.manifest_json.write_text(json.dumps(manifest), encoding="utf-8")
+    elif mutation == "table":
+        (root / "sequence_approval_candidates.tsv").write_text(
+            "sequence_group_id\n", encoding="ascii"
+        )
+    elif mutation == "asset":
+        next((root / "assets").rglob("*.pdb")).write_text(
+            "substituted\n", encoding="ascii"
+        )
+    else:
+        (root / "unexpected.txt").write_text("extra\n", encoding="ascii")
+
+    with pytest.raises(PhaseIIIReviewPackageError):
+        build_owned_phase3_sequence_review_package(
+            sequence_checkpoint=root,
+            execution_identity=execution_identity,
+            owned_parent_run_id=parent,
+            crystal_id=str(request.crystal_id),
+            output_directory=tmp_path / "owned-sequence-package",
+        )
 
 
 def test_live_sequence_checkpoint_rejects_changed_stage_parent(

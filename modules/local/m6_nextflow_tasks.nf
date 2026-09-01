@@ -159,6 +159,39 @@ process M6_APPLY_POLICY {
     """
 }
 
+process M6_STAGE_COORDINATES {
+    tag "m6-coordinate-stage:${item[0]}"
+    // Materialise only already-qualified cache objects on the bounded outer
+    // controller. The Python adapter is explicitly offline and fails on a miss.
+    label 'run_local'
+
+    input:
+    item: Tuple
+
+    output:
+    result: Tuple = tuple(
+        item[0], item[1], item[2], item[3], item[4], file('m6_coordinate_stage')
+    )
+
+    script:
+    """
+    genome-to-diffraction --no-progress --log-format json \
+        benchmark stage-m6-coordinates \
+        --task '${item[1]}' \
+        --catalogue-bundle '${item[2]}' \
+        --policy-bundle '${item[4]}' \
+        --database-manifest '${item[5]}' \
+        --outdir m6_coordinate_stage
+    """
+
+    stub:
+    """
+    /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
+        '${projectDir}/tests/fixtures/stubs/m6_nextflow/coordinate_stage' \
+        m6_coordinate_stage
+    """
+}
+
 process M6_PREPARE_ACTIVE_CASE {
     tag "m6-case:${item[0]}"
     label 'm6_case_prepare'
@@ -177,7 +210,7 @@ process M6_PREPARE_ACTIVE_CASE {
         --preflight-bundle '${item[3]}' \
         --catalogue-bundle '${item[2]}' \
         --policy-bundle '${item[4]}' \
-        --database-manifest '${item[5]}' \
+        --coordinate-stage '${item[5]}' \
         --outdir m6_case_bundle
     """
 
@@ -205,7 +238,6 @@ process M6_PREPARE_EARLY_CASE {
         --task '${item[1]}' \
         --preflight-bundle '${item[3]}' \
         --catalogue-bundle '${item[2]}' \
-        --database-manifest '${item[4]}' \
         --outdir m6_case_bundle
     """
 
@@ -234,7 +266,7 @@ process M6_FIRST_COPY {
         --hypothesis-id '${item[3].baseName}' \
         --sequence-groups '${item[2]}/selected-candidates/sequence_groups.jsonl' \
         --processed-models '${item[2]}/first-copy-funnel/model_registry/processed_models.jsonl' \
-        --model-preparation-manifest '${item[2]}/first-copy-funnel/model_registry/model_preparation_manifest.json' \
+        --all-model-registry '${item[2]}/first-copy-funnel/model_registry/all_model_registry.json' \
         --preflight '${item[2]}/preflight_bundle/preflight/mtz_preflight.jsonl' \
         --mtz '${item[2]}/reflections.mtz' \
         --phenix-manifest '${item[4]}' \

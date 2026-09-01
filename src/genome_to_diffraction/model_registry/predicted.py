@@ -47,6 +47,7 @@ from genome_to_diffraction.schemas.results import (
     CoordinateSourceRecord,
     ProcessedModelRecord,
     SequenceGroupRecord,
+    StructuralSearchResult,
 )
 from genome_to_diffraction.status import (
     ExecutionStatus,
@@ -92,6 +93,7 @@ class PredictedModelPreparationRequest:
     sequence_groups_jsonl: Path
     phenix_manifest: Path
     output_directory: Path
+    provider_search_results_jsonl: Path | None = None
     coordinate_ids: tuple[str, ...] = ()
     timeout_seconds: float | None = None
     progress: bool = True
@@ -122,6 +124,7 @@ def _read_jsonl[T: ContractModel](
     *,
     label: str,
     progress: bool,
+    allow_empty: bool = False,
 ) -> tuple[T, ...]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
@@ -145,9 +148,48 @@ def _read_jsonl[T: ContractModel](
                 raise PredictedModelInputError(
                     f"invalid {label} record at line {line_number}: {resolved}"
                 ) from error
-    if not records:
+    if not records and not allow_empty:
         raise PredictedModelInputError(f"{label} input is empty: {resolved}")
     return tuple(records)
+
+
+def _validate_empty_provider_results(
+    request: PredictedModelPreparationRequest,
+    groups: Sequence[SequenceGroupRecord],
+) -> None:
+    if request.provider_search_results_jsonl is None:
+        raise PredictedModelInputError(
+            "empty coordinate sources require typed provider search results"
+        )
+    results = _read_jsonl(
+        request.provider_search_results_jsonl,
+        StructuralSearchResult,
+        label="provider search results",
+        progress=request.progress,
+    )
+    expected_groups = {group.sequence_group_id for group in groups}
+    if (
+        len(results) != len(expected_groups)
+        or {result.sequence_group_id for result in results} != expected_groups
+        or len({result.provider for result in results}) != 1
+    ):
+        raise PredictedModelInputError(
+            "provider search results do not cover every sequence group"
+        )
+    if any(
+        result.provider not in {"afdb_exact", "esm_atlas"}
+        or result.hit_count != 0
+        or result.execution_status
+        not in {
+            ExecutionStatus.COMPLETED_NO_HIT,
+            ExecutionStatus.SKIPPED_POLICY,
+            ExecutionStatus.SKIPPED_INELIGIBLE,
+        }
+        for result in results
+    ):
+        raise PredictedModelInputError(
+            "empty coordinate sources contradict typed provider search results"
+        )
 
 
 def _compress_ranges(chain_id: str, positions: Sequence[int]) -> tuple[str, ...]:
@@ -258,7 +300,7 @@ def _selected_sources(
             source for source in sources if source.provider in _PREDICTED_PROVIDERS
         )
     )
-    if not selected:
+    if not selected and sources:
         raise PredictedModelInputError("no predicted coordinate sources were selected")
     unsupported = sorted(
         source.coordinate_id
@@ -533,6 +575,7 @@ def prepare_predicted_models(
         CoordinateSourceRecord,
         label="coordinate source",
         progress=request.progress,
+        allow_empty=True,
     )
     groups = _read_jsonl(
         request.sequence_groups_jsonl,
@@ -540,6 +583,8 @@ def prepare_predicted_models(
         label="sequence group",
         progress=request.progress,
     )
+    if not sources:
+        _validate_empty_provider_results(request, groups)
     selected = _selected_sources(sources, request.coordinate_ids)
     groups_by_digest = _group_index(groups)
     phenix_manifest = request.phenix_manifest.resolve(strict=True)
@@ -600,6 +645,10 @@ def prepare_predicted_models(
         "phenix_manifest_sha256": manifest_sha256,
         "models": [record.model_id for record in records],
     }
+    if request.provider_search_results_jsonl is not None:
+        manifest_identity["provider_search_results_sha256"] = sha256_file(
+            request.provider_search_results_jsonl, progress=False
+        )
     manifest = {
         "schema_version": "1.0",
         "preparation_id": content_id("modelprep_", manifest_identity),
@@ -614,6 +663,10 @@ def prepare_predicted_models(
         "entries": entries,
         "execution_status": ExecutionStatus.COMPLETED_SUCCESS.value,
     }
+    if request.provider_search_results_jsonl is not None:
+        manifest["provider_search_results_sha256"] = manifest_identity[
+            "provider_search_results_sha256"
+        ]
     atomic_write_json(manifest_path, manifest)
     _LOGGER.info(
         "predicted-model preparation complete",

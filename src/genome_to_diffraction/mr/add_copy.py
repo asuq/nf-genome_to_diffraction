@@ -7,6 +7,10 @@ runs ``phenix.phaser`` with the approved coordinates fixed at the origin, and
 searches exactly one additional copy. A parsed but unpacked or absent addition
 retains the parent as best state and never proves that another copy is absent.
 
+An opt-in Phase III selection additionally binds the exact observation dataset,
+crystal symmetry, low/high resolution, immutable hypothesis, and source MTZ.
+Historical schema-v1 commands and identities remain unchanged without it.
+
 The cache identity is the review/seed identity plus parent, model, sequence, MTZ,
 Phenix-manifest, and command-policy checksums. Unit tests cover command assembly,
 packed/no-solution semantics, and checksum failures; real-runtime qualification is
@@ -25,21 +29,34 @@ from pydantic import ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
+    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
+)
+from genome_to_diffraction.diffraction import (
+    bind_phase3_hypothesis,
+    build_diffraction_command_binding,
+    load_diffraction_selection,
+    verify_diffraction_selection,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
     parse_phaser_log,
+    read_phaser_evidence_text,
+)
+from genome_to_diffraction.mr_resources import (
+    MrResourcePlanError,
+    verify_mr_thread_allocation,
 )
 from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
+from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
     MrHypothesis,
@@ -48,11 +65,18 @@ from genome_to_diffraction.schemas.results import (
     PreflightDecision,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionBoundHypothesis,
+    DiffractionCommandBinding,
+    DiffractionCommandConsumer,
+    DiffractionSelection,
+)
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v4"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v6"
+_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v8-resource-plan"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -87,8 +111,8 @@ def _reported_no_additional_solution(text: str) -> bool:
 class AddCopyRunRequest:
     """Immutable inputs for one approved fixed-parent additional-copy search."""
 
-    review_validation_json: Path
-    review_package_manifest: Path
+    review_validation_json: Path | None
+    review_package_manifest: Path | None
     seed_solution_id: str
     hypotheses_jsonl: Path
     sequence_groups_jsonl: Path
@@ -100,9 +124,12 @@ class AddCopyRunRequest:
     expected_search_model_sha256: str | None = None
     parent_result_jsonl: Path | None = None
     parent_coordinate: Path | None = None
+    diffraction_selection_json: Path | None = None
     threads: int = 1
+    resource_attempt: int = 1
     timeout_seconds: float | None = None
     progress: bool = True
+    phase3_seed_stage_manifest: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +169,10 @@ class _Resolved:
     model_identity_fraction: float
     mtz: Path
     mtz_sha256: str
+    diffraction_selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    diffraction_command_binding: DiffractionCommandBinding | None = None
+    resource_plan: MrResourcePlan | None = None
 
 
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
@@ -197,24 +228,63 @@ def _owned(root: Path, relative: object, *, label: str) -> Path:
 
 
 def _resolve(request: AddCopyRunRequest) -> _Resolved:
-    validation = _json_object(request.review_validation_json, label="MR approval")
-    manifest_path = request.review_package_manifest.resolve(strict=True)
-    manifest = _json_object(manifest_path, label="MR review manifest")
-    if (
-        validation.get("execution_status") != ExecutionStatus.COMPLETED_SUCCESS.value
-        or validation.get("checkpoint") != "mr_seed"
-        or validation.get("package_id") != manifest.get("package_id")
-        or validation.get("package_manifest_sha256") != sha256_file(manifest_path)
-    ):
-        raise PhaserInputError("MR approval does not match the review package")
-    approved = validation.get("approved_solution_ids")
-    review_id = validation.get("review_id")
-    if (
-        not isinstance(approved, list)
-        or request.seed_solution_id not in approved
-        or not isinstance(review_id, str)
-    ):
-        raise PhaserInputError("seed is not explicitly approved for M4")
+    phase3_source: dict[str, object] | None = None
+    if request.phase3_seed_stage_manifest is None:
+        if (
+            request.review_validation_json is None
+            or request.review_package_manifest is None
+        ):
+            raise PhaserInputError(
+                "legacy additional-copy execution requires its approval pair"
+            )
+        validation = _json_object(request.review_validation_json, label="MR approval")
+        manifest_path = request.review_package_manifest.resolve(strict=True)
+        manifest = _json_object(manifest_path, label="MR review manifest")
+        if (
+            validation.get("execution_status")
+            != ExecutionStatus.COMPLETED_SUCCESS.value
+            or validation.get("checkpoint") != "mr_seed"
+            or validation.get("package_id") != manifest.get("package_id")
+            or validation.get("package_manifest_sha256") != sha256_file(manifest_path)
+        ):
+            raise PhaserInputError("MR approval does not match the review package")
+        approved = validation.get("approved_solution_ids")
+        review_id = validation.get("review_id")
+        if (
+            not isinstance(approved, list)
+            or request.seed_solution_id not in approved
+            or not isinstance(review_id, str)
+        ):
+            raise PhaserInputError("seed is not explicitly approved for M4")
+        root = manifest_path.parent
+    else:
+        from genome_to_diffraction.mr.stage_add_copy import (
+            validate_phase3_seed_stage,
+        )
+
+        if (
+            request.review_validation_json is not None
+            or request.review_package_manifest is not None
+        ):
+            raise PhaserInputError(
+                "Phase III additional-copy execution rejects legacy approval inputs"
+            )
+        try:
+            phase3 = validate_phase3_seed_stage(
+                request.phase3_seed_stage_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+            )
+        except (OSError, ValueError) as error:
+            raise PhaserInputError(
+                f"Phase III seed stage is invalid: {error}"
+            ) from error
+        if request.seed_solution_id not in phase3.approved_solution_ids:
+            raise PhaserInputError("seed is not approved by the Phase III stage")
+        manifest = phase3.review_document
+        manifest_path = phase3.review_manifest
+        root = phase3.review_root
+        review_id = phase3.review_id
+        phase3_source = phase3.model_sources[request.seed_solution_id]
     raw_items = manifest.get("items")
     if not isinstance(raw_items, list):
         raise PhaserInputError("MR review manifest has no items")
@@ -231,7 +301,6 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     copied_sha = item.get("copied_asset_sha256")
     if not isinstance(copied, dict) or not isinstance(copied_sha, dict):
         raise PhaserInputError("approved seed lacks an asset inventory")
-    root = manifest_path.parent
     root_parent = _owned(
         root, copied.get("solution_coordinate"), label="root parent coordinate"
     )
@@ -353,6 +422,24 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     mtz_sha = sha256_file(mtz, progress=request.progress, logger=_LOGGER)
     if mtz_sha != preflight.mtz_sha256:
         raise PhaserInputError("MTZ checksum differs from preflight")
+    selection: DiffractionSelection | None = None
+    phase3_hypothesis: DiffractionBoundHypothesis | None = None
+    diffraction_binding: DiffractionCommandBinding | None = None
+    if phase3_source is not None and request.diffraction_selection_json is None:
+        raise PhaserInputError(
+            "Phase III additional-copy execution requires diffraction selection"
+        )
+    if request.diffraction_selection_json is not None:
+        selection = load_diffraction_selection(request.diffraction_selection_json)
+        verify_diffraction_selection(selection, preflight)
+        if selection.mtz_sha256 != mtz_sha:
+            raise PhaserInputError("Phase III diffraction selection MTZ differs")
+        phase3_hypothesis = bind_phase3_hypothesis(hypothesis, selection)
+        diffraction_binding = build_diffraction_command_binding(
+            consumer=DiffractionCommandConsumer.ADDITIONAL_COPY_PHASER,
+            command_owner_id=phase3_hypothesis.hypothesis_id,
+            selection=selection,
+        )
     command_path = _owned(root, copied.get("command"), label="parent command")
     if sha256_file(command_path) != copied_sha.get("command"):
         raise PhaserInputError("parent command checksum differs from review package")
@@ -370,11 +457,39 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
     search_model_sha = sha256_file(
         search_model, progress=request.progress, logger=_LOGGER
     )
-    staged_model_sha = request.expected_search_model_sha256 or expected_model_sha
-    if not re.fullmatch(r"[0-9a-f]{64}", staged_model_sha):
+    if phase3_source is None:
+        staged_model_sha = request.expected_search_model_sha256 or expected_model_sha
+    else:
+        staged_model_sha = phase3_source.get("staged_search_model_sha256")
+        if (
+            phase3_source.get("original_first_copy_model_sha256") != expected_model_sha
+            or request.expected_search_model_sha256 != staged_model_sha
+        ):
+            raise PhaserInputError(
+                "Phase III staged model authority differs from the MR evidence"
+            )
+    if not isinstance(staged_model_sha, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", staged_model_sha
+    ):
         raise PhaserInputError("expected search model checksum is invalid")
     if search_model_sha != staged_model_sha:
         raise PhaserInputError("search model checksum differs from staged seed")
+    resource_plan: MrResourcePlan | None = None
+    if selection is not None:
+        raw_resource_plan = (
+            phase3_source.get("resource_plan")
+            if phase3_source is not None
+            else command.get("resource_plan")
+        )
+        try:
+            resource_plan = MrResourcePlan.model_validate(raw_resource_plan)
+            if (
+                resource_plan.owner_kind != "mr_hypothesis"
+                or resource_plan.owner_id != hypothesis.hypothesis_id
+            ):
+                raise ValueError("resource plan owns another hypothesis")
+        except (ValidationError, ValueError) as error:
+            raise PhaserInputError("Phase III seed resource plan is invalid") from error
     return _Resolved(
         review_id=review_id,
         hypothesis=hypothesis,
@@ -391,20 +506,44 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         model_identity_fraction=float(identity_percent) / 100.0,
         mtz=mtz,
         mtz_sha256=mtz_sha,
+        diffraction_selection=selection,
+        phase3_hypothesis=phase3_hypothesis,
+        diffraction_command_binding=diffraction_binding,
+        resource_plan=resource_plan,
     )
 
 
 def _parameters(resolved: _Resolved, sequence_fasta: Path, threads: int) -> str:
-    labels = resolved.hypothesis.obs_labels
+    selection = resolved.diffraction_selection
+    labels = (
+        selection.rendered_observation_labels
+        if selection is not None
+        else resolved.hypothesis.obs_labels
+    )
     mtz = json.dumps(str(resolved.mtz))
     sequence = json.dumps(str(sequence_fasta))
     parent = json.dumps(str(resolved.parent_coordinate))
     model = json.dumps(str(resolved.search_model))
+    symmetry = (
+        "  crystal_symmetry {\n"
+        f"    space_group = {json.dumps(selection.selected_space_group)}\n"
+        "  }\n"
+        if selection is not None
+        else ""
+    )
+    resolution = (
+        "    resolution {\n"
+        f"      low = {selection.resolution_low_a:.12g}\n"
+        f"      high = {selection.resolution_high_a:.12g}\n"
+        "    }\n"
+        if selection is not None
+        else ""
+    )
     return f"""phaser {{
   mode = MR_AUTO
   hklin = {mtz}
   labin = {labels}
-  composition {{
+{symmetry}  composition {{
     chain {{
       chain_type = protein
       comp_type = sequence_file
@@ -437,7 +576,7 @@ def _parameters(resolved: _Resolved, sequence_fasta: Path, threads: int) -> str:
       jobs = {threads}
     }}
     sgalternative {{ select = none }}
-  }}
+{resolution}  }}
 }}
 """
 
@@ -466,6 +605,18 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     if output.exists() and any(output.iterdir()):
         raise PhaserInputError(f"Phaser output directory is not empty: {output}")
     resolved = _resolve(request)
+    resource_plan = resolved.resource_plan
+    if resolved.diffraction_selection is not None:
+        if resource_plan is None:
+            raise PhaserInputError("Phase III hypothesis lacks an MR resource plan")
+        try:
+            verify_mr_thread_allocation(
+                plan=resource_plan,
+                resource_attempt=request.resource_attempt,
+                threads=request.threads,
+            )
+        except MrResourcePlanError as error:
+            raise PhaserInputError(str(error)) from error
     validate_manifest_environment(request.phenix_manifest.resolve(strict=True))
     output.mkdir(parents=True, exist_ok=True)
     sequence_fasta = output / "composition.fasta"
@@ -477,8 +628,13 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     atomic_write_text(
         parameters, _parameters(resolved, sequence_fasta, request.threads)
     )
-    attempt_identity = {
-        "adapter_version": _ADAPTER_VERSION,
+    adapter_version = (
+        _PHASE3_ADAPTER_VERSION
+        if resolved.diffraction_selection is not None
+        else _ADAPTER_VERSION
+    )
+    attempt_identity: dict[str, object] = {
+        "adapter_version": adapter_version,
         "review_id": resolved.review_id,
         "seed_solution_id": request.seed_solution_id,
         "parent_solution_id": resolved.parent_solution_id,
@@ -494,22 +650,53 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         ),
         "parameters_sha256": sha256_file(parameters),
     }
+    if (
+        resolved.diffraction_selection is not None
+        and resolved.phase3_hypothesis is not None
+        and resolved.diffraction_command_binding is not None
+        and resource_plan is not None
+    ):
+        attempt_identity.update(
+            {
+                "phase3_hypothesis_id": resolved.phase3_hypothesis.hypothesis_id,
+                "diffraction_selection_id": (
+                    resolved.diffraction_selection.diffraction_selection_id
+                ),
+                "diffraction_command_binding_id": (
+                    resolved.diffraction_command_binding.binding_id
+                ),
+                "resource_attempt": request.resource_attempt,
+                "resource_plan_id": (resource_plan.resource_plan_id),
+            }
+        )
     attempt_id = content_id("addcopy_", attempt_identity)
     arguments = ["phenix.phaser", str(parameters)]
     command_json = output / "phaser_command.json"
-    atomic_write_json(
-        command_json,
-        {
-            "schema_version": "1.0",
-            "adapter_version": _ADAPTER_VERSION,
-            "created_at": utc_now_iso(),
-            "attempt_id": attempt_id,
-            "arguments": arguments,
-            "threads": request.threads,
-            "timeout_seconds": request.timeout_seconds,
-            **attempt_identity,
-        },
-    )
+    command_record: dict[str, object] = {
+        "schema_version": (
+            "2.0" if resolved.diffraction_selection is not None else "1.0"
+        ),
+        "adapter_version": adapter_version,
+        "created_at": utc_now_iso(),
+        "attempt_id": attempt_id,
+        "arguments": arguments,
+        "threads": request.threads,
+        "timeout_seconds": request.timeout_seconds,
+        **attempt_identity,
+    }
+    if (
+        resolved.diffraction_selection is not None
+        and resolved.diffraction_command_binding is not None
+        and resource_plan is not None
+    ):
+        command_record["diffraction_selection"] = (
+            resolved.diffraction_selection.model_dump(mode="json")
+        )
+        command_record["diffraction_command_binding"] = (
+            resolved.diffraction_command_binding.model_dump(mode="json")
+        )
+        command_record["resource_plan"] = resource_plan.model_dump(mode="json")
+    atomic_write_json(command_json, command_record)
     _LOGGER.info(
         "additional-copy Phaser search started",
         extra={
@@ -537,10 +724,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
             completed = subprocess.CompletedProcess(arguments, 124, b"", b"timed out")
         bar.update(1)
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_text(
-        capture_log,
-        (completed.stdout + completed.stderr).decode("utf-8", errors="replace"),
-    )
+    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     status = ExecutionStatus.FAILED_TOOL_EXECUTION
@@ -559,7 +743,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         )
     else:
         try:
-            raw_log_text = raw_log.read_text(encoding="utf-8", errors="replace")
+            raw_log_text = read_phaser_evidence_text(raw_log)
             if _reported_no_additional_solution(raw_log_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_additional_solution"
@@ -578,9 +762,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                         raise PhaserParseError(
                             "additional-copy solution lacks PDB or MTZ"
                         )
-                    coordinate_text = coordinate.read_text(
-                        encoding="utf-8", errors="replace"
-                    )
+                    coordinate_text = read_phaser_evidence_text(coordinate)
                     placements = _phaser_placement_count(
                         coordinate_text, parent_copy_count=resolved.parent_copy_count
                     )
@@ -609,6 +791,11 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         except PhaserParseError as error:
             status = ExecutionStatus.FAILED_PARSE
             rejection_reason = str(error)
+            llg = tfz = None
+            placements = 0
+            packed = supported = False
+            coordinate_path = mtz_path = None
+            coordinate_sha = mtz_sha = child_id = None
     result = AdditionalCopyResult(
         schema_version="1.0",
         attempt_id=attempt_id,
@@ -707,7 +894,11 @@ def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutpu
     )
     summary = root / "additional_copy_series_summary.json"
     series_identity = {
-        "adapter_version": _ADAPTER_VERSION,
+        "adapter_version": (
+            _PHASE3_ADAPTER_VERSION
+            if request.diffraction_selection_json is not None
+            else _ADAPTER_VERSION
+        ),
         "seed_solution_id": request.seed_solution_id,
         "attempt_ids": [item.result.attempt_id for item in attempts],
     }

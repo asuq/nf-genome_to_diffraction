@@ -48,6 +48,15 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
             "0" * 64,
         ]
     )
+    database_runtime_configured = parser.parse_args(
+        [
+            "database-runtime-configure",
+            "--paths-file",
+            "database.paths",
+            "--confirm-sha256",
+            "1" * 64,
+        ]
+    )
     input_stage = parser.parse_args(
         ["p0-inputs-stage", "--confirm-spec-sha256", "0" * 64]
     )
@@ -57,6 +66,7 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
     assert readiness.operation == "database-readiness"
     assert archived.operation == "database-archive-failed"
     assert configured.operation == "p0-configure"
+    assert database_runtime_configured.operation == "database-runtime-configure"
     assert input_stage.operation == "p0-inputs-stage"
     with pytest.raises(SystemExit):
         parser.parse_args(["stage", "database", "--revision", "HEAD"])
@@ -96,12 +106,58 @@ def test_heteromer_smoke_has_only_fixed_stage_and_submit_arguments() -> None:
     parser = _build_parser()
 
     staged = parser.parse_args(["stage", "heteromer-smoke", "--revision", "HEAD"])
+    main_staged = parser.parse_args(
+        [
+            "stage",
+            "heteromer-smoke",
+            "--revision",
+            "HEAD",
+            "--source-branch",
+            "main",
+        ]
+    )
     submitted = parser.parse_args(["submit", "heteromer-smoke", "--run-id", "RUN_ID"])
 
     assert staged.profile == "heteromer-smoke"
     assert vars(staged)["revision"] == "HEAD"
+    assert staged.source_branch is None
+    assert main_staged.source_branch == "main"
     assert not {"case", "path", "command", "coordinates"} & vars(staged).keys()
     assert submitted.profile == "heteromer-smoke"
+
+
+def test_phase3_phenix_probe_exposes_no_runtime_command_or_path() -> None:
+    parser = _build_parser()
+
+    deployment = parser.parse_args(
+        ["deploy-tools", "--revision", "HEAD", "--source-branch", "main"]
+    )
+    staged = parser.parse_args(["stage", "phase3-phenix-probe", "--revision", "HEAD"])
+    submitted = parser.parse_args(
+        ["submit", "phase3-phenix-probe", "--run-id", "RUN_ID"]
+    )
+
+    assert deployment.source_branch == "main"
+    assert staged.profile == "phase3-phenix-probe"
+    assert vars(staged)["revision"] == "HEAD"
+    assert not {"path", "command", "manifest", "arguments"} & vars(staged).keys()
+    assert submitted.profile == "phase3-phenix-probe"
+
+
+def test_phase3_network_probe_exposes_no_address_command_or_path() -> None:
+    parser = _build_parser()
+
+    staged = parser.parse_args(["stage", "phase3-network-probe", "--revision", "HEAD"])
+    submitted = parser.parse_args(
+        ["submit", "phase3-network-probe", "--run-id", "RUN_ID"]
+    )
+
+    assert staged.profile == "phase3-network-probe"
+    assert staged.source_branch is None
+    assert (
+        not {"address", "path", "command", "shell", "arguments"} & vars(staged).keys()
+    )
+    assert submitted.profile == "phase3-network-probe"
 
 
 def test_m4_copy_uses_explicit_checksum_gated_stage() -> None:
@@ -178,12 +234,15 @@ def test_m6_scientific_stage_accepts_only_a_confirmed_archive_and_track(
             "a" * 64,
             "--track",
             track,
+            "--source-branch",
+            "main",
         ]
     )
     submitted = parser.parse_args(["submit", f"m6-{track}", "--run-id", "RUN_ID"])
 
     assert staged.operation == "m6-scientific-stage"
     assert staged.track == track
+    assert staged.source_branch == "main"
     assert submitted.profile == f"m6-{track}"
 
 

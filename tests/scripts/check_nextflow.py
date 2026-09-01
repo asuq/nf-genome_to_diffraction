@@ -16,6 +16,18 @@ from pathlib import Path
 import gemmi
 import numpy as np
 
+from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.localisation import (
+    ActiveWaveCompletion,
+    ActiveWaveGroupResult,
+    ActiveWaveResultStatus,
+    DeepTMHMMRuntimeContract,
+    LocalisationOutcome,
+    PSortbRuntimeContract,
+)
+from genome_to_diffraction.schemas.results import SequenceGroupRecord
+
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
@@ -327,6 +339,277 @@ def check_p6_empty_partner_stub() -> None:
             raise RuntimeError("P6 empty-selected resume changed retained outputs")
 
 
+def _localisation_group(
+    residue: str,
+    outcome: LocalisationOutcome,
+) -> SequenceGroupRecord:
+    sequence = residue * 20
+    digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+    return SequenceGroupRecord(
+        schema_version="1.0",
+        sequence_group_id=f"seq_{digest}",
+        sha256=digest,
+        sequence=sequence,
+        length_aa=len(sequence),
+        molecular_mass_da=None,
+        mass_method="not_calculated",
+        residue_policy="standard_amino_acids",
+        source_record_count=1,
+        quality_flags=(f"stub_localisation:{outcome.value}",),
+    )
+
+
+def _write_localisation_stub_inputs(root: Path, *, empty: bool) -> dict[str, Path]:
+    """Create checksum-valid offline runtimes, groups, and completion evidence."""
+
+    input_root = root / "localisation-inputs"
+    input_root.mkdir()
+    executable = input_root / "psort"
+    executable.write_text(
+        "#!/usr/bin/env bash\nprintf 'PSORTb version 3.0.6\\n'\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
+    psortb_runtime = PSortbRuntimeContract.from_executable(executable)
+    psortb_runtime_json = input_root / "psortb-runtime.json"
+    atomic_write_json(
+        psortb_runtime_json,
+        psortb_runtime.model_dump(mode="json"),
+    )
+    image = input_root / "deeptmhmm-1.0.sif"
+    image.write_bytes(b"synthetic user-provided image")
+    deeptmhmm_runtime = DeepTMHMMRuntimeContract.from_user_image(image)
+    deeptmhmm_runtime_json = input_root / "deeptmhmm-runtime.json"
+    atomic_write_json(
+        deeptmhmm_runtime_json,
+        deeptmhmm_runtime.model_dump(mode="json"),
+    )
+    groups = (
+        ()
+        if empty
+        else (
+            _localisation_group("A", LocalisationOutcome.SOLUBLE),
+            _localisation_group("C", LocalisationOutcome.MEMBRANE),
+            _localisation_group("D", LocalisationOutcome.UNKNOWN),
+            _localisation_group("E", LocalisationOutcome.FAILED),
+            _localisation_group("F", LocalisationOutcome.EXTRACELLULAR),
+        )
+    )
+    sequence_groups = input_root / "sequence-groups.jsonl"
+    sequence_groups.write_text(
+        "".join(f"{canonical_json_text(group)}\n" for group in reversed(groups)),
+        encoding="utf-8",
+    )
+    active = tuple(
+        sorted(
+            group.sequence_group_id
+            for group in groups
+            if group.quality_flags == ("stub_localisation:soluble",)
+        )
+    )
+    neutral = tuple(
+        sorted(
+            group.sequence_group_id
+            for group in groups
+            if group.quality_flags
+            in {
+                ("stub_localisation:unknown",),
+                ("stub_localisation:failed",),
+            }
+        )
+    )
+    first_wave_groups = active + neutral
+    completion = ActiveWaveCompletion.from_results(
+        first_wave_groups,
+        tuple(
+            ActiveWaveGroupResult(
+                sequence_group_id=group_id,
+                status=ActiveWaveResultStatus.COMPLETED_NO_PACKED_RESULT,
+                source_result_sha256=hashlib.sha256(
+                    f"stub-active-wave:{group_id}".encode("ascii")
+                ).hexdigest(),
+            )
+            for group_id in first_wave_groups
+        ),
+    )
+    completion_json = input_root / "active-wave-completion.json"
+    atomic_write_json(completion_json, completion.model_dump(mode="json"))
+    return {
+        "sequence_groups": sequence_groups,
+        "psortb_runtime": psortb_runtime_json,
+        "deeptmhmm_runtime": deeptmhmm_runtime_json,
+        "active_wave_completion": completion_json,
+    }
+
+
+def _localisation_wave_command(
+    *,
+    inputs: dict[str, Path],
+    output: Path,
+    cache: Path,
+) -> list[str]:
+    command = [
+        "nextflow",
+        "-C",
+        "tests/fixtures/stubs/localisation_wave/nextflow.config",
+        "run",
+        "tests/fixtures/stubs/localisation_wave/main.nf",
+        "-stub-run",
+    ]
+    for name in (
+        "sequence_groups",
+        "psortb_runtime",
+        "deeptmhmm_runtime",
+        "active_wave_completion",
+    ):
+        command.extend((f"--{name}", str(inputs[name])))
+    command.extend(("--outdir", str(output), "--cache_root", str(cache)))
+    return command
+
+
+def _assert_localisation_trace(
+    rows: Sequence[dict[str, str]],
+    *,
+    task_count: int,
+    expected_status: str,
+) -> None:
+    counts = Counter(row["process"].split(":")[-1] for row in rows)
+    expected = Counter(
+        {
+            "BUILD_CATALOGUE_LOCALISATION_TASKS": 1,
+            "BUILD_CATALOGUE_LOCALISATION_WAVE_POLICY": 1,
+            "PLAN_LOCALISATION_REOPEN": 1,
+        }
+    )
+    if task_count:
+        expected["RUN_OFFLINE_LOCALISATION_TASK"] = task_count
+    if counts != expected or {row["status"] for row in rows} != {expected_status}:
+        raise RuntimeError(
+            "localisation stub process set/status mismatch: "
+            f"counts={dict(sorted(counts.items()))}, "
+            f"statuses={sorted({row['status'] for row in rows})}"
+        )
+
+
+def _check_localisation_case(root: Path, *, empty: bool) -> None:
+    inputs = _write_localisation_stub_inputs(root, empty=empty)
+    output = root / "results"
+    command = _localisation_wave_command(
+        inputs=inputs,
+        output=output,
+        cache=root / "cache",
+    )
+    environment = _environment(root / "nxf-home")
+    _run(command, environment=environment)
+    trace = output / "pipeline_info/trace.tsv"
+    task_count = 0 if empty else 5
+    _assert_localisation_trace(
+        _read_trace(trace),
+        task_count=task_count,
+        expected_status="COMPLETED",
+    )
+    policy_paths = tuple(output.rglob("first_wave_policy.json"))
+    reopen_paths = tuple(output.rglob("localisation_reopen_plan.json"))
+    inventory_paths = tuple(output.rglob("localisation_task_inventory.json"))
+    if not all(
+        len(paths) == 1 for paths in (policy_paths, reopen_paths, inventory_paths)
+    ):
+        raise RuntimeError(
+            "localisation stub did not publish one policy/reopen/inventory"
+        )
+    policy = json.loads(policy_paths[0].read_text(encoding="utf-8"))
+    reopen = json.loads(reopen_paths[0].read_text(encoding="utf-8"))
+    inventory = json.loads(inventory_paths[0].read_text(encoding="utf-8"))
+    if empty:
+        if (
+            inventory.get("task_count") != 0
+            or policy.get("sequence_group_count") != 0
+            or policy.get("result_count") != 0
+            or reopen.get("status") != "not_required_no_excluded_groups"
+            or reopen.get("reopened_count") != 0
+        ):
+            raise RuntimeError("empty localisation branch did not remain complete")
+    else:
+        result_paths = tuple(output.rglob("psortb/localisation-result.json"))
+        blocked_paths = tuple(output.rglob("deeptmhmm-blocked-result.json"))
+        evidence_paths = tuple(output.rglob("group-localisation-evidence.json"))
+        if not (
+            len(result_paths) == 5
+            and len(blocked_paths) == 5
+            and len(evidence_paths) == 5
+        ):
+            raise RuntimeError("localisation task fan-out lost a per-group result")
+        statuses = Counter(
+            json.loads(path.read_text(encoding="utf-8"))["execution_status"]
+            for path in result_paths
+        )
+        if statuses != Counter({"completed_success": 4, "failed_tool_execution": 1}):
+            raise RuntimeError(
+                "failed PSORTb branch was not retained as typed evidence"
+            )
+        if any(
+            json.loads(path.read_text(encoding="utf-8"))["outcome"] is not None
+            for path in blocked_paths
+        ):
+            raise RuntimeError("blocked DeepTMHMM result fabricated an outcome")
+        expected_counts = {
+            "sequence_group_count": 5,
+            "result_count": 5,
+            "psortb_completed_count": 4,
+            "psortb_failed_count": 1,
+            "deeptmhmm_blocked_count": 5,
+            "active_count": 1,
+            "excluded_count": 2,
+            "neutral_count": 2,
+            "first_wave_eligible_count": 3,
+        }
+        if any(policy.get(name) != count for name, count in expected_counts.items()):
+            raise RuntimeError("localisation wave policy count mismatch")
+        if (
+            len(policy.get("retained_excluded_group_ids", [])) != 2
+            or reopen.get("status") != "activated_no_packed_result"
+            or reopen.get("retained_excluded_count") != 2
+            or reopen.get("reopened_count") != 2
+            or reopen.get("reopened_group_ids")
+            != policy.get("retained_excluded_group_ids")
+        ):
+            raise RuntimeError("zero-pack reopen did not retain/activate exclusions")
+    retained_paths = (
+        inventory_paths[0],
+        policy_paths[0],
+        reopen_paths[0],
+    )
+    before = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in retained_paths
+    }
+    _run([*command, "-resume"], environment=environment)
+    _assert_localisation_trace(
+        _read_trace(trace),
+        task_count=task_count,
+        expected_status="CACHED",
+    )
+    after = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in retained_paths
+    }
+    if before != after:
+        raise RuntimeError("cached localisation resume changed retained outputs")
+
+
+def check_localisation_wave_stub() -> None:
+    """Exercise mixed/failure and zero-task catalogue branches with resume."""
+
+    with tempfile.TemporaryDirectory(
+        prefix="nf-genome-to-diffraction-localisation-mixed-", dir="/tmp"
+    ) as mixed:
+        _check_localisation_case(Path(mixed), empty=False)
+    with tempfile.TemporaryDirectory(
+        prefix="nf-genome-to-diffraction-localisation-empty-", dir="/tmp"
+    ) as empty:
+        _check_localisation_case(Path(empty), empty=True)
+
+
 def _assert_m6_fanout_trace(
     trace_rows: Sequence[dict[str, str]], *, require_cached: bool
 ) -> dict[str, tuple[dict[str, str], ...]]:
@@ -351,6 +634,7 @@ def _assert_m6_fanout_trace(
             "m6-preflight:M6C001",
             "m6-preflight:M6C057",
         },
+        "M6_STAGE_COORDINATES": {"m6-coordinate-stage:M6C001"},
         "M6_PREPARE_ACTIVE_CASE": {"m6-case:M6C001"},
         "M6_PREPARE_EARLY_CASE": {"m6-early-case:M6C057"},
     }
@@ -388,13 +672,13 @@ def _assert_m6_cross_track_cache(
     cached = tuple(row for row in leakage_rows if row["status"] == "CACHED")
     completed = tuple(row for row in leakage_rows if row["status"] == "COMPLETED")
     cached_counts = Counter(row["process"].split(":")[-1] for row in cached)
-    if len(leakage_rows) != 25 or cached_counts != expected_cached:
+    if len(leakage_rows) != 26 or cached_counts != expected_cached:
         raise RuntimeError(
             "M6 leakage resume did not cache exactly six truthless tasks: "
             f"{dict(sorted(cached_counts.items()))}"
         )
-    if len(completed) != 19 or len(cached) + len(completed) != len(leakage_rows):
-        raise RuntimeError("M6 leakage resume did not complete 19 track-specific tasks")
+    if len(completed) != 20 or len(cached) + len(completed) != len(leakage_rows):
+        raise RuntimeError("M6 leakage resume did not complete 20 track-specific tasks")
     for process in expected_cached:
         first_tags = sorted(
             row["tag"] for row in first_rows if row["process"].split(":")[-1] == process
@@ -495,6 +779,7 @@ def check_stubs() -> None:
     """Run all stubs and real Task 05, verify outputs, and exercise resume."""
 
     check_p6_empty_partner_stub()
+    check_localisation_wave_stub()
     with tempfile.TemporaryDirectory(
         prefix="nf-genome-to-diffraction-stub-", dir="/tmp"
     ) as temporary:
@@ -517,6 +802,43 @@ def check_stubs() -> None:
         additional_copy_out = temporary_root / "additional-copy-results"
         refinement_out = temporary_root / "refinement-results"
         cache_root = temporary_root / "cache"
+
+        unsupported = _run(
+            [
+                "nextflow",
+                "run",
+                "qualification.nf",
+                "-profile",
+                "test",
+                "-stub-run",
+                "--qualification_stage",
+                "unsupported",
+            ],
+            environment=environment,
+            expected_success=False,
+        )
+        if "Unsupported qualification_stage" not in (
+            f"{unsupported.stdout}\n{unsupported.stderr}"
+        ):
+            raise RuntimeError("qualification root did not reject an unknown stage")
+        incomplete = _run(
+            [
+                "nextflow",
+                "run",
+                "qualification.nf",
+                "-profile",
+                "test",
+                "-stub-run",
+                "--qualification_stage",
+                "discovery",
+            ],
+            environment=environment,
+            expected_success=False,
+        )
+        if "discovery qualification requires" not in (
+            f"{incomplete.stdout}\n{incomplete.stderr}"
+        ):
+            raise RuntimeError("qualification root accepted incomplete authority")
 
         main_command = [
             "nextflow",
@@ -851,7 +1173,9 @@ def check_stubs() -> None:
         discovery_command = [
             "nextflow",
             "run",
-            "discover_structures.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "discovery",
             "-profile",
             "test",
             "-stub-run",
@@ -1007,7 +1331,9 @@ def check_stubs() -> None:
         coordinate_command = [
             "nextflow",
             "run",
-            "register_coordinates.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "register_coordinates",
             "-profile",
             "test",
             "-stub-run",
@@ -1048,7 +1374,9 @@ def check_stubs() -> None:
         pdb_model_command = [
             "nextflow",
             "run",
-            "prepare_pdb_models.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "prepare_experimental_models",
             "-profile",
             "test",
             "-stub-run",
@@ -1089,7 +1417,9 @@ def check_stubs() -> None:
         model_command = [
             "nextflow",
             "run",
-            "prepare_models.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "prepare_predicted_models",
             "-profile",
             "test",
             "-stub-run",
@@ -1127,7 +1457,9 @@ def check_stubs() -> None:
         first_copy_command = [
             "nextflow",
             "run",
-            "screen_first_copy.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "first_copy",
             "-profile",
             "test",
             "-stub-run",
@@ -1183,7 +1515,9 @@ def check_stubs() -> None:
         diverse_first_copy_command = [
             "nextflow",
             "run",
-            "screen_diverse_first_copy.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "diverse_first_copy",
             "-profile",
             "test",
             "-stub-run",
@@ -1253,7 +1587,9 @@ def check_stubs() -> None:
         control_first_copy_command = [
             "nextflow",
             "run",
-            "screen_first_copy_controls.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "first_copy_controls",
             "-profile",
             "test",
             "-stub-run",
@@ -1329,7 +1665,9 @@ def check_stubs() -> None:
         additional_copy_command = [
             "nextflow",
             "run",
-            "screen_additional_copies.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "additional_copy",
             "-profile",
             "test",
             "-stub-run",
@@ -1395,7 +1733,9 @@ def check_stubs() -> None:
         refinement_command = [
             "nextflow",
             "run",
-            "refine_finalists.nf",
+            "qualification.nf",
+            "--qualification_stage",
+            "refine_finalists",
             "-profile",
             "test",
             "-stub-run",
@@ -1498,10 +1838,10 @@ def check_stubs() -> None:
         trace_path = m6_out / "pipeline_info" / "trace.tsv"
         with trace_path.open(encoding="utf-8", newline="") as handle:
             trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
-        if len(trace_rows) != 25 or {row["status"] for row in trace_rows} != {
+        if len(trace_rows) != 26 or {row["status"] for row in trace_rows} != {
             "COMPLETED"
         }:
-            raise RuntimeError("M6 first stub run did not complete exactly 25 tasks")
+            raise RuntimeError("M6 first stub run did not complete exactly 26 tasks")
         fanout_rows = _assert_m6_fanout_trace(trace_rows, require_cached=False)
         processes = {row["process"].split(":")[-1] for row in trace_rows}
         required_processes = {
@@ -1510,6 +1850,7 @@ def check_stubs() -> None:
             "M6_SEARCH_PDB",
             "M6_SEARCH_FOLDSEEK",
             "M6_PARTITION_DISCOVERY",
+            "M6_STAGE_COORDINATES",
             "M6_PREPARE_ACTIVE_CASE",
             "M6_PREPARE_EARLY_CASE",
             "M6_FIRST_COPY",
@@ -1580,10 +1921,10 @@ def check_stubs() -> None:
             raise RuntimeError("resumed M6 stub did not report cached work")
         with trace_path.open(encoding="utf-8", newline="") as handle:
             resumed_trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
-        if len(resumed_trace_rows) != 25 or {
+        if len(resumed_trace_rows) != 26 or {
             row["status"] for row in resumed_trace_rows
         } != {"CACHED"}:
-            raise RuntimeError("resumed M6 stub did not cache all 25 tasks")
+            raise RuntimeError("resumed M6 stub did not cache all 26 tasks")
         _assert_m6_fanout_trace(resumed_trace_rows, require_cached=True)
         after_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -1689,6 +2030,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--syntax", action="store_true")
     mode.add_argument("--stub", action="store_true")
     mode.add_argument("--p6-empty-partner-stub", action="store_true")
+    mode.add_argument("--localisation-wave-stub", action="store_true")
     return parser
 
 
@@ -1701,8 +2043,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             check_syntax()
         elif args.stub:
             check_stubs()
-        else:
+        elif args.p6_empty_partner_stub:
             check_p6_empty_partner_stub()
+        else:
+            check_localisation_wave_stub()
     except (OSError, RuntimeError) as error:
         print(error, file=sys.stderr)
         return 1

@@ -10,6 +10,7 @@ model or treat an external PDB sequence as a catalogue identity.
 
 import gzip
 import logging
+import shutil
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -50,12 +51,17 @@ from genome_to_diffraction.schemas.results import (
     EligibilityStatus,
     SequenceGroupRecord,
     StructuralSearchHit,
+    StructuralSearchResult,
 )
-from genome_to_diffraction.status import InputContractError, ResultParseError
+from genome_to_diffraction.status import (
+    ExecutionStatus,
+    InputContractError,
+    ResultParseError,
+)
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_coordinates")
-_ADAPTER_VERSION = "pdb-coordinate-registration-v1"
+_ADAPTER_VERSION = "pdb-coordinate-registration-v2"
 _PDB_COORDINATE_URL = "https://files.rcsb.org/download/{pdb_id}.cif.gz"
 _DIRECT_PROVIDER = "pdb_sequence_mmseqs"
 _PROSTT5_PROVIDER = "foldseek_prostt5_pdb"
@@ -79,11 +85,14 @@ class PdbCoordinateRegistrationRequest:
     sequence_groups_jsonl: Path
     database_manifest: Path
     output_directory: Path
+    provider_search_results_jsonl: tuple[Path, ...] = ()
     maximum_hits_per_sequence_group: int = 3
     maximum_mappings: int = 25
     hit_ids: tuple[str, ...] = ()
     storage_limit_bytes: int = 100_000_000_000
     minimum_free_bytes: int = 1_000_000_000
+    materialise_coordinate_objects: bool = False
+    allow_network_acquisition: bool = True
     progress: bool = True
 
 
@@ -116,6 +125,7 @@ def _read_jsonl[T: ContractModel](
     label: str,
     identifier: Callable[[T], str],
     progress: bool,
+    allow_empty: bool = False,
 ) -> tuple[T, ...]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
@@ -145,9 +155,62 @@ def _read_jsonl[T: ContractModel](
                 raise PdbCoordinateInputError(f"duplicate {label} ID: {record_id}")
             seen.add(record_id)
             records.append(record)
-    if not records:
+    if not records and not allow_empty:
         raise PdbCoordinateInputError(f"{label} input is empty: {resolved}")
     return tuple(records)
+
+
+def _validate_empty_provider_results(
+    request: PdbCoordinateRegistrationRequest,
+    groups: Sequence[SequenceGroupRecord],
+) -> None:
+    if not request.provider_search_results_jsonl:
+        raise PdbCoordinateInputError(
+            "empty structural hits require typed provider search results"
+        )
+    expected_groups = {group.sequence_group_id for group in groups}
+    seen_providers: set[str] = set()
+    for path in request.provider_search_results_jsonl:
+        results = _read_jsonl(
+            path,
+            StructuralSearchResult,
+            label="provider search results",
+            identifier=lambda item: item.search_id,
+            progress=request.progress,
+        )
+        providers = {result.provider for result in results}
+        if len(providers) != 1 or not providers <= _PROVIDERS:
+            raise PdbCoordinateInputError(
+                "provider search results must describe one approved PDB route"
+            )
+        provider = next(iter(providers))
+        if provider in seen_providers:
+            raise PdbCoordinateInputError("duplicate provider search-result route")
+        seen_providers.add(provider)
+        if (
+            len(results) != len(expected_groups)
+            or {result.sequence_group_id for result in results} != expected_groups
+        ):
+            raise PdbCoordinateInputError(
+                "provider search results do not cover every sequence group"
+            )
+        if any(
+            result.hit_count != 0
+            or result.execution_status
+            not in {
+                ExecutionStatus.COMPLETED_NO_HIT,
+                ExecutionStatus.SKIPPED_POLICY,
+                ExecutionStatus.SKIPPED_INELIGIBLE,
+            }
+            for result in results
+        ):
+            raise PdbCoordinateInputError(
+                "empty structural hits contradict typed provider search results"
+            )
+    if seen_providers != _PROVIDERS:
+        raise PdbCoordinateInputError(
+            "empty structural hits require both approved PDB provider routes"
+        )
 
 
 def _resources(
@@ -418,6 +481,11 @@ def _cached_or_downloaded(
             extra={"pdb_id": hit.pdb_id, "coordinate_sha256": cached.object_sha256},
         )
         return cached, entity, True
+    if not request.allow_network_acquisition:
+        raise PdbCoordinateInputError(
+            f"PDB coordinate {hit.pdb_id.upper()} is absent from the qualified "
+            "offline cache"
+        )
     cached, temporary = _download_coordinate(
         cache_root,
         pdb_id=hit.pdb_id,
@@ -453,8 +521,14 @@ def register_pdb_coordinates(
         label="structural hits",
         identifier=lambda item: item.hit_id,
         progress=request.progress,
+        allow_empty=True,
     )
-    for hit in hits:
+    if not hits:
+        _validate_empty_provider_results(request, groups)
+    selected_hits = tuple(
+        hit for hit in hits if hit.eligibility_status is EligibilityStatus.SELECTED
+    )
+    for hit in selected_hits:
         _validate_hit(hit, group_index)
     sequence_resource, foldseek_resource, cache_resource = _resources(
         request.database_manifest
@@ -463,19 +537,23 @@ def register_pdb_coordinates(
         _DIRECT_PROVIDER: sequence_resource.database_id,
         _PROSTT5_PROVIDER: foldseek_resource.database_id,
     }
-    if any(hit.database_id != expected_database_ids.get(hit.provider) for hit in hits):
+    if any(
+        hit.database_id != expected_database_ids.get(hit.provider)
+        for hit in selected_hits
+    ):
         raise PdbCoordinateInputError(
             "PDB hit database_id differs from its qualified discovery resource"
         )
-    selected = _select_hits(hits, request)
-    if not selected:
-        raise PdbCoordinateInputError("no direct-PDB hits were selected")
+    selected = _select_hits(selected_hits, request)
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise PdbCoordinateInputError(
             f"coordinate-registration output directory is not empty: {output}"
         )
     output.mkdir(parents=True, exist_ok=True)
+    materialised_root = output / "objects"
+    if request.materialise_coordinate_objects:
+        materialised_root.mkdir()
     cache_root = Path(cache_resource.root_path).resolve(strict=True)
     sources: dict[str, CoordinateSourceRecord] = {}
     mappings: list[CoordinateHitMappingRecord] = []
@@ -507,6 +585,27 @@ def register_pdb_coordinates(
             "source_sequence_sha256": entity.sequence_sha256,
         }
         coordinate_id = content_id("coord_", coordinate_identity)
+        coordinate_path = cache_root / cached.object_relative_path
+        if request.materialise_coordinate_objects:
+            relative_object = (
+                Path("objects")
+                / cached.object_sha256[:2]
+                / f"{cached.object_sha256}.cif.gz"
+            )
+            materialised = output / relative_object
+            materialised.parent.mkdir(parents=True, exist_ok=True)
+            if materialised.exists():
+                if sha256_file(materialised) != cached.object_sha256:
+                    raise PdbCoordinateInputError(
+                        "materialised coordinate checksum collision"
+                    )
+            else:
+                shutil.copy2(coordinate_path, materialised)
+            if sha256_file(materialised) != cached.object_sha256:
+                raise PdbCoordinateInputError(
+                    "materialised coordinate checksum mismatch"
+                )
+            coordinate_path = relative_object
         retrieved_at = datetime.fromisoformat(
             cached.retrieved_at.replace("Z", "+00:00")
         )
@@ -521,7 +620,7 @@ def register_pdb_coordinates(
                 ),
                 retrieval_date=retrieved_at,
                 source_release=f"retrieved-{retrieved_at.date().isoformat()}",
-                coordinate_path=str(cache_root / cached.object_relative_path),
+                coordinate_path=str(coordinate_path),
                 coordinate_sha256=cached.object_sha256,
                 source_sequence_sha256=entity.sequence_sha256,
                 confidence_summary={
@@ -617,9 +716,17 @@ def register_pdb_coordinates(
         "sequence_groups": sha256_file(request.sequence_groups_jsonl, progress=False),
         "database_manifest": sha256_file(request.database_manifest, progress=False),
     }
+    input_sha256.update(
+        {
+            f"provider_search_results_{index}": sha256_file(path, progress=False)
+            for index, path in enumerate(request.provider_search_results_jsonl, start=1)
+        }
+    )
     manifest_identity = {
         "adapter_version": _ADAPTER_VERSION,
         "input_sha256": input_sha256,
+        "materialise_coordinate_objects": request.materialise_coordinate_objects,
+        "allow_network_acquisition": request.allow_network_acquisition,
         "selected_hit_ids": [item.hit_id for item in selected],
         "coordinate_ids": [item.coordinate_id for item in source_rows],
         "mapping_ids": [item.mapping_id for item in mapping_rows],
@@ -649,6 +756,10 @@ def register_pdb_coordinates(
                 ),
                 "maximum_mappings": request.maximum_mappings,
                 "explicit_hit_selection": bool(request.hit_ids),
+                "materialise_coordinate_objects": (
+                    request.materialise_coordinate_objects
+                ),
+                "allow_network_acquisition": request.allow_network_acquisition,
                 "selection_policy": "diversity_rounds_then_alignment_quality",
             },
             "input_hit_count": len(hits),

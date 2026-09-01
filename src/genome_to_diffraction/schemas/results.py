@@ -660,6 +660,8 @@ class PartnerSearchResult(ContractModel):
     partner_candidate_id: NonEmptyString | None = None
     execution_status: ExecutionStatus
     parent_llg: float
+    parent_model_identity_fraction: float | None = Field(default=None, gt=0, le=1)
+    parent_model_uncertainty_source: NonEmptyString | None = None
     combined_llg: float | None = None
     incremental_llg: float | None = None
     partner_tfz: float | None = None
@@ -687,6 +689,12 @@ class PartnerSearchResult(ContractModel):
 
     @model_validator(mode="after")
     def _validate_partner_transition(self) -> Self:
+        if (self.parent_model_identity_fraction is None) != (
+            self.parent_model_uncertainty_source is None
+        ):
+            raise ValueError(
+                "parent model identity and uncertainty source must be paired"
+            )
         selection_fields = (
             self.selection_plan_id,
             self.selection_plan_sha256,
@@ -1073,7 +1081,7 @@ class CopyCountAssessment(ContractModel):
     sequence_group_id: NonEmptyString
     expected_copy_count: PositiveInt
     best_supported_copy_count: PositiveInt
-    attempted_transition_count: PositiveInt
+    attempted_transition_count: int = Field(ge=0)
     reached_expected_copy_count: bool
     final_execution_status: ExecutionStatus
     final_llg: float | None = None
@@ -1142,6 +1150,8 @@ class BriefRefinementResult(ContractModel):
             ExecutionStatus.COMPLETED_WARNING,
         }:
             required = (
+                self.final_r_work,
+                self.final_r_free,
                 self.refined_model_path,
                 self.refined_model_sha256,
                 self.refined_mtz_path,
@@ -1150,7 +1160,9 @@ class BriefRefinementResult(ContractModel):
                 self.map_sha256,
             )
             if any(value is None for value in required):
-                raise ValueError("completed refinement lacks required model/map assets")
+                raise ValueError(
+                    "completed refinement lacks final R values or model/map assets"
+                )
         return self
 
 

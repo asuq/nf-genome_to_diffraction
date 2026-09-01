@@ -2,12 +2,14 @@
 
 import csv
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.mr.stage_add_copy import PhaseIIISeedStageEvidence
 from genome_to_diffraction.refinement.stage import (
     LiveT12StageRequest,
     T12StageError,
@@ -18,9 +20,11 @@ from genome_to_diffraction.refinement.stage import (
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
 from genome_to_diffraction.schemas.results import (
     AdditionalCopyResult,
+    CopyCountAssessment,
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    NormalisedMrResult,
 )
 from genome_to_diffraction.status import ExecutionStatus
 
@@ -185,6 +189,7 @@ def _live_request(
     *,
     expected_copy_count: int,
     outcome: str | None,
+    placed_copy_count: int = 1,
 ) -> LiveT12StageRequest:
     review = tmp_path / "review"
     assets = review / "assets" / SEED_ID
@@ -193,6 +198,29 @@ def _live_request(
     root_coordinate.write_text("REMARK first copy\n", encoding="ascii")
     root_solution_mtz = assets / "PHASER.1.mtz"
     root_solution_mtz.write_bytes(b"first-copy solution mtz")
+    normalised_result = assets / "normalised_mr_result.jsonl"
+    first_result = NormalisedMrResult(
+        schema_version="1.0",
+        hypothesis_id=HYPOTHESIS_ID,
+        tool_version="2.1-6048",
+        execution_status=ExecutionStatus.COMPLETED_HIT,
+        llg=100.0,
+        tfz=10.0,
+        placed_copy_count=placed_copy_count,
+        packing_summary={
+            "top_solution_packed": True,
+            "packed_solution_count": 1,
+        },
+        solution_coordinate_path="PHASER.1.pdb",
+        solution_coordinate_sha256=sha256_file(root_coordinate),
+        output_mtz_path="PHASER.1.mtz",
+        output_mtz_sha256=sha256_file(root_solution_mtz),
+        raw_log_pointer="PHASER.log",
+    )
+    normalised_result.write_text(
+        f"{canonical_json_text(first_result)}\n",
+        encoding="utf-8",
+    )
     package_id = "reviewpkg_" + "a" * 64
     review_manifest = review / "mr_seed_review_manifest.json"
     review_manifest.write_text(
@@ -212,10 +240,14 @@ def _live_request(
                             "output_mtz": root_solution_mtz.relative_to(
                                 review
                             ).as_posix(),
+                            "normalised_result": normalised_result.relative_to(
+                                review
+                            ).as_posix(),
                         },
                         "copied_asset_sha256": {
                             "solution_coordinate": sha256_file(root_coordinate),
                             "output_mtz": sha256_file(root_solution_mtz),
+                            "normalised_result": sha256_file(normalised_result),
                         },
                     }
                 ],
@@ -231,7 +263,7 @@ def _live_request(
         sequence_group_id=GROUP_ID,
         model_id="model_" + "a" * 64,
         copy_count_expected=expected_copy_count,
-        copy_number_to_search=1,
+        copy_number_to_search=placed_copy_count,
         fixed_solution_id=None,
         space_group="P 21 21 21",
         obs_labels="I,SIGI",
@@ -287,6 +319,7 @@ def _live_request(
                         "hypothesis_id": HYPOTHESIS_ID,
                         "sequence_group_id": GROUP_ID,
                         "expected_copy_count": expected_copy_count,
+                        "placed_copy_count": placed_copy_count,
                         "requires_additional_copy": expected_copy_count > 1,
                         "source_solution_coordinate": root_coordinate.relative_to(
                             review
@@ -431,6 +464,175 @@ def test_live_stage_retains_best_supported_parent_for_every_typed_outcome(
     assert "does not prove that the copy is absent" in (
         output.copy_report_markdown.read_text(encoding="utf-8")
     )
+
+
+def test_phase3_live_stage_uses_only_canonical_seed_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    legacy = _live_request(tmp_path, expected_copy_count=2, outcome="supported")
+    assert legacy.review_package is not None
+    review_root = legacy.review_package
+    review_manifest = review_root / "mr_seed_review_manifest.json"
+    review_document = json.loads(review_manifest.read_text(encoding="utf-8"))
+    approved_root = legacy.approved_stage
+    legacy_stage = json.loads(
+        (approved_root / "live_m4_stage_manifest.json").read_text(encoding="utf-8")
+    )
+    phase3_model_sources = json.loads(json.dumps(legacy_stage["model_sources"]))
+    phase3_model_sources[SEED_ID]["placed_copy_count"] = 1
+    phase3_model_sources[SEED_ID]["requires_additional_copy"] = True
+    stage_manifest = approved_root / "phase3_seed_stage_manifest.json"
+    stage_manifest.write_text(
+        json.dumps(
+            {
+                "stage_id": "phase3seedstage_" + "1" * 64,
+                "approved_seed_count": 1,
+                "additional_copy_seed_count": 1,
+                "hypotheses_sha256": sha256_file(legacy.hypotheses_jsonl),
+                "model_sources": phase3_model_sources,
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence = PhaseIIISeedStageEvidence(
+        stage_id="phase3seedstage_" + "1" * 64,
+        review_id=REVIEW_ID,
+        approved_solution_ids=(SEED_ID,),
+        root=approved_root,
+        review_root=review_root,
+        review_manifest=review_manifest,
+        review_document=review_document,
+        model_sources=phase3_model_sources,
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.stage_add_copy.validate_phase3_seed_stage",
+        lambda *args, **kwargs: evidence,
+    )
+    request = replace(
+        legacy,
+        review_package=None,
+        phase3_seed_stage_manifest=stage_manifest,
+    )
+
+    output = stage_live_t12_inputs(request)
+
+    manifest = json.loads(output.manifest.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == "2.0"
+    assert manifest["profile"] == "phase3_reviewed_single_component"
+    assert manifest["phase3_seed_stage_id"] == evidence.stage_id
+    assert "approved_decisions_sha256" not in manifest
+    assert "approved_validation_sha256" not in manifest
+
+
+def test_phase3_joint_copy_parent_reaches_refinement_without_addition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    legacy = _live_request(
+        tmp_path,
+        expected_copy_count=2,
+        outcome="supported",
+        placed_copy_count=2,
+    )
+    assert legacy.review_package is not None
+    review_root = legacy.review_package
+    review_manifest = review_root / "mr_seed_review_manifest.json"
+    review_document = json.loads(review_manifest.read_text(encoding="utf-8"))
+    approved_root = legacy.approved_stage
+    legacy_stage = json.loads(
+        (approved_root / "live_m4_stage_manifest.json").read_text(encoding="utf-8")
+    )
+    model_sources = json.loads(json.dumps(legacy_stage["model_sources"]))
+    model_sources[SEED_ID]["placed_copy_count"] = 2
+    model_sources[SEED_ID]["requires_additional_copy"] = False
+    model = approved_root / str(model_sources[SEED_ID]["staged_search_model"])
+    with (approved_root / "approved_seeds.tsv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(
+            (
+                "seed_solution_id",
+                "search_model",
+                "search_model_sha256",
+                "expected_copy_count",
+                "requires_additional_copy",
+            )
+        )
+        writer.writerow((SEED_ID, model, sha256_file(model), 2, "false"))
+    with (approved_root / "additional_copy_seeds.tsv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(
+            (
+                "seed_solution_id",
+                "search_model",
+                "search_model_sha256",
+                "expected_copy_count",
+                "requires_additional_copy",
+            )
+        )
+    stage_manifest = approved_root / "phase3_seed_stage_manifest.json"
+    stage_manifest.write_text(
+        json.dumps(
+            {
+                "stage_id": "phase3seedstage_" + "1" * 64,
+                "approved_seed_count": 1,
+                "additional_copy_seed_count": 0,
+                "hypotheses_sha256": sha256_file(legacy.hypotheses_jsonl),
+                "model_sources": model_sources,
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence = PhaseIIISeedStageEvidence(
+        stage_id="phase3seedstage_" + "1" * 64,
+        review_id=REVIEW_ID,
+        approved_solution_ids=(SEED_ID,),
+        root=approved_root,
+        review_root=review_root,
+        review_manifest=review_manifest,
+        review_document=review_document,
+        model_sources=model_sources,
+    )
+    monkeypatch.setattr(
+        "genome_to_diffraction.mr.stage_add_copy.validate_phase3_seed_stage",
+        lambda *args, **kwargs: evidence,
+    )
+    request = replace(
+        legacy,
+        review_package=None,
+        phase3_seed_stage_manifest=stage_manifest,
+        additional_copy_results=(),
+    )
+
+    output = stage_live_t12_inputs(request)
+
+    finalist = output.finalists.read_text(encoding="utf-8").splitlines()[1]
+    assert finalist.split("\t")[2] == "2"
+    manifest = json.loads(output.manifest.read_text(encoding="utf-8"))
+    candidate = manifest["candidates"][0]
+    assert candidate["attempted_transition_count"] == 0
+    assert candidate["best_supported_copy_count"] == 2
+    assert candidate["reached_expected_copy_count"] is True
+    assert output.copy_assessments_jsonl is not None
+    assessment = CopyCountAssessment.model_validate_json(
+        output.copy_assessments_jsonl.read_bytes().splitlines()[0]
+    )
+    assert assessment.attempted_transition_count == 0
+    assert assessment.best_supported_copy_count == 2
+    assert assessment.reached_expected_copy_count is True
+
+
+def test_phase3_live_stage_rejects_dual_review_authority(tmp_path: Path) -> None:
+    request = replace(
+        _live_request(tmp_path, expected_copy_count=2, outcome="supported"),
+        phase3_seed_stage_manifest=tmp_path / "phase3_seed_stage_manifest.json",
+    )
+
+    with pytest.raises(T12StageError, match="rejects a legacy review package"):
+        stage_live_t12_inputs(request)
 
 
 def test_live_stage_rejects_changed_supported_child_asset(tmp_path: Path) -> None:

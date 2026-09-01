@@ -1,6 +1,7 @@
 """Tests for the fixed-A/joint-B Phaser adapter."""
 
 import hashlib
+import json
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -10,7 +11,7 @@ from pydantic import ValidationError
 
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.cli import main
-from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text
 from genome_to_diffraction.mr import (
     PartnerSearchRequest,
     PhaserInputError,
@@ -23,6 +24,11 @@ from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     PartnerSearchResult,
     SequenceGroupRecord,
+)
+from genome_to_diffraction.schemas.v2 import (
+    DiffractionSelection,
+    DiffractionValueSource,
+    diffraction_dataset_id,
 )
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -88,7 +94,14 @@ def _request(tmp_path: Path) -> PartnerSearchRequest:
     stub_preflight = MtzPreflightRecord.model_validate_json(
         (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
-    preflight = stub_preflight.model_copy(update={"mtz_sha256": sha256_file(mtz)})
+    preflight = stub_preflight.model_copy(
+        update={
+            "mtz_sha256": sha256_file(mtz),
+            "selected_observation_dataset_id": 1,
+            "selected_observation_labels": "F,SIGF",
+            "selected_observation_type": "amplitude",
+        }
+    )
     preflights = tmp_path / "preflight.jsonl"
     preflights.write_text(f"{canonical_json_text(preflight)}\n", encoding="utf-8")
     return PartnerSearchRequest(
@@ -100,6 +113,8 @@ def _request(tmp_path: Path) -> PartnerSearchRequest:
         parent_coordinate=parent,
         expected_parent_coordinate_sha256=sha256_file(parent),
         parent_llg=1200.0,
+        parent_model_identity_fraction=0.35,
+        parent_model_uncertainty_source="registered PDB homologue identity",
         partner_model=partner_model,
         expected_partner_model_sha256=sha256_file(partner_model),
         partner_model_identity_fraction=0.42,
@@ -109,6 +124,38 @@ def _request(tmp_path: Path) -> PartnerSearchRequest:
         output_directory=tmp_path / "partner_output",
         threads=8,
         progress=False,
+    )
+
+
+def _selection(request: PartnerSearchRequest) -> DiffractionSelection:
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.preflight_jsonl.read_bytes()
+    )
+    assert preflight.selected_observation_dataset_id is not None
+    assert preflight.selected_observation_labels is not None
+    assert preflight.selected_observation_type is not None
+    return DiffractionSelection.from_content(
+        crystal_id=request.crystal_id,
+        diffraction_dataset_id=diffraction_dataset_id(
+            crystal_id=request.crystal_id,
+            mtz_sha256=preflight.mtz_sha256,
+        ),
+        mtz_sha256=preflight.mtz_sha256,
+        preflight_id=preflight.preflight_id,
+        preflight_record_sha256=canonical_digest(preflight),
+        crystal_manifest_sha256="9" * 64,
+        observation_dataset_id=preflight.selected_observation_dataset_id,
+        observation_labels=tuple(
+            value.strip() for value in preflight.selected_observation_labels.split(",")
+        ),
+        observation_type=preflight.selected_observation_type,
+        selected_space_group=preflight.space_group,
+        resolution_low_a=preflight.resolution_low_a,
+        resolution_high_a=preflight.resolution_high_a,
+        observation_source=DiffractionValueSource.MTZ_PREFLIGHT_AUTOMATIC,
+        space_group_source=DiffractionValueSource.MTZ_HEADER,
+        resolution_low_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
+        resolution_high_source=DiffractionValueSource.MTZ_RESOLUTION_RANGE,
     )
 
 
@@ -122,6 +169,7 @@ def _fake_runtime(
     partner_marker_count: int = 1,
     pdb_llg: float = 1622.91,
     pdb_tfz: float = 49.7,
+    corrupt_evidence: str | None = None,
 ) -> list[str]:
     captured_parameters: list[str] = []
 
@@ -157,6 +205,9 @@ def _fake_runtime(
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"combined MTZ")
+        if corrupt_evidence is not None:
+            evidence = working_directory / corrupt_evidence
+            evidence.write_bytes(evidence.read_bytes() + b"\xff")
         return subprocess.CompletedProcess(arguments, returncode, b"capture\n", b"")
 
     monkeypatch.setattr(
@@ -178,10 +229,14 @@ def test_fixed_a_one_b_command_and_primary_result(
     output = run_partner_search(request)
 
     result = output.result
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v7-command-bound"
     assert result.execution_status == "completed_hit"
     assert result.partner_tfz == pytest.approx(49.7)
     assert result.combined_llg == pytest.approx(1622.91)
     assert result.incremental_llg == pytest.approx(422.91)
+    assert result.parent_model_identity_fraction == pytest.approx(0.35)
+    assert result.parent_model_uncertainty_source == "registered PDB homologue identity"
     assert result.score_cohort == "primary"
     assert result.fixed_parent_placement_observed is True
     assert result.partner_placement_count == 1
@@ -201,8 +256,34 @@ def test_fixed_a_one_b_command_and_primary_result(
     assert "model_id = search_partner" in text
     assert "ensembles = search_partner" in text
     assert "copies = 1" in text
+    assert "identity = 0.35" in text
     assert "identity = 0.42" in text
     assert "jobs = 8" in text
+    assert "xyzout = True" in text
+    assert "xyzout_ensemble = True" in text
+    assert "keywords = True" in text
+
+
+def test_phase3_partner_command_binds_reviewed_diffraction_selection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = _request(tmp_path)
+    selection = _selection(base)
+    request = replace(base, diffraction_selection=selection)
+    parameters = _fake_runtime(monkeypatch, log_text=NO_EXTENSION_LOG)
+
+    output = run_partner_search(request)
+
+    command = json.loads(output.command_json.read_text(encoding="utf-8"))
+    assert command["adapter_version"] == (
+        "phenix-fixed-a-joint-b-v8-phase3-diffraction"
+    )
+    assert command["diffraction_selection_id"] == (selection.diffraction_selection_id)
+    assert "crystal_symmetry {" in parameters[0]
+    assert f'space_group = "{selection.selected_space_group}"' in parameters[0]
+    assert f"low = {selection.resolution_low_a:g}" in parameters[0]
+    assert f"high = {selection.resolution_high_a:g}" in parameters[0]
 
 
 def test_fixed_two_a_searches_two_b_jointly(
@@ -282,6 +363,28 @@ def test_explicit_no_extension_is_scientific_no_hit(
     assert result.rejection_reason == "phaser_reported_no_partner_solution"
 
 
+@pytest.mark.parametrize("corrupt_evidence", ("PHASER.log", "PHASER.1.pdb"))
+def test_partner_rejects_non_utf8_scientific_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    corrupt_evidence: str,
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        corrupt_evidence=corrupt_evidence,
+    )
+
+    result = run_partner_search(request).result
+
+    assert result.execution_status == "failed_parse"
+    assert "not valid UTF-8" in (result.rejection_reason or "")
+    assert result.top_solution_packed is False
+    assert result.combined_coordinate_path is None
+
+
 @pytest.mark.parametrize(
     ("returncode", "log_text", "expected_status", "reason"),
     [
@@ -332,6 +435,18 @@ def test_partner_result_rejects_incorrect_incremental_llg(
         PartnerSearchResult.model_validate(document)
 
 
+def test_partner_result_requires_paired_parent_uncertainty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _request(tmp_path)
+    _fake_runtime(monkeypatch, log_text=POSITIVE_LOG, write_solution=True)
+    document = run_partner_search(request).result.model_dump(mode="json")
+    document["parent_model_uncertainty_source"] = None
+
+    with pytest.raises(ValidationError, match="parent model identity"):
+        PartnerSearchResult.model_validate(document)
+
+
 def test_partner_cli_exposes_adapter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -361,6 +476,10 @@ def test_partner_cli_exposes_adapter(
             request.expected_parent_coordinate_sha256,
             "--parent-llg",
             str(request.parent_llg),
+            "--parent-model-identity-fraction",
+            str(request.parent_model_identity_fraction),
+            "--parent-model-uncertainty-source",
+            request.parent_model_uncertainty_source,
             "--partner-model",
             str(request.partner_model),
             "--expected-partner-model-sha256",

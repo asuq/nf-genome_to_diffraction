@@ -16,6 +16,10 @@ from genome_to_diffraction.phenix.errors import (
     UnsafePhenixPathError,
 )
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
+from genome_to_diffraction.phenix.interface_probe import (
+    PhaserInterfaceProbeRequest,
+    probe_phaser_interface,
+)
 from genome_to_diffraction.phenix.runtime import (
     REQUIRED_COMMANDS,
     capture_from_manifest,
@@ -72,6 +76,14 @@ printf 'export PATH=%q/bin:$PATH\n' "$prefix" >> "$prefix/phenix_env.sh"
 for command in {commands}; do
   cat > "$prefix/bin/$command" <<'COMMAND'
 #!/usr/bin/env bash
+if [[ "${{0##*/}}" == "phenix.phaser" && "${{1-}}" == "--show_defaults" ]]; then
+  printf 'phaser {{\n'
+  printf '  keywords {{\n'
+  printf '    xyzout {{ ensemble = False }}\n'
+  printf '  }}\n'
+  printf '}}\n'
+  exit 0
+fi
 if [[ "${{1-}}" == "--help" ]]; then
   case "${{0##*/}}" in
     phenix.xtriage)
@@ -443,4 +455,47 @@ def test_fixed_matthews_reference_rejects_executable_escape(tmp_path: Path) -> N
             residue_count=100,
             working_directory=tmp_path / "work",
             timeout_seconds=10,
+        )
+
+
+def test_fixed_phaser_interface_probe_retains_exact_defaults(tmp_path: Path) -> None:
+    installer = tmp_path / "installer.sh"
+    digest = _write_installer(installer)
+    install_request = _request(tmp_path, installer, digest)
+    install_phenix(install_request)
+
+    result = probe_phaser_interface(
+        PhaserInterfaceProbeRequest(
+            phenix_manifest=install_request.manifest_path,
+            output_directory=tmp_path / "interface probe",
+            timeout_seconds=10,
+        )
+    )
+
+    report = json.loads(result.report_json.read_text(encoding="utf-8"))
+    assert result.probe_id.startswith("phaserinterface_")
+    assert report["probe_id"] == result.probe_id
+    assert report["command"] == ["phenix.phaser", "--show_defaults"]
+    assert report["scientific_execution_performed"] is False
+    assert report["phaser_scope_observed"] is True
+    assert report["xyzout_token_observed"] is True
+    assert report["ensemble_token_observed"] is True
+    assert result.defaults_output.read_bytes().startswith(b"phaser {\n")
+
+
+def test_fixed_phaser_interface_probe_rejects_nonempty_output(tmp_path: Path) -> None:
+    installer = tmp_path / "installer.sh"
+    digest = _write_installer(installer)
+    install_request = _request(tmp_path, installer, digest)
+    install_phenix(install_request)
+    output = tmp_path / "interface probe"
+    output.mkdir()
+    (output / "retained-user-file").write_text("preserve\n", encoding="ascii")
+
+    with pytest.raises(PhenixRuntimeVerificationError, match="not empty"):
+        probe_phaser_interface(
+            PhaserInterfaceProbeRequest(
+                phenix_manifest=install_request.manifest_path,
+                output_directory=output,
+            )
         )

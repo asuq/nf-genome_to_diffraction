@@ -1,0 +1,110 @@
+nextflow.enable.types = true
+
+// Cross the Phase III A checkpoint only through its canonical owned-run stage.
+// The schema-v2 adapter reads the complete evidence copied into the owned
+// package and never translates the decision into a legacy approval record.
+process STAGE_PHASE3_APPROVED_MR_SEEDS {
+    tag 'phase3-approved-mr-seeds'
+    label 'process_low'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    review_stage: Path
+    phase3_package: Path
+    hypotheses: Path
+    owned_run_registry: Path
+    execution_identity: Path
+    owned_parent_run_id: String
+
+    output:
+    stage: Path = file('phase3_seed_stage')
+
+    script:
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        mr stage-phase3-seeds \
+        --review-stage ${review_stage} \
+        --review-package-manifest ${phase3_package}/phase3_review_package_manifest.json \
+        --hypotheses ${hypotheses} \
+        --owned-run-registry ${owned_run_registry} \
+        --execution-identity ${execution_identity} \
+        --owned-parent-run '${owned_parent_run_id}' \
+        --outdir phase3_seed_stage
+    """
+
+    stub:
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        mr stage-phase3-seeds \
+        --review-stage ${review_stage} \
+        --review-package-manifest ${phase3_package}/phase3_review_package_manifest.json \
+        --hypotheses ${hypotheses} \
+        --owned-run-registry ${owned_run_registry} \
+        --execution-identity ${execution_identity} \
+        --owned-parent-run '${owned_parent_run_id}' \
+        --outdir phase3_seed_stage
+    """
+}
+
+
+// Independent reviewed crystals must never publish into the same stage or
+// consume another crystal's authenticated package, decisions, or hypotheses.
+process STAGE_PHASE3_CRYSTAL_APPROVED_MR_SEEDS {
+    tag "phase3-approved-mr-seeds:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    stage: Tuple = tuple(
+        item[0],
+        file("phase3_seed_stage_${item[0]}")
+    )
+
+    script:
+    if (item.size() != 7) {
+        error "Phase III seed stage requires one complete owned-run item"
+    }
+    def outputName = "phase3_seed_stage_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        mr stage-phase3-seeds \
+        --review-stage '${item[1]}' \
+        --review-package-manifest '${item[2]}/phase3_review_package_manifest.json' \
+        --hypotheses '${item[3]}' \
+        --owned-run-registry '${item[4]}' \
+        --execution-identity '${item[5]}' \
+        --owned-parent-run '${item[6]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    if (item.size() != 7) {
+        error "Phase III seed stage requires one complete owned-run item"
+    }
+    def outputName = "phase3_seed_stage_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        mr stage-phase3-seeds \
+        --review-stage '${item[1]}' \
+        --review-package-manifest '${item[2]}/phase3_review_package_manifest.json' \
+        --hypotheses '${item[3]}' \
+        --owned-run-registry '${item[4]}' \
+        --execution-identity '${item[5]}' \
+        --owned-parent-run '${item[6]}' \
+        --outdir '${outputName}'
+    """
+}

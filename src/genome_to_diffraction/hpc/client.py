@@ -14,7 +14,8 @@ import subprocess
 import tarfile
 import tempfile
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -63,6 +64,15 @@ from genome_to_diffraction.hpc.p0_inputs import (
     P0_PATHS_FILENAME,
     build_p0_input_bundle,
 )
+from genome_to_diffraction.hpc.unknown_inputs import (
+    build_unknown_discovery_input_bundle,
+)
+from genome_to_diffraction.hpc.unknown_pass2_inputs import (
+    build_unknown_pass2_input_bundle,
+)
+from genome_to_diffraction.hpc.unknown_single_inputs import (
+    build_unknown_single_component_input_bundle,
+)
 from genome_to_diffraction.review import (
     SequenceCheckpointRequest,
     build_sequence_checkpoint,
@@ -90,6 +100,24 @@ _TERMINAL_STATES = frozenset(
 _QUEUED_STATES = frozenset(
     {"CONFIGURING", "PENDING", "REQUEUE_FED", "REQUEUE_HOLD", "REQUEUED"}
 )
+_RUNNING_STATES = frozenset(
+    {"COMPLETING", "RESIZING", "RUNNING", "STOPPED", "SUSPENDED"}
+)
+_RUN_SCOPED_REMOTE_OPERATIONS = frozenset(
+    {
+        "cancel",
+        "clean",
+        "database-archive-failed",
+        "database-stage",
+        "database-submit",
+        "logs",
+        "m4-copy-stage",
+        "stage",
+        "status",
+        "submit",
+    }
+)
+_SITE_REQUIRED_REMOTE_OPERATIONS = frozenset({"logs", "status"})
 _REMOTE_TOOL_PATHS = (
     PurePosixPath("bootstrap/nf-gtd-hpc-remote"),
     PurePosixPath("bootstrap/nf-gtd-hpc-smoke-job"),
@@ -103,6 +131,7 @@ SSH_OPERATION_TIMEOUT_SECONDS = 45 * 60
 P0_STAGE_TIMEOUT_SECONDS = 45 * 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
+UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS = 60 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
 MAX_LOG_BYTES = 2 * 1024 * 1024
@@ -118,6 +147,13 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/p2.log",
         "logs/p2-diverse.log",
         "logs/p2-control.log",
+        "logs/heteromer-smoke.log",
+        "logs/phase3-phenix-probe.log",
+        "logs/phase3-network-probe.log",
+        "logs/unknown-discovery.log",
+        "logs/unknown-screen.log",
+        "logs/unknown-single-component.log",
+        "logs/unknown-pass2.log",
         "logs/control-slice.log",
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
@@ -130,7 +166,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -199,6 +235,7 @@ _T12_ASSET_BASENAMES = (
 )
 _P0_QUALIFICATION_RELATIVE = Path(".untracked/m0-qualification")
 _P0_INPUT_SPEC_NAME = "p0-inputs.json"
+_PHASE3_PHENIX_BINDING_NAME = "hpc-phase3-phenix.paths"
 
 
 def _validated_p0_paths_payload(path: Path) -> bytes:
@@ -233,10 +270,75 @@ def _validated_p0_paths_payload(path: Path) -> bytes:
     return payload
 
 
+def _validated_database_runtime_paths_payload(path: Path) -> bytes:
+    """Load one canonical seven-line private database runtime configuration."""
+
+    if (
+        path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_uid != os.getuid()
+        or path.stat().st_mode & 0o777 != 0o600
+    ):
+        raise ValidationError(
+            "database runtime paths must be an owned mode-0600 regular file"
+        )
+    payload = path.read_bytes()
+    if not payload or len(payload) > MAX_P0_PATHS_BYTES:
+        raise ValidationError(
+            f"database runtime paths must contain 1..{MAX_P0_PATHS_BYTES} bytes"
+        )
+    try:
+        text = payload.decode("ascii")
+    except UnicodeDecodeError as error:
+        raise ValidationError("database runtime paths must be ASCII") from error
+    lines = text.splitlines()
+    canonical = "\n".join(lines) + "\n"
+    if text != canonical or len(lines) != 7 or any(not line for line in lines):
+        raise ValidationError(
+            "database runtime paths must be exactly seven non-empty LF-terminated lines"
+        )
+    for index, value in enumerate(lines[:3], start=1):
+        validate_remote_path(value, f"database runtime paths line {index}")
+    if any(
+        re.fullmatch(r"(?:0|[1-9][0-9]*)", value) is None or len(value) > 13
+        for value in lines[3:]
+    ):
+        raise ValidationError("database runtime capacities must be canonical integers")
+    storage, reserve, required, scratch = (int(value) for value in lines[3:])
+    if not (
+        0 < storage <= 2_000_000_000_000
+        and 0 <= reserve < storage
+        and 0 < required <= storage
+        and scratch > 0
+    ):
+        raise ValidationError("database runtime capacities are out of bounds")
+    return payload
+
+
 def _fixed_heteromer_phenix_binding(repository: Path) -> tuple[str, str]:
     """Return the preserved Marmic Phenix path and independently frozen digest."""
 
     qualification = repository / _P0_QUALIFICATION_RELATIVE
+    strict_binding = qualification / _PHASE3_PHENIX_BINDING_NAME
+    if strict_binding.exists() or strict_binding.is_symlink():
+        if (
+            strict_binding.is_symlink()
+            or not strict_binding.is_file()
+            or strict_binding.stat().st_mode & 0o777 != 0o600
+        ):
+            raise ValidationError("Phase III Phenix binding must be mode 0600")
+        try:
+            strict_lines = strict_binding.read_text(encoding="ascii").splitlines()
+        except (OSError, UnicodeError) as error:
+            raise ValidationError("Phase III Phenix binding is unreadable") from error
+        if (
+            len(strict_lines) != 2
+            or not strict_lines[0]
+            or re.fullmatch(r"[a-f0-9]{64}", strict_lines[1]) is None
+        ):
+            raise ValidationError("Phase III Phenix binding fields are invalid")
+        validate_remote_path(strict_lines[0], "strict Phase III Phenix manifest")
+        return strict_lines[0], strict_lines[1]
     paths = qualification / P0_PATHS_FILENAME
     lines = _validated_p0_paths_payload(paths).decode("ascii").splitlines()
     phenix_manifest = lines[6]
@@ -343,6 +445,71 @@ def _inspect_m6_runner_archive(
     )
 
 
+_M6_OPERATIONAL_PRECHECK_PATHS = (
+    "manifest.json",
+    "state/job-result.json",
+    "artifacts/qualification/m6-scientific-summary.json",
+    "artifacts/qualification/m6-scientific-checksums.sha256",
+)
+_M6_SOURCE_BRANCH_BY_SITE = {
+    "viper-cpu": "main",
+    "marmic": "main",
+}
+
+
+def _validate_m6_source_branch(site_id: str, source_branch: str) -> None:
+    """Require the one reviewed immutable source line for each M6 site."""
+
+    expected = _M6_SOURCE_BRANCH_BY_SITE.get(site_id)
+    if expected is None or source_branch != expected:
+        raise ValidationError(
+            f"M6 site {site_id} requires source branch {expected or 'unavailable'}"
+        )
+
+
+def _m6_operational_precheck(
+    collected: Path,
+    record: LocalRunRecord,
+) -> str:
+    """Authenticate one collected successful operational track before leakage."""
+
+    if collected.is_symlink() or not collected.is_dir():
+        raise ValidationError("M6 leakage requires its collected operational parent")
+    paths: list[tuple[str, Path]] = []
+    for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
+        path = collected.joinpath(*PurePosixPath(relative).parts)
+        if path.is_symlink() or not path.is_file():
+            raise ValidationError(f"M6 operational precheck is missing {relative}")
+        paths.append((relative, path))
+    manifest = load_json_document(paths[0][1])
+    result = load_json_document(paths[1][1])
+    summary = load_json_document(paths[2][1])
+    if (
+        not isinstance(manifest, dict)
+        or not isinstance(result, dict)
+        or not isinstance(summary, dict)
+        or manifest.get("run_id") != record.run_id
+        or manifest.get("profile") != "m6-operational"
+        or manifest.get("commit") != record.commit
+        or manifest.get("site_id") != record.site_id
+        or result.get("run_id") != record.run_id
+        or result.get("profile") != "m6-operational"
+        or result.get("scheduler_state") != "COMPLETED"
+        or result.get("failure_class") != "success"
+        or result.get("exit_code") != 0
+        or summary.get("track") != "operational"
+        or summary.get("schema_version") != "2.0"
+        or summary.get("adapter_version") != "m6-nextflow-run-v2"
+    ):
+        raise ValidationError(
+            "M6 operational parent is not a collected successful exact track"
+        )
+    inventory = "".join(
+        f"{sha256_file(path)}  {relative}\n" for relative, path in paths
+    )
+    return hashlib.sha256(inventory.encode("ascii")).hexdigest()
+
+
 class TextTransport(Protocol):
     """Transport contract used by the controller and deterministic fakes."""
 
@@ -362,6 +529,14 @@ class TextTransport(Protocol):
 
     def collect(self, run_id: str, owner_id: str) -> bytes:
         """Return the fixed whitelisted artefact archive for an owned run."""
+
+    def collect_to_path(
+        self,
+        run_id: str,
+        owner_id: str,
+        destination: Path,
+    ) -> None:
+        """Stream the fixed whitelisted archive to one new local file."""
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         """Return manifest-selected and checksum-gated MR review assets."""
@@ -393,6 +568,33 @@ class TextTransport(Protocol):
         archive_path: Path,
     ) -> dict[str, str]:
         """Stream one fixed immutable source checkout archive."""
+
+    def unknown_discovery_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach one fixed private review/input archive to a staged run."""
+
+    def unknown_screen_stage(
+        self,
+        arguments: Sequence[str],
+    ) -> dict[str, str]:
+        """Run bounded login acquisition from one owned discovery parent."""
+
+    def unknown_single_component_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach reviewed A-seed decisions to one owned screen child."""
+
+    def unknown_pass2_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach one RG7-closed pass-2 archive to its owned pass-1 child."""
 
     def m4_import_stage(
         self,
@@ -446,11 +648,17 @@ class GitRepository(Protocol):
     def resolve_commit(self, revision: str) -> str:
         """Resolve HEAD or a full SHA to a full commit SHA."""
 
+    def resolve_tree(self, commit: str) -> str:
+        """Resolve the exact root tree for one validated commit."""
+
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         """Read one fixed repository file from an exact commit."""
 
     def ensure_reachable_from_origin_main(self, commit: str) -> None:
         """Fail unless the exact commit is contained in tracked origin/main."""
+
+    def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        """Fail unless the exact commit is contained in one fixed tracked branch."""
 
     def create_source_archive(
         self,
@@ -506,6 +714,13 @@ class SubprocessGitRepository:
         commit = self._run(["rev-parse", "--verify", f"{revision}^{{commit}}"])
         return validate_commit(commit)
 
+    def resolve_tree(self, commit: str) -> str:
+        """Resolve the immutable root tree for one exact commit."""
+
+        validate_commit(commit)
+        tree = self._run(["rev-parse", "--verify", f"{commit}^{{tree}}"])
+        return validate_commit(tree)
+
     def read_file_at_commit(self, commit: str, path: PurePosixPath) -> bytes:
         """Read a fixed path without checking out or interpreting shell syntax."""
 
@@ -529,6 +744,16 @@ class SubprocessGitRepository:
         validate_commit(commit)
         self._run(["rev-parse", "--verify", "refs/remotes/origin/main^{commit}"])
         self._run(["merge-base", "--is-ancestor", commit, "refs/remotes/origin/main"])
+
+    def ensure_reachable_from_origin_branch(self, commit: str, branch: str) -> None:
+        """Require the commit in one explicitly allowed tracked remote branch."""
+
+        validate_commit(commit)
+        if branch != "main":
+            raise ValidationError("remote branch is not approved for HPC staging")
+        reference = f"refs/remotes/origin/{branch}"
+        self._run(["rev-parse", "--verify", f"{reference}^{{commit}}"])
+        self._run(["merge-base", "--is-ancestor", commit, reference])
 
     def create_source_archive(
         self,
@@ -569,17 +794,21 @@ class SubprocessGitRepository:
                     )
                 return result.stdout.strip()
 
+            checkout.mkdir()
+            run(["-C", str(checkout), "init", "--quiet"])
+            run(["-C", str(checkout), "remote", "add", "origin", origin_url])
             run(
                 [
-                    "clone",
-                    "--no-hardlinks",
-                    "--no-checkout",
-                    str(self._repository),
+                    "-C",
                     str(checkout),
+                    "fetch",
+                    "--depth=1",
+                    "--no-tags",
+                    str(self._repository),
+                    commit,
                 ]
             )
-            run(["-C", str(checkout), "checkout", "--detach", commit])
-            run(["-C", str(checkout), "remote", "set-url", "origin", origin_url])
+            run(["-C", str(checkout), "checkout", "--detach", "FETCH_HEAD"])
             run(
                 [
                     "-C",
@@ -731,6 +960,30 @@ class SshTransport:
                 f"remote {operation} returned no structured fields",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             )
+        reported_operation = "stage" if operation == "database-stage" else operation
+        if fields.get("operation") != reported_operation:
+            raise RemoteOperationError(
+                f"remote {operation} returned an inconsistent operation identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if operation in _RUN_SCOPED_REMOTE_OPERATIONS and (
+            not arguments or fields.get("run_id") != arguments[0]
+        ):
+            raise RemoteOperationError(
+                f"remote {operation} returned an inconsistent owned run identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        remote_site = fields.get("site_id")
+        if operation in _SITE_REQUIRED_REMOTE_OPERATIONS and remote_site is None:
+            raise RemoteOperationError(
+                f"remote {operation} omitted its mandatory site identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if remote_site is not None and remote_site != self._config.site_id:
+            raise RemoteOperationError(
+                f"remote {operation} returned an inconsistent site identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
         return fields
 
     def recover_tools(
@@ -833,6 +1086,47 @@ class SshTransport:
                 failure_class=_failure_class(fields.get("failure_class")),
             )
         return result.stdout
+
+    def collect_to_path(
+        self,
+        run_id: str,
+        owner_id: str,
+        destination: Path,
+    ) -> None:
+        """Stream the fixed remote archive without buffering it in memory."""
+
+        if destination.exists() or destination.is_symlink():
+            raise ValidationError("collection archive destination must be absent")
+        try:
+            with destination.open("xb") as output:
+                result = subprocess.run(
+                    self._command("collect", [run_id, owner_id]),
+                    check=False,
+                    stdout=output,
+                    stderr=subprocess.PIPE,
+                    timeout=SSH_COLLECTION_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote collection exceeded the fixed "
+                f"{SSH_COLLECTION_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if result.returncode != 0:
+            payload = (
+                destination.read_bytes()
+                if destination.stat().st_size <= MAX_LOG_BYTES
+                else b""
+            )
+            fields = _decode_remote_fields(payload) if payload else {}
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+            )
+            raise RemoteOperationError(
+                message or "remote artefact collection failed",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         """Stream only assets selected by one immutable MR review manifest."""
@@ -990,6 +1284,163 @@ class SshTransport:
         if not fields:
             raise RemoteOperationError(
                 "remote source-archive staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
+    def unknown_discovery_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one bounded private unknown-discovery input archive."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("unknown-discovery-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-discovery input staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-discovery input staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-discovery input staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
+    def unknown_screen_stage(
+        self,
+        arguments: Sequence[str],
+    ) -> dict[str, str]:
+        """Run one parent-bound provider staging operation on the login node."""
+
+        try:
+            result = subprocess.run(
+                self._command("unknown-screen-stage", arguments),
+                check=False,
+                capture_output=True,
+                timeout=UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-screen staging exceeded the fixed "
+                f"{UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS}-second timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-screen staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-screen staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
+    def unknown_single_component_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream checksum-confirmed A-seed decisions for one continuation."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("unknown-single-component-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-single-component staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-single-component staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-single-component staging returned no fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
+    def unknown_pass2_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one closure-gated Phase III pass-2 input archive."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("unknown-pass2-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote unknown-pass2 staging exceeded the fixed "
+                f"{P0_INPUT_STAGE_TIMEOUT_SECONDS}-second timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote unknown-pass2 input staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote unknown-pass2 input staging returned no fields",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             )
         return fields
@@ -1247,25 +1698,30 @@ class HpcController:
         self.logger = logger or logging.getLogger("genome_to_diffraction.hpc")
         self.progress = progress
 
-    def deploy_tools(self, revision: str) -> dict[str, object]:
+    def deploy_tools(
+        self, revision: str, *, source_branch: str = "main"
+    ) -> dict[str, object]:
         """Install the two fixed remote scripts from one clean pushed commit."""
 
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        if source_branch != "main":
+            raise ValidationError("remote tool source branch is not approved")
         self.git.ensure_reachable_from_origin_main(commit)
         checksums: dict[str, str] = {}
         committed_tools: dict[str, bytes] = {}
         for relative in _REMOTE_TOOL_PATHS:
             committed = self.git.read_file_at_commit(commit, relative)
-            worktree_path = self.config.repository.joinpath(*relative.parts)
-            if worktree_path.is_symlink() or not worktree_path.is_file():
-                raise ValidationError(
-                    f"remote tool must be a regular tracked file: {relative}"
-                )
-            if worktree_path.read_bytes() != committed:
-                raise ValidationError(
-                    f"worktree content differs from commit {commit}: {relative}"
-                )
+            if source_branch == "main":
+                worktree_path = self.config.repository.joinpath(*relative.parts)
+                if worktree_path.is_symlink() or not worktree_path.is_file():
+                    raise ValidationError(
+                        f"remote tool must be a regular tracked file: {relative}"
+                    )
+                if worktree_path.read_bytes() != committed:
+                    raise ValidationError(
+                        f"worktree content differs from commit {commit}: {relative}"
+                    )
             committed_tools[relative.name] = committed
             checksums[relative.name] = hashlib.sha256(committed).hexdigest()
 
@@ -1328,9 +1784,54 @@ class HpcController:
             **remote,
             "operation": "deploy-tools",
             "commit": commit,
+            "source_branch": source_branch,
             "dispatcher_sha256": dispatcher_checksum,
             "smoke_job_sha256": smoke_job_checksum,
             "recovery_sha256": recovery_checksum,
+        }
+
+    def phenix_runtime_migrate(self, run_id: str) -> dict[str, object]:
+        """Create and install one strict Phase III Phenix manifest binding."""
+
+        record = self._owned_run(run_id)
+        if record.profile != "phase3-phenix-probe" or record.site_id != "marmic":
+            raise ValidationError(
+                "Phenix runtime migration requires one staged Marmic probe run"
+            )
+        response = self.transport.run(
+            "phenix-runtime-migrate",
+            [record.run_id, record.owner_id],
+        )
+        manifest_path = response.get("strict_manifest")
+        manifest_sha256 = response.get("strict_manifest_sha256")
+        if not isinstance(manifest_path, str) or not isinstance(manifest_sha256, str):
+            raise RemoteOperationError(
+                "remote Phenix migration omitted its strict identity",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        validate_remote_path(manifest_path, "strict Phase III Phenix manifest")
+        if re.fullmatch(r"[a-f0-9]{64}", manifest_sha256) is None:
+            raise RemoteOperationError(
+                "remote Phenix migration returned an invalid checksum",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        binding = (
+            self.config.repository
+            / _P0_QUALIFICATION_RELATIVE
+            / _PHASE3_PHENIX_BINDING_NAME
+        )
+        payload = f"{manifest_path}\n{manifest_sha256}\n"
+        if binding.exists() or binding.is_symlink():
+            if binding.is_symlink() or binding.read_text(encoding="ascii") != payload:
+                raise ValidationError("Phase III Phenix binding already differs")
+        else:
+            atomic_write_text(binding, payload)
+            binding.chmod(0o600)
+        return {
+            **response,
+            "operation": "phenix-runtime-migrate",
+            "run_id": run_id,
+            "local_binding": str(binding),
         }
 
     def stage(
@@ -1339,6 +1840,7 @@ class HpcController:
         revision: str,
         *,
         parent_run_id: str | None = None,
+        source_branch: str | None = None,
     ) -> dict[str, object]:
         """Stage one clean immutable commit and create its local capability record."""
 
@@ -1349,13 +1851,77 @@ class HpcController:
             )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        approved_source_branch = source_branch or "main"
+        if approved_source_branch != "main":
+            raise ValidationError("source branch is not approved for HPC staging")
         self.git.ensure_reachable_from_origin_main(commit)
+        screen_parent: LocalRunRecord | None = None
+        single_parent: LocalRunRecord | None = None
+        pass2_parent: LocalRunRecord | None = None
+        if profile == "unknown-screen":
+            if parent_run_id is None:
+                raise ValidationError(
+                    "unknown-screen staging requires an owned unknown-discovery parent"
+                )
+            screen_parent = self._owned_run(parent_run_id)
+            if screen_parent.profile != "unknown-discovery":
+                raise ValidationError(
+                    "unknown-screen parent must use the unknown-discovery profile"
+                )
+            if screen_parent.site_id != self.config.site_id:
+                raise ValidationError(
+                    "unknown-screen parent must belong to the configured HPC site"
+                )
+            if screen_parent.commit != commit:
+                raise ValidationError(
+                    "unknown-screen child must use the exact discovery source commit"
+                )
+        if profile == "unknown-single-component":
+            if parent_run_id is None:
+                raise ValidationError(
+                    "unknown-single-component staging requires an owned "
+                    "unknown-screen parent"
+                )
+            single_parent = self._owned_run(parent_run_id)
+            if single_parent.profile != "unknown-screen":
+                raise ValidationError(
+                    "unknown-single-component parent must use unknown-screen"
+                )
+            if single_parent.site_id != self.config.site_id:
+                raise ValidationError(
+                    "unknown-single-component parent belongs to another HPC site"
+                )
+            if single_parent.commit != commit:
+                raise ValidationError(
+                    "unknown-single-component child must use the exact screen "
+                    "source commit"
+                )
+        if profile == "unknown-pass2":
+            if parent_run_id is None:
+                raise ValidationError(
+                    "unknown-pass2 staging requires an owned single-component parent"
+                )
+            pass2_parent = self._owned_run(parent_run_id)
+            if pass2_parent.profile != "unknown-single-component":
+                raise ValidationError(
+                    "unknown-pass2 parent must use unknown-single-component"
+                )
+            if pass2_parent.site_id != self.config.site_id:
+                raise ValidationError(
+                    "unknown-pass2 parent belongs to another HPC site"
+                )
+            if pass2_parent.commit != commit:
+                raise ValidationError(
+                    "unknown-pass2 child must use the exact pass-1 source commit"
+                )
         iteration, parent = self._next_iteration(parent_run_id)
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
         owner_id = secrets.token_hex(16)
         validate_run_id(run_id)
-        lock_checksum = sha256_file(self.config.repository / "pixi.lock")
+        lock_checksum = hashlib.sha256(
+            self.git.read_file_at_commit(commit, PurePosixPath("pixi.lock"))
+        ).hexdigest()
         self.logger.info(
             "staging immutable HPC run",
             extra={
@@ -1376,7 +1942,14 @@ class HpcController:
         )
         local_path = record.write(self.config.local_state_root)
         arguments = [run_id, commit, lock_checksum, owner_id, str(iteration), profile]
-        if profile == "heteromer-smoke":
+        if profile in {
+            "heteromer-smoke",
+            "phase3-phenix-probe",
+            "unknown-discovery",
+            "unknown-screen",
+            "unknown-single-component",
+            "unknown-pass2",
+        }:
             phenix_manifest, phenix_sha256 = _fixed_heteromer_phenix_binding(
                 self.config.repository
             )
@@ -1413,6 +1986,174 @@ class HpcController:
                     ],
                     archive_path,
                 )
+        if profile == "unknown-discovery":
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-unknown-discovery-",
+                dir="/tmp",
+            ) as temporary:
+                archive_path = Path(temporary) / "unknown-discovery-inputs.tar"
+                bundle = build_unknown_discovery_input_bundle(
+                    repository=self.config.repository,
+                    archive_path=archive_path,
+                )
+                attached = self.transport.unknown_discovery_inputs_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        bundle.input_id,
+                        bundle.archive_sha256,
+                        str(bundle.archive_size_bytes),
+                        bundle.execution_identity_id,
+                        bundle.review_stage_index_id,
+                    ],
+                    bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("input_id") != bundle.input_id
+                or attached.get("archive_sha256") != bundle.archive_sha256
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-discovery input identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_input_id": bundle.input_id,
+                "unknown_input_sha256": bundle.archive_sha256,
+                "unknown_input_file_count": str(bundle.file_count),
+            }
+        if profile == "unknown-screen":
+            if screen_parent is None:
+                raise AssertionError("validated unknown-screen parent is absent")
+            attached = self.transport.unknown_screen_stage(
+                [
+                    run_id,
+                    owner_id,
+                    screen_parent.run_id,
+                    screen_parent.owner_id,
+                ]
+            )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("parent_run_id") != screen_parent.run_id
+                or not attached.get("provider_preparation_sha256")
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-screen staging identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_discovery_parent_run_id": screen_parent.run_id,
+                "provider_preparation_sha256": attached["provider_preparation_sha256"],
+            }
+        if profile == "unknown-single-component":
+            if single_parent is None:
+                raise AssertionError(
+                    "validated unknown-single-component parent is absent"
+                )
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-unknown-single-component-",
+                dir="/tmp",
+            ) as temporary:
+                archive_path = Path(temporary) / "unknown-single-inputs.tar"
+                bundle = build_unknown_single_component_input_bundle(
+                    repository=self.config.repository,
+                    parent_run_id=single_parent.run_id,
+                    archive_path=archive_path,
+                )
+                attached = self.transport.unknown_single_component_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        single_parent.run_id,
+                        single_parent.owner_id,
+                        bundle.input_id,
+                        bundle.archive_sha256,
+                        str(bundle.archive_size_bytes),
+                    ],
+                    bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("parent_run_id") != single_parent.run_id
+                or attached.get("input_id") != bundle.input_id
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-single-component staging identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_screen_parent_run_id": single_parent.run_id,
+                "unknown_single_input_id": bundle.input_id,
+                "unknown_single_decision_count": str(bundle.decision_count),
+            }
+        if profile == "unknown-pass2":
+            if pass2_parent is None:
+                raise AssertionError("validated unknown-pass2 parent is absent")
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-unknown-pass2-",
+                dir="/tmp",
+            ) as temporary:
+                archive_path = Path(temporary) / "unknown-pass2-inputs.tar"
+                source_tree = self.git.resolve_tree(commit)
+                finding_ledger_sha256 = hashlib.sha256(
+                    self.git.read_file_at_commit(
+                        commit,
+                        PurePosixPath("docs/phase-iii-finding-ledger.md"),
+                    )
+                ).hexdigest()
+                pass2_bundle = build_unknown_pass2_input_bundle(
+                    repository=self.config.repository,
+                    archive_path=archive_path,
+                    expected_source_commit=commit,
+                    expected_source_tree=source_tree,
+                    expected_parent_run_id=pass2_parent.run_id,
+                    expected_finding_ledger_sha256=finding_ledger_sha256,
+                )
+                if (
+                    pass2_bundle.source_commit != commit
+                    or pass2_bundle.source_tree != source_tree
+                    or pass2_bundle.parent_run_id != pass2_parent.run_id
+                    or pass2_bundle.finding_ledger_sha256 != finding_ledger_sha256
+                ):
+                    raise ValidationError(
+                        "pass-2 input bundle differs from its staged authority"
+                    )
+                attached = self.transport.unknown_pass2_inputs_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        pass2_parent.run_id,
+                        pass2_parent.owner_id,
+                        pass2_bundle.input_id,
+                        pass2_bundle.archive_sha256,
+                        str(pass2_bundle.archive_size_bytes),
+                        pass2_bundle.execution_identity_id,
+                        pass2_bundle.finding_closure_id,
+                        str(pass2_bundle.file_count),
+                    ],
+                    pass2_bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("parent_run_id") != pass2_parent.run_id
+                or attached.get("input_id") != pass2_bundle.input_id
+                or attached.get("finding_closure_id") != pass2_bundle.finding_closure_id
+            ):
+                raise RemoteOperationError(
+                    "remote unknown-pass2 input identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "unknown_pass1_parent_run_id": pass2_parent.run_id,
+                "unknown_pass2_input_id": pass2_bundle.input_id,
+                "finding_closure_id": pass2_bundle.finding_closure_id,
+                "unknown_pass2_crystal_count": str(len(pass2_bundle.crystal_ids)),
+            }
         if profile == "m6-nextflow-smoke":
             remote_site = remote.get("site_id")
             if not isinstance(remote_site, str):
@@ -1430,6 +2171,7 @@ class HpcController:
             "run_id": run_id,
             "commit": commit,
             "profile": profile,
+            "source_branch": approved_source_branch,
             "iteration": iteration,
             "local_record": str(local_path),
         }
@@ -1737,13 +2479,18 @@ class HpcController:
         revision: str,
         archive: Path,
         expected_archive_sha256: str,
+        *,
+        source_branch: str = "main",
     ) -> dict[str, object]:
         """Stage one explicitly confirmed truth-isolated 63-case M6 archive."""
 
-        if self.config.site_id != "viper-cpu":
-            raise ValidationError("m6-inputs-stage is available only for viper-cpu")
+        if self.config.site_id not in {"viper-cpu", "marmic"}:
+            raise ValidationError("m6-inputs-stage requires a reviewed HPC site")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        _validate_m6_source_branch(self.config.site_id, source_branch)
+        if source_branch != "main":
+            raise ValidationError("source branch is not approved for M6 staging")
         self.git.ensure_reachable_from_origin_main(commit)
         untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
         try:
@@ -1808,6 +2555,7 @@ class HpcController:
             "run_id": run_id,
             "site_id": self.config.site_id,
             "commit": commit,
+            "source_branch": source_branch,
             "profile": "m6-inputs",
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "case_count": case_count,
@@ -1823,15 +2571,44 @@ class HpcController:
         archive: Path,
         expected_archive_sha256: str,
         track: str,
+        *,
+        source_branch: str = "main",
+        operational_parent_run_id: str | None = None,
     ) -> dict[str, object]:
-        """Stage one fixed 8-CPU/16-GB truth-isolated M6 scientific track."""
+        """Stage one fixed truth-isolated M6 track at its reviewed site."""
 
-        if self.config.site_id != "viper-cpu":
-            raise ValidationError("m6-scientific-stage is available only for viper-cpu")
+        if self.config.site_id not in {"viper-cpu", "marmic"}:
+            raise ValidationError("M6 scientific staging requires a reviewed HPC site")
         if track not in {"operational", "leakage"}:
             raise ValidationError("M6 scientific track must be operational or leakage")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
+        _validate_m6_source_branch(self.config.site_id, source_branch)
+        operational_parent: LocalRunRecord | None = None
+        operational_precheck_sha256: str | None = None
+        if track == "operational":
+            if operational_parent_run_id is not None:
+                raise ValidationError("M6 operational staging cannot have a parent")
+        else:
+            if operational_parent_run_id is None:
+                raise ValidationError(
+                    "M6 leakage requires its collected operational parent"
+                )
+            operational_parent = self._owned_run(operational_parent_run_id)
+            if (
+                operational_parent.profile != "m6-operational"
+                or operational_parent.site_id != self.config.site_id
+                or operational_parent.commit != commit
+            ):
+                raise ValidationError(
+                    "M6 leakage parent differs in profile, site, or source"
+                )
+            operational_precheck_sha256 = _m6_operational_precheck(
+                self.config.local_state_root / operational_parent.run_id / "collected",
+                operational_parent,
+            )
+        if source_branch != "main":
+            raise ValidationError("source branch is not approved for M6 staging")
         self.git.ensure_reachable_from_origin_main(commit)
         untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
         try:
@@ -1865,7 +2642,9 @@ class HpcController:
             owner_id=owner_id,
             profile=profile,
             iteration=1,
-            parent_run_id=None,
+            parent_run_id=(
+                operational_parent.run_id if operational_parent is not None else None
+            ),
         )
         local_path = record.write(self.config.local_state_root)
         self.logger.info(
@@ -1878,27 +2657,90 @@ class HpcController:
                 "object_count": object_count,
             },
         )
-        remote = self.transport.m6_scientific_stage(
-            [
-                run_id,
-                commit,
-                lock_checksum,
-                owner_id,
-                archive_sha256,
-                str(archive_size),
-                manifest_sha256,
-                str(case_count),
-                str(object_count),
-                track,
-            ],
-            archive_path,
-        )
+        arguments = [
+            run_id,
+            commit,
+            lock_checksum,
+            owner_id,
+            archive_sha256,
+            str(archive_size),
+            manifest_sha256,
+            str(case_count),
+            str(object_count),
+            track,
+        ]
+        if self.config.site_id == "marmic":
+            arguments.extend(_fixed_heteromer_phenix_binding(self.config.repository))
+        try:
+            remote = self.transport.m6_scientific_stage(arguments, archive_path)
+        except RemoteOperationError as error:
+            if not (
+                error.failure_class is FailureClass.FILESYSTEM_FAILURE
+                and str(error)
+                in {"bare Git mirror is absent", "configured Git mirror is not bare"}
+            ):
+                raise
+            self.logger.warning(
+                "using checksum-gated M6 source archive staging",
+                extra={"commit": commit, "profile": profile, "run_id": run_id},
+            )
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-m6-stage-", dir="/tmp"
+            ) as temporary:
+                source_archive = Path(temporary) / "source.tar"
+                source_sha256, source_size, helper_commit = (
+                    self.git.create_source_archive(commit, source_archive)
+                )
+                combined_archive = Path(temporary) / "source-and-runner.bin"
+                with combined_archive.open("wb") as output:
+                    with source_archive.open("rb") as source:
+                        shutil.copyfileobj(source, output)
+                    with archive_path.open("rb") as runner:
+                        shutil.copyfileobj(runner, output)
+                remote = self.transport.m6_scientific_stage(
+                    [*arguments, source_sha256, str(source_size), helper_commit],
+                    combined_archive,
+                )
+        if operational_parent is not None:
+            assert operational_precheck_sha256 is not None
+            bound = self.transport.run(
+                "m6-leakage-parent-bind",
+                [
+                    run_id,
+                    owner_id,
+                    operational_parent.run_id,
+                    operational_parent.owner_id,
+                    operational_precheck_sha256,
+                ],
+            )
+            if (
+                bound.get("run_id") != run_id
+                or bound.get("parent_run_id") != operational_parent.run_id
+                or bound.get("operational_precheck_sha256")
+                != operational_precheck_sha256
+            ):
+                raise RemoteOperationError(
+                    "M6 leakage parent binding differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {**remote, **bound}
+        remote_site = remote.get("site_id")
+        if not isinstance(remote_site, str):
+            raise ValidationError("M6 stage response omits the fixed site identity")
+        validate_site_id(remote_site)
+        if remote_site != self.config.site_id:
+            replace(record, site_id=remote_site).write(self.config.local_state_root)
+            raise ValidationError(
+                "M6 stage endpoint site differs from the configured site: "
+                f"{remote_site} != {self.config.site_id}"
+            )
         return {
             **remote,
             "operation": "m6-scientific-stage",
             "run_id": run_id,
             "site_id": self.config.site_id,
             "commit": commit,
+            "source_branch": source_branch,
             "profile": profile,
             "track": track,
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
@@ -2138,6 +2980,33 @@ class HpcController:
             "profile": "database",
         }
 
+    def database_runtime_configure(
+        self,
+        paths_file: Path,
+        confirmation: str,
+    ) -> dict[str, object]:
+        """Install one absent configuration for an existing immutable database."""
+
+        payload = _validated_database_runtime_paths_payload(paths_file)
+        checksum = hashlib.sha256(payload).hexdigest()
+        if confirmation != checksum:
+            raise ValidationError(
+                "database runtime confirmation must exactly equal its SHA-256"
+            )
+        encoded = base64.b64encode(payload).decode("ascii")
+        self.logger.warning(
+            "installing validated fixed database runtime configuration",
+            extra={"database_config_sha256": checksum},
+        )
+        return {
+            **self.transport.run(
+                "database-runtime-configure",
+                [checksum, encoded],
+            ),
+            "operation": "database-runtime-configure",
+            "database_config_sha256": checksum,
+        }
+
     def database_stage(self, revision: str) -> dict[str, object]:
         """Stage one immutable commit through the separately named admin boundary."""
 
@@ -2274,8 +3143,15 @@ class HpcController:
                             "p2-diverse",
                             "p2-control",
                             "heteromer-smoke",
+                            "unknown-discovery",
+                            "unknown-screen",
+                            "unknown-single-component",
+                            "unknown-pass2",
                             "control-slice",
                             "control-matrix",
+                            "m6-nextflow-smoke",
+                            "m6-operational",
+                            "m6-leakage",
                             "m4-copy",
                             "t12",
                         }
@@ -2297,13 +3173,27 @@ class HpcController:
         ) as progress_bar:
             while True:
                 result = self.status(run_id)
-                scheduler_state = str(result.get("scheduler_state", "UNKNOWN")).upper()
-                if (
-                    scheduler_state in _TERMINAL_STATES
-                    or result.get("terminal") == "true"
+                scheduler_state = result.get("scheduler_state")
+                if not isinstance(scheduler_state, str) or scheduler_state not in (
+                    _QUEUED_STATES | _RUNNING_STATES | _TERMINAL_STATES
                 ):
+                    raise RemoteOperationError(
+                        "remote scheduler state is missing or unsupported",
+                        failure_class=FailureClass.TRANSFER_FAILURE,
+                    )
+                terminal = result.get("terminal")
+                if (
+                    not isinstance(terminal, str)
+                    or terminal not in {"true", "false"}
+                    or ((terminal == "true") != (scheduler_state in _TERMINAL_STATES))
+                ):
+                    raise RemoteOperationError(
+                        "remote terminal flag contradicts its scheduler state",
+                        failure_class=FailureClass.TRANSFER_FAILURE,
+                    )
+                if terminal == "true":
                     return {**result, "operation": "wait"}
-                if scheduler_state not in _QUEUED_STATES and phase == "queue":
+                if scheduler_state in _RUNNING_STATES and phase == "queue":
                     phase = "execution"
                     total = execution_timeout
                     progress_bar.reset(total=total)
@@ -2317,8 +3207,8 @@ class HpcController:
                         return {
                             **result,
                             "operation": "wait",
-                            "terminal": True,
-                            "failure_class": FailureClass.QUEUE_TIMEOUT,
+                            "terminal": "false",
+                            "wait_timeout_class": FailureClass.QUEUE_TIMEOUT,
                             "message": (
                                 "queue wait limit reached; job was not cancelled"
                             ),
@@ -2329,8 +3219,8 @@ class HpcController:
                         return {
                             **result,
                             "operation": "wait",
-                            "terminal": True,
-                            "failure_class": FailureClass.UNKNOWN_FAILURE,
+                            "terminal": "false",
+                            "wait_timeout_class": "execution_wait_timeout",
                             "message": (
                                 "execution wait limit reached; inspect scheduler state"
                             ),
@@ -2342,7 +3232,22 @@ class HpcController:
         record = self._owned_run(run_id)
         validate_log_lines(lines)
         result = self.transport.run("logs", [run_id, record.owner_id, str(lines)])
-        encoded = result.pop("content_base64", "")
+        if result.get("operation") != "logs":
+            raise RemoteOperationError(
+                "remote log operation identity is missing or invalid",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if result.get("run_id") != run_id:
+            raise RemoteOperationError(
+                "remote log run identity does not match the owned run",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if "content_base64" not in result:
+            raise RemoteOperationError(
+                "remote log content was not explicitly declared",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        encoded = result.pop("content_base64")
         try:
             payload = base64.b64decode(encoded, validate=True)
         except ValueError as error:
@@ -2363,13 +3268,26 @@ class HpcController:
 
         record = self._owned_run(run_id)
         self.logger.info("collecting HPC run artefacts", extra={"run_id": run_id})
-        archive = self.transport.collect(run_id, record.owner_id)
+        source_lock_sha256 = hashlib.sha256(
+            self.git.read_file_at_commit(record.commit, PurePosixPath("pixi.lock"))
+        ).hexdigest()
         destination = self.config.local_state_root / run_id / "collected"
-        files = _extract_approved_archive(
-            archive,
-            destination,
-            progress=self.progress,
-        )
+        with tempfile.TemporaryDirectory(
+            prefix="nf-gtd-collect-",
+            dir="/tmp",
+        ) as temporary:
+            archive_path = Path(temporary) / "collection.tar.gz"
+            self.transport.collect_to_path(run_id, record.owner_id, archive_path)
+            _validated_owned_terminal_result(
+                archive_path,
+                record,
+                source_lock_sha256=source_lock_sha256,
+            )
+            files = _extract_approved_archive(
+                archive_path,
+                destination,
+                progress=self.progress,
+            )
         failure_signature = _failure_signature(destination)
         if failure_signature is not None:
             replace(record, failure_signature=failure_signature).write(
@@ -2545,9 +3463,21 @@ def _decode_remote_fields(payload: bytes) -> dict[str, str]:
             key = raw_key.decode("ascii")
             value = base64.b64decode(encoded, validate=True).decode("utf-8")
         except ValueError, UnicodeDecodeError:
-            continue
-        if key.replace("_", "").isalnum():
-            fields[key] = value
+            raise RemoteOperationError(
+                "remote dispatcher returned a malformed protocol field",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from None
+        if re.fullmatch(r"[a-z][a-z0-9_]*", key) is None:
+            raise RemoteOperationError(
+                "remote dispatcher returned an unsupported protocol field",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        if key in fields:
+            raise RemoteOperationError(
+                "remote dispatcher returned a duplicate protocol field",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        fields[key] = value
     return fields
 
 
@@ -2560,13 +3490,30 @@ def _failure_class(value: str | None) -> FailureClass:
         return FailureClass.UNKNOWN_FAILURE
 
 
+ArchivePayload = bytes | Path
+
+
+def _archive_size(archive: ArchivePayload) -> int:
+    return len(archive) if isinstance(archive, bytes) else archive.stat().st_size
+
+
+@contextmanager
+def _open_collection_archive(archive: ArchivePayload) -> Iterator[tarfile.TarFile]:
+    if isinstance(archive, bytes):
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as handle:
+            yield handle
+    else:
+        with tarfile.open(archive, mode="r:gz") as handle:
+            yield handle
+
+
 def _extract_approved_archive(
-    archive: bytes,
+    archive: ArchivePayload,
     destination: Path,
     *,
     progress: bool,
 ) -> list[str]:
-    if len(archive) > MAX_ARTIFACT_TOTAL_BYTES:
+    if _archive_size(archive) > MAX_ARTIFACT_TOTAL_BYTES:
         raise RemoteOperationError(
             "compressed artefact archive exceeds the local collection limit",
             failure_class=FailureClass.TRANSFER_FAILURE,
@@ -2576,7 +3523,7 @@ def _extract_approved_archive(
     destination.mkdir(parents=True, exist_ok=True)
     destination_resolved = destination.resolve()
     try:
-        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
+        with _open_collection_archive(archive) as tar:
             members = tar.getmembers()
             with tqdm(
                 total=len(members),
@@ -2633,6 +3580,260 @@ def _extract_approved_archive(
             failure_class=FailureClass.TRANSFER_FAILURE,
         ) from error
     return sorted(extracted)
+
+
+def _terminal_evidence_error(reason: str) -> RemoteOperationError:
+    return RemoteOperationError(
+        f"owned terminal HPC evidence is invalid: {reason}",
+        failure_class=FailureClass.TRANSFER_FAILURE,
+    )
+
+
+def _terminal_evidence_mapping(payload: bytes, *, label: str) -> Mapping[str, object]:
+    try:
+        value = parse_json_document(payload.decode("utf-8"), label=label)
+    except (UnicodeDecodeError, ContractLoadError) as error:
+        raise _terminal_evidence_error(f"{label} is not strict UTF-8 JSON") from error
+    if not isinstance(value, Mapping):
+        raise _terminal_evidence_error(f"{label} must be a JSON object")
+    return value
+
+
+def _validated_failure_outcome(result: Mapping[str, object]) -> FailureClass:
+    failure_value = result.get("failure_class")
+    if not isinstance(failure_value, str):
+        raise _terminal_evidence_error("failure_class must be explicitly declared")
+    try:
+        failure = FailureClass(failure_value)
+    except ValueError as error:
+        raise _terminal_evidence_error(
+            f"failure_class is unsupported: {failure_value!r}"
+        ) from error
+
+    scheduler_state = result.get("scheduler_state")
+    if not isinstance(scheduler_state, str) or scheduler_state not in _TERMINAL_STATES:
+        raise _terminal_evidence_error("scheduler_state is not a terminal state")
+    exit_code = result.get("exit_code")
+    if type(exit_code) is not int or exit_code < 0:
+        raise _terminal_evidence_error("exit_code must be a non-negative integer")
+    if failure is FailureClass.SUCCESS:
+        if scheduler_state != "COMPLETED" or exit_code != 0:
+            raise _terminal_evidence_error(
+                "success requires COMPLETED and exit_code zero"
+            )
+    elif scheduler_state == "COMPLETED" or exit_code == 0:
+        raise _terminal_evidence_error(
+            "failure requires a non-success terminal state and nonzero exit_code"
+        )
+    return failure
+
+
+def _validated_terminal_timestamps(result: Mapping[str, object]) -> None:
+    parsed: list[datetime] = []
+    for field in ("started_at", "completed_at"):
+        value = result.get(field)
+        if not isinstance(value, str):
+            raise _terminal_evidence_error(f"{field} must be an explicit timestamp")
+        try:
+            parsed.append(datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ"))
+        except ValueError as error:
+            raise _terminal_evidence_error(
+                f"{field} must be a canonical UTC timestamp"
+            ) from error
+    if parsed[1] < parsed[0]:
+        raise _terminal_evidence_error("completed_at precedes started_at")
+
+
+def _validated_terminal_inventory(result: Mapping[str, object]) -> None:
+    for field in ("structured_test_reports", "retained_artifacts"):
+        inventory = result.get(field)
+        if not isinstance(inventory, list):
+            raise _terminal_evidence_error(f"{field} must be an explicit list")
+        seen: set[str] = set()
+        for value in inventory:
+            if not isinstance(value, str):
+                raise _terminal_evidence_error(f"{field} contains a non-path value")
+            relative = PurePosixPath(value)
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or not relative.parts
+                or relative.parts[0] != "artifacts"
+                or value != relative.as_posix()
+                or value in seen
+            ):
+                raise _terminal_evidence_error(
+                    f"{field} contains an unsafe or duplicated path"
+                )
+            seen.add(value)
+
+
+def _owned_terminal_archive_evidence(archive: ArchivePayload) -> dict[str, bytes]:
+    required = frozenset({"manifest.json", "state/phase", "state/failure-class"})
+    selected = required | {"state/job-id", "state/job-result.json"}
+    if _archive_size(archive) > MAX_ARTIFACT_TOTAL_BYTES:
+        raise _terminal_evidence_error(
+            "compressed archive exceeds the collection limit"
+        )
+    evidence: dict[str, bytes] = {}
+    seen: set[str] = set()
+    total = 0
+    try:
+        with _open_collection_archive(archive) as tar:
+            for member in tar.getmembers():
+                relative = PurePosixPath(member.name)
+                if (
+                    not member.isfile()
+                    or relative.is_absolute()
+                    or ".." in relative.parts
+                    or not relative.parts
+                ):
+                    raise _terminal_evidence_error(
+                        f"unsafe archive member: {member.name!r}"
+                    )
+                name = relative.as_posix()
+                if name in seen:
+                    raise _terminal_evidence_error(
+                        f"archive member is duplicated: {name}"
+                    )
+                seen.add(name)
+                if member.size > MAX_ARTIFACT_FILE_BYTES:
+                    raise _terminal_evidence_error(
+                        f"artefact exceeds per-file limit: {name}"
+                    )
+                total += member.size
+                if total > MAX_ARTIFACT_TOTAL_BYTES:
+                    raise _terminal_evidence_error(
+                        "artefacts exceed total collection limit"
+                    )
+                if name in selected:
+                    if member.size > MAX_LOG_BYTES:
+                        raise _terminal_evidence_error(
+                            f"terminal evidence exceeds its bounded size: {name}"
+                        )
+                    source = tar.extractfile(member)
+                    if source is None:
+                        raise _terminal_evidence_error(
+                            f"cannot read required terminal evidence: {name}"
+                        )
+                    evidence[name] = source.read()
+    except (OSError, EOFError, tarfile.TarError) as error:
+        raise _terminal_evidence_error("remote artefact archive is invalid") from error
+
+    missing = sorted(required - evidence.keys())
+    if missing:
+        raise _terminal_evidence_error(
+            f"required terminal evidence is absent: {', '.join(missing)}"
+        )
+    return evidence
+
+
+def _validated_owned_terminal_result(
+    archive: ArchivePayload,
+    record: LocalRunRecord,
+    *,
+    source_lock_sha256: str,
+) -> Mapping[str, object]:
+    evidence = _owned_terminal_archive_evidence(archive)
+    manifest = _terminal_evidence_mapping(
+        evidence["manifest.json"], label="manifest.json"
+    )
+    expected_manifest = {
+        "schema_version": "1.0",
+        "run_id": record.run_id,
+        "site_id": record.site_id,
+        "project": "nf-genome_to_diffraction",
+        "profile": record.profile,
+        "iteration": record.iteration,
+        "commit": record.commit,
+        "pixi_lock_sha256": source_lock_sha256,
+        "source_snapshot_status": "immutable",
+    }
+    for field, expected in expected_manifest.items():
+        if manifest.get(field) != expected:
+            raise _terminal_evidence_error(
+                f"manifest {field} does not match the owned immutable run"
+            )
+    helper_commit = manifest.get("nf_helper_commit")
+    if not isinstance(helper_commit, str) or not COMMIT_PATTERN.fullmatch(
+        helper_commit
+    ):
+        raise _terminal_evidence_error("manifest nf_helper_commit is invalid")
+    for field in ("pixi_executable", "pixi_version"):
+        value = manifest.get(field)
+        if not isinstance(value, str) or not value.strip():
+            raise _terminal_evidence_error(f"manifest {field} is absent")
+
+    try:
+        phase = evidence["state/phase"].decode("ascii").removesuffix("\n")
+        recorded_failure = (
+            evidence["state/failure-class"].decode("ascii").removesuffix("\n")
+        )
+    except UnicodeDecodeError as error:
+        raise _terminal_evidence_error("phase or failure class is not ASCII") from error
+    try:
+        failure = FailureClass(recorded_failure)
+    except ValueError as error:
+        raise _terminal_evidence_error("recorded failure class is invalid") from error
+    if phase == "stage_failed":
+        if failure is FailureClass.SUCCESS:
+            raise _terminal_evidence_error("stage failure is recorded as success")
+        if "state/job-id" in evidence or "state/job-result.json" in evidence:
+            raise _terminal_evidence_error(
+                "stage failure unexpectedly has scheduler evidence"
+            )
+        return {
+            "schema_version": "1.0",
+            "run_id": record.run_id,
+            "profile": record.profile,
+            "scheduler_state": "FAILED",
+            "exit_code": 1,
+            "failure_class": failure.value,
+            "structured_test_reports": [],
+            "retained_artifacts": [],
+        }
+    if phase not in {"completed", "cancel_requested"}:
+        raise _terminal_evidence_error("terminal phase is invalid")
+    missing_scheduler = sorted(
+        {"state/job-id", "state/job-result.json"} - evidence.keys()
+    )
+    if missing_scheduler:
+        raise _terminal_evidence_error(
+            "required scheduler evidence is absent: " + ", ".join(missing_scheduler)
+        )
+
+    try:
+        job_id = evidence["state/job-id"].decode("ascii").removesuffix("\n")
+    except UnicodeDecodeError as error:
+        raise _terminal_evidence_error("scheduler job ID is not ASCII") from error
+    if not re.fullmatch(r"[0-9]+", job_id):
+        raise _terminal_evidence_error("scheduler job ID is not canonical")
+
+    result = _terminal_evidence_mapping(
+        evidence["state/job-result.json"], label="state/job-result.json"
+    )
+    expected_result = {
+        "schema_version": "1.0",
+        "run_id": record.run_id,
+        "profile": record.profile,
+        "job_id": job_id,
+        "standard_output": f"logs/slurm-{job_id}.out",
+        "standard_error": f"logs/slurm-{job_id}.out",
+        "application_log": f"logs/{record.profile}.log",
+    }
+    for field, expected in expected_result.items():
+        if result.get(field) != expected:
+            raise _terminal_evidence_error(
+                f"job result {field} does not match the owned scheduler run"
+            )
+    _validated_terminal_timestamps(result)
+    result_failure = _validated_failure_outcome(result)
+    if result_failure is not failure:
+        raise _terminal_evidence_error(
+            "job result failure class differs from recorded state"
+        )
+    _validated_terminal_inventory(result)
+    return result
 
 
 def _safe_local_evidence_file(root: Path, relative: PurePosixPath) -> Path:
@@ -3101,21 +4302,50 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
 def _failure_signature(destination: Path) -> str | None:
     result_path = destination / "state" / "job-result.json"
     if not result_path.is_file():
-        return None
+        phase_path = destination / "state" / "phase"
+        failure_path = destination / "state" / "failure-class"
+        try:
+            phase = phase_path.read_text(encoding="ascii").strip()
+            failure = FailureClass(failure_path.read_text(encoding="ascii").strip())
+        except (OSError, UnicodeError, ValueError) as error:
+            raise _terminal_evidence_error(
+                "stage-failure state is invalid after collection"
+            ) from error
+        if phase != "stage_failed" or failure is FailureClass.SUCCESS:
+            raise _terminal_evidence_error("job-result.json is absent after collection")
+        logs = destination / "logs"
+        candidates = sorted(
+            path
+            for path in logs.glob("*.log")
+            if path.is_file() and not path.is_symlink()
+        )
+        if not candidates:
+            raise _terminal_evidence_error("stage-failure diagnostic log is absent")
+        digest = hashlib.sha256()
+        for path in candidates:
+            digest.update(path.relative_to(destination).as_posix().encode("ascii"))
+            digest.update(b"\0")
+            digest.update(sha256_file(path).encode("ascii"))
+            digest.update(b"\0")
+        return hashlib.sha256(
+            f"{failure.value}\0stage_failed\0{digest.hexdigest()}".encode()
+        ).hexdigest()
     try:
         value = load_json_document(result_path)
-    except ContractLoadError:
-        return None
+    except ContractLoadError as error:
+        raise _terminal_evidence_error(
+            "job-result.json is invalid after collection"
+        ) from error
     if not isinstance(value, Mapping):
+        raise _terminal_evidence_error("job-result.json must be a JSON object")
+    failure = _validated_failure_outcome(value)
+    if failure is FailureClass.SUCCESS:
         return None
-    failure = str(value.get("failure_class", "unknown_failure"))
-    if failure == FailureClass.SUCCESS:
-        return None
-    exit_code = str(value.get("exit_code", "unknown"))
-    scheduler_state = str(value.get("scheduler_state", "unknown"))
+    exit_code = str(value["exit_code"])
+    scheduler_state = str(value["scheduler_state"])
     diagnostic = _failure_log_digest(destination, value)
     return hashlib.sha256(
-        f"{failure}\0{exit_code}\0{scheduler_state}\0{diagnostic}".encode()
+        f"{failure.value}\0{exit_code}\0{scheduler_state}\0{diagnostic}".encode()
     ).hexdigest()
 
 

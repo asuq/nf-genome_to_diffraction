@@ -28,6 +28,7 @@ from genome_to_diffraction.checksums import (
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.schemas.base import ContractModel
+from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
@@ -58,6 +59,7 @@ class ExperimentalModelPreparationRequest:
     coordinate_hit_mappings_jsonl: Path
     sequence_groups_jsonl: Path
     output_directory: Path
+    registration_manifest: Path | None = None
     mapping_ids: tuple[str, ...] = ()
     progress: bool = True
 
@@ -88,6 +90,7 @@ def _read_jsonl[T: ContractModel](
     label: str,
     identifier: Callable[[T], str],
     progress: bool,
+    allow_empty: bool = False,
 ) -> tuple[T, ...]:
     resolved = path.resolve(strict=True)
     if not resolved.is_file():
@@ -117,9 +120,61 @@ def _read_jsonl[T: ContractModel](
                 raise ExperimentalModelInputError(f"duplicate {label} ID: {record_id}")
             seen.add(record_id)
             rows.append(record)
-    if not rows:
+    if not rows and not allow_empty:
         raise ExperimentalModelInputError(f"{label} input is empty: {resolved}")
     return tuple(rows)
+
+
+def _validate_empty_registration(
+    request: ExperimentalModelPreparationRequest,
+) -> None:
+    if request.registration_manifest is None:
+        raise ExperimentalModelInputError(
+            "empty experimental inputs require a coordinate registration manifest"
+        )
+    try:
+        document = load_json_document(
+            request.registration_manifest.resolve(strict=True)
+        )
+    except (OSError, ContractLoadError) as error:
+        raise ExperimentalModelInputError(
+            "cannot read empty coordinate registration manifest"
+        ) from error
+    if (
+        not isinstance(document, dict)
+        or document.get("schema_version") != "1.0"
+        or document.get("input_hit_count") != 0
+        or document.get("selected_mapping_count") != 0
+        or document.get("coordinate_source_count") != 0
+        or not isinstance(document.get("input_sha256"), dict)
+        or not isinstance(document.get("outputs"), dict)
+    ):
+        raise ExperimentalModelInputError(
+            "registration manifest does not document an empty provider result"
+        )
+    outputs = document["outputs"]
+    inputs = document["input_sha256"]
+    assert isinstance(outputs, dict)
+    assert isinstance(inputs, dict)
+    if inputs.get("sequence_groups") != sha256_file(
+        request.sequence_groups_jsonl, progress=False
+    ):
+        raise ExperimentalModelInputError(
+            "registration manifest does not bind the exact sequence groups"
+        )
+    for name, path in (
+        ("coordinate_sources", request.coordinate_sources_jsonl),
+        ("coordinate_hit_mappings", request.coordinate_hit_mappings_jsonl),
+    ):
+        record = outputs.get(name)
+        if (
+            not isinstance(record, dict)
+            or record.get("path") != path.name
+            or record.get("sha256") != sha256_file(path, progress=False)
+        ):
+            raise ExperimentalModelInputError(
+                f"registration manifest does not bind empty {name}"
+            )
 
 
 def _selected_mappings(
@@ -311,6 +366,7 @@ def prepare_experimental_models(
         label="coordinate sources",
         identifier=lambda item: item.coordinate_id,
         progress=request.progress,
+        allow_empty=True,
     )
     mappings = _read_jsonl(
         request.coordinate_hit_mappings_jsonl,
@@ -318,6 +374,7 @@ def prepare_experimental_models(
         label="coordinate-hit mappings",
         identifier=lambda item: item.mapping_id,
         progress=request.progress,
+        allow_empty=True,
     )
     groups = _read_jsonl(
         request.sequence_groups_jsonl,
@@ -326,6 +383,12 @@ def prepare_experimental_models(
         identifier=lambda item: item.sequence_group_id,
         progress=request.progress,
     )
+    if not sources or not mappings:
+        if bool(sources) != bool(mappings):
+            raise ExperimentalModelInputError(
+                "coordinate sources and mappings must both be empty or both populated"
+            )
+        _validate_empty_registration(request)
     source_index = {item.coordinate_id: item for item in sources}
     group_index = {item.sequence_group_id: item for item in groups}
     selected = _selected_mappings(mappings, request.mapping_ids)
@@ -366,12 +429,24 @@ def prepare_experimental_models(
                 "mapping sequence identity differs from source/group: "
                 f"{mapping.mapping_id}"
             )
+        raw_coordinate = Path(source.coordinate_path)
+        source_root = request.coordinate_sources_jsonl.resolve(strict=True).parent
         try:
-            coordinate = Path(source.coordinate_path).resolve(strict=True)
+            coordinate = (
+                raw_coordinate.resolve(strict=True)
+                if raw_coordinate.is_absolute()
+                else (source_root / raw_coordinate).resolve(strict=True)
+            )
         except FileNotFoundError as error:
             raise ExperimentalModelInputError(
                 f"registered coordinate does not exist: {source.coordinate_path}"
             ) from error
+        if not raw_coordinate.is_absolute() and not coordinate.is_relative_to(
+            source_root
+        ):
+            raise ExperimentalModelInputError(
+                f"relative coordinate escapes its registration: {source.coordinate_id}"
+            )
         if not coordinate.is_file() or coordinate.is_symlink():
             raise ExperimentalModelInputError(
                 f"registered coordinate is not a safe file: {coordinate}"
@@ -500,6 +575,10 @@ def prepare_experimental_models(
         ),
         "sequence_groups": sha256_file(request.sequence_groups_jsonl, progress=False),
     }
+    if request.registration_manifest is not None:
+        input_sha256["registration_manifest"] = sha256_file(
+            request.registration_manifest, progress=False
+        )
     manifest_identity = {
         "adapter_version": _ADAPTER_VERSION,
         "input_sha256": input_sha256,

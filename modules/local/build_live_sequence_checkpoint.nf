@@ -62,3 +62,161 @@ process BUILD_LIVE_SEQUENCE_CHECKPOINT {
         > t12_sequence_checkpoint/sequence_checkpoint_manifest.json
     """
 }
+
+
+// Keep every reviewed crystal, complete finalist inventory, and full catalogue
+// together until its independent file-based sequence checkpoint is published.
+process BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT {
+    tag "phase3-sequence-checkpoint:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    checkpoint: Tuple = tuple(
+        item[0],
+        file("phase3_sequence_checkpoint_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_sequence_checkpoint_${item[0]}"
+    def resultFlags = (item[2] as List)
+        .sort { left, right -> left.name <=> right.name }
+        .collect { result -> "--candidate-result '${result}'" }
+        .join(' ')
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-live-sequence-checkpoint \
+        --crystal-id '${item[0]}' \
+        --stage-bundle '${item[1]}' \
+        ${resultFlags} \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_sequence_checkpoint_${item[0]}"
+    def finalistCount = (item[2] as List).size()
+    def approvalCandidateCount = finalistCount > 0 ? 1 : 0
+    def candidateOutcomes = finalistCount > 0
+        ? '[{"refinement_execution_status":"completed_success"}]'
+        : '[]'
+    """
+    mkdir -p '${outputName}/provenance'
+    cp '${item[1]}/inputs/sequence_groups.jsonl' \
+        '${outputName}/provenance/sequence_groups.jsonl'
+    cp '${item[1]}/inputs/source_records.jsonl' \
+        '${outputName}/provenance/source_records.jsonl'
+    cp '${item[1]}/finalists.tsv' \
+        '${outputName}/provenance/finalists.tsv'
+    printf '%s\\n' 'seed_solution_id\\tsequence_group_id\\traw_score' \
+        > '${outputName}/sequence_candidates_full.tsv'
+    cp '${outputName}/sequence_candidates_full.tsv' \
+        '${outputName}/sequence_candidates_top10.tsv'
+    cp '${outputName}/sequence_candidates_full.tsv' \
+        '${outputName}/sequence_candidates_top25.tsv'
+    printf '%s\\n' 'checkpoint\\titem_id\\tdecision\\treviewer' \
+        > '${outputName}/approved_sequence_groups.tsv'
+    printf '%s\\n' \
+        '{"schema_version":"1.0","adapter_version":"phase3-sequence-checkpoint-stub","execution_mode":"phase3_reviewed_single_component","crystal_context":{"crystal_id":"${item[0]}"},"finalist_count":${finalistCount},"approval_candidate_count":${approvalCandidateCount},"candidate_outcomes":${candidateOutcomes},"all_finalists_retained":true,"automatic_approval":false,"typed_failures_are_evidence":true}' \
+        > '${outputName}/sequence_checkpoint_manifest.json'
+    """
+}
+
+
+// Publish every crystal-owned review target and complete Coot evidence under
+// the current single-component scheduler run, never its preceding screen run.
+process BUILD_PHASE3_OWNED_SEQUENCE_REVIEW_PACKAGE {
+    tag "phase3-owned-sequence-review:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    owned_review: Tuple = tuple(
+        item[0],
+        file("phase3_owned_sequence_review_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_owned_sequence_review_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-owned-sequence-package \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_owned_sequence_review_${item[0]}"
+    """
+    python \
+        '${projectDir}/tests/scripts/build_phase3_owned_sequence_stub.py' \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+}
+
+
+// Composition identity claims remain impossible until each packed/refined A
+// state receives an independent, explicitly human-owned composition review.
+process BUILD_PHASE3_OWNED_COMPOSITION_REVIEW_PACKAGE {
+    tag "phase3-owned-composition-review:${item[0]}"
+    label 'process_low'
+    cache 'deep'
+    publishDir params.outdir, mode: 'copy', overwrite: true
+    stageInMode 'copy'
+
+    input:
+    item: Tuple
+
+    output:
+    owned_review: Tuple = tuple(
+        item[0],
+        file("phase3_owned_composition_review_${item[0]}")
+    )
+
+    script:
+    def outputName = "phase3_owned_composition_review_${item[0]}"
+    """
+    genome-to-diffraction \
+        --no-progress \
+        --log-format json \
+        review build-owned-composition-package \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --outdir '${outputName}'
+    """
+
+    stub:
+    def outputName = "phase3_owned_composition_review_${item[0]}"
+    """
+    python \
+        '${projectDir}/tests/scripts/build_phase3_owned_sequence_stub.py' \
+        --sequence-checkpoint '${item[1]}' \
+        --execution-identity '${item[2]}' \
+        --owned-parent-run '${item[3]}' \
+        --crystal-id '${item[0]}' \
+        --checkpoint composition \
+        --outdir '${outputName}'
+    """
+}

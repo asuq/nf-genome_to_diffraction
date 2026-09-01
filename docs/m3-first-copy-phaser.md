@@ -74,6 +74,25 @@ No Phaser timeout is imposed by default. An operator can provide
 `--timeout-seconds`, but unpredictable shared-filesystem startup is not treated
 as a reason to impose a short scientific deadline.
 
+The opt-in Phase III multi-crystal application first runs the same
+manifest-owned dispatch with `--phase3-diffraction`. Besides the unchanged v1
+dispatch files, it publishes `phase3_diffraction_selection.json` and
+`phase3_free_r_identity.json` for that crystal. The first record content-binds
+the exact MTZ, selected dataset/observation labels, selected space group,
+resolution limits, and manifest overrides; the second binds the complete
+same-dataset HKL-to-Free-R mapping and leaves an unknown test-value convention
+explicitly unresolved. Missing, ambiguous, constant, or cross-dataset Free-R
+flags fail before the dispatch directory is created.
+
+Each independent Phase III first-copy task then passes
+`--diffraction-selection` and `--derive-phase3-hypothesis-id`. The existing
+Phaser adapter derives the schema-v2 identity directly from that exact
+hypothesis and diffraction record, retains it in the command evidence, and
+passes explicitly qualified space-group and resolution parameters. An
+independently supplied bound identity remains supported, but supplying both or
+neither identity policy is refused. Historical single-crystal commands and
+dispatch evidence are unchanged.
+
 The adapter verifies that the hypothesis is queued, independent, first-copy,
 and exact-mapped. It revalidates the model path and checksum, observation
 labels, space group, preflight status, MTZ checksum, sequence group, and Phenix
@@ -152,7 +171,9 @@ infrastructure failure is collectable evidence but cannot qualify the route.
 
 ## Nextflow boundary, cache, and outputs
 
-`screen_first_copy.nf` takes coordinate sources, one prepared-model directory,
+`qualification.nf --qualification_stage first_copy` takes coordinate sources,
+one
+prepared-model directory,
 sequence groups, Matthews and preflight JSONL, pipeline configuration, crystal
 ID, the crystal MTZ, and the verified Phenix manifest. It builds the bounded
 funnel, then fans out the single-record files to independent `process_mr`
@@ -170,13 +191,16 @@ Nextflow additionally hashes the staged inputs, process script, resolved task
 configuration, and environment. Changing any of these creates a different task
 rather than silently reusing an old result.
 
-The separate `screen_diverse_first_copy.nf` entry point accepts one predicted
+The separate `qualification.nf --qualification_stage diverse_first_copy` entry
+point accepts one predicted
 coordinate/preparation bundle plus one registered PDB
 coordinate/mapping/preparation bundle. It builds a self-contained aggregate
 model registry, then reuses the same one-hypothesis-per-Phaser-process boundary:
 
 ```bash
-pixi run -e hpc nextflow run screen_diverse_first_copy.nf -profile local \
+pixi run -e hpc nextflow run qualification.nf \
+  --qualification_stage diverse_first_copy \
+  -profile local \
   --predicted_coordinate_sources /absolute/predicted/coordinate_sources.jsonl \
   --predicted_prepared_models /absolute/predicted/model-preparation \
   --pdb_coordinate_sources /absolute/pdb-registration/coordinate_sources.jsonl \
@@ -194,13 +218,14 @@ pixi run -e hpc nextflow run screen_diverse_first_copy.nf -profile local \
   --cache_root /absolute/cache/diverse-first-copy
 ```
 
-On Marmic, each `process_mr` task requests four CPUs and passes all four to
-`phaser.keywords.general.jobs`. The diverse prototype schedules at most 25
-hypotheses, so its maximum simultaneous Phaser allocation is 100 CPUs, matching
-the site profile's declared cap. Each task retains 8 GB because excess memory
-does not accelerate Phaser and no out-of-memory evidence has been observed.
-The small outer Slurm job is only the Nextflow driver; increasing its allocation
-would not increase the child Phaser tasks' usable resources.
+Each Phase III hypothesis carries the deterministic
+[MR resource plan](mr-resource-allocation.md). Marmic first attempts request
+4/6/8 CPUs, 16/24/32 GB, and 12/18/24 hours according to reflection,
+coordinate, copy-count, and bounded symmetry workload. The allocated CPUs are
+passed to `phaser.keywords.general.jobs`. One classified infrastructure or
+resource retry multiplies all three requests by `task.attempt` under the
+16-CPU/64-GB/48-hour caps. Slurm owns aggregate admission; no process-local
+concurrency cap is imposed.
 
 Selection reserves exact mappings, then round-robins deterministically over
 `(sequence_group_id, coordinate_provider, model_variant_type)` buckets so one

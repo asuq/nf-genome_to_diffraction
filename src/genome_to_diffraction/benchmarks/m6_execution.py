@@ -16,9 +16,9 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal, Self, cast
 
-from pydantic import model_validator
+from pydantic import ValidationError, model_validator
 
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
@@ -27,8 +27,9 @@ from genome_to_diffraction.schemas.base import (
     NonEmptyString,
     PositiveFloat,
     PositiveInt,
+    Sha256Hex,
 )
-from genome_to_diffraction.schemas.io import load_yaml_document
+from genome_to_diffraction.schemas.io import load_json_document, load_yaml_document
 
 _MEMORY = re.compile(r"^([0-9]+(?:\.[0-9]+)?)\s*([KMGT]B)$", re.I)
 
@@ -144,11 +145,24 @@ class M6ResourceEvidence(ContractModel):
     peak_concurrent_phenix_jobs: int
     per_job_bounds_passed: bool
     jobs: tuple[M6ChildJobRecord, ...]
+    controller_stages: tuple[M6ChildJobRecord, ...] = ()
 
     @model_validator(mode="after")
     def _validate_job_inventory(self) -> Self:
         if self.child_job_count != len(self.jobs):
             raise ValueError("M6 child-job count changed")
+        if any(
+            job.process.rsplit(":", maxsplit=1)[-1] != "M6_STAGE_COORDINATES"
+            or job.status != "COMPLETED"
+            or job.phenix_job
+            for job in self.controller_stages
+        ):
+            raise ValueError("M6 controller-stage inventory changed")
+        if any(
+            job.process.rsplit(":", maxsplit=1)[-1] == "M6_STAGE_COORDINATES"
+            for job in self.jobs
+        ):
+            raise ValueError("M6 controller stage was classified as a Slurm child")
         derived_cpu = max((job.requested_cpus for job in self.jobs), default=0)
         derived_memory = max(
             (job.requested_memory_gb for job in self.jobs), default=0.0
@@ -168,6 +182,107 @@ class M6ResourceEvidenceRequest:
     policy: Path
     trace: Path
     output: Path
+
+
+class M6ChildOutputFile(ContractModel):
+    """One path-free checksum within a completed scientific task directory."""
+
+    relative_path: NonEmptyString
+    sha256: Sha256Hex
+
+    @model_validator(mode="after")
+    def _validate_relative_path(self) -> Self:
+        path = Path(self.relative_path)
+        if path.is_absolute() or ".." in path.parts or str(path) != self.relative_path:
+            raise ValueError("M6 child output path is not a safe relative path")
+        return self
+
+
+class M6ChildOutputTask(ContractModel):
+    """One exact Nextflow task and its complete non-staged child outputs."""
+
+    process: NonEmptyString
+    tag: NonEmptyString
+    task_hash: NonEmptyString
+    status: Literal["COMPLETED", "CACHED"]
+    outputs: tuple[M6ChildOutputFile, ...]
+
+    @model_validator(mode="after")
+    def _validate_outputs(self) -> Self:
+        paths = tuple(item.relative_path for item in self.outputs)
+        if not paths or paths != tuple(sorted(set(paths))):
+            raise ValueError("M6 child output inventory is empty or not canonical")
+        return self
+
+
+class M6ChildOutputEvidence(ContractModel):
+    """First-pass or checksum-bound resume inventory for every scientific task."""
+
+    schema_version: Literal["1.1"]
+    track: Literal["operational", "leakage"]
+    phase: Literal["first", "resume"]
+    trace_sha256: Sha256Hex
+    baseline_sha256: Sha256Hex | None = None
+    task_count: PositiveInt
+    tasks: tuple[M6ChildOutputTask, ...]
+
+    @model_validator(mode="after")
+    def _validate_tasks(self) -> Self:
+        identities = tuple((task.process, task.tag) for task in self.tasks)
+        expected_statuses = tuple(
+            expected_m6_child_status(self.track, self.phase, task.process)
+            for task in self.tasks
+        )
+        if (
+            self.task_count != len(self.tasks)
+            or identities != tuple(sorted(set(identities)))
+            or any(
+                task.status != expected
+                for task, expected in zip(self.tasks, expected_statuses, strict=True)
+            )
+            or (self.baseline_sha256 is None) != (self.phase == "first")
+        ):
+            raise ValueError("M6 child output task inventory is incomplete")
+        return self
+
+
+@dataclass(frozen=True, slots=True)
+class M6ChildOutputEvidenceRequest:
+    """Collect first outputs or compare one cached resume to that exact baseline."""
+
+    track: Literal["operational", "leakage"]
+    trace: Path
+    output: Path
+    baseline: Path | None = None
+
+
+M6_SHARED_TRUTHLESS_PROCESSES = frozenset(
+    {
+        "M6_IMPORT_CATALOGUE",
+        "M6_SEARCH_PDB",
+        "M6_SEARCH_FOLDSEEK",
+    }
+)
+
+
+def m6_process_name(process: str) -> str:
+    """Return the stable process name from a qualified Nextflow trace name."""
+
+    return process.rsplit(":", maxsplit=1)[-1]
+
+
+def expected_m6_child_status(
+    track: Literal["operational", "leakage"],
+    phase: Literal["first", "resume"],
+    process: str,
+) -> Literal["COMPLETED", "CACHED"]:
+    """Return the only valid task status for one fixed M6 track phase."""
+
+    if phase == "resume":
+        return "CACHED"
+    if track == "leakage" and m6_process_name(process) in M6_SHARED_TRUTHLESS_PROCESSES:
+        return "CACHED"
+    return "COMPLETED"
 
 
 def load_m6_execution_policy(path: Path) -> M6ExecutionPolicy:
@@ -266,6 +381,7 @@ def collect_m6_resource_evidence(
     trace = request.trace.resolve(strict=True)
     policy = load_m6_execution_policy(policy_path)
     records: list[M6ChildJobRecord] = []
+    controller_stages: list[M6ChildJobRecord] = []
     with trace.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         required = {
@@ -286,29 +402,38 @@ def collect_m6_resource_evidence(
         for row in reader:
             process = row["process"]
             peak_rss = row["peak_rss"].strip()
-            records.append(
-                M6ChildJobRecord(
-                    process=process,
-                    tag=row["tag"] or None,
-                    status=row["status"],
-                    native_job_id=row["native_id"],
-                    requested_cpus=int(row["cpus"]),
-                    requested_memory_gb=_memory_gb(row["memory"]),
-                    requested_time_hours=_hours(row["time"]),
-                    start=_timestamp(row["start"]),
-                    complete=_timestamp(row["complete"]),
-                    peak_rss_gb=(
-                        None
-                        if not peak_rss or peak_rss == "-"
-                        else _memory_gb(peak_rss)
-                    ),
-                    observed_cpu_percent=_cpu_percent(row["%cpu"]),
-                    phenix_job=any(
-                        token in process
-                        for token in ("FIRST_COPY", "ADDITIONAL_COPY", "REFINEMENT")
-                    ),
-                )
+            record = M6ChildJobRecord(
+                process=process,
+                tag=row["tag"] or None,
+                status=row["status"],
+                native_job_id=row["native_id"],
+                requested_cpus=int(row["cpus"]),
+                requested_memory_gb=_memory_gb(row["memory"]),
+                requested_time_hours=_hours(row["time"]),
+                start=_timestamp(row["start"]),
+                complete=_timestamp(row["complete"]),
+                peak_rss_gb=(
+                    None if not peak_rss or peak_rss == "-" else _memory_gb(peak_rss)
+                ),
+                observed_cpu_percent=_cpu_percent(row["%cpu"]),
+                phenix_job=any(
+                    token in process
+                    for token in ("FIRST_COPY", "ADDITIONAL_COPY", "REFINEMENT")
+                ),
             )
+            if process.rsplit(":", maxsplit=1)[-1] == "M6_STAGE_COORDINATES":
+                if (
+                    record.requested_cpus > policy.driver.maximum_cpus
+                    or record.requested_memory_gb > policy.driver.maximum_memory_gb
+                    or record.requested_time_hours
+                    > policy.driver.maximum_scheduler_hours
+                ):
+                    raise PublicControlError(
+                        "M6 controller stage exceeds driver bounds"
+                    )
+                controller_stages.append(record)
+            else:
+                records.append(record)
     jobs = tuple(records)
     peak_jobs, peak_cpu, peak_memory, peak_phenix = _peak(jobs)
     max_cpu = max((job.requested_cpus for job in jobs), default=0)
@@ -346,7 +471,108 @@ def collect_m6_resource_evidence(
             and max_time <= policy.per_job.maximum_scheduler_hours
         ),
         jobs=jobs,
+        controller_stages=tuple(controller_stages),
     )
     request.output.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(request.output, evidence.model_dump(mode="json"))
+    return evidence
+
+
+def collect_m6_child_output_evidence(
+    request: M6ChildOutputEvidenceRequest,
+) -> M6ChildOutputEvidence:
+    """Snapshot every first-pass child and refuse changed cached-resume children."""
+
+    trace = request.trace.resolve(strict=True)
+    baseline: M6ChildOutputEvidence | None = None
+    baseline_sha256: str | None = None
+    if request.baseline is not None:
+        baseline_path = request.baseline.resolve(strict=True)
+        try:
+            baseline = M6ChildOutputEvidence.model_validate(
+                load_json_document(baseline_path)
+            )
+        except (OSError, ValueError) as error:
+            raise PublicControlError(
+                f"M6 first-pass child output evidence is invalid: {error}"
+            ) from error
+        if baseline.phase != "first":
+            raise PublicControlError("M6 child output baseline is not a first pass")
+        if baseline.track != request.track:
+            raise PublicControlError(
+                "M6 child output baseline belongs to another track"
+            )
+        baseline_sha256 = sha256_file(baseline_path)
+
+    records: list[M6ChildOutputTask] = []
+    with trace.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        required = {"process", "tag", "status", "hash", "workdir"}
+        if reader.fieldnames is None or not required.issubset(reader.fieldnames):
+            raise PublicControlError("M6 child output trace lacks required fields")
+        for row in reader:
+            try:
+                if row["status"] not in {"COMPLETED", "CACHED"}:
+                    raise ValueError("M6 child task did not complete or cache")
+                status = cast(Literal["COMPLETED", "CACHED"], row["status"])
+                work = Path(row["workdir"]).resolve(strict=True)
+                files = tuple(
+                    M6ChildOutputFile(
+                        relative_path=str(path.relative_to(work)),
+                        sha256=sha256_file(path),
+                    )
+                    for path in sorted(
+                        work.rglob("*"), key=lambda item: str(item.relative_to(work))
+                    )
+                    if path.is_file()
+                    and not path.is_symlink()
+                    and not path.relative_to(work).parts[0].startswith(".")
+                )
+                records.append(
+                    M6ChildOutputTask(
+                        process=row["process"],
+                        tag=row["tag"],
+                        task_hash=row["hash"],
+                        status=status,
+                        outputs=files,
+                    )
+                )
+            except (OSError, ValueError) as error:
+                raise PublicControlError(
+                    f"M6 task has missing or changed child outputs: {row['tag']}"
+                ) from error
+
+    try:
+        ordered_records = tuple(
+            sorted(records, key=lambda item: (item.process, item.tag))
+        )
+        evidence = M6ChildOutputEvidence(
+            schema_version="1.1",
+            track=request.track,
+            phase="first" if baseline is None else "resume",
+            trace_sha256=sha256_file(trace),
+            baseline_sha256=baseline_sha256,
+            task_count=len(records),
+            tasks=ordered_records,
+        )
+    except ValidationError as error:
+        raise PublicControlError(
+            f"M6 child output evidence is invalid: {error}"
+        ) from error
+    if baseline is not None:
+        if evidence.task_count != baseline.task_count:
+            raise PublicControlError("M6 cached child output task inventory changed")
+        for expected, observed in zip(baseline.tasks, evidence.tasks, strict=True):
+            if (
+                expected.process != observed.process
+                or expected.tag != observed.tag
+                or expected.task_hash != observed.task_hash
+                or expected.outputs != observed.outputs
+            ):
+                raise PublicControlError(
+                    "M6 cached task has missing or changed child outputs: "
+                    f"{expected.tag}"
+                )
+
     atomic_write_json(request.output, evidence.model_dump(mode="json"))
     return evidence

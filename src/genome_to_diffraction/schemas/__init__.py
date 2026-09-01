@@ -4,10 +4,14 @@ from genome_to_diffraction.schemas.manifests import (
     CatalogueManifest,
     CrystalManifest,
     DatabaseManifest,
+    GelEvidenceManifest,
+    GelEvidenceObservation,
+    GelMethod,
     PhenixInstallManifest,
     PipelineConfig,
     RunManifest,
     require_remote_submission_authorisation,
+    validate_gel_evidence_references,
     validate_manifest_references,
 )
 from genome_to_diffraction.schemas.providers import (
@@ -57,6 +61,9 @@ __all__ = [
     "CoordinateSourceRecord",
     "CrystalManifest",
     "DatabaseManifest",
+    "GelEvidenceManifest",
+    "GelEvidenceObservation",
+    "GelMethod",
     "MatthewsHypothesis",
     "MrHypothesis",
     "MtzPreflightRecord",
@@ -85,5 +92,6 @@ __all__ = [
     "StructuralSearchHit",
     "StructuralSearchResult",
     "require_remote_submission_authorisation",
+    "validate_gel_evidence_references",
     "validate_manifest_references",
 ]

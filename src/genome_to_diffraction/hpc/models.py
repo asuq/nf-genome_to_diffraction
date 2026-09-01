@@ -10,7 +10,7 @@ from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 RUN_ID_PATTERN = re.compile(
-    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}$"
 )
@@ -22,8 +22,8 @@ JOB_ID_PATTERN = re.compile(r"^[0-9]+$")
 SITE_ID_PATTERN = re.compile(r"^(marmic|viper-cpu)$")
 
 MAX_LOG_LINES = 2_000
-MAX_ARTIFACT_FILE_BYTES = 20 * 1024 * 1024
-MAX_ARTIFACT_TOTAL_BYTES = 100 * 1024 * 1024
+MAX_ARTIFACT_FILE_BYTES = 128 * 1024 * 1024
+MAX_ARTIFACT_TOTAL_BYTES = 12 * 1024 * 1024 * 1024
 MAX_REVIEW_ARTIFACT_FILE_BYTES = 128 * 1024 * 1024
 MAX_REVIEW_ARTIFACT_TOTAL_BYTES = 512 * 1024 * 1024
 MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES = MAX_REVIEW_ARTIFACT_TOTAL_BYTES + 2 * 1024 * 1024
@@ -44,6 +44,12 @@ PROFILES = frozenset(
         "p2-diverse",
         "p2-control",
         "heteromer-smoke",
+        "phase3-phenix-probe",
+        "phase3-network-probe",
+        "unknown-discovery",
+        "unknown-screen",
+        "unknown-single-component",
+        "unknown-pass2",
         "control-slice",
         "control-matrix",
         "m6-inputs",
@@ -229,8 +235,19 @@ class LocalRunRecord:
         if not isinstance(value, dict):
             raise ValidationError("local run record must be a JSON object")
         run_id = str(value.get("run_id", ""))
-        # Version 1.0 records pre-date site isolation and are Marmic-only.
-        site_id = str(value.get("site_id", "marmic"))
+        schema_version = value.get("schema_version")
+        if schema_version == "1.0":
+            site_id = value.get("site_id", "marmic")
+            if site_id != "marmic":
+                raise ValidationError(
+                    "local run record schema 1.0 requires the Marmic site"
+                )
+        elif schema_version == "1.1":
+            site_id = value.get("site_id")
+            if not isinstance(site_id, str):
+                raise ValidationError("local run record schema 1.1 requires site_id")
+        else:
+            raise ValidationError("unsupported local run record schema")
         commit = str(value.get("commit", ""))
         owner_id = str(value.get("owner_id", ""))
         profile = str(value.get("profile", ""))
@@ -339,7 +356,9 @@ def validate_profile(value: str) -> str:
         raise ValidationError(
             "profile must be one of: control-matrix, control-slice, database, "
             "m6-inputs, m6-leakage, m6-nextflow-smoke, m6-operational, p0, p1, p2, "
-            "p2-control, p2-diverse, smoke"
+            "p2-control, p2-diverse, phase3-network-probe, phase3-phenix-probe, "
+            "unknown-discovery, unknown-pass2, unknown-screen, "
+            "unknown-single-component, smoke"
         )
     return value
 

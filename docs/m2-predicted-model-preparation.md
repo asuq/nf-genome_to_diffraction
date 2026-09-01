@@ -13,7 +13,8 @@ cleaned source-chain variant are documented separately in
 [M2 experimental PDB model preparation](m2-experimental-model-preparation.md).
 The exact-predicted
 vertical slice now has a checksum-verified bounded funnel described in the
-[M3 first-copy report](m3-first-copy-phaser.md). A typed `prepare_models.nf`
+[M3 first-copy report](m3-first-copy-phaser.md). A typed
+`qualification.nf --qualification_stage prepare_predicted_models`
 entry point wires the qualified preparation adapter for isolated execution and
 cached resume. The original fixed Marmic route passed model preparation on 11
 August 2026. Its mmCIF output was later shown to be unsuitable for the installed
@@ -118,7 +119,9 @@ predict the blind CD6 result.
 
 ## Nextflow boundary
 
-`prepare_models.nf` takes the AFDB/Atlas `coordinate_sources.jsonl`, exact
+`qualification.nf --qualification_stage prepare_predicted_models` takes the
+AFDB/Atlas
+`coordinate_sources.jsonl`, exact
 catalogue `sequence_groups.jsonl`, and verified Phenix installation manifest.
 Its single `process_phenix` task runs in nf-helper's compute-node `/scratch` on
 Marmic and publishes one complete `predicted_model_preparation` directory. The

@@ -1,5 +1,27 @@
 """Inspectable candidate ranking and bounded MR funnels."""
 
+from genome_to_diffraction.ranking.candidate_generation import (
+    CandidateGenerationError,
+    ComponentExpansionInputGeneration,
+    ComponentExpansionInputInventory,
+    GeneratedComponentExpansionRow,
+    ParentCandidateCoverage,
+    ParentMatthewsContext,
+    ParentModelRankingEvidence,
+    TotalCompositionCopyEvidence,
+    build_component_expansion_inputs,
+)
+from genome_to_diffraction.ranking.composition import (
+    ComponentExpansionInput,
+    CompositionExpansionOutput,
+    CompositionExpansionRequest,
+    CompositionPlanningError,
+    ExpansionEvidenceLevel,
+    ParentExpansionInput,
+    PlannedCompositionAttempt,
+    build_composition_expansion_plan,
+    build_registry_bound_composition_expansion_plan,
+)
 from genome_to_diffraction.ranking.funnel import (
     DiverseFirstCopyFunnelOutput,
     DiverseFirstCopyFunnelRequest,
@@ -20,16 +42,34 @@ from genome_to_diffraction.ranking.partner import (
 
 __all__ = [
     "ApprovedPartnerPlanRequest",
+    "CandidateGenerationError",
+    "ComponentExpansionInput",
+    "ComponentExpansionInputGeneration",
+    "ComponentExpansionInputInventory",
+    "CompositionExpansionOutput",
+    "CompositionExpansionRequest",
+    "CompositionPlanningError",
     "DiverseFirstCopyFunnelOutput",
     "DiverseFirstCopyFunnelRequest",
     "ExactPredictedFunnelOutput",
     "ExactPredictedFunnelRequest",
+    "ExpansionEvidenceLevel",
     "FunnelInputError",
+    "GeneratedComponentExpansionRow",
+    "ParentCandidateCoverage",
+    "ParentExpansionInput",
+    "ParentMatthewsContext",
+    "ParentModelRankingEvidence",
     "PartnerPlanInputError",
     "PartnerPlanOutput",
     "PartnerPlanRequest",
+    "PlannedCompositionAttempt",
+    "TotalCompositionCopyEvidence",
     "build_approved_partner_search_plan",
+    "build_component_expansion_inputs",
+    "build_composition_expansion_plan",
     "build_diverse_first_copy_funnel",
     "build_exact_predicted_funnel",
     "build_partner_search_plan",
+    "build_registry_bound_composition_expansion_plan",
 ]

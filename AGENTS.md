@@ -20,10 +20,33 @@ When documents conflict, use the earlier item in this order. Do not silently rec
 ## 2. Scope that must not change without explicit user approval
 
 The user approved bounded two-component heteromer development on 2026-08-19.
-The active v0.2 prototype may implement `ASU = nA + mB` for exactly two protein
+The v0.2 release line may implement `ASU = nA + mB` for exactly two protein
 components. Start with an explicit known `1A + 1B` control, fix the placed A
-solution, and search for B. Three-or-more-component reconstruction, AF3 complex
-logic, and general assembly inference remain out of scope.
+solution, and search for B.
+
+On 2026-08-23 the user separately authorised Phase III development on the
+`dev/phase3` branch while v0.2 release validation continues on `main`. Phase III
+may represent arbitrary ordered protein-component lists, but fixed application
+execution is bounded to six distinct components, three retained parent states
+per depth, 25 attempts per depth, and 100 additional-component attempts per
+crystal. Depth three must be validated with 9ECN. Depths four through six remain
+provisional and cannot support a complete-composition claim. AF3 complex logic
+and unbounded assembly inference remain out of scope.
+
+On 2026-09-01, after `v0.2.0` was released and before any external use, the
+user directed that the complete Phase III line be merged into `main` and that
+all subsequent development continue there. `dev/phase3` is now a historical
+integration branch, not an active source authority.
+
+On 2026-08-31 the user approved a candidate-confidence-first clean break for
+the unknown-crystal screen. Matthews retains the complete configured expected
+copy range, while every initial MR hypothesis searches exactly one copy. The
+active workflow must not impose a special four-copy or joint-copy admission
+limit. Only an explicitly approved one-copy A seed may add copies, one at a
+time, toward its retained expectation. Complete candidate assessment for all
+three frozen crystals now precedes the remaining M6, closure, pass-2, atlas,
+package, and v0.3.0 release programme. The canonical execution order is
+`docs/v0.3-roadmap.md`.
 
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
@@ -37,10 +60,11 @@ Use one annotation source per catalogue. Do not merge Prokka, RefSeq, PGAP, GenB
 - External PDB, AlphaFold DB, and ESM Atlas hits may provide coordinates or family evidence, but may not become reportable identities unless mapped to a supplied catalogue sequence.
 - Treat SDS–PAGE molecular weight as an apparent monomer/polypeptide-mass prior only. Never use it as ASU total mass or oligomeric-state evidence.
 - Use sequence-derived mass for Matthews calculations.
-- Retain multiple plausible ASU copy counts. The current pilot cap is the top
-  four per candidate or candidate group because that is the smallest
-  predeclared cap that retains the known two-copy 8OOX control; keep the cap
-  configurable and do not treat rank as evidence of the true copy count.
+- Retain multiple plausible ASU copy counts through the configured Matthews
+  range. Do not impose a separate static copy-count ceiling. Bound execution by
+  ranked hypothesis budgets, search one copy in the initial screen, and add
+  further copies sequentially only after review. Never treat copy rank as
+  evidence of the true copy count.
 - Matthews probability is a prior, not proof. Never reject a candidate solely because its Matthews probability is low unless the hypothesis is physically impossible.
 - Scientific no-hit outcomes are valid completed analyses. Separate execution failure from scientific status.
 - Do not use `R_free` as a high-throughput screening objective across large candidate sets.
@@ -159,8 +183,9 @@ do not delay real-data feedback in pursuit of perfect test coverage.
 Do not claim a Phenix integration is complete without testing it against a real installed Phenix runtime.
 
 The three frozen operator MTZ datasets are unknown-composition feasibility
-inputs, not validation data. Defer them until the known heteromer control works;
-they must not calibrate scientific heuristics or support a validation claim.
+inputs, not validation data. They may run only after the Phase III execution,
+crystallographic, provider, and review-checkpoint foundations pass. They must
+not calibrate scientific heuristics or support a validation claim.
 M6 remains an independently reviewable robustness benchmark, but it no longer
 gates experimental heteromer implementation.
 
@@ -172,14 +197,22 @@ it. The user authorised an archival v0.1 release even though M6 is held and the
 software is incomplete. Label that release honestly; do not claim production or
 M6 scientific acceptance.
 
-After preserving v0.1, implement the smallest heteromer path before additional
-hardening: known fixed-A/one-B placement on 6RTZ, end-to-end 6RTZ, then explicit
-`nA + mB` and a small positive/negative control slice. Fix only defects that
-block or scientifically invalidate that path. Unfinished R2–R4 hardening, M6,
-localisation filtering, unknown operator crystals, and broader validation move
-to the post-prototype backlog. Do not start R3 as an independent hardening
-programme unless the user explicitly resumes it or a required heteromer result
-demonstrates that a specific R3 defect is blocking execution.
+After preserving v0.1, the smallest bounded two-component path was completed
+and published as experimental `v0.2.0` from exact-source Marmic-qualified
+commit `68d216f`. Preserve that tag, release notes, P6 evidence, and scientific
+limitations as immutable read-only history.
+
+Phase III is now the active development programme on `main`. Do not reinterpret,
+mutate, or reuse a v0.2
+Marmic run as Phase III evidence. Do not launch Phase III controls, M6 reruns,
+localisation, or unknown-crystal analysis until the corresponding Phase III
+contracts and fixed profiles have passed their local integration gates.
+
+Complete the candidate-confidence critical path in `docs/v0.3-roadmap.md`
+before advancing M6, final finding closure, unknown pass 2, or release work.
+Each frozen crystal may terminate as exact, equivalent, family-level,
+unresolved, or no-supported-candidate; forcing an answer is never a completion
+criterion.
 
 At the start of each new development loop, read the newest entry in
 `docs/development-loop-journal.md` before changing code or running a new remote

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+if [[ ! "${SLURM_JOB_ID:-}" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' 'worker-offline shell requires a numeric Slurm job context' >&2
+    exit 78
+fi
+
+if [[ ! -x /usr/bin/unshare ]]; then
+    printf '%s\n' 'worker-offline shell requires /usr/bin/unshare' >&2
+    exit 69
+fi
+
+export GTD_COMPUTE_NETWORK_ACCESS=false
+exec /usr/bin/unshare --user --map-current-user --net -- /bin/bash "$@"

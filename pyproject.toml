@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27"]
+requires = ["hatchling==1.32.0"]
 build-backend = "hatchling.build"
 
 [project]
@@ -24,10 +24,10 @@ dependencies = [
 
 [project.scripts]
 genome-to-diffraction = "genome_to_diffraction.cli:main"
-nf-gtd-hpc-test = "genome_to_diffraction.hpc.cli:entrypoint"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/genome_to_diffraction"]
+exclude = ["/src/genome_to_diffraction/hpc"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "schemas" = "genome_to_diffraction/_schemas"

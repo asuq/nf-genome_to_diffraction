@@ -218,7 +218,7 @@ def _read_jsonl[T: BaseModel](
                 raise MrSeedReviewError(
                     f"invalid {label} record at line {line_number}: {resolved}"
                 ) from error
-    if not records and not allow_empty:
+    if not records and (not allow_empty or resolved.stat().st_size != 0):
         raise MrSeedReviewError(f"{label} is empty: {resolved}")
     return tuple(records)
 
@@ -389,12 +389,14 @@ def _join_candidates(
         MrHypothesis,
         label="MR hypotheses",
         progress=request.progress,
+        allow_empty=True,
     )
     results = _read_jsonl(
         request.results_jsonl,
         NormalisedMrResult,
         label="normalised MR results",
         progress=request.progress,
+        allow_empty=True,
     )
     groups = _read_jsonl(
         request.sequence_groups_jsonl,
@@ -1032,7 +1034,7 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
 
 
 def _validate_package_manifest(
-    path: Path, *, progress: bool
+    path: Path, *, progress: bool, allow_empty: bool = False
 ) -> tuple[dict[str, object], dict[str, dict[str, object]]]:
     document = _load_json_object(path, label="MR review manifest")
     if (
@@ -1064,7 +1066,7 @@ def _validate_package_manifest(
         if sha256_file(owned, progress=progress, logger=_LOGGER) != expected_sha256:
             raise MrSeedReviewError(f"MR review output checksum differs: {name}")
     raw_items = document.get("items")
-    if not isinstance(raw_items, list) or not raw_items:
+    if not isinstance(raw_items, list) or (not raw_items and not allow_empty):
         raise MrSeedReviewError("MR review manifest contains no review items")
     items: dict[str, dict[str, object]] = {}
     for raw_item in raw_items:
@@ -1108,6 +1110,91 @@ def _validate_decided_item_assets(
             raise MrSeedReviewError(
                 f"MR review asset checksum differs: {solution_id}/{role}"
             )
+
+
+def validate_mr_seed_review_evidence(
+    *,
+    package_manifest: Path,
+    hypotheses_jsonl: Path,
+    crystal_id: str,
+    progress: bool = False,
+) -> tuple[str, ...]:
+    """Bind every retained first-copy review item to one crystal's hypotheses."""
+
+    manifest, items = _validate_package_manifest(
+        package_manifest,
+        progress=progress,
+        allow_empty=True,
+    )
+    outputs = manifest.get("outputs")
+    if not isinstance(outputs, dict) or set(outputs) != {
+        "review_tsv",
+        "review_html",
+        "approval_candidates_tsv",
+        "approval_template_tsv",
+    }:
+        raise MrSeedReviewError("MR review output inventory is incomplete")
+
+    package_identity = manifest.get("package_identity")
+    if not isinstance(package_identity, dict):
+        raise MrSeedReviewError("MR review manifest lacks package identity")
+    input_sha256 = package_identity.get("input_sha256")
+    if not isinstance(input_sha256, dict) or input_sha256.get(
+        "hypotheses"
+    ) != sha256_file(hypotheses_jsonl, progress=False):
+        raise MrSeedReviewError("MR review hypothesis checksum differs")
+
+    hypotheses = _read_jsonl(
+        hypotheses_jsonl,
+        MrHypothesis,
+        label="MR review hypotheses",
+        progress=progress,
+        allow_empty=True,
+    )
+    indexed = _unique_index(
+        hypotheses,
+        lambda item: item.hypothesis_id,
+        label="review hypothesis ID",
+    )
+    if any(item.crystal_id != crystal_id for item in hypotheses):
+        raise MrSeedReviewError("MR review hypothesis belongs to another crystal")
+    if manifest.get("candidate_count") != len(items):
+        raise MrSeedReviewError("MR review candidate count differs")
+    if package_identity.get("solution_ids") != list(items):
+        raise MrSeedReviewError("MR review solution order differs from its identity")
+
+    inspectable_count = 0
+    retained_hypotheses: set[str] = set()
+    root = package_manifest.resolve(strict=True).parent
+    for solution_id, item in items.items():
+        hypothesis_id = item.get("hypothesis_id")
+        if not isinstance(hypothesis_id, str) or hypothesis_id not in indexed:
+            raise MrSeedReviewError("MR review item lacks its current hypothesis")
+        hypothesis = indexed[hypothesis_id]
+        identity = item.get("solution_identity")
+        if (
+            not isinstance(identity, dict)
+            or identity.get("hypothesis_id") != hypothesis_id
+            or identity.get("hypothesis_sha256") != canonical_digest(hypothesis)
+            or item.get("sequence_group_id") != hypothesis.sequence_group_id
+        ):
+            raise MrSeedReviewError("MR review item hypothesis identity differs")
+        inspectable = item.get("inspectable_solution")
+        if not isinstance(inspectable, bool):
+            raise MrSeedReviewError("MR review inspectable state is invalid")
+        inspectable_count += int(inspectable)
+        retained_hypotheses.add(hypothesis_id)
+        _validate_decided_item_assets(
+            root=root,
+            solution_id=solution_id,
+            item=item,
+            progress=progress,
+        )
+    if retained_hypotheses != set(indexed):
+        raise MrSeedReviewError("MR review hypothesis inventory is incomplete")
+    if manifest.get("inspectable_solution_count") != inspectable_count:
+        raise MrSeedReviewError("MR review inspectable-solution count differs")
+    return tuple(items)
 
 
 def validate_mr_seed_approvals(

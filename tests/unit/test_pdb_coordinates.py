@@ -3,6 +3,7 @@
 import gzip
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,11 +11,18 @@ import pytest
 from genome_to_diffraction.databases.cache import initialise_coordinate_cache
 from genome_to_diffraction.databases.network import DownloadMetadata
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.model_registry import (
+    ExperimentalModelPreparationRequest,
+    prepare_experimental_models,
+)
 from genome_to_diffraction.schemas.results import (
     EligibilityStatus,
+    SearchScientificStatus,
     SequenceGroupRecord,
     StructuralSearchHit,
+    StructuralSearchResult,
 )
+from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.structure_search import (
     PdbCoordinateInputError,
     PdbCoordinateRegistrationRequest,
@@ -232,7 +240,14 @@ def _fake_download(monkeypatch: pytest.MonkeyPatch, *, fail: bool = False) -> li
 
 
 def _request(
-    tmp_path: Path, hits: Path, groups: Path, manifest: Path, *, suffix: str = ""
+    tmp_path: Path,
+    hits: Path,
+    groups: Path,
+    manifest: Path,
+    *,
+    suffix: str = "",
+    materialise: bool = False,
+    allow_network: bool = True,
 ) -> PdbCoordinateRegistrationRequest:
     return PdbCoordinateRegistrationRequest(
         structural_hits_jsonl=hits,
@@ -242,6 +257,8 @@ def _request(
         maximum_hits_per_sequence_group=3,
         maximum_mappings=2,
         minimum_free_bytes=0,
+        materialise_coordinate_objects=materialise,
+        allow_network_acquisition=allow_network,
         progress=False,
     )
 
@@ -282,6 +299,166 @@ def test_registration_reserves_sequence_diversity_and_reuses_cache(
     ]
 
 
+def test_offline_registration_refuses_cache_miss_and_reuses_staged_objects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups, manifest, _ = _inputs(tmp_path)
+    calls = _fake_download(monkeypatch)
+
+    with pytest.raises(PdbCoordinateInputError, match="qualified offline cache"):
+        register_pdb_coordinates(
+            _request(
+                tmp_path,
+                hit_path,
+                groups,
+                manifest,
+                suffix=" offline miss",
+                allow_network=False,
+            )
+        )
+    assert calls == []
+
+    register_pdb_coordinates(
+        _request(tmp_path, hit_path, groups, manifest, suffix=" login stage")
+    )
+    _fake_download(monkeypatch, fail=True)
+    offline = register_pdb_coordinates(
+        _request(
+            tmp_path,
+            hit_path,
+            groups,
+            manifest,
+            suffix=" offline hit",
+            allow_network=False,
+        )
+    )
+    record = json.loads(offline.manifest_json.read_text(encoding="utf-8"))
+    assert record["parameters"]["allow_network_acquisition"] is False
+    assert record["downloaded_entry_count"] == 0
+
+
+def test_documented_provider_no_hits_complete_without_coordinates_or_models(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups_path, manifest_path, _ = _inputs(tmp_path)
+    hit_path.write_text("", encoding="utf-8")
+    groups = tuple(
+        SequenceGroupRecord.model_validate_json(line)
+        for line in groups_path.read_text(encoding="utf-8").splitlines()
+    )
+    result_paths: list[Path] = []
+    for provider, disabled in (
+        ("pdb_sequence_mmseqs", False),
+        ("foldseek_prostt5_pdb", True),
+    ):
+        results_path = tmp_path / f"{provider}-results.jsonl"
+        results = tuple(
+            StructuralSearchResult(
+                schema_version="1.0",
+                search_id=f"search_{provider}_{index}",
+                sequence_group_id=group.sequence_group_id,
+                provider=provider,
+                database_id=(
+                    "disabled_foldseek_prostt5_pdb"
+                    if disabled
+                    else "db_test_pdb_sequences"
+                ),
+                tool="provider-test",
+                tool_version="1.0",
+                adapter_version="provider-test-v1",
+                cache_key=hashlib.sha256(
+                    f"{provider}:{group.sequence_group_id}".encode("ascii")
+                ).hexdigest(),
+                execution_status=(
+                    ExecutionStatus.SKIPPED_POLICY
+                    if disabled
+                    else ExecutionStatus.COMPLETED_NO_HIT
+                ),
+                scientific_status=(
+                    SearchScientificStatus.NOT_INTERPRETABLE
+                    if disabled
+                    else SearchScientificStatus.NO_HIT
+                ),
+                hit_count=0,
+                raw_result_pointer="raw/results.tsv",
+                raw_result_sha256="a" * 64,
+                command_log_pointer="raw/command.log",
+                command_log_sha256="b" * 64,
+            )
+            for index, group in enumerate(groups)
+        )
+        results_path.write_text(
+            "".join(f"{canonical_json_text(result)}\n" for result in results),
+            encoding="utf-8",
+        )
+        result_paths.append(results_path)
+
+    calls = _fake_download(monkeypatch, fail=True)
+    registration = register_pdb_coordinates(
+        replace(
+            _request(tmp_path, hit_path, groups_path, manifest_path),
+            provider_search_results_jsonl=tuple(result_paths),
+        )
+    )
+
+    assert calls == []
+    assert registration.coordinate_sources == ()
+    assert registration.mappings == ()
+    assert registration.coordinate_sources_jsonl.read_bytes() == b""
+    assert registration.mappings_jsonl.read_bytes() == b""
+    registration_manifest = json.loads(
+        registration.manifest_json.read_text(encoding="utf-8")
+    )
+    assert registration_manifest["input_hit_count"] == 0
+    assert registration_manifest["selected_mapping_count"] == 0
+    assert registration_manifest["coordinate_source_count"] == 0
+    assert registration_manifest["downloaded_entry_count"] == 0
+
+    prepared = prepare_experimental_models(
+        ExperimentalModelPreparationRequest(
+            coordinate_sources_jsonl=registration.coordinate_sources_jsonl,
+            coordinate_hit_mappings_jsonl=registration.mappings_jsonl,
+            registration_manifest=registration.manifest_json,
+            sequence_groups_jsonl=groups_path,
+            output_directory=tmp_path / "empty experimental models",
+            progress=False,
+        )
+    )
+    assert prepared.records == ()
+    assert prepared.records_jsonl.read_bytes() == b""
+    preparation = json.loads(prepared.manifest_json.read_text(encoding="utf-8"))
+    assert preparation["selected_mapping_count"] == 0
+    assert preparation["processed_model_count"] == 0
+
+    result_paths[1].write_text(
+        result_paths[1].read_text(encoding="utf-8").splitlines()[0] + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(PdbCoordinateInputError, match="cover every sequence group"):
+        register_pdb_coordinates(
+            replace(
+                _request(
+                    tmp_path,
+                    hit_path,
+                    groups_path,
+                    manifest_path,
+                    suffix=" incomplete provider",
+                ),
+                provider_search_results_jsonl=tuple(result_paths),
+            )
+        )
+
+
+def test_empty_pdb_hits_without_typed_provider_evidence_remain_invalid(
+    tmp_path: Path,
+) -> None:
+    hit_path, groups, manifest, _ = _inputs(tmp_path)
+    hit_path.write_text("", encoding="utf-8")
+
+    with pytest.raises(PdbCoordinateInputError, match="typed provider search results"):
+        register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
+
+
 def test_registration_requires_search_snapshot_sequence_identity(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -292,3 +469,68 @@ def test_registration_requires_search_snapshot_sequence_identity(
 
     with pytest.raises(PdbCoordinateInputError, match="rerun pdb-sequence adapter v2"):
         register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
+
+
+def test_registration_ignores_retained_deferred_mapping_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups, manifest, hits = _inputs(tmp_path)
+    deferred = hits[1].model_copy(
+        update={
+            "provider": "foldseek_prostt5_pdb",
+            "database_id": "db_test_pdb_foldseek",
+            "identifier_namespace": "foldseek_target_unmapped",
+            "eligibility_status": EligibilityStatus.DEFERRED,
+            "eligibility_reason": "retained mapping gap",
+            "raw_metrics": {"coordinate_mapping_status": "unavailable"},
+        }
+    )
+    hit_path.write_text(
+        "".join(
+            f"{canonical_json_text(item)}\n" for item in (deferred, hits[0], hits[2])
+        ),
+        encoding="utf-8",
+    )
+    calls = _fake_download(monkeypatch)
+
+    output = register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
+
+    assert {item.hit_id for item in output.mappings} == {
+        "hit_first_best",
+        "hit_second_best",
+    }
+    assert calls == ["1abc", "3abc"]
+
+
+def test_registration_materialises_one_relative_object_for_reused_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hit_path, groups, manifest, hits = _inputs(tmp_path)
+    repeated = hits[0].model_copy(
+        update={"hit_id": "hit_first_repeated", "provider_rank": 2}
+    )
+    hit_path.write_text(
+        "".join(f"{canonical_json_text(item)}\n" for item in (hits[0], repeated)),
+        encoding="utf-8",
+    )
+    calls = _fake_download(monkeypatch)
+
+    output = register_pdb_coordinates(
+        _request(
+            tmp_path,
+            hit_path,
+            groups,
+            manifest,
+            suffix=" staged",
+            materialise=True,
+        )
+    )
+
+    assert calls == ["1abc"]
+    assert len(output.coordinate_sources) == 1
+    assert len(output.mappings) == 2
+    relative = Path(output.coordinate_sources[0].coordinate_path)
+    assert not relative.is_absolute()
+    assert (output.manifest_json.parent / relative).is_file()
+    registration = json.loads(output.manifest_json.read_text(encoding="utf-8"))
+    assert registration["parameters"]["materialise_coordinate_objects"] is True

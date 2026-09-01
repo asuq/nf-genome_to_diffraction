@@ -10165,6 +10165,326 @@ outcomes before accepting P6 or beginning the v0.2 release boundary.
   reviewed tools, and stage one fresh `heteromer-smoke`. Accept P6 only after
   terminal collection validates the P6-v2 report and every retained checksum.
 
+## 2026-08-23 - Phase III development branch opened in parallel
+
+### Branch boundary and authorised scope
+
+- The user authorised Phase III source development on `dev/phase3` while the
+  corrected v0.2 P6 Marmic replay continues from immutable `main`. The Phase III
+  branch was created from `24f733c`; the active P6 run, release worktree, and
+  retained evidence remain untouched.
+- Phase III supports arbitrary ordered component records but fixed execution is
+  bounded to six distinct components, three parent states per depth, 25
+  attempts per depth, and 100 additional-component attempts per crystal.
+  Depth three requires 9ECN validation; depths four through six remain
+  provisional and cannot support a complete-composition claim.
+- No Phase III HPC, M6, localisation, or unknown-crystal run starts before the
+  relevant contracts/fixed profiles pass and v0.2 is preserved as an immutable
+  release.
+
+### Parallel starting slices
+
+- Added the dependency-ordered Phase III roadmap and unified finding ledger.
+- Started independent focused work on schema-v2 composition contracts and
+  complete three-crystal Nextflow fan-out. Both use branches/worktrees derived
+  from `dev/phase3`; neither may push or touch the v0.2 release line.
+- Added the first local Phase III vertical slice: a schema-v2 JSON/TSV gel
+  evidence manifest for SDS/native-PAGE observations with explicit mass,
+  absolute uncertainty, method, condition, band role, replicate, source, and
+  notes. Empty evidence is explicitly neutral, duplicate observation IDs fail,
+  and every observation must reference a supplied crystal.
+- Eleven focused gel-contract tests, the authoritative schema check, targeted
+  Ruff, targeted `ty`, documentation links, and diff checks pass. Localisation
+  adapters and ranking consumption remain deliberately separate slices.
+- Closed the local `PIPE-P2-01` boundary: a zero-exit `phenix.refine` run is no
+  longer publishable when final Rwork or Rfree cannot be parsed, and completed
+  refinement contracts require both final values. The typed outcome is
+  `failed_parse`; existing model/map files are not promoted as completed
+  scientific evidence. Seven focused completion/status tests pass.
+- Closed the local `PIPE-P2-02` boundary: an unknown or inconsistent catalogue
+  identity in successful `phenix.sequence_from_map` output now emits a typed
+  candidate-level `failed_parse` result rather than raising out of the process.
+  The raw log remains retained and independent finalist processes can continue.
+- Closed the local `PIPE-P1-09` stale-output boundary for T12. Every candidate
+  now owns a new or empty output directory; a symlink, non-directory, or any
+  pre-existing file fails before external execution, so a zero-output current
+  attempt cannot publish a prior attempt's model, MTZ, or maps.
+
+### Next exact starting point
+
+Review and integrate each focused branch only after its regressions pass. Keep
+the documentation changes uncommitted until combined with the first coherent
+Phase III code slice. Continue wrapper-only P6 polling through its existing
+heartbeat; do not duplicate the Marmic run or monitoring loop.
+
+## 2026-08-23T15:30:00Z - Phase III composition-v2 contract slice is focused-green
+
+### Completed contract foundation
+
+- Added an opt-in `genome_to_diffraction.schemas.v2` namespace without changing
+  the existing v1 P6 records. The six Phase III public records describe arbitrary
+  ordered component lists, component-specific placement evidence, retained
+  composition states, bounded expansion plans, scope decisions, and scientific
+  assessments.
+- Every v2 record is frozen and content-addressed over its complete canonical
+  payload. Packing remains search evidence until identity and review support are
+  present; claim eligibility is derived separately, and component depths beyond
+  the validated depth remain provisional.
+- Focused mutation coverage verifies content identities, ordering, evidence
+  promotions, sequence-group uniqueness, deterministic plan inventories and
+  budgets, provisional-depth claim refusal, final-review requirements, and
+  continued v1 readability. The focused 18-test contract/package/ID slice, Ruff,
+  and `ty` pass.
+
+### Next exact starting point
+
+Integrate this contract-only commit into `dev/phase3` after review. Build the
+planner and Nextflow fan-out against these records in a separate slice; do not add
+search execution, localisation, unknown-crystal profiles, or reinterpret v1 data
+while integrating the contracts.
+
+## 2026-08-23T15:30:00Z - Phase III per-crystal fan-out foundation is isolated
+
+### Completed focused slice
+
+- Extended the existing checksum-verifying crystal dispatcher with an explicit
+  manifest-owned crystal ID. Omitting that ID preserves the v0.2 one-crystal
+  contract; a multi-crystal manifest remains invalid on the legacy path.
+- Added a Phase III workflow boundary that expands the validated manifest and
+  uses Cartesian combination with the singleton catalogue and provider bundles.
+  Each scheduled item therefore carries its crystal manifest, preflight,
+  catalogue preparation, and provider preparation together instead of
+  consuming shared preparation alongside only the first crystal.
+- A focused stub prepares the two shared bundles once, dispatches three exact
+  crystal identities, and proves that all three downstream items can read both
+  shared bundles. The first run completes eight expected tasks; cached resume
+  retains the same three distinct dispatch hashes and byte-identical evidence.
+  The focused dispatcher unit tests, Ruff checks, and Nextflow syntax check pass.
+
+### Next exact starting point
+
+Integrate this boundary into the Phase III application workflow after the v0.2
+release transition. Keep the existing v0.2 single-crystal entry point unchanged;
+do not add unknown-screen profiles or general composition contracts in this
+slice.
+
+## 2026-08-23T16:20:00Z - Phase III shared-depth expansion planner is focused-green
+
+### Completed focused slice
+
+- Added a typed deterministic planner for one additional-component depth. It
+  accepts one to three ranked packed parents, excludes sequence groups already
+  represented by each parent, retains parent-specific physical eligibility for
+  explicit copy hypotheses 1--4, and treats missing localisation, gel, Matthews,
+  model-quality, and structural-diversity evidence as neutral scheduling
+  evidence.
+- Searchable hypotheses are allocated in deterministic diagonal rounds across
+  candidate and copy-count positions, with parent rank round-robin at each
+  position. One shared cap of 25 attempts applies across the complete parent
+  beam, and the remaining global cap of 100 attempts is enforced independently.
+  Selected, per-depth-deferred, globally deferred, reviewer-deferred, no-model,
+  model-identity-unsearchable, and physically impossible outcomes remain typed.
+- Corrected a contract gap discovered during implementation: the original
+  singular-parent expansion plan could not itself prove a shared depth budget.
+  Added an explicitly parent-bound depth-plan contract with parent summaries,
+  parent-bound candidates, allocation ranks, and aggregate inventory/budget
+  validation. The singular-parent v2 record remains readable but is not the
+  authoritative Phase III scheduling boundary.
+- The planner performs no search or support assessment. Selection reasons state
+  explicitly that scheduling is not scientific support; LLG, TFZ, and packing
+  are not planner inputs and cannot promote an identity or composition claim.
+
+### Focused evidence and next exact starting point
+
+- Six planner regressions cover deterministic evidence ordering, represented-
+  group exclusion, three-parent/candidate/copy fairness, distinct depth/global
+  budget dispositions, evidence mutation, missing-evidence neutrality, and the
+  zero-physical-hypothesis path. Shared-budget and parent-binding mutations fail
+  contract validation. The combined planner/contract slice passes 16 tests;
+  package/typed-contract compatibility adds 115 passing tests. Targeted Ruff,
+  `ty`, and the authoritative schema check pass.
+- Integrate this commit after the composition-v2 contract commit. Use the new
+  shared depth plan as the only scheduling authority when wiring Nextflow; do
+  not reinterpret the singular-parent record as granting 25 attempts per
+  parent. Phaser, Nextflow, localisation, unknown profiles, and scientific
+  assessment remain intentionally outside this slice.
+
+## 2026-08-23 - Phase III offline localisation contracts are focused-green
+
+### Completed focused slice
+
+- Added a checksum- and version-bound standalone PSORTb 3.0.6 adapter for one
+  sequence group using the officially documented archaeal terse command. The
+  attempt retains its input FASTA, version probe, resolved command, stdout,
+  stderr, and typed result without public sequence submission.
+- Normalised archaeal PSORTb results as membrane, surface, extracellular,
+  soluble, or unknown. Tool and parser failures remain typed failed outcomes;
+  incompatible informative observations resolve to conflicting rather than to
+  an exclusion.
+- Added a user-image and one-FASTA DeepTMHMM 1.0 runtime/input contract. The
+  official documentation does not specify a stable local image entrypoint,
+  arguments, or output wire format, so executable invocation remains explicitly
+  blocked with an empty command. The image is checksum-bound, never
+  redistributed, and no result is fabricated.
+- Twenty focused command, parser, stub, failure, mutation, provenance, input,
+  and outcome-resolution tests pass. Targeted Ruff, formatting, `ty`,
+  documentation, and staged-diff checks pass.
+
+### Next exact starting point
+
+Inspect the user-provided DeepTMHMM image before defining any executable command
+or raw-output parser. Integrate this contract slice into `dev/phase3` after
+review; keep Nextflow fan-out, catalogue-wide localisation, first-wave policy,
+and candidate ranking in later focused slices.
+
+## 2026-08-23T15:40:00Z - Phase III diffraction-selection foundation is focused-green
+
+### Completed focused slice
+
+- Added an opt-in schema-v2 diffraction selection that binds crystal and dataset
+  identity, source MTZ digest, MTZ-internal observation dataset/labels/type,
+  selected space group, low/high resolution, complete preflight/manifest
+  provenance, and the source of every override. Rendered labels duplicated
+  across MTZ datasets now fail before external execution because the qualified
+  Phenix adapters do not yet expose a dataset-qualified label parameter.
+- Bound the complete immutable v1 hypothesis payload and diffraction selection
+  into a separate Phase III hypothesis ID. First-copy Phaser and brief
+  refinement verify the selection against the exact preflight before execution
+  and retain selection-derived command IDs and typed propagation records.
+- Passed only parameters already qualified by existing adapters: observation
+  labels to Phaser/refinement and the selected high-resolution limit to
+  `phenix.sequence_from_map`. Space-group and refinement resolution-limit flags
+  remain explicitly pending behind a `verified_by_mtz_preflight` boundary; no
+  unsupported Phenix parameter was guessed. The brief-refinement parent MTZ is
+  retained separately with its derivation verification marked pending. Free-R
+  membership remains an explicit identity placeholder only.
+
+### Focused evidence and next exact starting point
+
+- Forty diffraction-selection, Phaser, and brief-refinement tests pass,
+  including duplicate-dataset, dataset/hypothesis mismatch, override, actual
+  command-record propagation, and identity-mutation regressions. Ten existing
+  composition-v2 tests and ten CLI/refinement-completion tests also pass;
+  targeted Ruff formatting/lint and `ty` pass.
+- Integrate this commit into `dev/phase3`, then qualify supported explicit
+  Phaser/refinement space-group and resolution parameters against real Phenix
+  before promoting `PIPE-P1-06` from partial. Do not infer Free-R membership or
+  launch unknown-crystal execution from this foundation.
+
+## 2026-08-23 - Fixed-parent model uncertainty is preserved
+
+### Completed focused slice
+
+- Bumped the fixed-A/partner adapter identity and made the original reviewed A
+  model identity/error source explicit in the request, Phaser fixed ensemble,
+  command record, normalised result, and cache identity. A placed coordinate is
+  no longer silently treated as a perfect 100%-identity parent.
+- The normal-workflow bridge verifies the checksum-bound first-copy command in
+  the review package and propagates its exact uncertainty evidence into every
+  approved or plan-selected B search. Historical v1 result records remain
+  readable because the new result fields are paired and optional for old data.
+- Focused tests retain a 35%-identity parent as 35%, distinguish it from the B
+  model identity, and reject unpaired result evidence. Real Phase III Phenix
+  qualification and execution-to-composition assessment remain pending.
+
+### Next exact starting point
+
+Commit this focused parent-uncertainty slice after Ruff, `ty`, CLI, bridge, and
+adapter tests pass. Use it as the fixed-parent basis for B-F execution; do not
+start Phase III HPC until v0.2 is immutable and the general execution graph is
+integrated.
+
+## 2026-08-23 - Phase III file-based review contracts are focused-green
+
+### Completed contract slice
+
+- Added one opt-in schema-v2 decision-file contract for the crystallographic,
+  A-seed, composition, and sequence checkpoints. Every file binds one checkpoint
+  to an owned parent-run identifier, review-package identity and manifest
+  checksum, while every row binds crystal/item identity, reviewer, UTC-normalised
+  time, mandatory reason, and optional comment.
+- The complete canonical content derives `decision_file_id`. Checkpoint-specific
+  decision values fail closed; duplicate or conflicting crystal/item targets are
+  invalid. A-seed approvals and combined composition `approve`/`retain_partial`
+  finalists are independently capped at three per crystal.
+- Added the operator-facing TSV adapter and JSON round trip without modifying the
+  historical v1 review records or their adapters. No workflow, profile, remote
+  staging, or review-package generator is included.
+
+### Focused evidence and next exact starting point
+
+- Twenty-one focused decision-contract tests cover every allowed status, stale-ID
+  mutations, wrong-checkpoint decisions, conflicting duplicates, both
+  per-crystal limits, TSV/JSON loading, mixed-package refusal, and unchanged v1
+  readability. The combined v2/typed-contract slice passes 144 tests. Repository
+  Ruff lint/format, `ty`, schema, documentation, and diff checks pass.
+- Integrate this commit into `dev/phase3` after review. In a separate later slice,
+  build checkpoint-specific review packages and a local stager that verifies
+  owned-run provenance, package assets/target membership, review chronology, and
+  the exact transported file checksum before any Nextflow consumer is wired.
+
+## 2026-08-23 - Phase III Free-R identity foundation is focused-green
+
+### Completed focused slice
+
+- Added separate schema-v2 Free-R identity and preservation-comparison records
+  without changing the version-1 preflight record or reader. The identity binds
+  the exact diffraction selection, source MTZ checksum, MTZ-internal dataset and
+  label, full integral non-constant flag distribution, sorted HKL-set digest,
+  and sorted raw HKL-to-flag digest.
+- The Gemmi validator rejects missing or duplicate labels, observation/Free-R
+  dataset conflicts, wrong MTZ types, non-finite or non-integral flags, constant
+  distributions, duplicate HKLs, and source-checksum mismatches. It never
+  infers the test flag value: unresolved and explicitly supplied conventions
+  remain distinct content-addressed states.
+- Derived/refined MTZ comparison accepts row permutation but fails closed on a
+  missing HKL, changed raw flag, label ambiguity, or dataset change. It runs no
+  Phenix command and does not generate or modify Free-R flags.
+
+### Focused evidence and next exact starting point
+
+- Ten dedicated regressions cover distinct label identities, duplicate and
+  conflicting-dataset labels, non-integral, non-finite, constant, unresolved
+  and explicit convention states, missing HKLs, changed flags, and row-order
+  invariance. The combined Free-R, diffraction-selection, and version-1
+  diffraction slice passes 45 tests; composition-v2 compatibility adds 16.
+  Targeted Ruff and `ty`, the schema check, and the documentation check pass.
+- Integrate this foundation into `dev/phase3` after review. Next, bind the
+  selected Free-R identity to the refinement execution item and qualify the
+  exact label parameter plus comparison against a real Phenix-derived MTZ.
+  Until then `PIPE-P1-07` remains partial and no convention, Phenix propagation,
+  or real-runtime preservation claim is made.
+## 2026-08-23T17:20:58Z - Phase III all-eligible model registry is focused-green
+
+### Completed PH3-P1-02 slice
+
+- Replaced the selected-A aggregate registry boundary with one immutable
+  all-eligible registry built from every validated processed model and every
+  supplied catalogue sequence group. The bounded first-copy shortlist remains
+  unchanged, but no longer controls which models remain available to later
+  B--F planning.
+- Each entry binds sequence, model, coordinate source, provider/accession,
+  variant, processing record, optional PDB mapping, retained fraction, quality,
+  and copied-model checksums. Deterministic inventories retain typed
+  `no_eligible_model` states; lookup also types unknown-group, unavailable-
+  provider, and unavailable-variant outcomes.
+- The registry content identity and exact bytes are invariant to input ordering
+  and A-cap changes. Independent coordinate-source and processed-model record
+  mutations change the identity. A valid B model explicitly outside a 25-item
+  A shortlist remains checksum-verified and searchable.
+- Published the canonical registry, complete processed-model JSONL,
+  content-addressed model files, and a deterministic schema-v1 compatibility
+  manifest so existing Phaser/partner readers remain usable.
+
+### Focused evidence and next exact starting point
+
+- The complete unit suite passes with 733 tests, including the new registry and
+  diverse-funnel cap-separation regressions. Ruff lint/format, `ty`, the
+  authoritative schema check, documentation links, and diff checks also pass.
+- Integrate this focused commit into `dev/phase3`, then make the composition
+  planner consume the registry lookup in a separate slice. Do not add provider
+  execution, candidate search, Phaser, localisation, or unknown profiles here.
+
 ## 2026-08-23T15:51:49Z - P6-v2 science passes; duplicate collection member holds acceptance
 
 ### Terminal Marmic evidence and classification
@@ -10259,3 +10579,4376 @@ once, watch one CI run, then qualify that exact release commit through the
 fixed Marmic release boundary. Publish/tag experimental `v0.2.0` only after the
 exact-source qualification passes. Do not start another heteromer scientific
 job or modify the accepted P6 evidence.
+
+## 2026-08-23T17:50:14Z - All-model registry is bound to composition planning
+
+### Completed PH3-P1-02 integration slice
+
+- Added the authoritative local registry-to-planner adapter. It reloads and
+  checksum-verifies the all-eligible registry, processed records, manifests,
+  and model bytes before resolving every retained parent component and each
+  candidate copy hypothesis.
+- Added content-addressed schema-v2 model resolutions. Exact matches bind the
+  registry entry, provider, and variant; no-model, unknown-group,
+  provider-unavailable, variant-unavailable, and exact-model-unregistered
+  outcomes remain typed. Physically eligible absent models remain retained as
+  `unsearchable_no_model`, including when a parent model is unavailable.
+- Bound the exact registry identity and deterministic resolution inventory into
+  the depth-plan identity. A valid B model outside a 25-item A shortlist is
+  schedulable without consulting that shortlist. Registry/source mutation
+  changes the plan identity; checksum or claimed-model mismatch fails before
+  planning.
+- Preserved neutral missing evidence, deterministic allocation, the shared
+  25-attempt depth cap, the 100-attempt global cap, and the boundary that
+  scheduling is not scientific support.
+
+### Focused evidence and next exact starting point
+
+- The complete unit suite passes with 776 tests. The focused registry,
+  planner, composition-contract, and first-copy-funnel slice passes 41 tests.
+  Ruff lint/format, `ty`, schema validation, documentation links, and diff
+  checks pass.
+- Integrate this commit into `dev/phase3` after review. Next, define the
+  candidate-generation input that supplies exact model/provider/variant
+  requests to this adapter, then wire a separate complete-item execution slice.
+  Do not start Nextflow, Phaser, localisation, unknown profiles, or HPC from
+  this contract-only result.
+
+## 2026-08-23T17:41:36Z - Phase III local review stager is focused-green
+
+### Completed focused slice
+
+- Added the strict minimum package manifest for one Phase III checkpoint. It
+  binds the exact package/checkpoint to an owned parent run ID, profile, phase,
+  creation time, and duplicate-free permitted crystal/item targets.
+- Added a local checksum-gated stager that revalidates the schema-v2 decision
+  content ID and checkpoint caps, independently confirms the transported file
+  checksum, verifies the exact package-manifest SHA, rejects stale parent or
+  package provenance, unknown targets, and reviews predating package creation.
+- Successful staging creates a previously absent directory containing only a
+  canonical typed decision JSON and typed stage manifest. The source operator
+  file, review package, package assets, and neighbouring files are not copied.
+  All expected failures use a dedicated input-contract exception.
+
+### Focused evidence and next exact starting point
+
+- Thirty-four review-contract/stager tests cover stale run/profile/phase,
+  wrong package and manifest, unknown target, chronology, source checksum,
+  stale content identity, mutation during validation, duplicate/cap refusal,
+  new-directory enforcement, and the two-file happy path. The complete 778-test
+  unit suite and 113-test typed-contract suite, repository Ruff lint/format,
+  repository `ty`, authoritative schema check, and documentation check pass.
+- Integrate this commit into `dev/phase3` after review. Next, build each
+  checkpoint-specific review package and derive the trusted parent reference
+  from the local owned-run registry before adding any Nextflow/HPC consumer.
+
+## 2026-08-23 - Phase III Free-R refinement promotion gate is focused-green
+
+### Completed PIPE-P1-07 slice
+
+- Opt-in Phase III brief refinement now requires a content-address-valid
+  `FreeRIdentity` bound to the exact `DiffractionSelection`. Its refinement and
+  command identities retain the selected dataset/label plus the explicit or
+  unresolved test-value convention; no flag value is inferred or generated.
+- The command binding states explicitly that no Phenix Free-R parameter has yet
+  been qualified. After a zero-exit refinement with required assets,
+  coefficients, and final Rwork/Rfree, the refined MTZ must produce an exact
+  `FreeRMembershipComparison` before the result can complete or sequence-map
+  execution can begin. A missing or changed flag leaves files attempt-owned and
+  emits `failed_parse` without promoted asset pointers.
+- Row permutation is accepted by the existing sorted-HKL comparison. No
+  symmetry or reindexing equivalence is attempted. The version-1 request path
+  and protocol identity remain unchanged; only the Phase III protocol identity
+  advanced.
+
+### Focused evidence and next exact starting point
+
+- Thirty-seven focused refinement, Free-R, diffraction-selection, and completion
+  regressions pass, including content-ID mutation, selection mismatch,
+  missing/changed flags, row permutation, unresolved convention, explicit
+  convention command-ID mutation, and a successful synthetic derived MTZ.
+  The complete isolated unit suite passes 772 tests and the contract suite
+  passes 128 tests. Ruff format/lint, `ty`, schema, documentation, and diff
+  checks pass.
+- Qualify the exact supported Phenix Free-R label/convention parameter and the
+  comparison against a real Phenix-derived MTZ before calling PIPE-P1-07 fixed.
+  Do not infer a convention or add symmetry/reindexing equivalence while doing
+  so.
+
+## 2026-08-23T18:15:00Z - v0.2.0 is immutable and Phase III is active
+
+### Exact release evidence
+
+- Exact release commit `68d216fad6dc83ca4a66de1f0bd9a37d365f2b80`
+  passed CI run/job `32652529194` / `97226244363`, the complete locked local
+  gate, and fixed Marmic `heteromer-smoke` run
+  `gtd-heteromer-smoke-20260823T165137Z-68d216fad6dc-714eb859`, Slurm `633284`.
+- The release run completed successfully with exact source/nf-helper/Pixi
+  provenance. All 47 retained checksums, six no-claim assessments, the exact
+  1846/1845 catalogue/missing-B counts, both positive controls, wrong-B
+  `search_evidence_only`, 9ECN scope boundary, and seven Phenix executable
+  identities verified.
+- Annotated tag `v0.2.0` and the experimental GitHub release were published from
+  that exact commit. The former v0.2 goal is complete; Phase III is the active
+  goal. The `dev/phase3` history now contains the immutable v0.2 release
+  boundary without changing its preserved evidence.
+
+### Integrated Phase III foundations
+
+- The all-model registry now feeds the bounded composition planner through
+  checksum-verified per-parent/per-copy model resolutions while retaining typed
+  unavailable candidates and shared 25/100 budgets.
+- The local review stager verifies owned parent/package/checkpoint provenance,
+  decision bytes/content identity, permitted targets, chronology, and caps,
+  then publishes only canonical decision and stage manifests.
+- Phase III brief refinement binds the exact Free-R identity and blocks result
+  or sequence-map promotion unless the derived MTZ preserves the complete raw
+  HKL-to-flag mapping. The convention remains explicitly unresolved unless
+  supplied; no flag is guessed or generated.
+
+### Next exact starting point
+
+Run one focused integration set for the newly combined Phase III contracts,
+registry/planner, review staging, Free-R refinement, and preserved-parent
+uncertainty. Keep `dev/phase3` local until an approved branch-push command is
+available. Next, close the trusted owned-run-registry/package generators and
+complete-item execution wiring before defining or launching any Phase III HPC
+profile or unknown-crystal analysis.
+
+## 2026-08-23 - Complete Phase III execution identity is explicit
+
+### Completed PIPE-P1-01 contract slice
+
+- Added a path-free content-addressed execution identity covering raw catalogue
+  FAA and annotation, every crystal MTZ, database inventories, source commit and
+  tree, nf-helper, Pixi lock, execution policy, all seven required Phenix
+  executables, and adapter versions. Remote sequence submission and compute-node
+  network access are fixed false in this identity.
+- Inventories must be unique and canonical. Every catalogue requires both its
+  raw proteome and annotation identity; every crystal requires its MTZ; missing
+  Phenix tools fail closed. Mutating each raw/environment/tool/adapter surface
+  changes the execution identity.
+- Ten focused tests pass with targeted Ruff and `ty`. This closes the identity
+  contract only. The complete-item Nextflow slice must carry the identity into
+  process/cache keys and prove observed selective reruns before `PIPE-P1-01` can
+  be marked fixed.
+
+### Next exact starting point
+
+Integrate the execution identity into the selected composition-attempt fan-out
+and later unknown-screen items. Do not claim cache invalidation from an identity
+record that a process does not yet consume.
+
+## 2026-08-23 - Multi-component Phaser execution input is explicit; command blocked
+
+### Evidence boundary and completed contract
+
+- Retained repository evidence qualifies one `solution_at_origin = True` fixed
+  ensemble plus one search ensemble. It does not establish official or
+  real-runtime syntax for several independently uncertain fixed components.
+  Constructing a depth-three-or-higher command would therefore require a guess.
+- Added the content-addressed `ComponentExpansionExecutionInput` boundary. It
+  binds one selected authoritative depth-plan candidate to a packed parent,
+  distinct component-only fixed coordinates and original Phaser identity/error
+  evidence for every parent component, one registry-resolved candidate
+  model/copy count, exact parent LLG evidence, `DiffractionSelection`, and
+  `FreeRIdentity`.
+- The validator rejects missing or reordered fixed components, combined-parent
+  reuse, duplicate collapsed component coordinates, unavailable or mismatched
+  registry resolutions, mutated model identity, and diffraction/Free-R drift.
+  Its machine-readable command boundary prevents an input record from being
+  treated as an executable Phaser command.
+
+### Focused evidence and next exact starting point
+
+- Five dedicated depth-two `A+B` to `C` regressions preserve distinct 35% and
+  82% parent uncertainties and cover content mutation and failure paths. The
+  focused composition/registry/Free-R slice passes 36 tests, the complete unit
+  suite passes 802 tests, and Ruff lint/format, `ty`, schemas, documentation,
+  and diff checks pass.
+- Before implementing a command or parser, verify the exact multi-fixed partial
+  syntax against official Phaser documentation and the installed target
+  runtime. Then checksum each fixed component and candidate file before command
+  construction and record component TFZ, incremental LLG, requested/observed
+  copies, packing, markers, all identities, and only `search_evidence_only`.
+  Do not add Nextflow, HPC, or control execution from this contract-only slice.
+
+## 2026-08-23 - Phase III composition-attempt fan-out is focused-green
+
+### Discoveries
+
+- Nextflow `splitJson(path: 'attempts')` rejects a valid empty nested array.
+  Reading the one validated inventory document with `flatMap` instead preserves
+  a typed empty/no-model path and schedules zero execution tasks.
+- A selected composition row cannot be a safe execution item when it carries
+  only parent/candidate IDs. Its immutable identity must also bind every parent
+  and candidate model resolution, diffraction selection, Free-R identity,
+  all-model registry, and the separate global execution identity.
+
+### Accomplishments and evidence
+
+- Added content-addressed `CompositionAttemptTask` and
+  `CompositionAttemptInventory` records plus a strict builder/loader/writer.
+  The builder consumes the authoritative shared depth plan and exact ordered
+  `PlannedCompositionAttempt` tuple; it cannot omit, reorder, duplicate, or add
+  a selected row.
+- Added the stub-only `COMPOSITION_ATTEMPT_WORKFLOW`. Every selected row is
+  combined with the complete inventory path, so no independent singleton queue
+  can be consumed by only the first attempt. Non-stub invocation fails before
+  creating a scientific result.
+- The focused Python integration set passes 21 tests across the new inventory,
+  shared-depth planner, and registry-bound planner. It proves one exact
+  25-attempt budget across three parents, deterministic task identities, typed
+  `empty_no_model` and other zero-selection states, strict mutation failure, and
+  byte-stable inventory writing.
+- `pixi run --locked composition-attempt-stub` passes. The first run schedules
+  exactly 25 distinct attempt tags spanning all three parents, the second run
+  caches the same 25 task hashes, retained outputs are byte-identical, and a
+  typed no-model inventory schedules zero execution tasks.
+- Locked lint, type checking, schema checking, documentation checking, and
+  Nextflow syntax checking pass. No Phenix, control, unknown-crystal, remote, or
+  HPC execution was started.
+
+### Unresolved work and next exact starting point
+
+- This is deliberately not a Phaser adapter. The separately developed
+  component-expansion execution input must remain authoritative for fixed
+  coordinates, per-component uncertainty, and parent LLG. Bind that input's
+  content ID into each attempt during integration; do not duplicate its
+  semantics here.
+- The `execution_identity_id` remains opaque and must be supplied by the
+  separate global Phase III execution-identity builder. Integrate both focused
+  contracts, rerun the combined tests, then implement a live adapter only from
+  reviewed real-Phenix semantics. Keep controls, unknown profiles, and HPC
+  submission closed until that boundary is qualified.
+
+## 2026-08-23 - Component execution inputs are bound to attempt fan-out
+
+### Completed integration
+
+- Every selected `CompositionAttemptTask` now binds one exact
+  `ComponentExpansionExecutionInput`; the inventory embeds the complete records
+  and validates parent, selected candidate, registry resolution, diffraction,
+  Free-R, component-only fixed coordinates/uncertainties, and parent LLG before
+  Nextflow receives an item.
+- The stub tuple carries the execution-input record and its ID. The exact
+  25-task/three-parent run and cached resume remain byte-identical; typed
+  no-model inventory still schedules zero tasks.
+- Integration exposed and corrected one rank-domain error: registry
+  `candidate_rank` ranks catalogue candidates, whereas the selected hypothesis
+  rank also enumerates copy hypotheses. Exact component-spec/model identities,
+  parent rank, and resolution scope are the valid cross-record binding.
+- Nine focused execution-input/inventory tests and the dedicated cached-resume
+  stub pass with Ruff and `ty`. Live multi-fixed Phaser command syntax remains
+  unqualified and therefore blocked.
+
+### Next exact starting point
+
+Produce component-only placed-coordinate artefacts with derivation checksums,
+then qualify the exact multi-fixed partial-solution syntax against official
+documentation and the installed Phenix runtime. Do not replace this evidence
+with a collapsed combined parent or a guessed command.
+
+## 2026-08-23 - Catalogue-wide localisation wave policy is focused-green
+
+### Completed PH3-P1-13 slice
+
+- Added one content-addressed PSORTb task per exact sequence-equivalence group,
+  exact catalogue/result coverage validation, and one typed
+  `skipped_policy` DeepTMHMM result per group. DeepTMHMM retains an empty command
+  and no scientific outcome while its user-image CLI remains unverified.
+- Merged every group to one explicit localisation outcome and one first-wave
+  decision. Soluble is active; explicit membrane, surface, extracellular, and
+  transmembrane calls are excluded but retained; conflicting, unknown, and
+  failed calls remain neutral and first-wave eligible.
+- Added a deterministic reopen plan that always carries the complete excluded
+  inventory. It activates only after every first-wave group has a non-failed
+  terminal result and none packed. Missing/failed active-wave results remain
+  pending; any packed result keeps excluded groups closed.
+- Added a typed Nextflow workflow boundary. Its focused stub fans out five
+  sequence groups, retains one typed PSORTb failure, exercises a zero-task
+  channel, verifies exact counts and excluded-group retention, and requires
+  byte-stable cached resume. It runs no real PSORTb, DeepTMHMM, unknown profile,
+  HPC job, download, or remote sequence submission.
+
+### Validation, disclosure, and next exact starting point
+
+- The complete isolated unit suite passes 808 tests; the focused localisation
+  adapter/policy slice accounts for 31 tests and five CLI regressions. Ruff
+  formatting/lint, `ty`, schema and documentation validation, Nextflow syntax,
+  and the dedicated mixed/empty cached-resume stub pass. No complete release
+  gate or real-runtime claim is made from this focused branch.
+- Three early read-only inventory commands accidentally used a pipe to
+  `head`/`sort` before command discipline was corrected. They made no mutation,
+  network request, or external-system change; every subsequent shell call used
+  exactly one command.
+- Integrate this focused commit after review. Next, feed the retained first-wave
+  and reopened inventories into schema-v2 composition candidate generation and
+  qualify the real PSORTb runtime separately. Do not enable DeepTMHMM, define an
+  unknown profile, or launch localisation/HPC work until those later gates pass.
+
+## 2026-08-23 - Component-coordinate derivation is blocked on native Phaser outputs
+
+### Retained evidence audit and completed boundary
+
+- The exact v0.2 release evidence for 6RTZ and 3U7Q retains combined Phaser
+  PDBs, command/result records, and logs, but the first-copy result records have
+  `solution_file_path: null` and no partner `.sol` was collected. The captured
+  partner inputs contain `XYZOUT ON`, not `XYZOUT ON ENSEMBLE ON`.
+- The logs reproduce only rounded `SOLU 6DIM` summaries. Combined PDB chain IDs
+  are not bound to ensemble labels, and the 3U7Q partner run represents both A
+  copies as one combined `fixed_parent` entry. Chain append order and rounded
+  transforms therefore cannot support a checksum-reconstructible split.
+- Official Phaser documentation identifies the verifiable future path:
+  `XYZOUT ON ENSEMBLE ON` writes one PDB per placed ensemble, with the second
+  filename number corresponding to a `SOLU 6DIM` entry. The exact `.sol`, every
+  native per-placement PDB, and the combined PDB must be retained together.
+- Added content-addressed `ComponentCoordinateDerivationBoundary`. It binds the
+  source commit, crystal, combined coordinate, command/result/log/inventory,
+  Phaser version, ordered components, and observed copies while requiring all
+  five evidence gaps. It cannot carry a guessed command or coordinate, cannot
+  claim chain/transform/recombination verification, and cannot create fixed
+  component evidence.
+
+### Validation, limitations, and next exact starting point
+
+- Nine focused coordinate-boundary/execution-input tests pass. The complete
+  unit suite passes 832 tests. Ruff lint, targeted Ruff format, `ty`, schemas,
+  documentation links, and diff checks pass.
+- The contract suite passes 126 tests and has two environment-only failures
+  because this isolated worktree does not contain the `external/nf-helper`
+  submodule checkout. The repository-wide format check also reports one
+  pre-existing formatting drift in
+  `tests/scripts/check_composition_attempt_fanout.py`; it was left unchanged as
+  unrelated user work.
+- One read-only inventory command accidentally used a pipe to `head` before
+  command discipline was corrected. It made no mutation, network request, or
+  external-system change; all later shell calls used exactly one command.
+- Next, qualify the exact Phenix parameter that emits documented
+  `XYZOUT ON ENSEMBLE ON` output against the installed target runtime. Extend
+  the output collector to retain the exact `.sol` and every per-`SOLU 6DIM`
+  PDB, group only documented ensemble entries from the component's introduction
+  stage, and prove exact recombination before replacing this boundary. Do not
+  infer chains from order, collapse components, or implement a multi-fixed
+  Phaser command from this result.
+
+## 2026-08-23T19:53:27Z - Fixed no-data Phaser interface probe is locally green
+
+### Narrow implementation and evidence
+
+- The official Phaser keyword reference establishes that
+  `XYZOUT ON ENSEMBLE ON` writes one PDB per placed ensemble and maps the
+  second filename ordinal to one exact `SOLU 6DIM` entry. The installed Phenix
+  PHIL mapping remains deliberately unresolved until observed from that exact
+  runtime.
+- Added a fixed `phenix.phaser --show_defaults` probe. It accepts only a
+  checksum-verified Phenix manifest, captures exact output bytes, and writes a
+  path-free content-addressed report over the runtime, executable, command,
+  output checksum, size, and interface-token observations. It supplies no
+  crystallographic input and cannot emit a scientific result.
+- Added the closed `phase3-phenix-probe` managed profile. It exposes no path,
+  executable, command, crystal, model, or threshold argument; uses the frozen
+  Marmic Phenix binding; requests 2 CPUs/8 GB with a 45-minute outer limit; and
+  allow-lists only the refreshed manifest, verification log, defaults output,
+  report, and final checksums.
+- The CI workflow now runs on `dev/phase3` pushes. Remote-tool deployment
+  accepts only literal `main` or `dev/phase3` source branches, and the probe
+  stage requires its exact commit to be reachable from tracked
+  `origin/dev/phase3`; arbitrary branch names remain invalid.
+- Eighteen Phenix unit tests and 100 focused Phenix/HPC model, CLI, and client
+  tests pass. The dedicated fake managed lifecycle passes fixed stage, submit,
+  execution, terminal classification, and bounded collection. Both Bash
+  wrappers pass syntax checks. The real Marmic probe remains required.
+
+### Command-discipline disclosure and next exact starting point
+
+- One earlier read-only repository inventory command used a pipe to `head`
+  before command discipline was corrected. It caused no mutation, network
+  access, or external action. Every command in this probe slice used one shell
+  command per tool call.
+- Review and integrate the active candidate-generation and unknown-screen stub
+  slices, then run focused combined checks. Commit the coherent local Phase III
+  milestone. Before remote use, obtain persistent approval to publish the fixed
+  `dev/phase3` branch,
+  run one CI workflow, deploy matching reviewed tools, and execute exactly one
+  `phase3-phenix-probe` on Marmic. Use only its collected defaults to implement
+  the subsequent per-ensemble control adapter; do not guess the PHIL field.
+
+## 2026-08-23T19:38:36Z - Complete component candidate generation is focused-green
+
+### Completed evidence join
+
+- Added one pure-Python, content-addressed candidate-generation inventory that
+  joins every non-parent catalogue sequence group to each of at most three
+  packed parents. It retains exact source identities and counts, four
+  parent-specific copy assessments per row, and explicit localisation,
+  SDS/native-PAGE, Matthews, model-quality, and structural-diversity evidence.
+- Total-composition Matthews evidence uses the complete retained parent mass
+  plus candidate copies 1--4. `plausible` and `review` copies remain eligible;
+  only physical impossibility excludes a copy and low prior alone cannot do so.
+  Two-parent coverage proves different eligible copy sets for the same B.
+- Extended schema-v2 `ComponentSpec` to distinguish exact, bounded, and
+  unavailable sequence mass. A mass-unavailable group now retains four typed
+  unassessed copy rows and zero eligible copies instead of receiving a
+  fabricated mass or disappearing. The planner gives these rows the distinct
+  `unsearchable_physical_evidence` disposition; only an assessed impossible
+  composition may be labelled physically impossible.
+- The complete catalogue, localisation policy, and all-model registry must
+  match exactly. Missing gel and model-ranking evidence is neutral. Unknown,
+  conflicting, and failed localisation remains neutral and first-wave
+  eligible. Explicit localisation exclusions remain complete deferred rows;
+  reopening changes only the dedicated localisation-wave eligibility field and
+  requires the exact supplied complete zero-pack `ActiveWaveCompletion` and its
+  derived reopen plan. Reviewer holds remain a distinct untouched input.
+- Model selection reads every checksum-verified all-eligible registry entry,
+  with separate quality/diversity levels and deterministic raw-quality
+  tie-breaks. A B model outside the 25-model A set is selected without any A
+  shortlist input. No-model groups retain typed non-coordinate placeholders
+  that resolve to registry absence and cannot execute.
+- Candidate rank and planner selection remain scheduling priors only. The
+  generator runs no provider, localisation tool, Nextflow, Phaser, refinement,
+  unknown profile, remote submission, or HPC operation and does not promote a
+  parent beyond its existing support state.
+
+### Validation, limitation, and next exact starting point
+
+- The final focused composition/generator slice passes 46 tests; the complete
+  unit suite passes 838 tests. Typed/schema contract coverage adds 115 passing
+  tests. Locked Ruff formatting/lint, `ty`, schema, documentation, and diff
+  checks pass.
+- The full contract task reached 126 passing tests and two environment-only
+  failures because this isolated worktree has no initialised `external/nf-helper`
+  submodule. No submodule download or update was attempted; the two focused
+  typed/schema contract files pass completely.
+- One read-only inventory command accidentally used an `rg | head` pipeline
+  before command discipline was corrected. It made no mutation, network
+  request, or external-system change; all later shell calls use one command.
+- Integrate this commit into `dev/phase3`, then carry `inventory_id` and the
+  complete rows into the application graph before any live adapter. The v1
+  active-wave/reopen records lack explicit crystal/parent/depth fields, so live
+  wiring must bind their upstream result checksums to the same execution item.
+  Real localisation runtime qualification, multi-fixed Phaser syntax, controls,
+  unknown profiles, and HPC remain separate closed gates.
+
+## 2026-08-23 - Unknown-pass-1 local screen stub is path-closed
+
+### Completed local integration
+
+- Added a path-free content-addressed screen inventory binding one complete
+  `PhaseIIIExecutionIdentity`, an exact checksum-verified output of the existing
+  crystallographic review stager, one shared catalogue/provider/offline-
+  localisation preparation, three exact MTZ files, every ranked A hypothesis,
+  and every model-backed candidate file.
+- The synthetic public fixture emits exactly three complete crystal items: one
+  `ready` item with 25 selected tasks over seven exact models plus one cap-
+  deferred and one retained no-model row, one `held` item with no task, and one
+  proceeding `empty_no_model` item retaining two unavailable rows. Hold, empty,
+  and model absence remain typed scheduling outcomes rather than failures.
+- Each Nextflow crystal task carries its record, MTZ, complete inventory,
+  execution identity, staged decisions, and all shared preparations. Each A
+  task additionally carries its exact model and task record. The fixed test
+  entry point accepts no paths, crystal selectors, thresholds, or arbitrary
+  commands; live A execution fails because the adapter remains stub-only.
+
+### Focused evidence and next exact starting point
+
+- Eight focused unit tests cover exact counts and branches, deterministic
+  write/reload, MTZ/model/review mutation, hold enforcement, the 26th-allocation
+  boundary, offline/remote policy refusal, and content-ID mutation. The complete
+  836-test unit suite, 128-test
+  contract suite, and 74-test integration suite pass. The contract suite first
+  exposed only an uninitialised pinned nf-helper submodule; after checking out
+  exact commit `82431e4`, it passed unchanged.
+- The integrated review boundary strengthens the dedicated stub to schedule
+  exactly one catalogue, one provider, one localisation, three single-crystal
+  review-stage preparations, three crystal items, and 25 A tasks. Resume
+  caches all 34 exact task hashes and preserves every retained output byte.
+  Locked Ruff lint/format, `ty`, schema, documentation, and Nextflow syntax
+  checks pass. No real Phenix, provider, localisation, operator input, remote
+  service, HPC profile, or scientific analysis ran.
+- One early read-only inventory command accidentally piped `rg` to `head` before
+  command discipline was corrected. It made no mutation, network request, or
+  external-system change; all subsequent shell calls were uncombined.
+- Integrate this commit after review. Next, generate review packages from a
+  trusted owned-run registry and qualify the real first-copy adapter before
+  defining any fixed unknown-screen HPC profile or analysing operator data.
+
+## 2026-08-23 - Phase III crystallographic/A-seed packages are content-bound
+
+### Completed review-package boundary
+
+- Replaced the under-specified Phase III package manifest with a schema-v2
+  content-addressed record for exactly one crystallographic or A-seed checkpoint
+  and one crystal. It binds the exact parent run/profile/phase, full Phase III
+  execution identity, complete ordered targets, explicit evidence
+  role/relative-path/SHA-256/size inventory, generated review-table coverage,
+  package-content digest, and derived package ID.
+- Added a local package generator and independent validator. The generator
+  snapshots only allow-listed regular files below one input root, rejects path
+  escape, symlinks, duplicate roles/paths, input mutation, and unsafe identifiers,
+  then atomically replaces only an existing empty destination after validating
+  the exact output inventory. Generated metadata contains no machine paths.
+- The target worksheet is deterministic and decision-neutral: every target is
+  present once with the checkpoint vocabulary and blank human fields. It is not
+  silently treated as a completed decision file. Composition and sequence
+  package generation remain deliberately deferred.
+
+### Focused evidence and next exact starting point
+
+- Forty-three focused package, local-stage, and decision-contract tests pass,
+  including content mutation, missing target coverage, duplicate role/path,
+  symlink/escape, atomic failure, both supported checkpoints, and byte-identical
+  target/evidence permutations. Targeted Ruff and `ty` checks pass. No full
+  repository suite, Nextflow profile, remote service, or HPC run was started.
+- Next, wire the generated package manifest into the trusted owned-run registry
+  boundary and unknown-screen collection without weakening its exact file
+  allow-list. Define composition and sequence packages only after their exact
+  evidence inventories exist; do not infer them from the current generic target
+  worksheet.
+
+## 2026-08-23T20:26:07Z - Unknown-screen uses three content-bound review stages
+
+### Integration defect and smallest correction
+
+- The combined type gate correctly rejected the unknown-screen fixture because
+  it still instantiated the superseded multi-crystal, under-specified review
+  manifest. The new review-package contract intentionally binds exactly one
+  checkpoint and crystal, so weakening that contract would have hidden the
+  stale fixture rather than fixing the graph.
+- The fixture now generates three content-addressed crystallographic packages,
+  three one-decision files, and three canonical two-file review stages. The
+  screen builder requires exactly three single-crystal stage directories,
+  binds each package and decision to its crystal item, and rejects duplicate,
+  missing, or cross-crystal bindings.
+- Nextflow now fans out three keyed review-stage preparation items and joins
+  each stage only to its matching complete crystal item. The fixed stub retains
+  one shared catalogue, provider, and offline-localisation preparation, three
+  review stages, three crystal items, and 25 A tasks: 34 exact tasks are cached
+  byte-identically on resume.
+
+### Focused evidence, disclosure, and next exact starting point
+
+- Fifty-two affected unknown/review package/stage/decision tests pass; the
+  dedicated 34-task cached stub, full type check, Ruff lint/format, docs, and
+  Nextflow syntax checks pass. No Phenix, remote service, HPC job, or operator
+  data ran.
+- The named integration gate passed 864 unit, 128 contract, and 75 integration
+  tests plus schemas, the public panel, docs, actionlint, the all-workflow
+  Nextflow stub, localisation, unknown-screen, and wrapper checks. Its first
+  composition-resume invocation hit a Nextflow
+  `java.util.ConcurrentModificationException`; the same exact stub passed on
+  immediate rerun. Because this transient has now been observed twice, the
+  checker retries exactly once only for that Java exception and no scientific,
+  parser, or other process failure. The bounded checker and all remaining gate
+  tasks pass individually; CI must confirm the complete pushed gate.
+- Pre-deployment review found that the durable controller config still points
+  at the clean main worktree while Phase III is checked out separately. For the
+  literal `dev/phase3` source only, deployment now reads the reviewed wrapper
+  bytes directly from the exact remote-reachable commit instead of comparing
+  them to main's checkout; main preserves its existing equality guard. All
+  staging now hashes `pixi.lock` from the exact requested commit. Seventy-three
+  focused controller/CLI tests pass.
+- One read-only integration inventory command accidentally piped one `rg`
+  invocation into another. It made no mutation, network request, or external
+  action; command discipline was corrected immediately.
+- Run the single complete locked gate reserved for this Phase III integration
+  milestone. If green, commit the focused integration correction, publish the
+  immutable `dev/phase3` head after persistent approval, watch its one CI run,
+  deploy matching reviewed tools, and run exactly one fixed no-data Phaser
+  interface probe on Marmic.
+
+## 2026-08-23T21:00:14Z - Unknown-pass terminal statuses are crystal-isolated
+
+### Narrow status foundation
+
+- Added one standalone schema-v2 assessment that derives the exact seven
+  approved pass-1 endpoints from one crystal's terminal execution, solution,
+  copy, packing, refinement, final Rwork/Rfree, and human-review evidence. It
+  runs no workflow or scientific tool and changes no provider, review-package,
+  report, bootstrap, or HPC path.
+- Credible and partial promotion requires matching package-side and
+  decision-side crystal/item identities at crystallographic, A-seed, and
+  composition checkpoints. Missing, ambiguous, unsupported, or cross-crystal
+  evidence becomes `insufficient_evidence`; one exact crystallographic hold
+  becomes `mtz_or_symmetry_review_required`.
+- Model/provider no-hit stays a completed
+  `no_supported_catalogue_candidate`; input-contract, tool, parse, and
+  infrastructure failures stay `execution_failure`.
+- Added one content-addressed panel record that embeds exactly three complete
+  assessments from one owned execution. It has no global scientific status, so
+  mixed success, no-hit, and failure finalise without sibling promotion.
+
+### Focused evidence and next exact starting point
+
+- Fifteen focused tests cover complete and partial promotion, copy/packing/
+  refinement/final-metric mutations, mismatched and missing review evidence,
+  hold/no-hit/shortlist separation, typed failures, content mutation, cross-run
+  refusal, and the mixed three-crystal panel. Targeted Ruff format/lint and
+  `ty`, schema, documentation, and diff checks pass.
+- One read-only inventory command accidentally used an `rg | head` pipeline
+  before command discipline was corrected. It made no mutation, network
+  request, or external action; every later shell call used exactly one command.
+- Next, consume these assessment records from the owned unknown-run collector
+  and portable report boundary after those exact evidence inventories exist.
+  Do not infer missing reviews or promote historical unknown-crystal results.
+
+## 2026-08-23 - Plan-driven provider empty graph is focused-green
+
+### Completed local foundation
+
+- Added one fixed four-route completion boundary over the existing provider
+  plan and adapters. One enabled local no-hit, two configured-disabled routes,
+  and one unsupported/provider-unavailable route retain every catalogue query
+  and finish as a content-addressed `completed_no_model` all-model registry.
+- The completion refuses plan/config mismatch, missing or duplicate branches,
+  non-empty hit/coordinate outputs, incomplete query coverage, and enabled
+  network routes. The enabled test route is stub-only; normal execution exits
+  before any provider executable or network request.
+- Five focused tests pass for exact outcomes, deterministic bytes, plan/config
+  mismatch, missing coverage, and duplicate coverage. The dedicated six-task
+  Nextflow stub passes, resumes all six tasks from cache without output-byte
+  changes, and proves the non-stub refusal. No provider, remote service, private
+  input, HPC profile, or scientific analysis ran.
+
+### Next exact starting point
+
+- Integrate this focused commit into `dev/phase3`. Real provider no-hit
+  qualification and wiring into the application graph remain separate gates;
+  do not treat the stub terminal as scientific evidence.
+
+## 2026-08-23T21:02:57Z - Local owned-run review registry is focused-green
+
+### Completed trust boundary
+
+- Added one content-addressed local record for a completed Phase III run. It
+  binds the exact run/profile/phase, source commit/tree, canonical execution
+  identity, and crystallographic or A-seed package IDs, manifest checksums, and
+  package-content digests without machine paths.
+- Registration accepts only caller-declared packages, validates their existing
+  complete checksum allow-lists and parent/execution/crystal/checkpoint bindings,
+  snapshots them into caller-selected ignored storage, revalidates source and
+  copy, and atomically replaces only an existing empty output directory.
+- Lookup uses an exact run/crystal/checkpoint key and revalidates the canonical
+  run and execution records, exact package set, every retained package byte, and
+  every ownership binding. A directory name is never evidence of ownership.
+
+### Evidence and next starting point
+
+- Thirty-five focused registry, package, and review-stage tests pass. This slice
+  runs no provider, Nextflow, Phenix, remote service, HPC profile, operator data,
+  or scientific analysis.
+- Next, integrate the local registry with trusted unknown-screen collection and
+  pass its resolved parent/manifest into the existing decision stager. Remote
+  scheduler authentication and fixed HPC profiles remain separate closed gates.
+
+## 2026-08-23T21:12:29Z - Phase III Free-R command propagation is explicit
+
+### Evidence-backed correction
+
+- The official `phenix.refine` command-line reference and exact accepted
+  Phenix 2.1 help both define repeated `miller_array.labels.name` selection and
+  the `data_manager.fmodel.xray_data.r_free_flags` scope. The Phase III command
+  therefore no longer withholds these parameters as unqualified.
+- Brief refinement now passes the exact Free-R label as a second selected
+  Miller array, requires existing flags, and fixes `generate=False`. When the
+  reviewed identity contains an explicit test value, it is passed exactly;
+  otherwise automatic value selection remains typed unresolved rather than
+  being guessed. Version-1 refinement remains unchanged.
+- The diffraction command binding distinguishes explicit-label/automatic-value
+  from explicit-label/explicit-value execution. Exact post-refinement
+  HKL-to-raw-flag comparison remains mandatory in both cases, so command
+  selection cannot replace preservation evidence.
+
+### Focused evidence and next exact starting point
+
+- Thirty focused brief-refinement, diffraction-selection, and Free-R identity
+  tests pass. They assert exact command arguments for both convention states,
+  generation-off behaviour, command-identity changes, and unchanged
+  preservation failure semantics. Ruff, `ty`, docs, and diff checks remain the
+  immediate local gate.
+- A real installed-Phenix refinement must still prove accepted parsing and
+  exact derived-MTZ flag preservation before `PIPE-P1-07` is fully fixed. First
+  publish the clean immutable `dev/phase3` head after persistent approval and
+  run its CI plus fixed no-data Phaser interface probe; do not launch unknown
+  crystals from this synthetic command qualification alone.
+
+## 2026-08-23T21:15:55Z - Refinement symmetry and resolution propagation is explicit
+
+### Completed refinement half of PIPE-P1-06
+
+- The official and installed Phenix interfaces define
+  `refinement.crystal_symmetry.space_group` and the
+  `data_manager.fmodel.xray_data` low/high-resolution parameters. Phase III
+  brief refinement now passes the exact selected space group and both reviewed
+  limits from its checksum-bound diffraction selection.
+- The typed command binding distinguishes this explicit refinement propagation
+  from the still-pending Phaser parameter mapping. Version-1 commands remain
+  unchanged, and selected observation/Free-R identities and post-refinement
+  Free-R preservation remain mandatory.
+- Fifty-seven focused refinement, diffraction-selection, Free-R, and Phaser
+  compatibility tests pass. Phaser space-group/resolution propagation and
+  parent-MTZ derivation remain pending until the installed Phaser interface
+  probe is collected; do not guess those parameters locally.
+
+## 2026-08-23 - M6 leakage exclusion now precedes the model cap
+
+### Focused DEV-P1-03 correction
+
+- The shared truthless PDB-sequence and ProstT5/Foldseek searches now retain a
+  fixed envelope of at most 25 ranked hits per query and route. The changed
+  query-batch, provider-search, trusted-policy, and policy-bundle semantics have
+  new adapter/cache identities.
+- Operational cases restore the historical first-three effective route input.
+  Leakage cases evaluate the complete envelope against only the existing
+  runner-visible MMseqs2 identity and coverage evidence, then retain at most
+  three safe hits per query and route. The frozen 70% identity, 80% coverage,
+  and all other protocol values are unchanged; no private target or family
+  truth was added to runner inputs.
+- A focused seven-hit-per-route regression excludes the exact/close leading
+  trio on direct and Foldseek routes, retains safe ranks four through six,
+  annotates safe rank seven at the post-policy cap, proves byte-identical
+  accepted/rejected/ranking outputs under reversed input order, preserves the
+  operational top-three behaviour, and emits typed `completed_no_model`
+  evidence when all hits are excluded.
+
+### Scope, disclosure, and next exact starting point
+
+- No MTZ, seed-selection, staging/network, bootstrap/HPC, unknown-crystal,
+  private-input, protocol, or threshold path changed, and no M6 or remote job
+  ran. Focused tests plus Ruff, type, schema, docs, and diff checks are the only
+  local gate for this slice.
+- One early read-only document-discovery command piped one `rg` invocation to
+  another. It made no file, network, or external-system mutation; every later
+  shell call used exactly one command.
+- Integrate this local commit into `dev/phase3` after review. Do not claim M6
+  acceptance until the remaining PH6 stop gates, full integration gate, and
+  separately collected operational then unchanged-protocol leakage runs pass.
+
+## 2026-08-23 - Locked offline wheel gate is implemented but not yet positive
+
+### Narrow packaging correction
+
+- Replaced the unbounded build requirement with exact `hatchling==1.32.0` and
+  added the same backend plus transitive artefacts to all locked Pixi
+  environments. No scientific code, workflow, M6 path, bootstrap/HPC tool, or
+  private input changed.
+- Added one project-specific purelib wheel checker. It invokes the installed
+  locked backend directly without PEP 517 isolation, validates every packaged
+  Python and authoritative schema byte, installs into a fresh temporary
+  `--system-site-packages` virtual environment without dependency resolution,
+  and loads both declared console entry points from the installed wheel for
+  `--help`. Package source, Pyproject, Pixi, Nextflow, wheel, installed package,
+  and CLI version surfaces must agree exactly.
+- The checker refuses unsafe archives, non-pure/data-scheme wheels, missing or
+  changed code/schema files, changed entry-point mappings, editable-checkout
+  import escape, and every version divergence. It makes no PyPI-readiness or
+  general production-installation claim.
+
+### Focused evidence and next exact starting point
+
+- Four focused regressions pass for a missing packaged schema, missing console
+  entry point, wheel version mismatch, and empty/equal version surfaces. Locked
+  Ruff format/lint, `ty`, schema validation, and documentation checks pass.
+- The positive `pixi run --locked --offline offline-wheel-check` remains
+  unexecuted: offline environment synchronisation proved that one exact
+  transitive Hatchling wheel is absent from this host's Pixi cache. It was not
+  fetched and offline mode was not weakened. Keep `PIPE-P3-01` partial until CI
+  or another already provisioned locked environment runs the real task green.
+
+## 2026-08-23 - Ordinary M6 runner MTZs exclude target-derived columns
+
+### Evidence-backed DEV-P1-02 correction
+
+- The trusted M6 preparer previously sanitised metadata but passed the complete
+  converted MTZ into every ordinary runner case. Consequently, target-derived
+  FWT/PHWT, FC/PHIC, and any other non-selected source columns could enter the
+  blind runner object and its archive/cache identity.
+- Ordinary preparation now reuses the existing deterministic observation
+  selector and writes a Gemmi whitelist containing only HKL, the selected
+  observation/sigma pair or anomalous quartet, and exactly one recognised
+  Free-R array from the same dataset. It refuses missing/conflicting
+  observations, missing/ambiguous Free-R, non-finite/non-integral or constant
+  flags, duplicate HKLs, and any changed sorted HKL-to-raw-flag membership.
+- A content-addressed, path-free sanitisation record binds only the written
+  output checksum, retained identities, and HKL/Free-R digests. The preparation
+  manifest types it, and the runner builder requires and independently validates
+  it against every ordinary reflection object. The runner manifest and archive
+  deliberately omit the record and all source-extra-column identities. Frozen
+  original structure-factor checksums/provenance remain in
+  the trusted source inventory, and the unchanged map-only edge controls remain
+  explicit non-ordinary exceptions.
+
+### Focused evidence and next exact starting point
+
+- All 44 focused M6 benchmark tests pass. The regression proves FWT/PHWT/FC/PHIC
+  are absent from the ordinary output and runner bundle; exact HKL,
+  observation/sigma, and Free-R values survive; equivalent observation arrays
+  select deterministically; conflicting arrays fail; and changing only
+  target-derived coefficient values leaves output bytes, record identity, and
+  runner cache identity unchanged.
+- Targeted Ruff lint/format, complete `ty`, schema, documentation, and diff
+  checks pass. No complete repository suite, M6 rebuild/rerun, HPC action,
+  remote service, private input, evaluator, provider, or cache-policy change
+  occurred.
+- One early read-only inventory command accidentally piped `rg --files` into
+  `rg`. It made no mutation, network request, or external-system change; every
+  subsequent shell call used exactly one command.
+- Integrate this focused commit into `dev/phase3`. Before future M6 execution,
+  rebuild the opaque runner from the frozen public sources and inspect the
+  emitted sanitisation records; operational and leakage acceptance remain
+  separate pending gates under the unchanged protocol.
+
+## 2026-08-23 - M6 seed advancement no longer prefers the largest copy count
+
+### Focused DEV-P1-06 correction
+
+- Removed the pre-ranking same-model collapse that unconditionally replaced a
+  smaller-copy first-copy hypothesis with the largest packing-eligible copy
+  hypothesis. The unchanged maximum of five advancing seeds now comes from all
+  eligible hypotheses ordered only by retained LLG, TFZ, candidate rank, and a
+  final immutable-hypothesis-ID tie-break.
+- Added `seed_advancement.jsonl`, which retains every eligible hypothesis with
+  its copy count, raw ranking evidence, advancement rank, and explicit
+  `selected` or `deferred_seed_cap` disposition. The seed plan records complete
+  eligible/deferred counts and the changed semantics use adapter/cache identity
+  `m6-nextflow-seeds-v2`; the empty branch emits the same typed surface.
+- First-copy inputs are ordered by hypothesis ID before bundle identity is
+  constructed, so scheduler completion order cannot change this boundary's
+  outputs.
+
+### Focused evidence and next exact starting point
+
+- A same-model two-copy strong/four-copy weak regression proves that the
+  smaller-copy hypothesis advances, the larger alternative remains retained
+  and cap-deferred, and all 720 input permutations produce one identical
+  inventory. The existing early-empty M6 path remains green.
+- No threshold, copy cap, frozen protocol, truth boundary, MTZ, leakage,
+  provider/network, bootstrap/HPC, unknown-crystal, or 7L6G behaviour changed,
+  and no M6 or remote run occurred.
+- Integrate this focused commit into `dev/phase3`. Keep M6 operational and
+  leakage execution held until the remaining PH6 stop gates and the named
+  integration gate pass.
+
+## 2026-08-23T21:54:53Z - Phase III local tranche is ready for branch CI
+
+### Integrated clean head and evidence
+
+- The integrated code tranche through
+  `6e4e32712695919e6ef7feaef66984a13aabd622` contains the fixed no-data
+  Phaser interface profile; bounded candidate/unknown/provider/review/status
+  foundations; explicit refinement observation, Free-R, space-group, and
+  resolution propagation; and the locally completed M6 MTZ, leakage-order, and
+  seed-preference corrections.
+- The named pre-M6 integration gate passed 864 unit, 128 contract, and 75
+  integration tests and every constituent schema/docs/actionlint/Nextflow/
+  wrapper gate; its sole transient Nextflow resume exception passed the exact
+  classified retry. Subsequent integrated focused gates pass: 57 diffraction/
+  refinement tests, 46 combined M6 tests, four wheel-checker regressions, and
+  targeted Ruff, `ty`, schema, docs, Nextflow, and diff checks.
+- The exact offline wheel checker is committed but its positive local run is
+  still pending because this host's cache lacks one locked Hatchling
+  dependency; no network fetch was made. Branch CI must provision the lock and
+  run the complete gate before any remote deployment.
+
+### Discipline disclosure and exact next starting point
+
+- One read-only retry-policy inventory command in this loop accidentally piped
+  `rg` to `head`. It made no mutation, network request, or external action;
+  subsequent shell calls returned to one command per tool call.
+- No source was pushed, no remote tool was deployed, and no HPC or M6 job was
+  submitted. The only current external blocker is persistent approval for the
+  exact command `git push origin dev/phase3`. After approval, push this clean
+  head once, watch its single CI run, deploy matching tools from the literal
+  `dev/phase3` source, and run exactly one fixed no-data
+  `phase3-phenix-probe` on Marmic. Do not launch 9ECN, unknown crystals, or M6
+  before collecting and classifying that probe.
+
+## 2026-08-23 - One real M6 cache mutation and deleted-child HOLD are observed locally
+
+### Focused DEV-P1-07 evidence
+
+- A dedicated check reuses the full two-catalogue, two-batch, 26-task M6 stub
+  and standard Nextflow resume. Changing only the bytes of the staged protocol
+  reruns the exact ten-task policy-to-coordinate-stage-to-active-aggregate
+  closure. The other 16
+  exact task tags remain cached with unchanged cache hashes and byte-identical
+  complete non-staged child-output inventories; published scientific outputs
+  remain byte-identical.
+- The check then removes the required cached child
+  `catalogue/source_records.jsonl`. Nextflow reuses all directory-level cache
+  entries, but the independent complete-child comparison records
+  `hold_missing_required_child` and explicitly refuses silent acceptance of the
+  unchanged aggregate. The child is restored before the temporary check exits.
+
+### Scope and next exact starting point
+
+- This is local evidence for one real input surface, not an M6 run or acceptance
+  claim. `DEV-P1-07` remains partial until production collection consumes the
+  observed task/child inventory and the remaining cache-key components receive
+  equivalent bounded qualification.
+- No scientific threshold, protocol value, workflow task semantics, remote
+  profile, private input, HPC state, or M6 result changed. Continue with the
+  separate network-staging and ordering stop gates before operational M6.
+## 2026-08-23 - M6 coordinate acquisition is isolated from case workers
+
+### Focused DEV-P1-04 correction
+
+- One dedicated login/controller-labelled Nextflow task now receives the
+  bounded policy-selected PDB hits and database manifest. It reuses the
+  existing qualified coordinate cache, materialises each checksum-addressed
+  object once, and emits portable relative coordinate records.
+- Active and early M6 case tasks no longer receive the database manifest and
+  cannot invoke coordinate registration or HTTPS. Active hits require the
+  checksum-verified stage bundle; no-hit and deliberate missing-model paths
+  remain typed `completed_no_model` outcomes.
+- Coordinate materialisation changes registration identity, while case-bundle
+  semantics use `m6-nextflow-case-v2`. Runner-visible stage metadata contains
+  local object/checksum provenance and no URL or credential authority.
+
+### Focused evidence and next exact starting point
+
+- Nine focused coordinate-registration, relative-model-input, M6 typed-empty,
+  early-case, and repository-policy tests passed. Nextflow syntax passed. The
+  existing M6-inclusive stub passed fresh, cached-resume, and cross-track
+  checks with 26 tasks: six truthless tasks cached and 20 track-specific tasks
+  completed. Ruff formatting/lint, `ty`, schema, and docs checks passed.
+- The first stub attempt failed before parsing because the isolated worktree
+  lacked the pinned nf-helper submodule; after initialising that exact commit,
+  the first execution exposed only the expected 19-to-20 trace-count update
+  from the new stage and the exact retry passed.
+- Two read-only inventory commands accidentally piped `rg` to `head`. They made
+  no file, network, scheduler, or external-system mutation; subsequent calls
+  returned to one command per tool call.
+- No M6, remote, private-data, bootstrap, or HPC action ran. Real operational
+  and leakage acceptance remains pending the other PH6 stop gates and one
+  exact-source site qualification of the stage executor and collected object
+  inventory.
+
+## 2026-08-23 - Active M6 aggregation is completion-order invariant locally
+
+### Focused DEV-P2-01 correction
+
+- Auditing the live M6 graph found catalogue imports, provider batches,
+  provider result/hit rows, policy accepted/rejected/ranked model rows, seed
+  evidence, finalists, and final case order already canonical by immutable IDs,
+  evidence rank, or the frozen protocol case order. Those scientific ranking
+  orders remain unchanged.
+- The remaining case-evidence defect was the refinement `groupTuple`: parsed
+  refinement results, sequence results/summaries, case-record children, and
+  emitted JSONL inherited Slurm completion order. The assembler now rejects
+  duplicate seed children and sorts the paired child records by immutable seed
+  ID before every serialisation and raw-child copy.
+- All three M6 `groupTuple` boundaries now also sort completed child bundles by
+  hypothesis or seed ID before downstream process inputs are constructed. This
+  makes their command/cache identities independent of task completion order.
+  No adapter identity changed because no scientific rank, threshold, status,
+  or record meaning changed; an old non-canonical child argument order cannot
+  match the new canonical task input.
+
+### Evidence, scope, and next exact starting point
+
+- Reversing complete provider batches produces identical validated result,
+  hit, and manifest inventories. Reversing two complete refinement children
+  produces a byte-identical case-evidence tree, including case record,
+  refinement/sequence inventories, summaries, manifests, and retained raw
+  children. Existing regressions additionally cover all 720 six-seed
+  permutations and byte-identical outputs for reversed direct/Foldseek
+  model-policy input rows.
+- Four focused aggregation/seed tests, Nextflow syntax, Ruff formatting/lint,
+  `ty`, schema validation, documentation, and diff checks pass. No full suite,
+  M6 run, network/HPC action, private data, protocol, threshold, MTZ, leakage,
+  seed-selection, coordinate-staging, cache-mutation, unknown-workflow, or
+  bootstrap change occurred.
+- Integrate this focused commit into `dev/phase3`. Keep `DEV-P2-01` at local
+  fixed status until the future operational then unchanged-protocol leakage M6
+  runs retain deterministic replay and canonical collected checksums.
+
+## 2026-08-23 - Direct archival benchmark schedulers are retired
+
+### Focused DEV-P2-03 correction
+
+- `benchmark run-control-slice` and `benchmark run-control-matrix` no longer
+  contain or enter Python scientific schedulers. Both commands fail before
+  reading inputs, creating outputs, or invoking Phenix and explain that a
+  reviewed DSL2 graph must emit complete hypothesis, seed, and finalist items
+  for Nextflow/executor ownership.
+- Removed the four historical thread-pool fan-outs and their execution-only
+  result surfaces. Shared control preparation, seed-review, and copy-support
+  helpers remain intact because the Nextflow-owned M6 task module imports them.
+  Historical control evidence and fixed profile policy were not changed or
+  reinterpreted.
+- A repository policy regression rejects thread pools, process pools,
+  `concurrent.futures`, and `multiprocessing` in both retained production
+  helpers. A dynamic CLI regression replaces the standard thread executor with
+  a failing sentinel, exercises both commands with nonexistent inputs, and
+  verifies the actionable diagnostic and absence of an output directory.
+
+### Evidence, disclosure, and next exact starting point
+
+- The focused CLI, helper, and repository-policy set passes all 28 tests after
+  initialising the worktree's exact pinned `nf-helper` submodule; the first
+  attempt had 26 passes and only two unrelated missing-submodule failures.
+  Targeted Ruff format/lint, `ty`, schema, and documentation checks pass. No
+  complete repository gate was run.
+- One read-only test-inventory command accidentally piped `rg --files` into a
+  second `rg`. It made no file, network, scheduler, or external-system
+  mutation; subsequent commands returned to one shell command per tool call.
+- Integrate the focused commit into `dev/phase3` after review. Do not submit the
+  retired control-slice or control-matrix profiles. Continue with the remaining
+  PH1/PH6 gates and run operational M6 only after all documented stop gates and
+  the named integration gate pass.
+
+## 2026-08-23 - Unknown-pass terminal panels are checksum-reconstructible locally
+
+### Focused PH3-P1-04/06/08 collection boundary
+
+- A prototype-small local collector now accepts exactly the three fixed Phase
+  III unknown-crystal schema-v2 assessments from one owned execution and their
+  explicit per-crystal command/result/evidence allow-lists. It independently
+  re-derives each assessment content ID and terminal status and requires every
+  assessment-referenced digest in the same crystal's allow-list.
+- Only checksum- and size-matched regular non-symlink sources are copied. Unsafe,
+  missing, duplicate, cross-crystal, mutated, symlinked, or unexpected evidence
+  and non-empty output fail closed. Successful output contains canonical JSONL,
+  one panel summary, per-crystal manifests, one cross manifest, and a minimal
+  static HTML table that states the exploratory/non-validation boundary and
+  makes no additional identity or composition claim.
+- Focused assessment/collector coverage passes 20 tests, including a credible
+  solution plus scientific no-hit plus parser-failure panel, uncertain terminal
+  mixtures, evidence mutation/absence, cross-crystal reuse, unsafe paths,
+  symlinks, non-empty output, and byte-identical input permutation. Targeted
+  Ruff formatting/lint and `ty` checks pass.
+
+### Scope and next exact starting point
+
+- This is a local collection contract, not an unknown-screen run, remote
+  collector, operator-data report, or scientific answer. No workflow, provider,
+  Phaser, M6, bootstrap/HPC, private input, threshold, or remote service changed
+  or ran.
+- Integrate this focused commit into `dev/phase3`. Next wire only run-owned live
+  terminal assessment outputs and their exact collected allow-list into this
+  boundary after the corresponding unknown workflow/profile gates pass.
+- Two early read-only inventory commands in this loop accidentally used a shell
+  pipe (`rg --files | sort` and `rg | head`). They made no mutation, network
+  request, scheduler action, or external-system change; all subsequent shell
+  calls returned to exactly one uncombined command per tool call.
+
+## 2026-08-23 - Unknown-screen review staging is registry-owned locally
+
+### Focused PH3-P1-14 wiring
+
+- Added one narrow crystallographic staging bridge that accepts an exact owned
+  run ID plus exactly three crystal-bound decision files and confirmed
+  checksums. It resolves every package by exact run/crystal/checkpoint through
+  the existing owned-run registry and passes only the resolved canonical
+  manifest and parent record to the existing review stager; no package path is
+  accepted from the caller.
+- The bridge sorts crystals, stages into a private sibling directory, rechecks
+  the registry after staging, and atomically publishes three canonical stages
+  plus a content-addressed path-free index. The index reuses the existing
+  review-binding records and binds the exact registry, execution identity, and
+  parent run/profile/phase.
+- The unknown-pass-1 builder now consumes and revalidates that index and its
+  exact stage allow-list. Missing, duplicate, mutated, cross-run,
+  cross-crystal, cross-parent, or cross-execution inputs fail before crystal or
+  hypothesis fan-out; caller input order cannot change crystal order.
+
+### Focused evidence and next exact starting point
+
+- All 42 focused owned-run registry, review-stage, registry-screen wiring, and
+  unknown-screen unit tests pass. The exact three-crystal/25-hypothesis cached
+  Nextflow stub passes, as do targeted Ruff format/lint, complete `ty`, schema,
+  documentation, and diff checks.
+- No full repository gate, remote action, private input, scientific threshold,
+  Phaser execution, HPC profile, push, or unknown-crystal analysis occurred.
+  One read-only inventory command accidentally piped one `rg` invocation into
+  another; it made no mutation, network request, or external-system action, and
+  every subsequent shell call returned to one command per tool call.
+- Integrate this focused commit into `dev/phase3`. Remote owned-run collection,
+  fixed application profiles, seed-review package generation, and live unknown
+  screening remain pending; do not treat this local wiring as operator-data or
+  scientific evidence.
+
+## 2026-08-23T23:19:45Z - Local work is complete to the real-runtime boundary
+
+### Integrated local evidence
+
+- The code tranche through
+  `6720aa7` contains registry-owned three-crystal review staging and a
+  checksum-reconstructible terminal collector in addition to the earlier
+  candidate/provider/status/refinement/composition foundations and local M6
+  stop-gate corrections. The collector makes no inference beyond each typed
+  assessment and labels every report exploratory/non-validation.
+- Fifty-six combined registry/package/stage/screen/collector tests pass, and
+  the exact three-crystal cached unknown-screen stub passes. The coordinate-
+  staging M6 graph, 26-task cache-mutation closure, canonical aggregation,
+  retired nested schedulers, focused M6/diffraction tests, schemas, docs,
+  Nextflow syntax/stubs, and static checks are green in their named local gates.
+- No scientific threshold or frozen M6 protocol value changed. No operator
+  crystal, 9ECN reconstruction, M6 track, remote service, deployment, or HPC
+  job ran from this Phase III branch.
+
+### Blocking boundary and exact restart
+
+- Additional local framework work would now bypass the required real-runtime
+  feedback and conflict with the prototype-first constraint. The critical path
+  is publication of the clean immutable `dev/phase3` branch, its one full CI
+  gate (including the positive offline wheel task), and the fixed no-data
+  Phaser interface probe on Marmic.
+- The required exact command `git push origin dev/phase3` is not covered by the
+  current persistent approvals, which cover only `git push origin main`. This
+  same permission boundary has remained unresolved across three consecutive
+  goal turns. Resume only after the user grants that persistent approval; then
+  push once, watch one CI run, deploy from literal `dev/phase3`, stage/submit
+  one `phase3-phenix-probe`, create its 30-minute poll, and collect/classify it
+  before implementing native per-placement output or launching scientific data.
+
+## 2026-08-24T09:34:26Z - First Phase III branch CI found one stale stub count
+
+### Exact pushed evidence and failure classification
+
+- The user approved and the controller pushed clean Phase III head
+  `e90ad0262a753d3522fef49ae88dcc67493b844e` once to the new remote
+  `dev/phase3` branch. GitHub Actions run/job `32711960703` / `97385077689`
+  installed the locked Pixi 0.76.2 environment and passed formatting, lint,
+  type checking, 929 unit tests, and 129 contract tests.
+- Seventy-four of 75 integration tests passed. The sole failure was the exact
+  repository inventory assertion that still expected 20 M6 stub blocks and 21
+  writable-copy-helper invocations. The new coordinate-stage process correctly
+  makes those totals 21 and 22. This is test-accounting drift, not a software,
+  scientific, packaging, environment, or HPC failure.
+
+### Smallest correction and next exact starting point
+
+- Updated only those three expected counts. The focused integration regression
+  now passes, as do targeted Ruff format/lint and diff checks. No workflow,
+  scientific record, protocol, threshold, cache, remote tool, or HPC state
+  changed.
+- Commit and push this correction once to `dev/phase3`, watch exactly one new
+  CI run, and require the complete gate to pass before reviewed tool deployment
+  or the fixed Marmic Phaser interface probe.
+
+## 2026-08-24T09:54:18Z - Phase III CI passes; archive fallback carried unrelated history
+
+### Exact CI and deployment evidence
+
+- Corrective head `204566db98cf4e8900b54a61a7fe3661c2d7c496` passed complete
+  GitHub Actions run/job `32712557760` / `97386907356` in 11m42s under
+  Pixi 0.76.2. This includes the positive offline wheel/install gate and every
+  unit, contract, integration, schema, documentation, actionlint, Nextflow,
+  cache-mutation, localisation, unknown-screen, provider-empty, and wrapper
+  task.
+- Reviewed Marmic tools deployed from that exact branch head using checksum-
+  gated recovery. Dispatcher SHA-256 is
+  `a80b6a61cd0d9b1a360880021bf625fd360a69951f8532fa120ee6482ed5f8be`;
+  job-wrapper SHA-256 is
+  `5e156ca02a7b89f747a4b3ee1cd8fa2c13b6d91c451fb9f8410a3ac984cf5e8d`;
+  recovery remains
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+
+### Staging failure and smallest correction
+
+- The single fixed probe stage fell back from the unavailable remote mirror but
+  failed locally before transfer because the 64 MiB source-archive limit was
+  exceeded. Audit found the archive builder cloned and tarred the repository's
+  complete Git object history; Phase III commit history, not tracked source or
+  scientific payload, caused the growth.
+- The archive fallback now initialises a temporary repository and performs one
+  depth-one fetch of only the exact requested commit, then restores the real
+  origin URL and pinned submodule provenance before the existing cleanliness,
+  checksum, and size gates. The 64 MiB safety cap is unchanged.
+- A focused real-Git regression adds a three-MiB high-entropy object only on an
+  unrelated branch and proves the exact-commit archive stays smaller than that
+  object, has the requested clean detached HEAD and pinned helper commit, and
+  contains no unrelated file. Targeted Ruff, `ty`, and diff checks pass.
+- Commit and push this controller-only correction, require one green CI run,
+  refresh the deployment record for the exact commit, then stage one new fixed
+  probe. The failed stage created no scheduler job and must not be submitted or
+  reused.
+
+## 2026-08-24T10:54:14Z - Installed Phaser per-ensemble interface is qualified
+
+### Exact-source CI and Marmic evidence
+
+- Source `a962e97da22962e4b9afcf97081dd04ed26d4d26` passed complete CI
+  run/job `32714117442` / `97391634275` in 11m51s under Pixi 0.76.2.
+  The exact-commit archive fallback regression passed without changing the
+  fixed 64 MiB limit.
+- Reviewed Marmic deployment records the unchanged dispatcher/job-wrapper/
+  recovery SHA-256 values
+  `a80b6a61cd0d9b1a360880021bf625fd360a69951f8532fa120ee6482ed5f8be`,
+  `5e156ca02a7b89f747a4b3ee1cd8fa2c13b6d91c451fb9f8410a3ac984cf5e8d`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Owned fixed run
+  `gtd-phase3-phenix-probe-20260824T100809Z-a962e97da229-c046087f`,
+  Slurm `633758`, completed from that exact source in 64 seconds with exit zero,
+  `failure_class=success`, Pixi 0.76.2, pinned nf-helper `82431e4`, and verified
+  Phenix 2.1-6048. The command was exactly
+  `phenix.phaser --show_defaults`; the report records
+  `scientific_execution_performed=false` and probe ID
+  `phaserinterface_e99ac91e0e3edc664f57ee8a0c017cc62f97197b373888fe9165e7e217a1f986`.
+- All four retained checksums verify. The exact defaults output is 8515 bytes,
+  SHA-256 `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`,
+  and proves `phaser.keywords.general.xyzout_ensemble=True`,
+  `phaser.keywords.general.keywords=True`,
+  `phaser.crystal_symmetry.space_group`, and
+  `phaser.keywords.resolution.high|low`. The completed-run heartbeat was
+  deleted after collection.
+
+### Smallest adapter and next exact starting point
+
+- The fixed partner adapter now requests coordinate output, per-ensemble PDBs,
+  and `.sol` output explicitly under cache identity
+  `phenix-fixed-a-joint-b-v4-native-placements`.
+- Added a content-addressed parser/CLI boundary that maps every top-solution
+  `SOLU 6DIM` line to `PHASER.1.<ordinal>.pdb`, verifies complete expected
+  component/copy coverage, and retains exact command/result/solution/combined/
+  placement checksums. Nineteen focused partner/parser tests pass.
+- This parser deliberately cannot yet create fixed-component evidence: exact
+  component grouping/recombination must be demonstrated by the next known
+  6RTZ/3U7Q control output. Build that fixed control qualification before 9ECN;
+  do not infer components from chain order or run unknown crystals/M6.
+
+## 2026-08-24 - Fixed native-placement control capture is locally green
+
+### Accomplished
+
+- The fixed `heteromer-smoke` execution now calls the native-placement mapper
+  after the accepted 6RTZ `1A+1B` and 3U7Q `2A+2B` partner searches. The known
+  ensemble labels and copy counts are explicit; an incomplete `.sol` or native
+  PDB inventory fails the run.
+- Added a separate 48-file Phase III checksum manifest and control summary that
+  bind the exact inputs, Phenix manifest, parent and partner commands/results,
+  `.sol`, combined PDB/MTZ, every per-placement PDB, and both inventories. The
+  accepted v0.2 47-file P6 manifest remains byte-semantically unchanged.
+- The reviewed remote collection allow-list now includes only the exact new
+  control files. The focused fake lifecycle proves both mappings, the exact
+  checksum cardinality, bounded collection, and retained P6 no-hit behaviour.
+
+### Evidence and unresolved boundary
+
+- The fixed lifecycle regression passes, and 21 focused partner/parser/P6
+  tests pass. Ruff formatting/lint, `ty`, wrapper syntax, and diff checks pass.
+- This is control-capture wiring, not scientific recombination evidence. The
+  inventories intentionally remain
+  `recombination_status=not_assessed_pending_real_control` and cannot create
+  fixed-component execution evidence.
+
+### Exact next starting point
+
+- Commit and publish this slice, run one CI gate, deploy the reviewed wrappers,
+  and submit exactly one fixed Marmic `heteromer-smoke` control. Collect and
+  compare native component groups against each combined coordinate before
+  implementing the multi-fixed command or launching 9ECN.
+
+## 2026-08-24 - Phase III branch authority made explicit for the fixed control
+
+### Evidence and diagnosis
+
+- Native-placement control commit
+  `36d49c4163f81b765da9c254363349bfdc1c5a82` passed exact-source CI
+  run/job `32746501569` / `97493200593` under Pixi 0.76.2. GitHub delayed the
+  run-level conclusion after the only job completed, but ultimately recorded
+  `success`; no replacement CI run was created.
+- Reviewed Marmic deployment recorded dispatcher/job-wrapper/recovery SHA-256
+  values `e3d9047feda9726fce11f01bf1ed8acd5e11ffb629ea0a1e81aae41412ac7366`,
+  `50699a20a6f8508103debdd856732ff92dfba4e8302a6cae5be22deb36768391`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- The first stage attempt stopped locally before creating a run because the
+  controller still required `heteromer-smoke` commits to be ancestors of
+  `origin/main`. The empty Git diagnostic was the exit-one
+  `merge-base --is-ancestor` predicate, not a remote, scientific, or scheduler
+  failure.
+
+### Smallest correction and next exact starting point
+
+- Fixed staging now accepts an explicit `--source-branch dev/phase3` only for
+  `heteromer-smoke` and `phase3-phenix-probe`; every other profile still
+  defaults to and requires `origin/main`. The no-data Phase III probe keeps its
+  existing automatic branch selection.
+- Twenty-four focused CLI/client tests pass, including exact branch-check
+  selection and rejection of a non-Phase-III profile. Formatting, Ruff, and
+  `ty` pass.
+- Commit/push this controller-only fix, require one green CI run, refresh the
+  exact deployment record, then stage and submit one fixed control with the
+  explicit Phase III branch. The failed local stage created nothing to reuse or
+  clean.
+
+## 2026-08-24 - Native control submitted; fixed 9ECN preparation works on real inputs
+
+### Immutable control execution
+
+- Corrective source `5d59801356a725566fd7339b57916b0fa488af35` passed exact
+  GitHub Actions run/job `32749107553` / `97501553696` under Pixi 0.76.2.
+- Reviewed Marmic dispatcher/job-wrapper/recovery digests are
+  `e3d9047feda9726fce11f01bf1ed8acd5e11ffb629ea0a1e81aae41412ac7366`,
+  `50699a20a6f8508103debdd856732ff92dfba4e8302a6cae5be22deb36768391`, and
+  `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Exactly one fixed native-placement control was staged from `dev/phase3` and
+  submitted as owned run
+  `gtd-heteromer-smoke-20260824T162036Z-5d59801356a7-3a72cb00`, Slurm job
+  `633943`. The reviewed 30-minute heartbeat monitors only that run.
+
+### Independent fixed 9ECN preparation
+
+- Public 9ECN coordinate/structure-factor downloads matched their frozen M6
+  SHA-256 values exactly. Real mmCIF inspection resolved entity/chain groups
+  `1=A,B`, `2=C,D`, and `3=E,F`.
+- McrG is a 321-residue tagged construct, but source positions 74--321 align
+  exactly to the frozen 248-residue catalogue protein. Chain E contains 247
+  observed aligned residues and no observed tag residues.
+- McrA polymer residues `MGN` and `DYA` are deposited modifications that map
+  respectively to catalogue glutamine 420 and aspartate 470; the preparation
+  retains their original coordinate chemistry while validating sequence
+  identity.
+- The fixed source preparation now emits exact A/B/C models containing 568,
+  432, and 247 observed residues, a 147,424-reflection MTZ, three complete
+  catalogue/model records, the `2A+2B+2C` composition, and one joint two-copy
+  McrA hypothesis. No Phaser command was executed.
+- Focused preparation and existing 6RTZ/3U7Q tests pass. The next scientific
+  gate remains classification and exact native component recombination from
+  job `633943`; do not start 9ECN before that evidence is accepted.
+
+## 2026-08-25 - Real Phaser ignores per-ensemble output; exact chain recovery works
+
+### Retained failure classification
+
+- The immutable fixed run
+  `gtd-heteromer-smoke-20260824T162036Z-5d59801356a7-3a72cb00`, Slurm
+  `633943`, ended `FAILED`, exit `1`, `failure_class=test_failure`, with retained
+  failure signature
+  `427dc127f56053167d5957f90fe4d8977da068d8452dcb35e8232ded30d60241`.
+  Separate bounded logs and allow-listed collection were completed; the obsolete
+  heartbeat was deleted. No failed run was resumed, cleaned, or reused.
+- Exact 6RTZ preflight, the approved A checkpoint, and the fixed-A/B Phaser
+  search all passed. The partner produced TFZ `71.2`, incremental LLG
+  `5054.654`, a valid `PHASER.sol`, and a 3,543-atom combined model.
+- Although the reviewed PHIL file explicitly sets `xyzout_ensemble=True`, the
+  installed `phenix.phaser` wrapper emits only native `XYZOUT ON`; its log and
+  collected inventory prove that no `PHASER.1.<ordinal>.pdb` files exist. The
+  failure was therefore an unsupported output assumption, not a scientific
+  no-hit or infrastructure fault.
+
+### Smallest evidence-backed correction
+
+- The Phase III collector now binds each combined-PDB polymer chain to exactly
+  one checksum-verified source-model residue sequence. It groups all copies by
+  the actual component, retains exact `.sol` solution entries, writes
+  component-only multi-copy coordinates, and proves that the complete derived
+  atom partition exactly reconstructs the combined parent. It never assigns
+  components from chain order or rounded transforms.
+- A fixed two-copy A parent is one solution entry containing two exact A chains;
+  searched B copies retain one solution entry per copy. Ambiguous model
+  sequences, unknown chains, extra non-protein atoms, missing models, copy
+  mismatches, and incomplete atom coverage fail closed.
+- The corrected local regression replays the real failed 6RTZ evidence and
+  recovers all 3,543 atoms. Twenty-three focused parser/partner/fake-HPC tests
+  pass, including a reversed-chain `2A+2B` fixture and unchanged P6 no-hit
+  semantics. The successor uses a separate 46-file Phase III evidence manifest;
+  the accepted 47-file v0.2 P6 manifest remains unchanged.
+- Independent fixed 9ECN preparation commit
+  `1b7c40955d4918aac4846c9951f8f769c0ec2c2f` passed CI run `32807444796`.
+
+### Exact next starting point
+
+- Integrate the corrected component collector into `dev/phase3`, run one
+  focused gate and one CI run, deploy the exact reviewed scripts, and submit
+  exactly one fresh Marmic 6RTZ/3U7Q control. Only after both atom-complete
+  inventories pass may the multi-fixed adapter or 9ECN search begin.
+
+## 2026-08-25 - Fixed component uncertainty bridge prepared during control run
+
+- Corrected source `17c52e85d62935f7cd63d8299e2b16c5b11f20a4` passed exact CI
+  run/job `32809071301` / `97684812748` and was deployed through the reviewed
+  wrapper. Exactly one fresh `6RTZ`/`3U7Q` control was submitted as owned run
+  `gtd-heteromer-smoke-20260825T044202Z-17c52e85d629-f381f293`, Slurm job
+  `634097`; its existing 30-minute automation is the only monitor.
+- While that run executes, a pure local bridge now revalidates the complete
+  grouped-coordinate inventory against its packed parent, exact crystal and
+  combined PDB, each registered source model, all requested/observed copies,
+  each component-only coordinate, and every component's original uncertainty
+  evidence. It emits only the existing content-addressed fixed-component
+  records; no Phaser syntax, remote call, scientific task, or new schema was
+  invented.
+- Focused regressions retain distinct `35%` A and `82%` B model identities,
+  deterministic component ordering, the complete inventory checksum, and
+  fail-closed coordinate/inventory/uncertainty mutation handling.
+- The next gate remains classification and exact checksum verification of the
+  running known-control job. Do not launch `9ECN`, unknown crystals, or a
+  multi-fixed scientific command before both real component inventories pass.
+
+## 2026-08-25 - Provisional-depth status now precedes incomplete search stops
+
+- An independent focused regression exposed that a four-, five-, or
+  six-component state lost its mandatory provisional status when the search
+  stopped because its global attempt budget was exhausted or a reviewer held
+  further expansion. The prior scope validator classified the incomplete stop
+  before the unsupported scientific depth.
+- The minimal correction reverses those existing condition branches: every
+  retained state beyond the independently validated depth remains
+  `provisional_unvalidated_component_depth`, with no complete-claim
+  eligibility, regardless of packing, review evidence, residual status, budget,
+  or hold. The original stop reason and reviewer evidence are preserved.
+- Six red-to-green combinations cover depths four through six and both
+  incomplete-stop causes; the complete focused composition-contract suite
+  passes. No external tool, scientific run, profile, schema family, or legacy
+  evidence was changed.
+- The existing 30-minute automation remains the only monitor for Slurm job
+  `634097`. Classify that exact known-control run before implementing the
+  multi-fixed Phaser command or launching `9ECN`.
+
+## 2026-08-25 - Locked offline wheel gate passes without package downloads
+
+- The previously unavailable locked build dependencies are now present in the
+  existing local Pixi environment. On clean source
+  `1fd2a378309bb4eaeba0c2a6b0a36f6f02294ef4`,
+  `pixi run --locked --offline offline-wheel-check` completed successfully
+  without contacting a package index.
+- The real gate built with `hatchling==1.32.0`, installed the resulting wheel
+  into a fresh isolated environment without resolving dependencies, executed
+  both `genome-to-diffraction` and `nf-gtd-hpc-test` entry points, verified all
+  nine packaged schemas, and confirmed version parity at `0.2.0`.
+- Original adverse-review finding `PIPE-P3-01` is now fixed. Repeat the same
+  named gate against the final `v0.3.0` release candidate after its version
+  changes; no package dependency, scientific source, remote profile, or
+  running Marmic control was altered.
+- Keep the existing 30-minute automation for Slurm job `634097`; qualify both
+  exact grouped-component control inventories before any `9ECN` execution.
+
+## 2026-08-25 - Installed Phaser defaults bind real diffraction parameters
+
+- The already accepted no-data Marmic probe, Slurm job `633758`, retained
+  `phenix.phaser --show_defaults` with SHA-256
+  `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`.
+  Its exact output qualifies `phaser.crystal_symmetry.space_group` and
+  `phaser.keywords.resolution.low/high`; no scientific execution or new remote
+  command was required to resolve those names.
+- The opt-in Phase III first-copy adapter now explicitly passes the reviewed
+  selected space group and both selected resolution limits, records their
+  typed command binding, and increments its adapter/cache identity. Historical
+  v1 Phaser and refinement commands remain unchanged.
+- Focused command-construction, diffraction-selection, and resolution-mutation
+  regressions pass. Actual execution of those newly explicit parameters against
+  a real Phaser runtime remains a later fixed-control qualification, not a
+  claimed success.
+- Continue the existing 30-minute polling of Slurm job `634097`. Both grouped
+  6RTZ/3U7Q inventories must pass before implementing a multi-fixed command or
+  submitting the 9ECN depth-three control.
+
+## 2026-08-25 - Network providers resolve to reviewed site login executors
+
+- A focused policy regression found that the direct PDB and exact AFDB Nextflow
+  processes carried only the generic `process_network` label. Under both HPC
+  site defaults, that generic label alone leaves the process on the Slurm
+  executor, contrary to the approved login-staging boundary.
+- Both existing modules now additionally carry the same `needs_internet` and
+  `run_local` aliases already used by M6 coordinate staging. The pinned Viper
+  profile maps `needs_internet` to `executor='local'`; the pinned Marmic profile
+  does the same for `run_local`. No scientific/provider implementation,
+  network command, queue limit, or remote deployment was changed.
+- The focused provider/policy suite and resolved Marmic configuration pass.
+  `PIPE-P1-04` is partial rather than fixed because explicit socket denial on
+  compute workers and real provider staging still require separate evidence.
+- Keep the existing 30-minute poll for job `634097`; do not submit another
+  control, `9ECN`, M6, localisation, or unknown dataset before that exact
+  running control is classified.
+
+## 2026-08-25 - Composition and sequence checkpoints become reviewable
+
+- The schema already recognised composition and sequence decisions, but the
+  actual package generator and owned-run registry both rejected those
+  checkpoints. Focused regressions reproduced the resulting missing human
+  review boundary before changing the existing implementation.
+- The same content-addressed package generator now emits checkpoint-specific
+  composition/sequence worksheets and versioned v2 package manifests. Its
+  existing evidence checksum/size allow-list, owned parent/execution/crystal
+  identity, and target coverage remain mandatory. Registries containing either
+  new checkpoint likewise use v2 while historical crystallographic/A-seed
+  packages and registries retain their original v1 identifiers unchanged.
+- Composition `retain_partial` and sequence `retain_alternative` now pass the
+  existing trusted package, registry, and decision-staging boundaries without
+  creating an automatic scientific or exact-locus claim. Live fixed profiles,
+  remote collection, and map-supported final review remain separate gates.
+- The existing 30-minute automation remains the sole monitor for Slurm job
+  `634097`. Classify its exact grouped 6RTZ/3U7Q component evidence before any
+  multi-fixed Phaser command, `9ECN`, M6, localisation, or unknown analysis.
+
+## 2026-08-25 - Remaining scientific profiles use run-owned image caches
+
+- Three legacy scientific job functions still exported one hard-coded,
+  account-wide Apptainer cache, despite the M6 smoke already proving that a
+  cache can be safely owned by the exact immutable run. Focused regressions
+  reproduced the leak for M6 operational/leakage, M4 copy, and T12.
+- Each affected function now creates its own `cache/apptainer` below the owned
+  run and exports that exact path. The job already enforces `umask 077`; no
+  shared account path, account name, cleanup, scheduler setting, or scientific
+  output changed. Existing M6 smoke cache validation remains untouched.
+- The repository policy suite and Bash job-wrapper syntax pass. `DEV-P2-02` is
+  fixed locally; running-profile qualification remains separate evidence.
+- Preserve the single 30-minute automation for Slurm job `634097`. Its exact
+  6RTZ/3U7Q grouped-component inventories must be classified before starting a
+  multi-fixed Phaser command, `9ECN`, M6, localisation, or unknown analysis.
+
+## 2026-08-25 - Classified temporary failures receive exactly one retry
+
+- The original execution configuration disabled every scheduler retry, even
+  for explicitly transient failures. The existing candidate-level modules
+  separately required `finish` semantics so deterministic scientific failures
+  could not simply inherit an unconditional retry policy.
+- A dedicated temporary-infrastructure error now maps to exit 75. Exhausted
+  HTTP 408/425/429/5xx and transport failures use that classification; permanent
+  infrastructure, HTTP, input-contract, parsing, and scientific failures do
+  not. Nextflow retries exit 75 once, while candidate-level modules preserve
+  `finish` for every other exit.
+- A real local two-scenario Nextflow fixture proves one failed/successful
+  attempt pair for exit 75 and exactly one failed attempt for an input exit.
+  Focused CLI, provider, repository-policy, and existing add-copy tests pass.
+  Actual scheduler-node/preemption behaviour remains a later HPC qualification.
+- Keep the existing 30-minute automation as the sole monitor of Slurm job
+  `634097`; classify its exact known-control component evidence before any
+  multi-fixed Phaser, `9ECN`, M6, localisation, or unknown execution.
+
+## 2026-08-25 - Parent diffraction provenance gates refinement before Phenix
+
+- Phase III refinement previously labelled parent MTZ derivation as pending
+  and could launch Phenix with unrelated observation labels or altered Free-R
+  flags, even though the child MTZ was checked later. Focused mutations
+  reproduced both unsafe parent paths without starting a real tool.
+- Refinement now checks the exact selected dataset/observation labels and
+  compares the parent against the source's complete sorted HKL-to-Free-R
+  mapping before invoking Phenix. Its command retains the existing typed,
+  content-addressed parent comparison; a valid derived parent with additional
+  columns is accepted, while changed flags/missing observations fail before
+  any command. The refined child is still compared independently.
+- The Phase III refinement adapter/cache identity advances; historical v1
+  commands and first-copy diffraction identities remain unchanged. This
+  boundary does not claim numerical observation-value equivalence, symmetry
+  reindexing, or real refined-MTZ qualification.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact two grouped-component controls before starting a multi-fixed Phaser
+  command, `9ECN`, M6, localisation, or unknown analysis.
+
+## 2026-08-25 - Raw diffraction values remain bound through refinement
+
+- A focused mutation proved the previous parent gate still accepted changed
+  intensity/sigma values when selected labels and the complete Free-R mapping
+  were preserved. Those altered observations reached the Phenix boundary.
+- Opt-in Phase III refinement now requires the checksum-bound original MTZ,
+  validates each selected observation array against its exact HKL identity,
+  and records a canonical observation-membership digest in command/cache
+  identity. Missing source, changed source bytes, altered intensity, and
+  altered sigma fail before tool execution; permuted HKL rows and genuine
+  derived MTZs remain valid. Historical v1 requests are unchanged.
+- Focused refinement, completion, diffraction, Free-R, and CLI regressions
+  pass. No symmetry/reindexing equivalence or real Phenix qualification is
+  inferred from this local evidence.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Phase III control failure diagnostics remain distinguishable
+
+- The reviewed controller accepted `heteromer-smoke` and
+  `phase3-phenix-probe` runs, but its failure-signature log allow-list and
+  owned-run normaliser still omitted both profiles. Focused regressions proved
+  unrelated Phase III root causes therefore collapsed into one signature.
+- The existing allow-list and exact run-ID expression now include only those
+  two already approved profiles. Repeated identical errors remain stable across
+  run IDs, timestamps, source digests, and Slurm IDs; genuinely different
+  diagnostics retain different signatures.
+- Existing feedback-chain limits and legacy smoke signatures remain covered;
+  no profile, scheduler resource, remote action, or running run was changed.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Candidate component scores cannot inherit parent evidence
+
+- The existing composition placement retained component TFZ/incremental LLG,
+  but no typed boundary joined those values to the exact searched ensemble,
+  original parent LLG, new combined LLG, and verified component inventory.
+  This left the general expansion path unable to prove which component a score
+  described.
+- One content-addressed schema-v2 score record now derives a candidate-only
+  placement from the complete exact-model parent/candidate inventory. It binds
+  the result checksum, candidate ensemble and coordinates, requested/observed
+  copies, the original parent score, the new combined score, and their
+  mathematically checked incremental difference. Packing never upgrades the
+  unresolved sequence/composition claim.
+- Focused synthetic 2A+2B+2C regressions reject parent-ensemble TFZ, combined
+  score substitution, parent-score drift, foreign crystal/model/result, and
+  self-asserted exact identity. No scientific Phaser command was implemented.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - M6 login staging remains distinct from scheduler children
+
+- A focused regression exposed that the new coordinate login stage produced a
+  valid 26-task graph, while the retained M6 smoke verifier still required the
+  obsolete 25-task topology and treated the local stage as a native Slurm job.
+- Resource evidence now retains the completed, driver-bounded coordinate stage
+  separately from 25 scheduler children. The smoke requires 26 cached
+  operational tasks, exactly six cross-track truthless cache hits, and 20 newly
+  completed leakage-specific tasks, including coordinate staging.
+- Scientific collection reconciles complete resume counts against scheduler
+  children plus controller stages; historical records without the new optional
+  inventory remain readable. Focused tests cover both reviewed site policies,
+  old/new scientific evidence, and forbidden cross-track coordinate reuse.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Scientific M6 honours the reviewed Marmic site contract
+
+- Focused regressions showed that real M6 staging, command construction,
+  resource policy, scientific collection, and evaluation still hard-coded
+  Viper/main even though its orchestration smoke already recognised Marmic.
+  Marmic also lacks the seven-line Viper site configuration previously used to
+  discover Phenix.
+- The reviewed M6 controller now permits only the fixed Marmic/Viper sites and
+  literal approved source branches. Marmic independently supplies the same
+  checksum-frozen Phenix binding already qualified by the Phase III control;
+  both sites derive their exact Nextflow profile, frozen policy checksum, and
+  run-owned Apptainer cache before submission or execution.
+- Scientific collection rejects mixed-site track pairs and verifies the exact
+  selected-site policy; evaluation accepts only either reviewed immutable
+  policy/checksum pair. Historical Viper/main evidence remains readable, and a
+  complete fake Marmic stage plus both fake scheduler policies pass.
+- Focused M6, controller, CLI, and fake-dispatcher coverage passes 135 tests;
+  Bash syntax, targeted Ruff, and targeted `ty` checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - M6 scientific staging survives an unavailable Git mirror
+
+- The accepted Marmic control path already uses an exact-commit archive when
+  the remote bare Git mirror is absent, but M6 scientific staging streamed
+  only its runner archive and failed immediately under the same site state.
+- For only the two reviewed absent/invalid-mirror failure classes, the M6
+  controller now retries with one bounded concatenated payload: the existing
+  immutable source archive first, then the independently confirmed runner.
+  The dispatcher verifies source commit, size, checksum, locked Pixi source,
+  pinned helper, frozen site/Phenix/policy bindings, and the separate
+  63-case runner inventory before declaring the owned run staged.
+- Focused controller regressions cover both mirror states; the complete fake
+  Marmic lifecycle passes both ordinary and mirror-free staging while keeping
+  the mirror unavailable and preserving source/runner checksums.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Independent unknown-crystal cache boundaries
+
+- A real local three-crystal Nextflow mutation exposed a cross-crystal cache
+  defect: changing one typed no-model candidate reran 28 tasks, including
+  all 25 unrelated first-crystal A hypotheses, because every child staged the
+  complete mutable three-crystal inventory.
+- Independent children now receive only their exact complete crystal/task
+  record, MTZ/model, immutable execution identity, review stage, and shared
+  preparation. The full content-addressed panel inventory remains available
+  once at the run boundary instead of entering every child cache identity.
+- The same focused mutation now reruns exactly one affected crystal while
+  all other 33 tasks retain their cache hashes and byte-identical published
+  outputs. Complete fresh/resumed stub execution, eleven focused unit tests,
+  Nextflow syntax, Ruff, targeted `ty`, and documentation checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Catalogue partner application no longer requires 6RTZ
+
+- The normal `analysis_stage=heteromer` entry point incorrectly refused every
+  reviewed application unless a fixed 6RTZ preparation was supplied, even
+  though its complete-catalogue partner planner already consumes the sample's
+  own approved A seed and candidate-specific model registry.
+- Fixed-control preparation is now optional. Normal applications schedule the
+  unchanged reviewed partner planner, candidate Phaser task, and typed
+  summary without invoking or publishing a fixed-control search. Explicitly
+  supplying the control preparation preserves its historical 6RTZ process and
+  the same catalogue-driven partner chain.
+- A focused local Nextflow stub reproduces the former refusal, then proves the
+  normal application process inventory, cached resume, absent control outputs,
+  and independently retained explicit fixed-control path. Nextflow syntax,
+  targeted Ruff/`ty`, and documentation checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Scientific provider-empty outcomes reach the real application
+
+- Focused regressions exposed five ordinary-application failures hidden by the
+  earlier synthetic provider graph: genuine no-hit or disabled-provider output
+  aborted PDB registration, predicted-model processing, experimental-model
+  processing, first-copy ranking, and MR-seed review.
+- Registration now accepts zero hits only with complete typed PDB/Foldseek
+  results covering every catalogue sequence. Disabled/no-hit AFDB requires
+  equivalent typed results, and empty experimental preparation requires the
+  exact checksum-bound zero-count registration. Missing, truncated, or
+  contradictory evidence still fails; no coordinate download or Phenix model
+  processing is started for those branches.
+- The ordinary DSL2 workflow carries each upstream evidence file through its
+  process boundary. Mixed provider batches retain their real models; an
+  all-empty batch publishes the complete typed no-eligible-model registry and
+  an honest zero-candidate, human-approval-free checkpoint.
+- Forty-four focused provider, registration, preparation, ranking, and review
+  tests pass. The cached provider-empty graph, normal/control heteromer stub,
+  historical standalone registration, Nextflow syntax, Ruff, `ty`, schema, and
+  documentation checks pass. Real provider execution remains a separate gate.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Phase III A hypotheses preserve joint requested copy counts
+
+- Focused red regressions exposed two connected application defects: the
+  diverse-model funnel always asked Phaser for one copy even when Matthews
+  retained a higher count, and supposedly complete Phase III A-task records
+  omitted their selected hypothesis's requested copy count.
+- Explicit Phase III joint mode now retains all four configured physically
+  possible copy alternatives, excludes counts above four before per-model
+  truncation, searches each declared copy count jointly, and enforces one
+  25-attempt bound. Main and standalone Nextflow entry points default to their
+  unchanged historical single-copy semantics unless explicitly opted in.
+- Every schema-v2 unknown A task binds its exact one-to-four requested copy
+  count and refuses mismatch against the selected hypothesis. The existing
+  three-crystal cached workflow preserves all 25 complete task identities;
+  ordinary and explicit-control heteromer stubs both remain green.
+- A focused integration check also repaired two pre-existing test typing
+  errors and updated the stale M6 Apptainer assertion to verify the newer
+  exact run-owned site-contract binding. The full repository type check,
+  104 focused unit/contract tests, both relevant cached workflows, Nextflow
+  syntax, Ruff, schema, and documentation checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Integrated scientific fan-out no longer drops sibling tasks
+
+- A focused actual Nextflow regression reproduced original finding
+  `PIPE-P1-02`: three supplied first-copy hypotheses, two reviewed additional
+  seeds, and two refinement finalists silently produced only one task at each
+  stage because the first sibling consumed shared singleton queue inputs.
+- The historical exact, diverse, and control first-copy workflows plus the
+  additional-copy and refinement workflows now convert their existing shared
+  catalogue, model, review, diffraction, and Phenix inputs into reusable value
+  channels. No scientific command, ranking, threshold, or result changed.
+- The same regression now records exactly three hypothesis tasks, two seed
+  tasks, and two finalist tasks with every immutable task tag; resume caches
+  all seven exact hashes and preserves every published output byte. The normal
+  heteromer application and optional fixed control also remain green.
+- Forty-four focused policy/ranking/unknown-screen tests, complete repository
+  type checking, Nextflow syntax, targeted Ruff, documentation validation, and
+  the strengthened cached integration workflow pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - M6 resume requires every original scientific child output
+
+- A focused regression confirmed that ordinary Nextflow directory-cache hits
+  do not prove every nested scientific output still exists: removing one cached
+  catalogue `source_records.jsonl` left all 26 M6 tasks marked `CACHED`.
+- Scientific operational/leakage execution now records every first-pass task's
+  process, tag, cache hash, and canonical non-staged child-file checksums, then
+  independently compares the complete inventory after its standard resume.
+  Missing, changed, unexpected, or mismatched files fail before acceptance.
+- The reviewed collector retains both path-free inventories and their trace
+  digests. Truth-side collection independently checks first/resume checksums,
+  every cached task identity/output, and the complete Slurm/controller resource
+  inventory; historical non-v2 results remain readable without reinterpretation.
+- The real 26-task mutation stub now exercises the same production verifier;
+  96 focused M6/loader tests, five reviewed-wrapper checks, complete repository
+  type checking, Ruff, schema, documentation, and Bash syntax checks pass.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Phase III application dispatches independent crystal searches
+
+- The ordinary first-copy application still rejected multi-crystal manifests
+  through its historical single-crystal selector despite the separate Phase III
+  fan-out fixture; this blocked reviewed three-crystal application.
+- Explicit joint-A Phase III mode now reuses one catalogue/provider preparation,
+  dispatches each manifest-owned crystal/MTZ, builds one existing diverse funnel
+  per crystal, schedules complete crystal-qualified Phaser hypotheses, and
+  publishes one independent approval-free MR-seed review package per crystal.
+- The actual synthetic Nextflow regression proves one shared catalogue/provider,
+  three dispatches, three funnels, three hypotheses, three review packages, and
+  exact fully cached resume with byte-identical output. Actual `main.nf` routes
+  to the new workflow; historical heteromer/control paths remain unchanged.
+- Forty-five focused dispatch/ranking/review/unknown-screen tests, repository-
+  wide type checking, both relevant cached workflows, Nextflow syntax, Ruff,
+  schema, and documentation checks pass. Real Phenix execution, staged
+  crystallographic decisions, malformed-sibling isolation, and fixed unknown
+  profiles remain separate gates.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Crystallographic hold decisions now prevent real A scheduling
+
+- The normal Phase III first-copy workflow accepted a three-crystal manifest
+  but did not yet consume its independently staged crystallographic decisions;
+  a held crystal could therefore enter scientific molecular replacement.
+- Reused the existing owned-run review index and complete execution identity
+  to revalidate exactly three canonical crystal decisions, frozen MTZ hashes,
+  package bindings, and manifest membership before the application fans out.
+  Proceeding child tasks carry only their own reviewed stage; held crystals
+  retain an explicit separate checkpoint and never reach ranking or Phaser.
+- The actual synthetic Nextflow application now schedules two proceeding
+  searches/reviews, one retained hold, and one shared catalogue/provider. Every
+  task hash and published output is unchanged on fully cached resume; the
+  legacy heteromer path and isolated unknown-screen fixture also remain green.
+- Thirty-nine focused review, CLI, dispatch, and unknown-screen tests pass;
+  changed MTZ bytes, missing crystals, and mutated decision files fail closed.
+  Repository type checking, Nextflow syntax, Ruff, schema, and documentation
+  checks pass without introducing a fixed unknown HPC profile or approvals.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Complete Foldseek discovery no longer stops at its pilot cap
+
+- The ordinary application submitted one whole catalogue to ProstT5/Foldseek;
+  its existing 128-query pilot could therefore leave later candidate proteins
+  unsearched while still publishing a superficially completed provider run.
+- Explicit Phase III mode now sorts every exact sequence group into immutable
+  batches of at most 128, schedules one existing provider-bound Foldseek task
+  per batch, limits high-memory concurrency to one, and independently verifies
+  all result/hit/raw-log checksums before emitting the historical bundle.
+- A synthetic 1,621-group catalogue executes exactly 13 bounded search tasks;
+  resume caches every planning, provider, search, and merge task with unchanged
+  hashes and output bytes. Missing, duplicated, deferred, or altered batch/raw
+  evidence fails closed instead of becoming a scientific no-hit.
+- Thirty-one focused provider/batching regressions, the complete cached batch
+  workflow, reviewed multi-crystal application, historical heteromer route,
+  repository type checking, Nextflow syntax, Ruff, schema, and documentation
+  checks pass. No real Foldseek, network service, or HPC profile was started.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - A-seed decisions resolve only through their owned parent run
+
+- The crystallographic checkpoint already required its trusted owned-run
+  registry, but first-component decisions still depended on callers supplying
+  an arbitrary review-package manifest instead of resolving the owned package.
+- The fixed local A-seed bridge now accepts one exact `unknown-screen` parent,
+  an ASCII operator decision TSV, and its independently confirmed SHA-256. It
+  infers the single crystal from typed decisions and resolves only the fully
+  checksum-validated A-seed package registered to that run.
+- Existing checkpoint semantics preserve approval, rejection, and deferral,
+  reject more than three approved A states, and publish only canonical
+  decisions plus the stage manifest. Cross-run/crystal/checkpoint/profile,
+  changed package evidence, non-ASCII decisions, and incorrect confirmation
+  all fail without publishing an output.
+- Fifty-two focused owned-registry, review-stager, and crystallographic-wiring
+  tests pass together with targeted Ruff/type, schema, and documentation
+  checks. The fixed remote profile and actual same-component execution remain
+  separate gates; no scientific or HPC job was launched.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Production crystal tasks now bind diffraction and Free-R
+
+- The schema-v2 diffraction and Free-R foundations were individually tested,
+  but actual Phase III multi-crystal dispatch still published only its legacy
+  bundle and first-copy Phaser silently used its v1 command path.
+- Each production crystal dispatch now explicitly publishes one exact
+  dataset-qualified diffraction selection and source HKL-to-Free-R identity.
+  Missing, constant, or cross-dataset flags fail before output publication;
+  unresolved work/test conventions are never inferred.
+- Every real Phase III first-copy task now consumes its own selected dataset,
+  derives the immutable bound hypothesis from the complete task inputs, and
+  applies the previously qualified explicit observation, space-group, and
+  resolution parameters. Legacy v1 dispatch and commands remain unchanged.
+- Eighty-one focused dispatch, selection, Free-R, Phaser, and refinement
+  regressions pass. The actual three-crystal reviewed Nextflow stub and cached
+  resume, Nextflow syntax, targeted Ruff/type, schema, and documentation
+  checks pass without invoking a licensed runtime or launching an HPC job.
+- Preserve the existing 30-minute monitor for Slurm job `634097`; classify the
+  exact grouped 6RTZ/3U7Q controls before any multi-fixed command, `9ECN`,
+  M6, localisation, or unknown-crystal run.
+
+## 2026-08-25 - Reviewed Phase III A seeds now reach same-component tasks
+
+- The owned A-seed TSV checkpoint was authenticated, but production sequential
+  placement still consumed only legacy human-approval records; schema-v2
+  decisions could not cross the actual scientific workflow boundary.
+- The opt-in bridge now independently verifies the canonical two-file stage,
+  complete owned `unknown-screen` review package, exact legacy MR-manifest
+  checksum, every crystal-bound hypothesis, and all permitted target IDs.
+  Only approved states enter the existing same-component adapter. Rejected and
+  deferred decisions retain complete provenance and emit empty seed tables
+  without scheduling Phaser or claiming a scientific result.
+- The reviewed production Nextflow process preserves the original decision,
+  stage, and package manifests, carries their identities into downstream
+  validation, handles paths containing spaces, and leaves historical v1
+  approval/control behaviour unchanged. Refinement is skipped when no state
+  was approved.
+- Eighty-four focused review, staging, refinement, package, and owned-run tests
+  pass, including actual Nextflow approve/reject/defer routes and byte-stable
+  cached resumes. The existing reviewed three-crystal and legacy heteromer
+  Nextflow workflows, syntax, targeted Ruff/type, schema, and documentation
+  gates also pass.
+- Continue with complete multi-crystal continuation and production Phase III
+  refinement diffraction/Free-R propagation. Preserve the existing 30-minute
+  monitor for Slurm job `634097`; classify the exact grouped 6RTZ/3U7Q controls
+  before any multi-fixed command, `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Reviewed Phase III finalists receive exact diffraction evidence
+
+- The Phase III Python refinement adapter already rejected mismatched selected
+  datasets, source reflections, and Free-R memberships, but the production
+  Nextflow process invoked only the historical v1 arguments and never enabled
+  those safeguards.
+- Reviewed same-component continuation now uses a separate crystal dispatch
+  that creates the exact dataset-qualified selection and raw Free-R identity.
+  Its production refinement workflow publishes one complete, deep-content-cached
+  task item per finalist, carrying the crystal ID, selected observations,
+  original MTZ, preflight, Free-R identity, catalogue records, licensed runtime,
+  and approved parent. The unchanged Python boundary verifies source, derived
+  parent, and refined-child reflection memberships before promotion.
+- A real local Nextflow fan-out retains three historical first-copy, two
+  same-component, and two historical finalist jobs alongside two reviewed
+  Phase III finalists. Identical resume caches all nine jobs; mutating the
+  selected-dataset evidence reruns only the two Phase III finalists while all
+  seven unrelated tasks remain cached.
+- Eighty focused refinement, preflight, Phaser, and staging regressions pass.
+  The historical application/control workflows, Nextflow syntax, targeted Ruff
+  and type checks, schemas, and documentation also pass without launching any
+  remote or scientific job.
+- Complete reviewed three-crystal continuation and real-tool qualification
+  remain pending. Preserve the existing 30-minute monitor for Slurm job
+  `634097`; classify the exact grouped 6RTZ/3U7Q controls before any multi-fixed
+  command, `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Empty A-seed outcomes retain independent review evidence
+
+- A genuinely completed no-model crystal already produced a valid historical
+  MR-seed review, but the Phase III package generator rejected all empty target
+  lists, preventing the crystal from reaching its own reviewed endpoint.
+- The sole permitted empty package is now a schema-v2 A-seed checkpoint whose
+  checksum-retained historical MR review independently proves successful
+  execution, zero candidates, zero inspectable solutions, and no retained
+  items. It publishes the complete owned parent/crystal/execution provenance and
+  a canonical header-only target worksheet without inventing a scientific hit.
+- Missing or contradictory evidence, failed execution, positive candidate
+  counts, and retained items fail before publication. Crystallographic,
+  composition, and sequence checkpoints still require targets; historical
+  non-empty package identities remain unchanged.
+- Ninety-two focused package, decision-contract, actual MR-review, and
+  owned-registry regressions plus targeted Ruff/type, schema, and documentation
+  checks qualify the change without running a full suite or contacting Marmic.
+- Continue with independent reviewed three-crystal same-component/refinement
+  continuation. Preserve the existing 30-minute monitor for Slurm job `634097`;
+  classify the exact grouped 6RTZ/3U7Q controls before any multi-fixed command,
+  `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Approved A-copy searches retain selected diffraction identity
+
+- First-copy Phaser and reviewed refinement already consumed dataset-qualified
+  diffraction selections, but the intervening approved same-component search
+  silently fell back to historical unqualified observation/symmetry defaults.
+- The opt-in same-component adapter now verifies its exact crystal, hypothesis,
+  selected observation dataset, preflight, and source MTZ before invoking
+  Phenix. Its retained schema-v2 command and content identity bind the selected
+  labels, explicit space group, and explicit high/low resolution; stale or
+  changed evidence fails before licensed execution. Historical v1 calls retain
+  their original parameters, records, and content identities.
+- Reviewed production fan-out now creates one complete crystal/approved-seed
+  item rather than combining independent queue consumers. Rejected and deferred
+  decisions retain review evidence but schedule no placement.
+- A local actual Nextflow regression completes eleven independent scientific
+  tasks, caches every task without changing outputs, and reruns exactly two
+  reviewed placements plus two reviewed refinements after one selection-byte
+  mutation; seven historical siblings remain cached. One hundred six focused
+  adapter, crystallographic, review, and workflow regressions plus targeted
+  static, schema, and documentation checks pass without a full suite or remote
+  action.
+- Continue with complete reviewed three-crystal continuation and independent
+  per-crystal stage publication. Preserve the existing 30-minute monitor for
+  Slurm job `634097`; classify exact grouped 6RTZ/3U7Q controls before any
+  multi-fixed command, `9ECN`, M6, localisation, or unknown run.
+
+## 2026-08-25 - Reviewed A checkpoints remain isolated across crystals
+
+- The existing Phase III placement process already carried complete crystal-bound
+  inputs, but approved-seed staging still published one shared directory and could
+  not independently retain several reviewed crystal decisions.
+- One narrow crystal-keyed Nextflow process now reuses the existing authenticated
+  A-seed adapter and publishes an independent stage per crystal. A typed
+  continuation joins stages to their original complete inputs only by exact
+  crystal ID before launching the already-qualified placement workflow.
+- A real local three-crystal Nextflow regression authenticates two approved
+  checkpoints and one deferred checkpoint, schedules exactly three stage tasks
+  plus two placement tasks, and caches all five on resume. Changing only the
+  second crystal's selected-diffraction bytes reruns exactly its placement while
+  retaining four cached tasks and unchanged sibling evidence.
+- Historical single-crystal/v1 routes remain unchanged. Full main-entry
+  multi-crystal refinement, fixed unknown profiles, and real licensed execution
+  remain separate gates. Preserve the existing 30-minute monitor for Slurm job
+  `634097` and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - Approved multi-crystal states continue through refinement
+
+- Although reviewed A-seed placement was independently crystal-keyed, finalist
+  preparation still published one shared stage and Phase III refinement used a
+  seed-only output identity, so a complete three-crystal continuation could not
+  preserve sibling ownership.
+- The existing approved-seed and T12 adapters now form one narrow reviewed
+  same-component workflow. Placement results are grouped and joined only by
+  crystal; each accepted crystal receives its own complete finalist stage,
+  selected observation/symmetry/resolution evidence, raw MTZ, Free-R mapping,
+  catalogue crosswalk, and uniquely named refinement output.
+- One real local three-crystal Nextflow regression schedules exactly three
+  authenticated A stages, one required additional placement, two finalist
+  stages, and two refinement tasks. An approved already-complete A state reaches
+  refinement without an unnecessary Phaser job, while the deferred crystal
+  reaches no scientific task. All eight tasks cache; mutating one selected-
+  diffraction record reruns only that crystal's three-task placement/finalist/
+  refinement chain while five sibling/review tasks remain cached.
+- Seventy focused approval, placement, and refinement regressions plus the
+  existing control-independent application stub, typed Nextflow syntax, targeted
+  Ruff/type checks, schema validation, and documentation links pass.
+- Historical v1 tasks, scores, controls, and output paths remain unchanged.
+  Real Phenix execution, owned main-entry wiring, and fixed unknown/HPC profiles
+  remain open. Preserve the existing 30-minute monitor for Slurm job `634097`
+  and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - First-copy reviews publish owned crystal-bound A packages
+
+- The production Phase III first-copy workflow still stopped at historical MR
+  review directories even though continuation requires content-addressed owned
+  A-seed packages. Empty candidates were supported by the generic generator but
+  were never connected to actual review evidence or workflow fan-out.
+- One narrow opt-in adapter now authenticates the complete execution identity,
+  exact crystal/hypothesis membership and checksum, historical review/solution
+  identities, retained result assets, all review output checksums, candidate
+  counts, and the explicit scheduler-owned parent before publishing one existing
+  schema-v2 package per proceeding crystal.
+- A real local three-crystal Nextflow regression publishes two populated A
+  packages and one honest empty target worksheet, caches all three tasks, and
+  reruns only the crystal whose review bytes changed. Cross-crystal hypotheses,
+  tampered outputs, inconsistent counts, and failed legacy execution publish no
+  package; the historical non-owned path remains unchanged.
+- Fifty-four focused MR-review/package regressions, the existing three-crystal
+  first-copy/resume stub, targeted Ruff/type checks, schema validation,
+  documentation links, and typed Nextflow syntax pass.
+  Complete reviewed main-entry continuation, fixed unknown profiles, and real
+  licensed execution remain open. Preserve the existing 30-minute monitor for
+  Slurm job `634097` and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - Main application resumes owned crystal-bound A reviews
+
+- The production entrypoint still selected only one reviewed crystal, while the
+  owned-run registry also rejected A packages generated before their screening
+  job completed. Together these defects prevented the three screened datasets
+  from continuing through their independently approved A checkpoints.
+- Screen-produced A packages may now precede their completed parent timestamp;
+  stale crystallographic packages remain rejected. The existing approved-seed
+  adapter independently resolves each A package from its completed screen and
+  revalidates the full registry, exact parent/profile/phase, execution identity,
+  registered package checksum, original hypotheses, and complete MR review.
+- An explicit bounded private route list now enters `main.nf` without rerunning
+  provider discovery or first-copy Phaser. The existing keyed workflows dispatch
+  each crystal, retain approved/rejected/deferred decisions independently, and
+  refine only reviewer-supported same-component states.
+- One real three-crystal main-entry regression schedules 14 tasks: three shared
+  setup tasks, three crystal dispatches, three authenticated review stages, one
+  necessary additional-copy search, two finalist stages, and two refinements.
+  Every task caches on resume. Revising one review reruns only its approval,
+  placement, and finalist tasks; unchanged refinements and siblings stay cached.
+- Sixty-eight focused MR-review/ownership regressions, the existing
+  three-crystal first-copy/resume stub, targeted Ruff/type checks, schema
+  validation, documentation links, and typed Nextflow syntax pass. Historical
+  v1 approvals remain unchanged. Fixed unknown HPC profiles and real licensed
+  execution remain open; preserve the existing independent 30-minute monitor
+  for Slurm job `634097` and classify it before new scientific HPC operations.
+
+## 2026-08-25 - Reviewed crystals publish independent sequence checkpoints
+
+- The approved multi-crystal continuation previously stopped after refinement,
+  and the existing T12.5 checkpoint adapter rejected crystal-qualified Phase III
+  result directories. Consequently, complete-catalogue human sequence review
+  could not be reached from the actual production application.
+- The existing sequence-checkpoint adapter now accepts an explicit optional
+  crystal identity, validates each exact crystal-qualified result directory and
+  schema-v2 refinement command, and binds the selected diffraction dataset,
+  source MTZ, preflight, and exact Free-R identity across every retained
+  finalist. Legacy schema-v1 checkpoints and their identifiers are unchanged.
+- One crystal-keyed Nextflow task joins each independently staged finalist set
+  to only its own refinement outputs and publishes the existing full-catalogue
+  checkpoint with source-record crosswalk and an empty human approval table.
+  Rejected/deferred crystals never fabricate sequence reviews.
+- A three-crystal real local workflow now schedules ten tasks, including two
+  independent checkpoints; mutating one selected diffraction record reruns only
+  its placement, finalist, refinement, and checkpoint while six sibling/review
+  tasks stay cached. The actual `main.nf` regression schedules 16 tasks and
+  revising one A decision reruns only that crystal's approval, placement,
+  finalist, and sequence-checkpoint tasks.
+- Fifty-one focused sequence-checkpoint/MR-review regressions, targeted
+  Ruff/type checks, schema validation, documentation links, and typed Nextflow
+  syntax pass. Cross-crystal directory, preflight, selected-dataset, Free-R, and
+  refinement-command substitutions fail. Owned schema-v2 sequence-package
+  publication, fixed unknown profiles, and real licensed execution remain open.
+  Preserve the existing independent 30-minute monitor for Slurm job `634097`
+  and classify it before any new scientific HPC operation.
+
+## 2026-08-25 - Sequence review packages belong to the single-component run
+
+- Crystal-specific T12.5 checkpoints reached the production application but
+  remained historical schema-v1 directories. Consequently, later human sequence
+  decisions could not be authenticated against the current owned scheduler run
+  and its exact complete Phase III execution identity.
+- One narrow adapter now independently verifies the full checkpoint content
+  identity, exact crystal-owned MTZ and selected diffraction/Free-R identities,
+  all reviewer-visible outputs, every retained map/model/command/provenance
+  checksum, complete sequence-equivalence-group targets, and the empty decision
+  worksheet before invoking the existing schema-v2 review-package builder.
+- The current `unknown-single-component` parent is explicit and must differ
+  from the completed `unknown-screen` parent used to authenticate A decisions.
+  Missing, duplicate, edited, extra, cross-crystal, or predecessor-owned
+  evidence cannot publish a sequence package; no exact paralogue/locus claim or
+  human approval is fabricated.
+- Production `main.nf` now publishes one independently scheduled owned
+  sequence package for each approved reviewed crystal. The three-crystal local
+  regression schedules 18 complete tasks, including two authenticated packages;
+  the deferred crystal has none. All tasks cache, and changing one A decision
+  reruns only its five approval/placement/finalist/checkpoint/package tasks.
+- Seventy-six focused sequence, generic-package, and MR-review regressions plus
+  targeted Ruff/type checks, documentation validation, and typed Nextflow
+  syntax pass. The dedicated workflow stub is explicitly synthetic and never
+  claims real Phenix or Coot-map qualification. Fixed unknown HPC profiles and
+  licensed execution remain open; preserve the independent 30-minute monitor
+  for Slurm job `634097` and classify it before new scientific HPC operations.
+
+## 2026-08-25 - Sequence review decisions use the exact owned parent
+
+- The production application already published one schema-v2 sequence review
+  package per crystal, but the only fixed operator handoff accepted earlier
+  A-seed decisions. Sequence review therefore lacked a package-owned route back
+  into the Phase III application.
+- One narrow sibling command now resolves the exact sequence package solely
+  through its owned-run registry. It infers one crystal from an ASCII operator
+  TSV, independently confirms its checksum, and requires the completed
+  `unknown-single-component` parent, fixed run-ID prefix, and pass-1 phase.
+- Existing typed decisions preserve `approve`, `retain_alternative`, and
+  `no_assignment`; a preceding screen parent, wrong checkpoint/phase/profile,
+  cross-crystal row, invented sequence target, changed evidence, or stale
+  confirmation publishes nothing. Human locus support is never fabricated.
+- Seventy-seven focused owned-registry, generic package, and staging tests
+  pass, including every sequence outcome and the unchanged A-seed CLI;
+  targeted Ruff/type checks and documentation/schema checks also pass. The
+  local interface exposes no package path or crystal selector; fixed HPC
+  profiles and actual supervised unknown runs remain pending. Preserve the
+  independent 30-minute monitor for Slurm job `634097` and classify it before
+  new scientific HPC operations.
+
+## 2026-08-25 - Refined composition states receive independent human review
+
+- Sequence review alone cannot establish that a refined crystal composition is
+  complete or supported. The prior production workflow exposed sequence-group
+  targets but did not create the separately mandatory composition checkpoint.
+- The existing verified finalist/checkpoint adapter now also publishes a
+  schema-v2 composition review package. Its one-to-three targets are exact
+  successfully refined state IDs, independently checked against retained
+  outcome/refinement identities, final assets, and the entire crystal-bound
+  checksum inventory; failed states remain evidence but cannot become targets.
+- The production application schedules sequence and composition packages as
+  independent crystal-owned tasks. A separate fixed human handoff resolves the
+  registered composition package from its exact single-component parent and
+  preserves approval, partial retention, rejection, and deferral; sequence
+  approval cannot silently authorise a composition claim.
+- The focused three-crystal local application retains one deferred sibling,
+  schedules 20 tasks including two composition and two sequence packages,
+  caches the complete graph, and reruns only the changed crystal's six
+  review-dependent descendants.
+  One hundred and five focused registry, sequence, package, and staging tests
+  pass; targeted Ruff/type checks pass. Fixed scientific profiles, final
+  evidence-derived statuses, and real licensed runtime execution remain open.
+  Preserve the independent 30-minute monitor for Slurm job `634097` and classify
+  it before any new scientific HPC operation.
+
+## 2026-08-25 - Component control preserves multicopy parent uncertainty
+
+- The owned Phase III component control, Slurm `634097` at source `17c52e85`,
+  completed with exit 2 and `software_failure`. The pinned nf-helper, Pixi
+  0.76.2, Phenix 2.1-6048, and all seven tool identities matched their frozen
+  manifests. This retained diagnostic run is not accepted or reusable.
+- Its 6RTZ search completed with one A and one B; both source-model-bound
+  component groups exactly reconstruct all 3,543 combined atoms. The 3U7Q
+  parent also completed with two packed A copies, LLG 17887.289, and TFZ 127.4.
+  The subsequent B command failed before Phenix execution because its wrapper
+  omitted the newly required original parent identity and uncertainty source.
+- The fixed wrapper now reads both values from that exact first-copy Phaser
+  command, validates the parent identity, converts its percentage to the
+  required fraction, and passes the unchanged uncertainty provenance into the
+  joint-B search. A focused red/green regression and complete fake two-control
+  lifecycle preserve a deliberately non-default 35% parent identity.
+- Both focused regressions and wrapper syntax pass. Commit/push this minimal
+  correction, watch one CI run, deploy its matching fixed wrapper, and submit
+  exactly one fresh component-control successor. Do not launch 9ECN, unknown
+  crystals, M6, or another scientific profile before that successor passes.
+
+## 2026-08-25 - Multicopy control preserves signed-zero atom identity
+
+- The owned successor, Slurm `634320` at source `b2f638c`, failed its software
+  gate after both licensed Phaser searches completed. 6RTZ recovered `1A+1B`;
+  3U7Q recovered `2A+2B` with joint-B incremental LLG `229112.711` and TFZ
+  `371.4`. These remain known-control search results, not sequence-identity or
+  scientific composition claims.
+- Retained v0.2 3U7Q coordinates and exact source models reproduced the new
+  defect locally: one `TRP B 253 O` atom had an X coordinate of `-0.000`, but
+  Gemmi rewrote the numerically identical value as `0.000`. Canonicalising IEEE
+  signed zero preserves the exact atom comparison and reconstructs all 16,116
+  real atoms, including 7,622 A atoms and 8,494 B atoms.
+- Collection independently rejected the newly retained multicopy evidence
+  under the obsolete 20 MB file ceiling; the immutable 3U7Q input MTZ alone is
+  40,035,916 bytes. Local and remote fixed collectors now share simple 128 MB
+  per-file and 512 MB aggregate limits, and the complete 46-file Phase III
+  evidence allow-list includes the exact 3U7Q input MTZ.
+- Focused signed-zero, local collection, remote collection, oversized-file,
+  and complete fake two-control regressions pass. Commit/push once, watch one
+  CI run, deploy the matching reviewed dispatcher, and submit exactly one fresh
+  two-control successor. Do not launch 9ECN, unknown crystals, M6, or another
+  scientific profile until that successor is collected and classified.
+
+## 2026-08-25 - Fail-closed review blocks unsupported unknown-crystal execution
+
+- The updated global engineering policy requires unknown/malformed state to
+  fail explicitly, prohibits fabricated scientific values, and treats active
+  compatibility as a concrete requirement rather than a default. Three
+  independent review tracks examined scientific claims, Nextflow/HPC
+  execution, and clean-break architecture at exact source `26e69b95`.
+- The combined review identified 26 independently evidenced findings: nine P0,
+  fifteen P1, and two P2. Existing positive fixtures demonstrate fabricated
+  packing, unauthenticated credible claims, unresolved Free-R conventions,
+  unowned provider execution, missing human reviews, self-asserted component
+  identity, and active schema-v1 production routes.
+- The reviewed HPC boundary also lacks fixed unknown profiles and silently
+  accepts malformed scheduler responses, missing site/log/failure evidence,
+  unsafe review paths, and unqualified compute-worker network isolation. None
+  of the three operator crystals has been used as a validation control.
+- One dedicated adverse-review report, remediation roadmap, and expanded
+  finding ledger now define `RG0`-`RG7`. Relevant scientific/execution defects
+  block unknown pass 1; **every** old and new finding must have a final
+  evidenced disposition before the reviewed second-pass profile can run.
+- Preserve immutable v0.1/v0.2 evidence and explicitly required bounded
+  operations, but remove current compatibility writers after their canonical
+  replacements are qualified. Continue the single already-approved known
+  6RTZ/3U7Q control independently; do not launch 9ECN, M6, localisation,
+  unknown crystals, or another scientific profile before that control is
+  classified.
+
+## 2026-08-25 - Current owned HPC runs cannot invent site identity
+
+- The first clean-break review remediation targets `FCB-P1-09`. Current
+  schema-1.1 local run records previously inherited the legacy Marmic default
+  when their site was missing; unsupported and absent schema versions also
+  passed without verification.
+- Four focused regressions first reproduced acceptance of a missing current
+  site, a legacy record relabelled as Viper, an unsupported future version, and
+  an absent schema version. The exact schema-aware reader now rejects all four.
+- Existing immutable schema-1.0 records remain readable only as the explicitly
+  documented Marmic site. Every newly written schema-1.1 record must carry its
+  own exact site; the existing valid Marmic/Viper clients retain their
+  authorised site and profile unchanged.
+- All 76 focused HPC configuration, owned-run, and client regressions pass;
+  no full gate was run for this isolated fix. The existing approved control
+  remains Slurm job `634369` at source `26e69b95` and must be collected and
+  classified before another scientific HPC operation.
+
+## 2026-08-25 - Component candidates require actual physical mass evidence
+
+- Review finding `FCB-P1-03` exposed two independently reproduced fail-open
+  states: an omitted `physical_assessed` flag silently became `true`, and an
+  explicitly mass-unavailable component could be selected as physically
+  eligible.
+- The schema-v2 candidate contract now requires an explicit physical decision
+  and refuses any assessed hypothesis without either its exact component mass
+  or both validated mass bounds. Existing planner output already supplied the
+  physical decision; current direct consumers and focused tests now do so
+  explicitly as well.
+- Two focused regressions first demonstrated both incorrect acceptances; all
+  46 composition-contract, planning, candidate-generation, and execution-input
+  tests now pass. No uncertainty was fabricated and no full integration gate
+  was run for this isolated correction.
+- Continue only the already submitted owned Marmic control, Slurm `634369`;
+  do not stage any new scientific operation before its terminal evidence is
+  independently collected and classified.
+
+## 2026-08-25 - Refinement refuses an unresolved Free-R convention
+
+- The `FCB-P0-03` adverse regression first proved that Phase III refinement
+  accepted an unresolved raw Free-R convention, omitted its test flag from the
+  Phenix command, and still published positive scientific evidence.
+- The refinement boundary now checks the explicit test value before creating
+  output or executing Phenix. Its command builder and schema-v2 command
+  contract independently require the same resolved convention; the active
+  automatic-test-value compatibility branch has been removed.
+- Unresolved Free-R identity records remain representable as honest upstream
+  crystallographic-review holds, but they cannot become an executable
+  refinement command. Distinct user-supplied test values still produce
+  distinct immutable command identities.
+- Eighty-one focused refinement, Free-R, diffraction-selection,
+  sequence-checkpoint, and component-input regressions pass. Unknown datasets
+  still require an independently approved authoritative flag convention; no
+  control, unknown, M6, or other scientific HPC job was added.
+
+## 2026-08-25 - Phaser packing must be directly observed
+
+- `FCB-P0-01` had two independently reproduced fabrication paths: a
+  single-solution summary plus `Top LLG (packs)` invented accepted/packed
+  counts, and a marker-free coordinate/MTZ pair silently invented those same
+  successful counts.
+- Immutable Phenix 2.1-6048 control evidence previously documented a genuine
+  alternate native output containing `** SINGLE solution`, complete output,
+  and a final `PAK=0` annotation without legacy packing-count rows. That
+  concrete installed-runtime format remains supported, but absent or nonzero
+  final `PAK` now fails explicitly in both log-only and output-backed routes.
+- Shared first-copy, additional-copy, and fixed-parent partner searches all
+  consume this parser; their five active adapter versions now advance so
+  cross-track cache identities cannot silently reuse the superseded packing
+  semantics. A focused identity contract confirms the old Phase III
+  first-copy version produces a different content identifier.
+- Two parametrised red/green missing/nonzero evidence regressions and 69
+  focused Phaser, copy, partner, and control cases pass. The only submitted
+  known-control run remains Slurm `634369`; no new scientific HPC operation
+  or full repository gate was started.
+
+## 2026-08-25 - Sequence no-hit requires a complete observed score summary
+
+- `FCB-P1-01` reproduced four fabricated scientific no-hit outcomes from
+  empty, truncated, malformed-row, or unsupported positive-summary output.
+  An oversized numerical score independently escaped the typed failure path
+  as a raw non-finite Pydantic exception.
+- Sequence narrowing now requires exactly one complete finite native summary;
+  every reported score row must parse, remain finite, and resolve to its exact
+  supplied catalogue group. A zero-score summary remains a valid completed
+  scientific no-hit, while a positive summary without scored rows or a
+  non-finite candidate becomes a retained typed parse failure.
+- Both active refinement protocol versions advance because sequence result
+  semantics affect content-addressed refinement/sequence identities. The
+  earlier unresolved Free-R and final-R safeguards remain unchanged.
+- Five focused red/green malformed/non-finite regressions, the explicit
+  zero-hit control, and 66 refinement, sequence, and review cases pass. Keep
+  Slurm `634369` as the only submitted known control; no full gate or new HPC
+  operation was started.
+
+## 2026-08-25 - Phaser scientific evidence cannot replace corrupt bytes
+
+- `FCB-P1-02` independently reproduced seven false scientific successes from
+  invalid UTF-8 in first-copy/additional-copy/partner native logs, component
+  coordinates, and direct solution-metric parsing.
+- One shared strict Phaser evidence reader now converts invalid authoritative
+  bytes into typed parse failures. A corrupt additional-copy coordinate also
+  clears all provisional LLG, packing, placement, and child evidence rather
+  than retaining a partially parsed scientific claim.
+- Capture logs preserve their exact original bytes atomically. They are parsed
+  strictly only when no native log exists; invalid presentation-only capture
+  bytes do not suppress a valid, independently parsed native scientific log.
+- All five affected scientific adapter/cache versions advance again. Seven
+  red/green corruption regressions, both authoritative-versus-diagnostic
+  capture controls, and 78 focused Phaser/copy/partner/control tests pass.
+  The existing known-control job `634369` remains the only submitted HPC run.
+
+## 2026-08-25 - Remote logs require owned operation and declared bytes
+
+- `FCB-P1-13` reproduced five independently fabricated log acceptances:
+  omitted or mismatched operation identity, omitted or cross-run ownership,
+  and a missing base64 payload that previously became a claimed empty log.
+- The local reviewed-wrapper boundary now authenticates the existing remote
+  `logs` operation, requires its exact locally owned run, and rejects absent
+  payload evidence as a classified transfer failure. An explicitly declared
+  zero-byte log remains a valid and separately tested result.
+- All five negative cases first failed before the fix; the complete 68-case
+  owned-run client suite and two existing real remote-dispatcher log
+  integrations now pass. No deployed dispatcher was changed, and known
+  control Slurm `634369` remains the sole submitted HPC run.
+
+## 2026-08-25 - Scheduler transitions require explicit consistent evidence
+
+- `FCB-P1-12` first reproduced eight fabricated monitoring outcomes from
+  missing, unknown, or noncanonical scheduler states and absent or
+  contradictory terminal flags. The old path silently treated unknown states
+  as active execution or returned an impossible terminal result.
+- Reviewed waiting now allows only explicit queue, running, or terminal state
+  enumerations; its exact lowercase boolean flag must independently agree
+  with that observed state before any queue-to-execution transition.
+- The eight red/green negatives, an authentic running-to-completed control,
+  the existing bounded queue-timeout case, and all 77 owned-run client tests
+  pass. No remote tool was redeployed and Slurm `634369` remains the only
+  submitted known-control job.
+
+## 2026-08-25 - Review assets cannot escape their owned checkpoint
+
+- `FCB-P1-14` first reproduced two parent-traversal paths and one
+  intermediate-directory symlink that allowed an externally controlled file
+  and its valid checksum to be accepted as reviewed checkpoint evidence.
+- The existing checkpoint/report verifier now reuses the authoritative Phase
+  III schema-v2 portable relative-path contract instead of adding another
+  parser. It refuses every symlink component and independently resolves each
+  asset beneath the exact owned checkpoint root before reading its bytes.
+- All three external-evidence cases fail before report publication; the
+  genuine existing legacy checkpoint remains readable. Twenty-six focused
+  crystal-report, resource-summary, and Phase III review-package cases pass.
+  The current known-control HPC job and its deployed tools remain untouched.
+
+## 2026-08-25 - Reviewed A inventories conserve every original row
+
+- `FCB-P1-08` reproduced three silently accepted review inventories: an
+  appended non-object, an item without a solution ID, and a duplicated
+  reviewed solution. A deferred human decision previously allowed all three
+  malformed inputs to publish a nominally valid approved-A staging directory.
+- One shared inventory reader now validates each row and rejects missing,
+  malformed, or duplicate IDs before the A-stage output exists. Both active
+  indexing sites use that reader; approved, rejected, and deferred authentic
+  human decisions retain their current separate outcomes.
+- Three adversarial red/green cases, 15 focused owned A-review/decision cases,
+  and 36 additional staging/raw-loader parity cases pass. Deleting the
+  remaining compatibility bridge is still separately required by
+  `FCB-P1-04`; the existing known-control HPC run remains untouched.
+
+## 2026-08-25 - Final review checkpoints require a distinct owned parent
+
+- `FCB-P0-06` reproduced reviewed Phase III continuation without its current
+  single-component parent; both mandatory sequence and composition channels
+  silently became empty while execution remained possible. Reusing the
+  preceding screen parent independently violated final-checkpoint ownership.
+- The application now refuses absent or shared parents before any scientific
+  task is scheduled. The reviewed workflow independently requires the exact
+  completed screen registry, execution identity, distinct current owner, and
+  both per-crystal final review-package processes; its empty-channel escape
+  route is deleted.
+- The previous unauthenticated three-crystal stub now uses complete owned
+  A-review packages and the registered screen. Approved crystals receive both
+  owned final packages, deferred crystals retain an honest no-finalist
+  outcome, and crystal-specific resume/cache invalidation remains covered.
+- Two red/green missing/shared-parent cases, both owned Nextflow integrations,
+  and all 45 focused review/decision cases pass. Known-control Slurm `634369`
+  and its deployed dispatcher remain untouched.
+
+## 2026-08-25 - Remote responses reject forged and ambiguous framing
+
+- `FCB-P1-10` reproduced ten false accepted remote responses containing
+  malformed lines, unsupported keys, invalid base64/UTF-8, duplicate fields,
+  omitted or cross-operation identity, absent or cross-run ownership, and an
+  explicitly different HPC site.
+- The local transport now rejects any undecodable, noncanonical, or duplicate
+  field and authenticates exact operation and owned-run identity before using
+  a successful response. A present site must match the configured site.
+- Genuine status responses from the currently deployed dispatcher and its
+  explicit database-stage/stage protocol alias remain supported, as do two
+  real dispatcher status/log integrations. All ten negative cases and the
+  complete 89-case owned-run client suite pass.
+- This finding deliberately remains partial: the installed dispatcher does
+  not emit site identity on status/log responses, so mandatory site emission
+  must be deployed only after active known-control Slurm `634369` reaches a
+  terminal state and its retained evidence has been collected/classified.
+
+## 2026-08-25 - Unknown claims require independently owned scientific evidence
+
+- `FCB-P0-02` first reproduced a nominally credible unknown-crystal result
+  without any approved exact-sequence decision and a checksum-matched,
+  content-rebound plain-text checkpoint accepted as authentic review.
+- Pass-1 promotion now requires four separate crystal-bound human decisions;
+  collection independently validates each complete schema-v2 package, target
+  worksheet, content-addressed decision, execution identity, and distinct
+  screen/final run ownership before publishing any report.
+- The previous placeholder scientific fixture was replaced with real typed
+  terminal/copy/packing/refinement/sequence/metric records, parseable
+  pre-/post-refinement coordinates, a genuine MTZ carrying all four review-map
+  coefficient columns, and a genuine CCP4 review map. Every record and asset
+  is checksum-bound to the exact owned crystal, state, group, copies, observed
+  packing, final R values, map-derived candidate, and reviewed residual state.
+- One original red/green fabricated-scientific-bytes case, 12 cross-owner or
+  inconsistent-record mutations, four invalid checksum-matched PDB/MTZ/map
+  assets, the four independent sequence-decision controls, mixed honest
+  no-hit/failure/hold outcomes, and all 45 focused assessment/collection tests
+  pass. The complete neighbouring owned-review/screen/checkpoint integration
+  group also passes all 217 tests; scientific assessment and collector adapter
+  identities both advance.
+- Prior integration source `2fc46463e07bfdc61c7c8917cf31c7b830ca59c1`
+  completed GitHub Actions run `32882784812` successfully. No deployed
+  dispatcher was changed and known-control Slurm `634369` remains untouched.
+
+## 2026-08-25 - Provider execution requires independently approved authority
+
+- `FCB-P0-04` first reproduced all three provider adapters accepting an absent
+  reviewed route. Their public command-line flags were optional, and historical
+  login-side AFDB/PDB staging bypassed the same configured authority.
+- PDB sequence, ProstT5/Foldseek, and exact AFDB application routes now require
+  both the exact provider plan and matching enabled entry before output,
+  provider execution, or network access. Entry/database/adapter identities and
+  the reviewed hit cap are independently verified and included in per-batch,
+  per-sequence, and retained-manifest provenance.
+- The scientifically distinct M6 truthless discovery route now has a narrow
+  explicit frozen authorisation. It independently checks the strict batch task,
+  approved site/execution policy, exact database and Pixi-lock digests,
+  provider-specific CPU allocation, complete content-addressed task identity,
+  25 raw hits before leakage filtering, and the downstream three-hit accepted
+  cap. It cannot be mixed with an ordinary application plan; its identity
+  remains path-free and shared between truthless M6 tracks.
+- Login staging now resolves, verifies, retains, and checksums the complete
+  reviewed provider plan before AFDB execution; legacy PDB login discovery
+  follows that same configured route instead of its previously unreviewed raw
+  cap. Disabled, no-hit, and ineligible providers retain their typed outcomes.
+- Missing/mixed provider routes; unsupported provider; wrong adapter, provider,
+  CPU count, discovery cap, database, execution policy, software lock, and
+  task-cache identity; public CLI omission; failed login-plan resolution; and
+  the fixed ordinary/M6 cap distinction all have focused negative coverage.
+  The complete neighbouring provider/AFDB/M6 suites pass 115 tests, both
+  relevant provider Nextflow stubs pass, and reviewed login staging remains
+  covered by the real dispatcher integration tests. All three adapter
+  identities and the canonical example provider plan advance together.
+- The modified dispatcher is source-only. Nothing was deployed, and the
+  existing known-control Slurm `634369` and its installed protocol remain
+  untouched pending terminal evidence collection.
+
+## 2026-08-25 - Historical review evidence is readable but cannot create claims
+
+- `FCB-P0-05` reproduced both obsolete public scientific-status/report routes
+  remaining executable. The legacy status writer accepted an arbitrary caller
+  crystal identifier and promoted a human-approved sequence differing from the
+  actual refined sequence; its report writer failed to reconcile the package
+  crystal before publishing those fabricated claims.
+- Both active writer modules, their parser/dispatch branches, public exports,
+  and obsolete positive tests are deleted. No permanent fail-only compatibility
+  command is retained: both former subcommands are unregistered and rejected by
+  the parser before reading data or creating outputs.
+- A narrowly scoped historical checkpoint reader independently verifies the
+  immutable manifest, every declared asset/output checksum, safe relative paths,
+  confinement to the owned package, and every intermediate symlink. It has no
+  status/report writer, no caller-supplied crystal identity, and no scientific
+  promotion operation. Existing v1 status/report schemas and checksum-bound
+  historical resource-summary evidence remain readable unchanged.
+- Two red/green removed-command cases, immutable checkpoint inventory,
+  traversal/symlink attacks, historical resource-summary fixtures, and the
+  authenticated schema-v2 unknown-assessment/collection regressions establish
+  the clean break. Historical Viper documentation now explicitly preserves
+  retained evidence while directing new scientific claims exclusively to the
+  owned four-checkpoint Phase III route.
+- No existing scientific run or installed HPC dispatcher was modified.
+
+## 2026-08-25 - Component identities require independently owned human evidence
+
+- `FCB-P0-07` first reproduced the public wrong-B counterexample: a packed
+  component with TFZ `5.1` and incremental LLG `327.049` accepted both a
+  self-asserted exact sequence and a self-asserted sequence-equivalence group.
+  A separate complete-composition assessment accepted only a plausible opaque
+  decision digest without parsing any actual state or human decision.
+- Component placements now remain `unresolved` until a real owned schema-v2
+  sequence review package and actual decision JSON are independently parsed,
+  checksum-verified, and matched to their exact parent run, execution, crystal,
+  component, source model, requested copies, reviewed state, refinement,
+  complete sequence-map result, and physically readable CCP4 density map. The
+  reviewed map's source-record multiplicity determines exact-sequence versus
+  equivalence-group support; scores and packing never determine identity.
+- Composition support additionally requires a distinct owned composition
+  package and independent human approval covering the ordered component
+  identities, models, groups, copies, observed combined coordinates, reviewed
+  map, and completed refinement. A claimed composition independently parses
+  and checksums its complete actual state; the final approval must be the same
+  decision retained by that state. Retained partial/rejected decisions cannot
+  establish a complete claim.
+- Focused regressions preserve genuine packed search states without invented
+  identity, reject both wrong-B promotions and fabricated composition digests,
+  distinguish exact and equivalent groups, reject changed owner/execution/
+  crystal/state, and reject a checksum-matched non-CCP4 placeholder. The
+  canonical deterministic planning/fan-out fixtures were corrected to remain
+  `unresolved` until human review rather than asserting unsupported identity.
+- No existing scheduler run, installed dispatcher, scientific threshold, or
+  historical v1 result was changed.
+
+## 2026-08-25 - Terminal HPC collection authenticates owned failure evidence
+
+- `FCB-P1-11` first reproduced 20 independent cases in which a missing,
+  malformed, unsupported, cross-run, cross-site, cross-profile, cross-source,
+  contradictory, or still-running scheduler result was accepted and published.
+  The same absence fabricated authorisation to archive failed database staging.
+- Collection now examines the complete bounded archive before writing any
+  destination and requires exactly one immutable source manifest, independent
+  numeric scheduler-job record, and complete strict-JSON terminal result. The
+  manifest must match the owned run, site, profile, iteration, project,
+  immutable source commit, and the Pixi-lock digest read from that exact
+  commit; helper, Pixi executable, and Pixi version provenance must be present.
+- The scheduler result independently binds the owned run/profile/job, canonical
+  ordered UTC timestamps, approved log paths, explicitly typed report/artifact
+  inventories, and a supported terminal state/failure class. Only `COMPLETED`
+  with exit zero and explicit `success` suppresses a failure signature; every
+  supported failed/cancelled outcome requires a nonzero exit and a real stable
+  failure signature. Missing or corrupt local results now raise a transfer
+  failure rather than silently becoming success.
+- All 20 prior collection attacks and six direct missing/corrupt/contradictory
+  signature cases now fail closed before publication. Genuine successful,
+  failed, and cancelled owned runs, distinct stable diagnostics, repeated
+  failure guards, all 137 neighbouring HPC client/CLI cases, and the real
+  reviewed dispatcher scheduler lifecycle remain green.
+- The correction changes only the local controller: no remote dispatcher,
+  existing scheduler run, retained scientific result, or collection limit was
+  modified.
+
+## 2026-08-25 - Retired scientific-execution aliases are removed completely
+
+- `FCB-P2-02` first reproduced three obsolete benchmark subcommands remaining
+  publicly registered even though their direct control-slice, control-matrix,
+  and monolithic M6 execution paths were intentionally guaranteed to fail.
+- All three parser branches and dispatch routes are deleted rather than kept as
+  permanent migration aliases. Both obsolete control-run request classes,
+  fail-only execution functions/messages, and the compatibility-only matrix
+  test are removed; no command reads inputs or creates outputs because the
+  parser now rejects every former action as an unsupported choice.
+- Existing control preparation, sequence/model classification, and immutable
+  historical readers remain available to the canonical Nextflow-owned control
+  and M6 task graphs. The repository policy now forbids both nested Python
+  schedulers and resurrection of any direct execution authority.
+- The original `DEV-P2-03` disposition remains fixed under this stricter clean
+  break. Three red/green unsupported-command cases cover all former aliases;
+  all 127 focused CLI/control/M6/repository-policy cases and the real M6
+  Nextflow cache-mutation stub remain green. Historical journal evidence is
+  retained without alteration.
+- No scheduler run, remote dispatcher, M6 scientific protocol, known control,
+  or unknown-crystal profile was started or modified.
+
+## 2026-08-25 - Canonical model registries replace synthetic compatibility
+
+- `FCB-P1-06` first reproduced the Phase III registry publishing a fabricated
+  schema-v1 preparation manifest alongside its supposedly authoritative
+  schema-v2 model universe. This created two competing current descriptions of
+  model identity, ownership, and coordinate paths.
+- The compatibility writer, synthetic output, digest fields, and stale
+  compatibility adapter identity are deleted. Every catalogue sequence group,
+  provider model, typed no-model outcome, canonical processed-model record,
+  and content-addressed coordinate remains represented by exactly one
+  deterministic schema-v2 registry.
+- First-copy Phaser now accepts one explicitly selected authority. Historical
+  fixed controls retain their genuine original preparation manifests, while
+  all current Phase III, diverse-search, and frozen M6 registry consumers pass
+  the canonical all-model manifest directly. Phase III refuses any legacy or
+  competing authority before creating output or running Phenix.
+- The registry loader independently verifies the complete sequence/model
+  inventory, exact owned processed-record path, group and model identities,
+  source/model evidence, and each coordinate checksum. Phase III immutable
+  command identities additionally bind the exact registry identity and digest.
+- One red/green synthetic-writer regression and four legacy, dual-authority,
+  substituted-record, and tampered-coordinate regressions pass together with
+  171 focused registry, first-copy Phaser, ranking, empty-provider, component,
+  composition-planner, partner, M6, and pass-1 screen cases; the complete local
+  Nextflow stub matrix, real M6 cache/resume mutation workflow, three-crystal
+  first-copy dispatch/review/resume workflow, and isolated unknown-pass-1
+  cached fan-out remain green. Exact-source CI and fixed-HPC qualification
+  remain required before the finding receives a final disposition.
+- No scheduler run, remote dispatcher, Phenix installation, M6 discovery
+  threshold, known control, or unknown-crystal profile was started or changed.
+
+## 2026-08-25 - Owned A checkpoints retain complete scientific evidence
+
+- `FCB-P1-04` first reproduced a schema-v2 A-review package that copied only
+  the legacy manifest. Its declared review outputs, Phaser commands/results,
+  maps, and solution coordinates remained outside the owned package, so the
+  active Phase III path could not remove its legacy directory or synthetic
+  schema-v1 approval bridge.
+- The owned A-package builder now inventories and copies the complete validated
+  MR review output set and every checksum-bound per-solution asset. Evidence
+  roles and paths are deterministic, confined below the package root, and
+  covered by the existing package content identity and allow-list validation.
+- Both an active A candidate and the genuine completed zero-candidate channel
+  now pass the original strict MR review validator using only files inside the
+  owned schema-v2 package. Missing outputs, changed coordinates/results, unsafe
+  paths, duplicate identities, and source mutation still fail before package
+  publication.
+- Two red/green portability cases and 161 focused review-package, decision,
+  owned-run, unknown-pass, and continuation tests pass. This is a prerequisite
+  rather than closure: current execution consumers still generate synthetic
+  approval TSV and schema-v1 stage/validation records and remain blocked before
+  pass-1 continuation.
+- No scheduler run, installed dispatcher, scientific threshold, Phenix runtime,
+  known control, or unknown-crystal profile was started or modified.
+
+## 2026-08-25 - Phase III A approval no longer crosses a legacy bridge
+
+- `FCB-P1-04` was reproduced as three synthetic current outputs: the canonical
+  schema-v2 A decision was translated into `approved_mr_seeds.tsv`,
+  `validated_mr_seed_decisions.json`, and `live_m4_stage_manifest.json`, while
+  additional-copy and T12 still required the external legacy review directory.
+- Active Phase III staging is now a separate `stage-phase3-seeds` contract. It
+  requires the canonical two-file decision stage, registry-owned portable A
+  package, exact execution identity, completed `unknown-screen` parent, and
+  hypotheses. It emits one content-derived schema-v2 seed-stage manifest, two
+  seed tables, checksum-named models, and byte-identical package/stage snapshots;
+  none of the three synthetic legacy approval files is written.
+- The shared validator independently rechecks the stage content ID, fixed path
+  allow-list, every authority/seed/model checksum, typed package and decision
+  identities, approval dispositions, counts, and retained-model provenance.
+  Current additional-copy and T12 adapters accept only this authority and reject
+  legacy or dual inputs before Phenix. Phase III refinement publishes a v2 T12
+  stage without fabricated decision/validation digests. Historical fixed and
+  normal-workflow v1 controls remain unchanged.
+- Reviewed-crystal manifests and complete Nextflow items no longer carry an
+  external legacy MR review directory. Real local one- and three-crystal
+  parser-v2 workflows preserve approve/reject/defer, no-unneeded-addition,
+  crystal isolation, and byte-identical cached replay.
+- Fifteen focused ownership/tamper/disposition cases, 45 A-review/continuation
+  tests, 32 add-copy/refinement tests, ten unknown-wiring tests, both reviewed
+  crystal workflows, Ruff, ty, and the complete Nextflow syntax gate pass.
+  Exact-source CI and owned-HPC qualification remain; no running scheduler job,
+  remote tool, Phenix installation, scientific threshold, known control, or
+  unknown crystal was touched.
+
+## 2026-08-25 - Public heteromer fan-out uses the canonical A-seed stage
+
+- Exact-source CI run `32897583601` passed formatting, linting, typing, 1,281
+  unit tests, 134 contract tests, 82 integration tests, schemas, documentation,
+  Nextflow syntax, and the complete general stub matrix before reproducing one
+  stale public heteromer fan-out fixture.
+- That fixture still fabricated the removed Phase III v1 approval files and
+  passed the obsolete extra review-package tuple field. The migrated workflow
+  correctly refused the missing `phase3_seed_stage_manifest.json` before any
+  scientific process ran.
+- The fixture now supplies one canonical schema-v2 seed-stage directory and the
+  exact eight-field crystal-owned tuple. It no longer constructs or passes a
+  Phase III legacy approval authority; the genuinely historical fixed-workflow
+  v1 test remains separate and unchanged.
+- The focused locked `heteromer-application-stub`, Ruff format check, and Ruff
+  lint pass. A successor exact-source CI remains required; no scheduler run,
+  remote tool, installed dispatcher, scientific threshold, known control, or
+  unknown crystal was touched.
+
+## 2026-08-25 - Current Phase III and archival application authorities are separate
+
+- Exact-source CI `32899255889` completed successfully on `b615c34`, closing
+  the CI qualification left by the canonical A-seed-stage migration. Owned-HPC
+  qualification remains separate.
+- `FCB-P1-05` reproduced one `main.nf` surface accepting both archival v0.2
+  approval state and optional Phase III review/ownership switches. Missing or
+  contradictory nullable inputs could therefore select between competing
+  current authorities.
+- Current execution now has one root, `phase3_application.nf`, and exactly two
+  typed operations: reviewed joint multi-crystal `first_copy` and owned
+  `reviewed_single_component`. It accepts neither the legacy approval TSV nor a
+  joint-mode or single-crystal compatibility switch. Archival `main.nf` retains
+  only its genuine v0.2 route; each root rejects parameters belonging to the
+  other before scheduling.
+- A deterministic MTZ-preflight stub now emits one row per declared crystal,
+  and the owned-A package stub explicitly records that scientific execution was
+  not performed. Production preflight and scientific package validation are
+  unchanged.
+- Four focused authority/continuation cases, the public three-crystal
+  application fan-out, the reviewed three-crystal cached-resume workflow,
+  Ruff, ty, the complete Nextflow syntax gate, and diff validation pass.
+  Exact-source CI and owned-HPC qualification for this route split remain; no
+  scheduler run, deployed tool, Phenix installation, threshold, control, M6,
+  localisation, or unknown crystal was changed.
+
+## 2026-08-25 - Final application-owner fixtures follow the clean break
+
+- Exact-source CI `32903608294` reached 1,280 passing unit tests before exposing
+  two stale test authorities. One refinement wiring assertion still inspected
+  archival `main_workflow.nf`; one owned-A package test requested a non-
+  scientific stub marker and then treated it as a real validated package.
+- The refinement assertion now follows the canonical Phase III application,
+  multi-crystal continuation, and crystal-dispatch modules. The owned-package
+  regression now runs the real lightweight package process rather than
+  interpreting stub output as scientific evidence.
+- Both exact failing tests pass locally. Successor exact-source CI `32904417863`
+  passed the complete locked gate on `b55348a` in 19m14s, qualifying the
+  application-authority split in CI. No production adapter, scientific
+  threshold, scheduler run, deployed tool, control, or unknown crystal was
+  changed.
+
+## 2026-08-25 - Compute workers have a concrete fail-closed network boundary
+
+- `FCB-P1-15` reproduced the intended controller labels without any in-job
+  socket prohibition. The Nextflow local executor runs inside the outer Slurm
+  allocation, so treating those labels as login-network permission would have
+  preserved the defect.
+- Both reviewed profiles now run every child and controller-local Nextflow
+  script through one fixed `/usr/bin/unshare` user/network namespace. The
+  wrapper retains the worker UID/GID, requires a numeric Slurm job context, and
+  has no fallback. It does not mistake that marker for ownership, which remains
+  authenticated by terminal collection; no in-job label restores ordinary
+  Bash or network access.
+- The focused unowned-invocation and site-policy regressions, resolved Marmic
+  configuration, Nextflow syntax, Ruff, ty, and HPC wrapper syntax pass. The
+  change is local only: exact-source CI, complete bounded pre-submit provider
+  staging, and real child/controller socket evidence on the selected site remain
+  mandatory before pass 1. Marmic is the current target, and Viper must qualify
+  only before use there. No installed remote tool, scheduler run, provider
+  data, control, or unknown crystal was changed.
+
+## 2026-08-25 - Fixed Marmic probe covers both in-job execution classes
+
+- Exact-source CI `32906315134` completed successfully on
+  `59b5abc5192bef3e72791f329d8595890ea56940`, qualifying the fail-closed
+  process-shell boundary under Pixi 0.76.2 before the separate live-site probe.
+- A fixed `phase3-network-probe` profile now binds the tracked Marmic
+  configuration and worker-shell checksums. It exposes no address, command,
+  shell, or path input and performs no scientific execution.
+- The profile schedules one ordinary Slurm child and one controller-local task.
+  Both must retain their expected Slurm relationship to the outer allocation,
+  enter namespaces distinct from the outer controller and each other, and
+  receive an explicit denied-socket result against the fixed TEST-NET-1
+  address. Any successful or ambiguous socket result fails the run.
+- Four probe regressions, 153 neighbouring HPC unit cases, one real dispatcher
+  stage/submit integration, Ruff, ty, documentation, Nextflow syntax, wrapper
+  syntax, and diff validation pass locally. Exact-source CI `32908137245`
+  passed on `18036c9445fbc28ed48c976163129a7ea3c97ddf` under Pixi 0.76.2.
+  One collected Marmic result and complete bounded login-side provider staging
+  remain mandatory before unknown pass 1.
+- No installed dispatcher, active scheduler run, provider data, control,
+  scientific threshold, M6 input, or unknown crystal was changed.
+
+## 2026-08-25 - One qualification owner replaces nine root stage wrappers
+
+- `FCB-P2-01` first retained nine root-level stage wrappers beside the archival
+  v0.2 application, current Phase III application, database, and M6 owners.
+  Reviewed wrappers, examples, tests, and documentation therefore exposed
+  several competing-looking application surfaces.
+- One typed `qualification.nf` now owns the nine fixed stage/control operations.
+  It requires an explicit supported operation and the complete authority for
+  that operation before scheduling; unknown and incomplete requests fail.
+- The reviewed HPC wrapper, public commands, stage documentation, Nextflow
+  checks, and fake-dispatcher integrations now use the single qualification
+  owner. Root policy permits exactly the archival v0.2 application, current
+  Phase III application, database preparation, M6, and qualification owners.
+- A real discovery stub, both negative authority cases, the complete Nextflow
+  stub matrix, syntax gate, wrapper syntax, root policy regression, and four
+  P1/P2/P2-diverse/control dispatcher integrations pass. Only after those
+  replacement gates passed were the nine superseded roots deleted.
+- Exact-source CI `32910230567` passed on
+  `de2f4c4480f28df105315483b937dbedf48f7d6a` under Pixi 0.76.2 in 21m15s.
+  Real fixed-profile qualification remains before the finding receives a final
+  disposition. No installed dispatcher, scheduler run, scientific threshold,
+  control interpretation, M6 input, or unknown crystal was changed.
+
+## 2026-08-25 - Pass 2 has an exact-source finding-closure contract
+
+- `FCB-P0-08` previously had only a documented stop: no executable contract
+  could distinguish a complete final finding ledger from local-only or stale
+  claims before a second unknown run.
+- One content-addressed record now binds the exact source commit/tree, ledger
+  bytes, adverse review, integration gate, public controls, M6, unknown pass 1,
+  exact-source CI, and one regression/evidence-backed final disposition per
+  finding.
+- Validation rejects non-final ledger wording, missing/extra/changed findings,
+  changed ledger bytes, cross-source records, and malformed or duplicate-key
+  JSON before any scheduler integration. Six focused regressions, Ruff, and
+  typing pass. Exact-source CI `32912485774` / `98009290681` passed on
+  `cd2c6a78722f317f94385267f2bd17dcdd4f3af4` under Pixi 0.76.2 in 21m0s.
+- This is contract evidence, not pass-2 authorisation. The future fixed pass-2
+  profile must consume the verifier and real RG7 record. No installed tool,
+  scheduler run, scientific threshold, control, M6 input, or unknown crystal
+  was changed.
+
+## 2026-08-25 - Unknown provider discovery stops before login acquisition
+
+- The user approved the necessary owned chain: compute-only
+  `unknown-discovery`, bounded reviewed login-side coordinate staging, then
+  offline `unknown-screen`. This resolves the otherwise impossible requirement
+  to know search-selected PDB accessions before downloading them while keeping
+  every compute task network-isolated.
+- `phase3_application.nf --phase3_operation provider_discovery` now validates
+  the exact three-crystal crystallographic review authority, imports the shared
+  catalogue once, and runs only PDB/MMseqs2 plus deterministic full-catalogue
+  ProstT5/Foldseek searches. AFDB retrieval, PDB coordinate registration, model
+  preparation, and Phaser are absent from this operation.
+- The focused three-crystal stub proves the offline process inventory and a
+  byte-identical fully cached replay. The existing first-copy application,
+  full-catalogue Foldseek batch, provider-empty graph, and Nextflow syntax gates
+  remain green.
+- The operation now publishes one path-closed, content-addressed owned package.
+  It independently requires complete PDB and Foldseek query coverage, exact
+  provider/config/database identities, all three reviewed crystals, an explicit
+  AFDB mapping file including the valid empty case, and a checksum inventory of
+  every copied byte. Missing queries, tampering, symlinks, or cross-owned review
+  state fail before publication.
+- Four focused round-trip/truncation/tamper/symlink regressions, the packaged
+  three-crystal stub, full cached replay, Ruff, typing, and Nextflow syntax pass.
+  Bounded login staging, offline screen consumption, fixed wrapper profiles,
+  CI, and Marmic qualification remain. No installed tool, scheduler run,
+  provider download, scientific threshold, or unknown crystal was changed.
+
+## 2026-08-25 - Login acquisition and unknown screening are separate authorities
+
+- The bounded login adapter accepts only a validated owned discovery package.
+  It invokes the existing provider-plan-bound PDB/AFDB adapters with fixed
+  three-hit-per-group and 25-mapping limits, retains the configured disabled
+  ESM branch, submits no sequence publicly, and checksums every referenced
+  coordinate object into one content-addressed provider preparation.
+- Current `first_copy` no longer performs discovery or coordinate registration.
+  It requires the exact discovery package and provider preparation, validates
+  both against the Phase III execution identity, then runs model preparation
+  and the reviewed three-crystal MR fan-out entirely offline.
+- Four focused login/offline round-trip, tamper, symlink, and cross-owned cases
+  pass. The complete three-crystal application retains one hold and two proceed
+  branches, schedules no search/download process, and both discovery and
+  offline application replays are fully cached with unchanged outputs.
+- Fixed reviewed wrapper profiles, exact-source CI, and Marmic qualification
+  remain. Exact-source CI `32926373409` / `98050008356` passed the complete
+  locked gate on `a6d8fd181c1a4328cee8d8a593a4b3ff77c18751` under Pixi 0.76.2
+  in 20m56s, qualifying the application contracts only. No remote tool,
+  scheduler run, provider download, threshold, or unknown crystal was changed.
+
+## 2026-08-25 - Unknown discovery has a reviewed fixed wrapper boundary
+
+- The local controller now reads one owned mode-0600 fixed spec, validates the
+  complete three-crystal review/execution identity and explicit AFDB map, and
+  creates a deterministic path-free tar archive. A remote attach operation
+  checksum-verifies, safely extracts, and revalidates the tree under the exact
+  immutable staged source before making it read-only.
+- `unknown-discovery` cannot submit without that attachment. Its outer Slurm
+  request is fixed at 8 CPUs, 32 GB, and 24 hours; the job body runs only the
+  compute discovery graph, validates the owned package, and requires a fully
+  cached canonical resume.
+- Five private-archive deterministic/mode/cross-owner/symlink/tamper tests, 156
+  neighbouring HPC model/CLI/client tests, the real dispatcher attach/submit
+  integration, Bash syntax, Ruff, and typing pass. The tracked example contains
+  placeholders only; no private path or input is committed.
+- Exact-source CI, tool deployment, and real Marmic qualification remain. No
+  remote tool, scheduler job, provider request, threshold, or unknown crystal
+  was changed.
+
+## 2026-08-25 - Unknown screen is parent-bound and offline on Slurm
+
+- Generic `stage unknown-screen` now requires the locally owned
+  `unknown-discovery` parent. The remote stage independently requires terminal
+  success, matching site/P0/database identities, and the retained provider
+  package before copying those authorities into the child run.
+- Only the stage operation performs bounded login acquisition. Submit refuses
+  an absent preparation. The fixed 8-CPU/32-GB/24-hour job validates both
+  packages, runs current `first_copy` offline, rejects any provider-search or
+  coordinate-registration trace, and requires a completely cached replay.
+- Two focused controller ownership cases and the real dispatcher/fake-Slurm
+  discovery-to-screen lifecycle pass, including nine cached offline tasks and
+  terminal success. Bash syntax and the existing application gates remain
+  green. Exact-source CI `32929375446` / `98058501395` passed on
+  `e87c6796121dde62a5a91a440e3beff951b4508d` under Pixi 0.76.2 in 20m51s.
+- `unknown-single-component`, exact-source CI for wrapper changes, deployment,
+  and real Marmic qualification remain. No remote tool, scheduler job, provider
+  request, threshold, or unknown crystal was changed.
+
+## 2026-08-25 - Reviewed A decisions own the single-component continuation
+
+- A second mode-0600 fixed spec accepts one to three A-seed decision TSVs.
+  Every file must match its independent SHA-256, typed A-seed contract, crystal,
+  and exact successful `unknown-screen` parent before a path-free archive is
+  created or streamed.
+- The remote child revalidates the archive under its exact source, registers
+  the screen's owned A packages, stages canonical decisions, snapshots each
+  crystal's hypotheses, and creates the reviewed-crystal routes consumed by the
+  existing current application.
+- Submit refuses an incomplete handoff. The fixed 8-CPU/32-GB/24-hour job runs
+  only `reviewed_single_component`, rejects provider/first-copy processes, and
+  requires a fully cached replay.
+- Five decision archive/handoff failure cases, two controller parent cases, and
+  the real dispatcher/fake-Slurm discovery-to-screen-to-single terminal chain
+  pass. Wrapper CI, deployment, and real Marmic qualification remain. No remote
+  tool, scheduler job, provider request, threshold, or unknown crystal changed.
+
+## 2026-08-25 - All three unknown crystallographic checkpoints may proceed
+
+- The user/supervisor selected `proceed` for AD4QS1P4G2_18,
+  CD4QS2P2G1_15, and CD6QS2P2G1_5. This authorises bounded pass-1 execution; it
+  does not resolve or suppress the retained completeness, Patterson,
+  direction-dependent-resolution, or anisotropy concerns.
+- The complete discovery-to-screen-to-single fixed wrapper chain passed
+  exact-source CI `32931351353` / `98064082616` on
+  `77d45cdbe9d0d428f20f69972dec3a1fe415e261` under Pixi 0.76.2.
+- Final checksum-owned decision packages remain deliberately deferred until
+  the remaining RG1--RG3 code gates are closed, because each package must bind
+  the exact execution identity that will actually run. No remote tool,
+  scheduler job, provider request, threshold, or unknown crystal changed.
+
+## 2026-08-25 - Status and logs require the remote site identity
+
+- The dispatcher now emits its selected site on both status and bounded-log
+  responses. The client refuses either operation if the site is missing or
+  differs from the configured Marmic/Viper site.
+- Thirteen focused status-protocol attacks, an independent missing-log-site
+  regression, all 124 HPC client tests, dispatcher Bash syntax, and the real
+  dispatcher/fake-scheduler lifecycle pass.
+- This code has not been deployed: the existing component control must first
+  finish and be collected with its old wire protocol. No remote tool,
+  scheduler job, provider request, threshold, or unknown crystal changed.
+- The initial CI stopped only at Ruff formatting. The focused formatting
+  correction retained the passing regression and successor exact-source CI
+  `32934108654` / `98071929325` passed on `eb0eadc` under Pixi 0.76.2.
+
+## 2026-08-25 - Frozen CD6 cross-dataset Free-R metadata is retained
+
+- A local replay of the exact frozen CD6 MTZ exposed a real pre-MR defect: its
+  sole `FreeR_flag` column is in base MTZ dataset 0 while the selected intensity
+  observations are in dataset 1. The former equality rule rejected this valid
+  layout even though both arrays belong to the same checksum-bound MTZ.
+- Phase III dispatch now accepts only the unique integral Free-R column when no
+  dataset assertion is supplied, records both dataset IDs independently, and
+  retains its exact distribution and HKL-to-flag membership. Explicitly wrong
+  dataset assertions and duplicate labels still fail closed.
+- Twenty focused Free-R/dispatch tests pass, and the exact frozen CD6 dispatch
+  that reproduced the failure now succeeds. This does not choose the Free-R
+  test value: all three MTZ histories identify CCP4 FREERFLAG at 5%, and the
+  separate convention authority remains to be bound before refinement. No
+  remote tool, scheduler job, provider request, threshold, or unknown MR ran.
+
+## 2026-08-25 - Unknown execution carries explicit Free-R authority
+
+- Phase III crystal entries may now carry an explicit Free-R test value, and
+  diffraction dispatch refuses to publish a Phase III identity when it is
+  absent. The value is passed into the content-addressed Free-R identity; it is
+  never inferred from the observed distribution.
+- The fixed private discovery spec now requires a separate three-crystal
+  manifest with explicit values, archives it, revalidates it after transfer,
+  and makes both discovery and offline screen consume that immutable copy. The
+  original frozen P0 manifest remains unchanged.
+- The exact MTZ histories name CCP4 FREERFLAG with a 0.050 fraction, and the
+  official CCP4 program convention defines value 0 as the free set. The final
+  private value-0 manifest and review packages remain to be materialised against
+  the exact execution commit. Local exact-input dispatch succeeded for all
+  three frozen MTZs with `explicit_test_value_supplied`; AD4/CD4 bind dataset
+  1/1 and CD6 binds observation dataset 1 plus Free-R dataset 0. Focused
+  schema/archive/dispatch tests and the real dispatcher
+  discovery-to-screen-to-single fake-scheduler chain pass. No remote tool,
+  scheduler job, provider request, threshold, or unknown MR ran.
+
+## 2026-08-26 - Marmic control isolates one wrong-B wrapper defect
+
+- Owned run `gtd-heteromer-smoke-20260825T164430Z-26e69b95d57d-451bc765`,
+  Slurm `634369`, is terminal `FAILED`, exit 2, `software_failure`, at exact
+  source `26e69b95`. Source archive, pinned nf-helper, Pixi 0.76.2, Phenix
+  2.1-6048, seven executable probes, and staged inputs are intact.
+- The run produced diagnostic green evidence before failure: 6RTZ recovered
+  `1A+1B` with incremental LLG 5054.654 and TFZ 71.2; 3U7Q recovered `2A+2B`
+  with incremental LLG 229112.711 and TFZ 371.4. Their exact grouped
+  coordinate inventories retain 3,543 and 16,116 atoms respectively with
+  verified combined-atom partitions. The full 1,846-protein catalogue retained
+  1,845 non-A candidates, selected one correct partner, and typed 1,844 as
+  unsearchable.
+- The wrapper then invoked wrong-B search without the newly mandatory parent
+  model identity and uncertainty flags, so argparse exited before scientific
+  execution. Wrong-B, the P6 assessment set, and final checksums are absent;
+  the run cannot be accepted. Initial collection used the released main
+  client's obsolete 20 MiB cap; the existing dev/phase3 128 MiB envelope
+  collected the retained 40,035,916-byte 3U7Q MTZ successfully without a
+  scheduler action.
+- The minimal fix parses the existing 6RTZ parent command's identity and
+  uncertainty exactly as the green 3U7Q path already does and supplies both to
+  wrong-B. The focused command regression, complete fake control lifecycle,
+  and Bash syntax pass. The single locked gate also passed: 1,320 unit, 136
+  contract, and 85 integration tests plus schemas, documentation, actionlint,
+  Nextflow syntax and every cached stub/profile check. Commit/push once, watch
+  one CI run, deploy only the matching tools, and submit exactly one replacement
+  known control. Do not launch 9ECN or unknown crystals first.
+
+## 2026-08-26 - Known controls pass; network probe needs canonical root
+
+- Replacement control `gtd-heteromer-smoke-20260826T080743Z-589704d55eee-d58c918c`,
+  Slurm `634631`, completed successfully at exact source `589704d`, CI
+  `32944438435` / `98102043017`, pinned nf-helper, Pixi 0.76.2, and Phenix
+  2.1-6048. The deployed dispatcher/job-wrapper/recovery digests were
+  `067d99bc41f7957a85b730024e142c6dfa4d983a052278e76384058f3591559e`,
+  `b2d99037a69da860cbcd12df4b7d93005acd76c3c5713a5cadb4b66f24f9d88b`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- 6RTZ recovered `1A+1B`; 3U7Q recovered `2A+2B`; both component inventories
+  have exact copy counts and verified 3,543/16,116-atom partitions. The
+  full-catalogue branch selected one of 1,845 non-A candidates. Wrong B packed
+  at incremental LLG 327.049 and TFZ 5.1 but remained
+  `search_evidence_only`, with no identity or composition claim. Missing B,
+  homomer, and the typed 9ECN boundary also passed. Exactly six assessments,
+  all 46 Phase III placement checksums, all 47 P6 checksums, and seven Phenix
+  executable identities validate.
+- Fixed worker-network probe `gtd-phase3-network-probe-20260826T092018Z-589704d55eee-dc832580`,
+  Slurm `634652`, then failed in ten seconds with exit 1/test failure before
+  either task launched. Nextflow 26.04.6 interpreted `run <source-directory>
+  -main-script <nested-file>` as an absent script path. Site, source, worker
+  shell, and deployment provenance remain valid, but the run contains no socket
+  evidence and is not acceptance.
+- The minimal fix promotes the probe to the tenth operation of canonical
+  `qualification.nf` and invokes that root directly, preserving repository-root
+  `projectDir`. A real Nextflow 26.04.6 preview, two focused wrapper/staging
+  regressions, Nextflow syntax, and wrapper syntax pass. Run one exact-source
+  CI/deployment/replacement probe; do not launch 9ECN or unknown crystals first.
+
+## 2026-08-26 - Network probe requires its explicit run-owned cache
+
+- Replacement probe `gtd-phase3-network-probe-20260826T102405Z-105023f24b2b-116c7ca5`,
+  Slurm `634663`, reached canonical `qualification.nf` under Nextflow 26.04.6,
+  proving the preceding entrypoint fix. It then exited 1/test failure during
+  strict parameter validation: default `cache_root=.cache` did not exist in the
+  empty execution directory. The trace contains zero tasks, so the run provides
+  no socket-denial evidence.
+- Exact source `105023f`, CI `32955931998` / `98137469352`, pinned nf-helper,
+  Pixi 0.76.2, site configuration, worker-shell digests, and deployed tool
+  provenance remain valid. The failure is an input-routing defect, not an HPC
+  network observation.
+- The minimal fix creates one cache below the owned run and passes it as the
+  typed `cache_root`. The focused wrapper regression, real Nextflow 26.04.6
+  preview, and wrapper syntax pass. Run one exact-source CI/deployment/
+  replacement probe; do not launch 9ECN or unknown crystals first.
+
+## 2026-08-26 - Marmic worker-network denial is qualified
+
+- Replacement probe `gtd-phase3-network-probe-20260826T112246Z-84208c5e1312-fe02f01b`,
+  outer Slurm `634673`, completed successfully at exact source `84208c5`, CI
+  `32960948125` / `98152935432`, pinned nf-helper, and Pixi 0.76.2. The
+  deployed dispatcher/job-wrapper/recovery digests were
+  `067d99bc41f7957a85b730024e142c6dfa4d983a052278e76384058f3591559e`,
+  `8d7ccf444cbf2fc0f4e789b4c4b06743dcf882e80e0e9d96f0cbc029dc06af67`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- The manifest binds Marmic config
+  `24584a0efa680cab1d2aa2febfd4ac3dc6b82fe96e5b42eb9a99a60331d29935`
+  and worker shell
+  `740e4fa4c404f557fe8e7b4c1bee85f8bfcb0a2a00747cae6354bb0f96b9dc22`.
+  Child Slurm task `634674` used network namespace `net:[4026543051]`;
+  controller-local task `634673` used `net:[4026542865]`; both differ from the
+  outer `net:[4026531840]` namespace and both received `ENETUNREACH` for fixed
+  TEST-NET-1 `192.0.2.1:443`.
+- The summary sets `gate_passed=true`, both task classes have
+  `compute_network_access=false`, no scientific execution occurred, and every
+  one of the four retained checksums matches. Marmic worker-network denial is
+  accepted. Next implement and qualify fixed A+B/search-C execution with 9ECN;
+  do not run unknown crystals before that control and bounded login staging.
+
+## 2026-08-26 - Fixed 9ECN depth-three execution candidate is locally complete
+
+- The generic `mr search-component` adapter now fixes an ordered A--E prefix
+  as independent component-only coordinates and searches only the next
+  distinct component. It binds every fixed coordinate, model/error identity,
+  sequence group, MTZ, Phenix manifest, and parameter record. Hit, no-hit,
+  parse failure, and tool failure remain typed; every result is permanently
+  `search_evidence_only` and cannot assert exact identity or complete
+  composition.
+- The fixed `benchmark run-9ecn-phase3-control` command executes one dependent
+  public-control chain: joint two-copy McrA, fixed-A/search-two-McrB, exact
+  A/B coordinate partition, then fixed-A+B/search-two-McrG and exact A/B/C
+  partition. Acceptance requires packing, two observed copies of each
+  component, complete fixed/candidate markers, and exact combined-atom
+  recombination. Frozen 9ECN truth is applied only in the final known-control
+  report; the underlying search remains claim-free.
+- The existing fixed `heteromer-smoke` profile now stages 9ECN only on the
+  login side, runs the thin control command after accepted 6RTZ/3U7Q/P6
+  checks, and checksum-retains every run-owned 9ECN file. Collection consumes
+  the safe relative checksum inventory, rather than guessing optional Phaser
+  assets. It does not alter thresholds, unknown inputs, or v0.2 evidence.
+- Eight focused preparation/adapter/orchestration tests, the complete fake
+  6RTZ/3U7Q/P6/9ECN lifecycle, three adjacent collection regressions, Ruff,
+  type checking, wrapper syntax, and diff hygiene pass. The full locked gate
+  also passes: 1,325 unit, 136 contract, and 86 integration tests plus schemas,
+  documentation, actionlint, Nextflow syntax, every workflow stub/profile,
+  offline-wheel parity, and wrapper syntax. Exact-source CI, matching
+  deployment, and one Marmic 9ECN control run remain before depth three can be
+  accepted. No unknown crystal has run.
+
+## 2026-08-26 - First 9ECN execution exposes missing parent mapping metadata
+
+- Exact-source commit `2ecc61d`, CI `32970199577` / `98181870568`, was deployed
+  with dispatcher/job-wrapper/recovery digests
+  `0bf45ce34a124f1ca0e0dca45b663f4a0c717a8dee0512bc6d04b4b3544b4608`,
+  `dcc792e467e3fbb12389c3d826bfc7a70d97d0d09779856255ea644b787ea69c`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+  Owned Marmic run `gtd-heteromer-smoke-20260826T130709Z-2ecc61d9227b-c4edc713`,
+  Slurm `634698`, ended `FAILED`, exit 1, `test_failure` after 46 minutes 40
+  seconds. The run is diagnostic only and must not be resumed or reused.
+- Source, frozen 9ECN inputs, pinned nf-helper, Pixi 0.76.2, Phenix 2.1-6048,
+  and all seven executable probes were intact. The prerequisite 6RTZ/3U7Q,
+  full-catalogue, missing-B, wrong-B, homomer, and P6 gates passed again. All
+  46 placement and 47 P6 checksums validate; wrong B again packed at
+  incremental LLG 327.049 and TFZ 5.1 while remaining claim-free.
+- 9ECN preflight passed with review warnings for Patterson/tNCS, then stopped
+  before its first Phaser invocation. The prepared A hypothesis had the
+  correct model and sequence-group IDs but omitted
+  `coordinate_mapping_id` and `candidate_source_sequence_identity`, which the
+  existing experimental-model validator correctly rejected as
+  `experimental hypothesis and model mapping identities differ`.
+- The minimal fix copies the already-generated A mapping ID and exact identity
+  into the joint parent hypothesis. A focused regression now calls the exact
+  validator that failed remotely. Eight focused Phase III tests and the full
+  locked gate pass: 1,325 unit, 136 contract, and 86 integration tests plus all
+  schema, documentation, actionlint, Nextflow, stub/profile, packaging, and
+  wrapper checks. Commit/push once, watch one CI, deploy, and submit exactly
+  one successor; do not run unknown crystals first.
+
+## 2026-08-26 - 9ECN reaches Phaser; partial failure evidence was not collectable
+
+- Mapping-corrected commit `16f42e3`, CI `33005030475` / `98296456084`, was
+  deployed with the same checksum-verified tool digests. Owned successor
+  `gtd-heteromer-smoke-20260826T194729Z-16f42e38b024-99a4607e`, Slurm
+  `634831`, ended `FAILED`, exit 1, `test_failure`. It is diagnostic only and
+  must not be resumed or reused.
+- All frozen inputs, seven Phenix probes, 6RTZ/3U7Q, full-catalogue, and P6
+  gates passed again. 9ECN preflight retained its Patterson/tNCS review
+  warnings, the corrected exact A mapping/identity passed validation, and the
+  joint two-copy A Phaser command executed successfully at the tool level.
+  Normalisation then emitted `failed_parse` because it found no final LLG or
+  TFZ, and the fixed control stopped before B or C.
+- The reviewed collector exposed a separate evidence-boundary defect: before
+  the final 9ECN checksum manifest exists, it retained none of the partial
+  9ECN preflight, normalised parent result, raw Phaser log, command, capture,
+  or optional solution assets. The bounded application log is insufficient to
+  decide whether this is a no-solution representation or a parser defect, so
+  no parser/scientific edit is justified yet.
+- The minimal collector fix adds only the fixed, run-owned partial 9ECN
+  preflight/parent paths when the final checksum manifest is absent; successful
+  runs continue to use their complete checksum-driven inventory. Focused
+  success and partial-failure collection regressions and wrapper syntax pass.
+  Commit/push once, watch one CI, deploy the matching collector, and recollect
+  this same failed run without any scheduler action before classifying Phaser.
+
+## 2026-08-26 - Recollected 9ECN parent proves a narrow terminal-parser defect
+
+- Partial-evidence collector commit `af6a751`, CI `33012904661` /
+  `98323523025`, was deployed with dispatcher digest
+  `34f57ad4a7a362e277af24bbe111be277d8a920ab88d377680ddbcf81d9d5b2b`.
+  Recollection of the unchanged failed run `634831` retained its parent
+  preflight, command, normalised result, raw/capture logs, and PDB/MTZ without
+  any scheduler action. Failure signature
+  `6c3207d3ddcc63b7bc95d8de0c3da9dec5a870caa45e36b05715c2551b831381`
+  is unchanged; all 46 placement and 47 P6 checksums still validate.
+- The raw evidence rules out a scientific no-solution. Phaser 2.8.4 exited
+  successfully, wrote PDB and MTZ, retained one final packed solution, and
+  placed exactly two A ensembles. Its log reports top packed LLG 3507.7,
+  terminal TFZ 19.3, and `1 packs of 1 accepted solution`; the PDB reports LLG
+  3507.703 and final `PAK=0`.
+- The parser accepted only `Solution #1 annotation (history):`, while this
+  valid tNCS output used `Solution annotation (history):`. It also accepted
+  only plural `pack ... accepted solutions`, so recognising TFZ alone would
+  have retained an earlier 13/13 intermediate packing count rather than the
+  final 1/1 record.
+- The smallest correction makes `#1` optional only in that terminal annotation
+  and accepts the grammatical singular/plural packing variants. Two focused
+  terminal-form regressions and all 47 first-copy Phaser tests pass. Replaying
+  the collected raw log now yields one solution, LLG 3507.93, TFZ 19.3,
+  accepted/packed 1/1; the solution PDB independently yields LLG 3507.703,
+  TFZ 19.3, two placements, and `PAK=0`. The full locked gate passes: 1,327
+  unit, 136 contract, and 87 integration tests plus schemas, documentation,
+  actionlint, Nextflow, all cached workflow profiles, packaging, and wrapper
+  syntax. Commit once, watch one CI, deploy, and submit one successor; do not
+  reuse `634831` or run unknown crystals.
+
+## 2026-08-26 - Positive 9ECN depth-three control is accepted on Marmic
+
+- Parser-corrected commit `353d670`, CI `33017159154` / `98338220297`, ran as
+  owned Marmic control `gtd-heteromer-smoke-20260826T222144Z-353d670da149-14f94edb`,
+  Slurm `634860`. It completed successfully in 55 minutes 19 seconds under
+  pinned nf-helper `82431e4`, Pixi 0.76.2, and Phenix 2.1-6048. Deployed
+  dispatcher/job-wrapper/recovery digests were
+  `34f57ad4a7a362e277af24bbe111be277d8a920ab88d377680ddbcf81d9d5b2b`,
+  `dcc792e467e3fbb12389c3d826bfc7a70d97d0d09779856255ea644b787ea69c`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Every prerequisite remained green: 6RTZ recovered `1A+1B` at incremental
+  LLG 5054.654/TFZ 71.2; 3U7Q recovered `2A+2B` at incremental LLG
+  229112.711/TFZ 371.4; the 1,845-member non-A catalogue selected one model and
+  typed 1,844 unsearchable; all six P6 assessments passed. Wrong B again
+  packed at incremental LLG 327.049/TFZ 5.1 but remained
+  `search_evidence_only` with no identity or composition claim.
+- The frozen 9ECN chain recovered joint two-copy A at LLG 3507.703/TFZ 19.3,
+  fixed-A/search-two-B at combined LLG 15220.216, incremental LLG 11712.513,
+  TFZ 27.8, then fixed-A+B/search-two-C at combined LLG 26455.18,
+  incremental LLG 11234.964, and C-specific TFZ 55.8. All three components
+  are packed with requested/observed copies `2/2`; exact grouped coordinates
+  recombine to the 18,842-atom combined model.
+- The final Phase III control summary sets `gate_passed=true` and
+  `known_control_recovered`, while the generic result remains
+  `search_evidence_only` with both exact-identity and complete-composition
+  claims false. All 46 9ECN, 46 prerequisite placement, and 47 P6 checksums
+  validate, and all seven executable-hashed Phenix identities pass.
+- The positive three-component installed-runtime gate is accepted. This does
+  not complete the remaining wrong-C/no-false-C negative ladder, depths four
+  through six remain provisional, and no unknown crystal has run. Next close
+  the bounded login-staging/localisation prerequisites before unknown pass 1.
+
+## 2026-08-27 - Pre-unknown localisation audit finds a live-route omission
+
+- The 9ECN acceptance-evidence commit `a7b0b47` passed exact-source CI
+  `33023439557` / `98359108298`. No further control or unknown profile ran.
+- The private Phase III gel manifest is a valid schema-v2 manifest with zero
+  observations. This is honest missing evidence and must remain neutral. No
+  user-supplied DeepTMHMM 1.0 academic image/checksum exists, so that tool must
+  remain `blocked_unverified_cli`; no command or prediction may be invented.
+- No PSORTb runtime exists locally. The official Brinkman Lab command-line
+  container tag `brinkmanlab/psortb_commandline:1.0.2` contains PSORTb 3.0.6
+  and documents an Apptainer route, but nothing has been pulled or staged.
+  A fixed checksum-bound login-only stage plus offline compute contract must
+  pass before catalogue sequences use it.
+- The production `provider_discovery` and `first_copy` workflows currently
+  accept neither a gel manifest nor a complete localisation bundle. The older
+  unknown-pass-1 stub carries a `shared_localisation` path, and composition
+  candidate generation can consume typed localisation, but the live A funnel
+  silently omits both priors. The execution identity hashes the gel file
+  without making its bytes a live scientific input. Unknown pass 1 therefore
+  remains stopped.
+- Record this as `PH3-P1-25`. The next implementation depends on one explicit
+  operator choice: supply a DeepTMHMM image, or keep DeepTMHMM blocked and
+  qualify a PSORTb-only prototype while the empty gel evidence remains neutral.
+  Do not materialise a new source-bound private authority or launch an unknown
+  profile before that choice and the focused live-route integration.
+
+## 2026-08-27 - Adversarial pre-unknown integration closes local execution gaps
+
+- The operator explicitly authorised finding/building local PSORTb and
+  DeepTMHMM images. The pinned real CLIs and representative outputs were
+  inspected. Initial bridge-network catalogue outputs remain diagnostic only.
+  The network-none PSORTb successor completed with exit 0, zero network I/O,
+  and byte-identical output; the corresponding DeepTMHMM successor is still
+  computing and no unknown profile has run.
+- The live `provider_discovery` and `first_copy` routes now require a complete
+  localisation/gel bundle. The A funnel independently binds exact sequence and
+  source-record inventories, schedules active before neutral groups, and
+  retains every excluded model/copy hypothesis as a typed deferred record.
+  Explicit authenticated sequence-local tool failures remain neutral;
+  unexplained missing output fails closed.
+- A second review-only adversarial pass found that the first importer
+  self-asserted Docker provenance. The replacement capture boundary records and
+  revalidates raw container/image inspection JSON, exact commands, pinned image
+  digests, copied input/output bytes, exit status, logs, engine version, and
+  `network_mode=none`. A real source-bound unknown authority remains forbidden
+  until the terminal DeepTMHMM capture and full integration gate.
+- The general composition attempt is no longer a stub-only failure. One
+  complete Nextflow item uses the 4-CPU/16-GB MR class, the qualified partner
+  route for B and diffraction-bound multi-fixed route for C--F, exact
+  execution/Phenix/MTZ/Free-R/model/parent score/derivation evidence, and
+  claim-free typed terminal results. Infrastructure or contract status now
+  fails the task after retaining diagnostics. The 25-item/typed-empty/cached
+  stub and focused runtime tests pass; fixed-HPC qualification remains before
+  pass 2.
+- Wrong C is now bound to the frozen distinct P6/3U7Q sequence/model/source
+  manifest and differs from all positive 9ECN models. A hit is passed through
+  the same schema-v2 state, scope, and composition-assessment derivation used
+  by application evidence. It cannot become eligible or claimed without owned
+  review. Focused and fake-HPC regressions pass; one Marmic successor remains.
+- Next start: wait for the single existing network-none DeepTMHMM container,
+  capture/import/validate its exact evidence once, run the full locked gate,
+  commit/push once, watch one CI, deploy, then run one combined wrong-C control
+  successor before staging unknown discovery.
+
+## 2026-08-28 - Offline full-catalogue localisation is accepted locally
+
+- The sole retained network-none DeepTMHMM 1.0 container completed with exit 0
+  after the long 1,621-sequence catalogue run. Terminal Docker evidence records
+  `network_mode=none` and zero network I/O. The already-completed PSORTb 3.0.6
+  container has the same offline boundary; neither run was restarted or
+  duplicated.
+- The exact input FASTA SHA-256 is
+  `f8bbc63da7b0f3cb5f206befd0618264a5582789f46c3400267650777727d416`.
+  PSORTb and DeepTMHMM output SHA-256 values are
+  `4cf65b1b56f726e50e8fb4a0854a108d780aad4d43c365a877eb0a35ca8ce5fd`
+  and
+  `d99ac552fb231ca12e0af961cd9294977fb4da7b5d352bbce51f045e6339cfd0`;
+  each output, including retained DeepTMHMM GFF and summary, is byte-identical
+  to the earlier diagnostic run.
+- Inspected capture manifest
+  `localcontainermanifest_9a94a634e3b7e7c4a132c34ee4b352b62f865f836dd01dd7a370f5afeb01b1cd`
+  binds both image digests, terminal inspections, commands, copied FASTA/output
+  bytes, engine, and logs. The final portable v3 policy
+  `batchlocalpolicy_a3a03c7259427c1c7681b4552c2d66c0e162e37747cb52f140b5858e451f2192`
+  validates 1,625 source records and all 1,621 sequence groups: 1,310 active,
+  88 neutral, and 223 excluded, with 60 conflicts retained explicitly. Empty
+  gel evidence remains neutral.
+- PH4 local execution is complete. The single full locked pre-unknown gate is
+  green: 1,358 unit, 136 contract, and 88 integration tests plus schemas,
+  documentation, actionlint, Nextflow syntax and every stub/profile, offline
+  wheel parity, and wrapper syntax. Next commit/push once, watch exact-source
+  CI, deploy, and submit one combined Marmic wrong-C/control successor. Unknown
+  pass 1 remains stopped until that successor is collected and accepted.
+
+## 2026-08-28 - Wrong-C and the pre-unknown control gate are accepted
+
+- Commit `317d00d13406faad8c4aaba319e617104c242692` passed exact-source CI
+  `33159922527` / `98811628551` under Pixi 0.76.2. Reviewed dispatcher,
+  job-wrapper, and recovery digests were
+  `1cdb37392fa75d6562a5cdb0fdb535ead4adf530ff62c1a4e68d2c2841cc8428`,
+  `966154f4483e11ce800f23343efbf5cd29297db2a5a3d1bda261b91201521284`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Owned Marmic run
+  `gtd-heteromer-smoke-20260828T095750Z-317d00d13406-d70fd90a`, Slurm
+  `635840`, completed with exit 0 and `success` after 1 hour 32 minutes 43
+  seconds. Source, pinned nf-helper `82431e4`, Pixi, Phenix 2.1-6048, and all
+  seven executable checksums match.
+- 6RTZ recovered `1A+1B` at incremental LLG 5054.654 and TFZ 71.2. 3U7Q
+  recovered `2A+2B` at incremental LLG 229112.711 and TFZ 371.4. All six P6
+  assessments pass; deliberately wrong B remains a packed
+  `search_evidence_only` result with no identity or composition claim.
+- Positive 9ECN recovered exact `2A+2B+2C`: joint A LLG/TFZ 3507.703/19.3,
+  B incremental LLG/TFZ 11712.513/46.1, and C incremental LLG/TFZ
+  11239.132/60.3. The exact A/B/C atom partitions recombine to 18,842 atoms,
+  while the generic result remains claim-free.
+- The frozen distinct wrong-C model and sequence match the P6/3U7Q negative
+  manifest and differ from every positive 9ECN model. The real search completed
+  as `completed_no_hit`; its schema-v2 assessment is
+  `search_evidence_only`, claim-ineligible, and unclaimed. Independent local
+  verification passes all 47 P6, 46 placement, and 61 Phase III checksums.
+- `PH3-P1-28`, the wrong-C ladder, and the pre-unknown control gate are
+  accepted. Next build the exact-source private authority using the accepted v3
+  localisation bundle, then stage/submit one PH5 `unknown-discovery` run.
+
+## 2026-08-28 - First PH5 staging finds removed P0 state and a collector defect
+
+- Exact-source private authority
+  `phase3exec_91d156d3b0d7615b8868eaa8c18a25bc57426f4ca8308a3f6cde6e9a0e27dfbc`
+  was built from accepted commit `317d00d`, frozen P0 inputs, database manifest,
+  seven-command Phenix manifest, and localisation policy
+  `batchlocalpolicy_a3a03c7259427c1c7681b4552c2d66c0e162e37747cb52f140b5858e451f2192`.
+  All three earlier `proceed` decisions were rematerialised into owned review
+  stage
+  `unknownreviewstages_53570bc9d882c92ef507f0689a62e19467af3948ea7cbbe46671c1c0ed68b90f`.
+- The first staging attempt created diagnostic run
+  `gtd-unknown-discovery-20260828T121551Z-317d00d13406-9d598e9d`, then stopped
+  before scheduler submission with `environment_failure`: storage cleanup had
+  removed the fixed P0 configuration and its frozen input tree. Logs are empty,
+  status is terminal `stage_failed`, no Slurm job exists, and the run must not
+  be reused.
+- Collection exposed new finding `PH3-P1-31`: the dynamic successful-output
+  checksum manifest was required even for a stage failure, preventing transfer
+  of the retained phase/failure/events evidence. The minimal fix makes that
+  inventory optional only when a non-success failure class is explicitly
+  recorded. Success, active, or unclassified runs still require it; a present
+  inventory remains fully verified. The focused failed-stage regression and
+  existing successful discovery lifecycle both pass, together with Ruff and
+  wrapper syntax.
+- The reviewed P0 candidate checksum remains
+  `ac7ad4d2d4f9693683b89c8b492f645eddf026f782d90300b726f6be6d855dbb`,
+  but configuration correctly rejects it until the exact frozen input bundle is
+  restored. Commit/push the collector fix and evidence once, watch one CI,
+  deploy, restage the checksum-bound P0 inputs, install the same fixed
+  configuration, require P0 readiness, and submit one fresh discovery run.
+
+## 2026-08-28 - Clean-break P0 rebuild requires database-runtime restore
+
+- Collector/evidence commit `be540d3` initially failed CI `33171395054` /
+  `98849175405` before tests because one new assertion was not Ruff-formatted.
+  Formatting-only successor `bc14990` passes focused tests and exact-source CI
+  `33171592458` / `98849819252` under Pixi 0.76.2. No HPC operation occurred
+  during either CI run.
+- Rebuilding the deleted local staging copy from the preserved canonical data
+  retains all seven scientific files and their original checksums. The copied
+  historical YAML was made current by deleting only seven already-retired
+  operational keys; every remaining value, raw catalogue file, and MTZ is
+  unchanged. Temporary manifest/inventory paths were normalised to the current
+  fixed data root. The resulting verified archive has source ID
+  `p0i_f8fcf6c526cf808f7bb3b167047f9104b153e560ced9ca500bc61c83d577bfe3`,
+  SHA-256
+  `600d334c58878c09f47e33c864247bd2f185eb48dbb67ac6aad408bacb4fcec7`,
+  43,266,673 compressed bytes, and 75,958,172 scientific-input bytes.
+- Transfer stopped before upload because storage maintenance also removed the
+  database runtime configuration. The existing reviewed interface had no way
+  to restore that one file without raw SSH. Finding `PH3-P1-32` adds the
+  smallest create-only `database-runtime-configure` operation. It accepts one
+  owned mode-0600 seven-line file and exact checksum, validates the existing
+  immutable root/manifest and canonical capacity bounds in runtime mode, and
+  installs atomically. It performs no download, build, cleanup, or scheduler
+  action and refuses an existing configuration.
+- Two focused controller/CLI tests and three remote lifecycle tests pass,
+  including absent manifest, successful restore, repeated install, malformed
+  capacity, collector stage-failure, and normal successful discovery paths.
+  Ruff, type checking, and Bash wrapper syntax pass. Next run documentation and
+  diff checks, commit/push once, watch CI, deploy, install the retained database
+  runtime authority, restage P0, configure P0, require readiness, then stage one
+  fresh unknown-discovery run.
+
+## 2026-08-28 - First scheduled discovery exposes a missing Slurm time class
+
+- Runtime-restore commit `ec1aaefc0b9453dae21593ce733fbac825431024`
+  passed CI `33174793722` / `98860496890` under Pixi 0.76.2. Deployed
+  dispatcher/job-wrapper/recovery SHA-256 values were
+  `827949c2ddf81f8434a8d63893b4b2ae8456b998aa26c4726c9b79bab9f7a78b`,
+  `966154f4483e11ce800f23343efbf5cd29297db2a5a3d1bda261b91201521284`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- The create-only database runtime restore accepted configuration SHA-256
+  `6aaf03a4ebd3f4ec665552f0b81ba69b8e0f4e8d523fd8e7fabc63c2265a014a`
+  without building, downloading, or scheduling. P0 input
+  `p0i_f8fcf6c526cf808f7bb3b167047f9104b153e560ced9ca500bc61c83d577bfe3`
+  and its 43,266,673-byte archive staged successfully; P0 configuration
+  `a5c06df2b5e7cea6d99681c17fbb286a017783466c8f65e4b9454aaae2a69475`
+  then passed readiness with Pixi 0.76.2.
+- Exact-source authority
+  `phase3exec_049e01994cfb186f5e09e8243d334041e161177f040015a76118a929cc8319a2`
+  and review stage
+  `unknownreviewstages_fef3a5ac7223519f83105ac6ecc7089c2de318f64d6b84146a7cd11a422e8a5f`
+  were staged as owned discovery input
+  `unknowninputs_1548cb01c33ed34862444211b189e90c418b866c62962527001eff1b5f1e45ed`.
+  Owned Marmic run
+  `gtd-unknown-discovery-20260828T135921Z-ec1aaefc0b94-fc19059b`, Slurm
+  `636168`, ended `FAILED`, exit 1, `test_failure`. It is diagnostic only and
+  must not be reused.
+- Phenix 2.1-6048 and all seven executable probes passed. Nextflow validated
+  the three-crystal review, Task05 inputs, and full localisation bundle, then
+  Slurm rejected `RESOLVE_PROVIDER_PLAN` before execution: its retained
+  `.command.run` has no `#SBATCH --time` and Slurm requires one. Three submitted
+  validators were killed; no provider search, model preparation, Phaser,
+  refinement, or unknown scientific interpretation occurred. Failure signature
+  is `9355ef0dd07274d5c7bc753110cfb095f9fe6afe905014f295d2b93d3d3b89c0`.
+- The newly qualified collector retained the exact rejected task scripts,
+  Nextflow/application logs, complete input/localisation authority, and failure
+  state without requiring a successful-output inventory, remotely accepting
+  `PH3-P1-31`. The database and P0 restores remotely accept `PH3-P1-32`.
+- New finding `PH3-P1-33` is the missing `process_local` resource class. The
+  minimal fix defines 1 CPU, 1 GB, and 10 minutes in the base configuration for
+  all five provider-local modules. Its focused contract and Nextflow syntax
+  checks pass. Commit/push once, watch CI, deploy, and submit one fresh
+  discovery successor; do not reuse job `636168` or its cache.
+
+## 2026-08-28 - Discovery scheduler fix passes; stale P0 paths stop the successor
+
+- Resource commit `b8adf02050667a27cfcb40b10acd9063b9b49024` passed CI
+  `33180768680` / `98881089620` under Pixi 0.76.2 and deployed with unchanged
+  reviewed dispatcher/job-wrapper/recovery digests
+  `827949c2ddf81f8434a8d63893b4b2ae8456b998aa26c4726c9b79bab9f7a78b`,
+  `966154f4483e11ce800f23343efbf5cd29297db2a5a3d1bda261b91201521284`,
+  and `5334a95d54a5c990c975b1db6814e77435652618181c11070584e379a35a4ab6`.
+- Authority
+  `phase3exec_1ccac6272fafd01089c7bd4062a0f91b63c7ba750c6558bbcceeaa75aaefc1a0`
+  and review stage
+  `unknownreviewstages_870a1d680ddadc3d7dbb13935089bc8b47709e1bfcabb4526ab97a75ad40b40e`
+  staged as input
+  `unknowninputs_7a29ee3f7d5171965f65e1569470335b68182778ee94ee2a46ef0b6d660a4db1`.
+  Owned Marmic run
+  `gtd-unknown-discovery-20260828T150719Z-b8adf0205066-6c35c350`, Slurm
+  `636321`, ended `FAILED`, exit 1, `test_failure`; it is diagnostic only and
+  must not be reused.
+- The scheduler fix is real: the retained task has bounded CPUs, memory, and
+  time, and `RESOLVE_PROVIDER_PLAN` submitted successfully. Phenix and all seven
+  executable probes passed. Crystallographic-stage validation then failed
+  closed because `AD4QS1P4G2_18` named the removed pre-cleanup P0 path. No
+  provider search, model preparation, Phaser, refinement, or unknown scientific
+  interpretation ran. Failure signature is
+  `314599fd1210d9d094d92d2a89a24d4307221cbbceece36e1bd92978fe4e3bcd`.
+- Finding `PH3-P1-34` records the stale private path binding. The three MTZ
+  paths now target the checksum-identical restored P0 content ID; the next
+  authority will bind the changed crystal-manifest checksum.
+- Collection retained the failed task and localisation evidence but omitted the
+  execution identity, crystal manifest, AFDB map, and seven review files.
+  Finding `PH3-P1-35` replaces the fixed path subset with a staging-owned
+  canonical checksum inventory for all 22 validated input files. The screen
+  child inherits it; collection revalidates every path, checksum, owner, link,
+  size, and exact cardinality. Focused failed/success discovery and screen
+  lifecycle tests, Ruff, and wrapper syntax pass.
+- Next commit/push the input-authority collection fix and evidence once, watch
+  CI, deploy, rebuild the exact-source authority from the restored P0 paths, and
+  submit one fresh discovery successor. Never reuse jobs `636168` or `636321`
+  or their caches.
+
+## 2026-08-28 - Real Foldseek mapping gap and pre-screen hardening audit
+
+- Exact source `87174e10cd5f93fb768ccb1125b254f8e25d5648`, CI
+  `33187133683` / `98902929607`, ran as Marmic discovery job `636381` under
+  Pixi 0.76.2 and pinned nf-helper. All 22 private input-authority files were
+  recovered. One 128-query Foldseek batch completed successfully, then the
+  existing strict normaliser rejected unmapped PDB target `3PVM_C`. The run is
+  diagnostic `FAILED`, exit 1, `test_failure`, signature
+  `e68dec60deb86fcc15f67b0af4c7009eb3b56b74eabfdb7f038c482d933c7f64`.
+  No provider package, resume, acquisition, model preparation, MR, refinement,
+  or scientific interpretation was produced; the run and cache are not reusable.
+- The adapter already represents missing coordinate mappings as deferred hits,
+  but the Phase III CLI/Nextflow batch omitted that option. The smallest
+  correction enables it and preserves complete results without claiming a
+  coordinate-backed model (`PH3-P1-36`).
+- The user-approved preflight review found and the current local wave corrects
+  additional pre-screen defects: exact source/P0/catalogue/database parent
+  authority, owned coordinate consumption and collection, atomic login staging,
+  true joint-copy continuation, approved MR/refinement concurrency, exact cached
+  replay, complete single-component authority/results, and package-contained
+  terminal evidence (`PH3-P1-37`--`PH3-P1-41`).
+- Local evidence is green: 187 focused tests, Ruff, ty, Bash wrapper syntax,
+  the deterministic 13-batch Foldseek stub, the three-crystal screen stub, and
+  the complete multicrystal cached stub. Finish the remaining terminal/M6/RG7
+  code waves, run one named full locked integration gate, then commit/push and
+  qualify one fresh exact-source discovery. Never use `87174e1` as a screen
+  parent.
+
+## 2026-08-28 - Pre-screen audit fixes and the fixed pass-2 path are complete locally
+
+- Local commits `662d29a`, `2faa1c7`, and `5a189a7` close the reviewed code
+  defects without launching a remote run. Full discovery authority, run-owned
+  offline coordinates, source/P0/database parent binding, joint-copy
+  continuation, 25-MR/four-refinement concurrency, complete replay/collection,
+  and package-contained terminal derivation are implemented. Current terminal
+  records bind the scheduler manifest/result and execution identity; historical
+  v2 assessment evidence remains read-only.
+- M6 leakage now requires the collected successful same-source operational
+  parent and shares only its truthless cache. Coordinate materialisation is
+  offline, partitioning/aggregation and collection stream with bounded memory,
+  and Marmic input qualification accepts `dev/phase3`. The remote parent/cache
+  binding regression, 73 focused M6 tests, and the cache-mutation stub pass; no
+  real M6 scientific track has run.
+- The general pass-2 route is executable. A credible pass-1 state becomes one
+  refined, identity-unresolved A state with exact component coordinates. The
+  static B--F beam enforces width three, 25 attempts/depth, depth six, and 100
+  attempts total. Initial cap-deferred A hypotheses are retained; a no-A case
+  runs at most 175 additional hypotheses with 25 concurrent tasks and stops at
+  a new owned A review. Terminal depths emit scope decisions, claim-free
+  assessments, and owned composition/sequence packages; depth four and beyond
+  is always provisional.
+- The fixed `unknown-pass2` wrapper accepts only one checksum-inventoried private
+  archive whose execution identity and every RG7 evidence file revalidate. It
+  uses an 8-CPU/32-GB/72-hour outer allocation, compares byte-identical cached
+  replay, and streams up to 12 GiB of collected evidence instead of buffering
+  it in RAM. The cached beam/no-A stub, 202 focused scientific/HPC tests, Ruff,
+  ty, Nextflow syntax, Bash syntax, the 81-case dispatcher integration file,
+  and focused Phenix/unknown/M6 lifecycle tests pass.
+- No per-run scientific wrapper refreshes or infers a Phenix manifest now; each
+  verifies and retains the one staged executable-hashed authority. Active
+  single-component route records and composition manifests are package-relative.
+- Next start: run the one named full locked integration gate on the current
+  candidate, commit the final review evidence/docs, push once, watch one exact-
+  source CI, deploy, rebuild the private authority for that commit, and submit
+  exactly one fresh unknown-discovery successor. Job `636381` and every earlier
+  failed discovery/cache remain diagnostic only and must not be reused.
+- The named locked integration gate is now green after one stale current-
+  manifest test fixture and two obsolete network-label contract assertions were
+  corrected. Final counts are 1,382 unit, 139 contract, and 92 integration
+  tests. Schema/example validation, the 12-entry public panel, documentation,
+  actionlint, Nextflow syntax and complete stub matrix, heteromer/M6/cache/
+  composition/localisation/unknown fan-outs, offline wheel/install parity, and
+  all reviewed wrapper syntax also pass under Pixi 0.76.2. The next action is
+  the final integration commit/push and one exact-source CI; no additional local
+  full gate is needed before that CI.
+
+## 2026-08-29 - Strict Phenix fail-close exposes the missing one-time migration route
+
+- Exact integration commit `3ad251f4d0b9daac46daade7e7d6f76754e5c8f8`
+  passed CI `33233207900` / `99049521160` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `d179423b…`, `9573f04e…`, and
+  `5334a95d…`.
+- The first exact-source strict-runtime probe, run
+  `gtd-phase3-phenix-probe-20260829T043719Z-3ad251f4d0b9-dec95dc4`, Slurm
+  `636484`, failed closed before the Phaser interface probe: the configured
+  legacy manifest lacks `executable_sha256` for all seven required commands.
+  It is diagnostic `environment_failure`, exit 1, signature
+  `03257db92f2a56ccb058126134ac4054725dbff136f4b3e619d931586da0af42`;
+  no scientific execution/cache is reusable.
+- The smallest correction adds a create-only `phenix-runtime-migrate`
+  operation. It accepts only one safely staged Marmic probe, derives one fixed
+  strict-v1 sibling path, invokes the explicit legacy migration command once,
+  verifies the successor in place, records path/checksum state, and installs a
+  local mode-0600 fixed binding. Scientific wrappers continue to verify—not
+  refresh—the strict bytes. Existing/different/unsafe state fails closed.
+- Focused controller, wrapper, and fake-Marmic migration/probe tests pass. The
+  required full locked gate is green: 1,383 unit, 139 contract, and 93
+  integration tests plus all schema, public-panel, docs, actionlint, Nextflow/
+  stub, offline package, and wrapper checks.
+- Next start: commit/push this one correction, watch one exact-source CI,
+  deploy, stage one migration-only probe checkout, install the strict binding,
+  then stage/submit exactly one strict-manifest successor probe. Only after it
+  passes may a fresh unknown-discovery authority/run be created.
+
+## 2026-08-29 - Strict migration correction is exact-source qualified
+
+- Correction commit `6b60d08fcea0dc3b6eb55e2734b9de920d6c02e0` passed exact-source
+  CI `33235946131` / `99056840662` under Pixi 0.76.2. The deployed
+  dispatcher/job-wrapper/recovery SHA-256 values are `5c251684…`,
+  `5f2b7830…`, and `5334a95d…`.
+- Migration-only probe checkout
+  `gtd-phase3-phenix-probe-20260829T053939Z-6b60d08fcea0-4b39e84f`
+  is safely staged with no Slurm job. One reviewed `phenix-runtime-migrate`
+  call began from that checkout; no strict local binding had been published by
+  06:08 UTC, so no successor or scientific run was started and no retry was
+  issued while the 45-minute transport bound remained active.
+- Heartbeat `continue-phase3-phenix-migration` will re-enter after the original
+  call's hard deadline, reuse only this staged checkout, and submit one fresh
+  exact-source strict probe only after a two-line checksum-bound binding exists.
+  Failed probe `636484` and its cache remain diagnostic and non-reusable.
+
+## 2026-08-29 - Real migration failure exposes a staged-log blind spot
+
+- The original reviewed migration call reached its 45-minute transport bound
+  without publishing a local binding. After that bound, one idempotent call on
+  the same staged checkout failed in 15 seconds as `environment_failure` with
+  the retained top-level reason `strict Phenix manifest migration failed`.
+  No Slurm job, successor probe, strict binding, or scientific execution was
+  created.
+- Finding `PH3-P1-50` records that the bounded `logs` operation selected only
+  the unsubmitted profile log and could not expose the run-owned migration or
+  strict-verification log. The smallest correction selects the strict verify
+  log first and otherwise the migration log only for a staged
+  `phase3-phenix-probe`; all normal profile/scheduler log selection is
+  unchanged.
+- The focused real-dispatcher regression and wrapper syntax gate pass. Next
+  commit/push this diagnostic correction, watch one exact-source CI, deploy,
+  retrieve the existing staged run's bounded migration log, and classify the
+  exact Phenix failure before changing or retrying migration logic.
+
+## 2026-08-29 - Verbose Phenix help obscures the migration failure reason
+
+- Diagnostic commit `7a3d57ec963458e7830004a3e3f1b8780e40117a` passed CI
+  `33239172950` / `99065412978` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `593382d0…`, `5f2b7830…`, and
+  `5334a95d…`. The existing staged run's migration log is now reachable,
+  remotely accepting `PH3-P1-50`.
+- A single 2,000-line retrieval showed passed `phenix.refine`,
+  `phenix.sequence_from_map`, `phenix.maps`, and
+  `phenix.reflection_file_converter` sections, but their very large help text
+  displaced the earlier command result and exact failure reason. It did not
+  establish that every command passed, and no strict binding or successor was
+  created.
+- Finding `PH3-P1-51` makes staged runtime diagnostics concise and complete:
+  existing verification logs are projected to command header, path, executable
+  hash, arguments, exit, result, and reason lines; future migration and strict
+  verification commands also retain their exact stdout/stderr separately.
+  Two focused diagnostic regressions, the existing successful migration test,
+  and wrapper syntax pass.
+- Next commit/push this focused correction, watch one CI, deploy, retrieve one
+  concise summary from the retained staged run, and classify the exact failing
+  command before any migration retry.
+
+## 2026-08-29 - Exact migration failure is a temporary-file suffix defect
+
+- Concise-diagnostic commit `2446da0d009362f9f0da0add90e27cb7f78d1731`
+  passed CI `33241613364` / `99071816805` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `6a35b5aa…`, `5f2b7830…`, and
+  `5334a95d…`. The retained summary proves all seven Phenix 2.1-6048 command
+  probes passed with executable hashes, accepting `PH3-P1-51`.
+- One post-classification migration call on the same staged checkout failed
+  after those seven successful probes because its temporary manifest ended in
+  `.tmp.<pid>`. The schema loader correctly refused to infer JSON from that
+  suffix. Exact captured error: `cannot infer input format from suffix`. No
+  strict binding, Slurm job, or scientific execution was created.
+- Finding `PH3-P1-52` changes only the run-owned temporary filename to end in
+  `.json`; the deterministic final strict-v1 target and atomic move are
+  unchanged. The fake-Marmic success regression now refuses a non-JSON refresh
+  output, directly protecting the observed boundary.
+- Next run the focused migration success test and wrapper syntax, commit/push
+  once, watch one CI, deploy, then retry migration once on the same staged
+  checkout. Only a verified two-line strict binding permits a fresh successor
+  probe.
+
+## 2026-08-29 - Strict Phenix manifest is installed; successor probe submitted
+
+- JSON-suffix correction `c3fb668362a12101651e28d0f2ef53028c2643b9`
+  passed CI `33242662535` / `99074535860` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `2ff61263…`, `5f2b7830…`, and
+  `5334a95d…`.
+- One reviewed migration retry on the existing non-scheduled checkout passed
+  both seven-command Phenix 2.1-6048 inspections and installed strict manifest
+  SHA-256 `60d9b222976147d71d7762641c9e6dc05933e28c8f70a1b9b47be959ce0d4726`.
+  The local fixed binding contains exactly its remote path and checksum.
+  `PH3-P1-52` is remotely accepted; the migration-only checkout remains
+  unsubmitted.
+- Fresh exact-source probe
+  `gtd-phase3-phenix-probe-20260829T084108Z-c3fb668362a1-adda4ef1`, Slurm
+  `636509`, is the sole strict successor. It binds pinned nf-helper
+  `82431e4c56cb4cd2ef4ea67321fd01fad7ba65cb` and Pixi 0.76.2. Next poll only
+  this job, then collect and classify the strict manifest, fixed Phaser
+  interface command, seven executable identities, and retained checksums before
+  any unknown-discovery authority is rebuilt.
+
+## 2026-08-29 - Strict Phenix runtime and interface probe are accepted
+
+- Exact source `c3fb668362a12101651e28d0f2ef53028c2643b9`, CI
+  `33242662535` / `99074535860`, pinned nf-helper, and Pixi 0.76.2 ran as the
+  sole successor probe `gtd-phase3-phenix-probe-20260829T084108Z-c3fb668362a1-adda4ef1`,
+  Slurm `636509`. It completed with scheduler `COMPLETED`, exit 0, and
+  `failure_class=success` in 25 seconds.
+- Strict manifest SHA-256
+  `60d9b222976147d71d7762641c9e6dc05933e28c8f70a1b9b47be959ce0d4726`
+  verifies Phenix 2.1-6048 and all seven required executable paths and hashes.
+  Runtime identity is
+  `b92cbb9d53bfab235601bb98df42247d569a7ea88e0149e28113d01319a75b93`.
+- The fixed executed command is exactly `phenix.phaser --show_defaults`, exit
+  0. Probe `phaserinterface_ee2f570dda3fa9b4b30f6d82bb80e955a47595869fbdb47e6715c9aa23aed302`
+  records `scientific_execution_performed=false` and observes the Phaser,
+  ENSEMBLE, XYZOUT, and per-ensemble XYZOUT controls. Defaults SHA-256 is
+  `35eeb2a1349e47f91860b54270f4017bf97a1b10e92cb1e9d107e56531b4283b`.
+- Collection revalidated all four qualification checksums: strict manifest,
+  verification log `c439d0c6…`, interface record `488d9658…`, and defaults
+  `35eeb2a1…`; no failure signature exists. `PH3-P1-49`, `PH3-P1-52`, and
+  `FCB-P1-07` are accepted. Next commit/push this evidence, then build a fresh
+  exact-source private authority attempt 7 and run one new unknown-discovery;
+  no failed discovery or probe cache is reusable.
+
+## 2026-08-29 - Authority attempt 7 enters fresh unknown discovery
+
+- Strict-runtime evidence commit `93ae2ff01eca66b8b5c97f21b6ebe6786d18751a`
+  passed CI `33245001669` / `99080842493` under Pixi 0.76.2. Private authority
+  attempt 7 binds source tree `ab40cf12…`, strict Phenix `60d9b222…`, pinned
+  nf-helper, the restored P0/database authorities, accepted v3 localisation,
+  empty neutral gel evidence, three frozen MTZs, and all three owned `proceed`
+  reviews. Its execution/review IDs are `phase3exec_81c9283…` and
+  `unknownreviewstages_deacea26…`.
+- First staging record
+  `gtd-unknown-discovery-20260829T094828Z-93ae2ff01eca-8f4a18e5`
+  stopped locally before input transfer/submission because the worktree's
+  ignored fixed spec still had the older six-field authority. It has no Slurm
+  job, was never submitted, and is not reusable. The original private spec was
+  already correct; the worktree copy now selects attempt 7 and its mandatory
+  owned review registry.
+- Corrected fresh run
+  `gtd-unknown-discovery-20260829T095234Z-93ae2ff01eca-eeee438a`, Slurm
+  `636517`, is the sole scheduler submission. Its 38-file private archive is
+  `unknowninputs_3f42c60a60119c3228420a3b7623800902c785abc13e2330c512a9262ccf0e18`
+  with SHA-256
+  `7cda4c4c65aa4fe10d285d92b4c30fbf74f3ae798603214c400cabc1259a3c21`.
+  Poll only this run and classify complete provider-discovery evidence before
+  any unknown-screen child.
+
+## 2026-08-29 - Real Foldseek accounting rejects the 2-TB serial policy
+
+- The first 128-query Foldseek child, Slurm `636525`, completed successfully in
+  44 seconds; it did not fail. It used 67,687,712 KiB MaxRSS (64.6 GiB) and
+  140,276,752 KiB MaxVM (133.8 GiB). The next independent child `636562`
+  remained pending over five hours for 100 CPUs and 2,000 GB.
+- Live Marmic capacity showed many idle 1--3 TB nodes, but the 100-CPU/2-TB
+  combination fit none of them: 2-TB nodes have 40 CPUs, 3-TB nodes have 64,
+  and 100+ CPU nodes were occupied. The oversized request, not Foldseek
+  runtime, caused the delay.
+- At the user's direction, owned controller `636517` was cancelled and then the
+  exact orphaned pending child `636562` was cancelled; no other job was touched.
+  The cancelled run/cache is non-reusable. Collection exposed that active
+  cancellation did not persist a failure class (`PH3-P1-54`).
+- `PH3-P1-53` adds a name-specific Marmic batch class with 32 CPUs, 192 GB, and
+  four hours and removes `maxForks 1`, leaving concurrency to Slurm. At the
+  user's direction, the shared whole-catalogue class is also reduced to the
+  existing Viper bound of 64 CPUs, 192 GB, and 24 hours; only the database
+  build retains 100 CPUs/2 TB. Next run focused resource,
+  fan-out, cancellation, and wrapper tests, then one CI/deployment and one fresh
+  authority/run; never resume the cancelled discovery.
+
+## 2026-08-29 - Scheduler-managed Foldseek replacement is submitted
+
+- Resource correction `e898700f325e3ae59f50c5db404359d2564a214f`, tree
+  `6945ecea…`, passed CI `33261882387` / `99125110145` under Pixi 0.76.2.
+  Deployed dispatcher/job-wrapper/recovery digests are `740f830d…`,
+  `5f2b7830…`, and `5334a95d…`.
+- Fresh authority attempt 8 binds execution identity `phase3exec_316b986b…`
+  and review stage `unknownreviewstages_b50c5151…` to the resized source,
+  strict Phenix, accepted localisation, restored P0/database state, and the
+  same three owned review decisions.
+- Replacement discovery
+  `gtd-unknown-discovery-20260829T162509Z-e898700f325e-b2f8875b`, Slurm
+  `636570`, is the sole active nf-genome_to_diffraction scheduler submission.
+  Its 38-file input is
+  `unknowninputs_54dc167adcd0d40ce5fe43f47f891a23698d066fff358b7169e311d5d2b51827`
+  with archive SHA-256
+  `7d3f8c0966f731cd437e3a87e2628ce9c2281eff8e0c162ca7557ea2ad8f68fd`.
+  Poll only this run; verify that all 13 batch children request 32 CPUs/192 GB,
+  are scheduler-controlled, and complete before any unknown-screen child.
+
+## 2026-08-29 - Scheduler-managed discovery is accepted
+
+- Exact source `e898700f325e3ae59f50c5db404359d2564a214f`, CI
+  `33261882387` / `99125110145`, authority attempt 8, pinned nf-helper, and
+  Pixi 0.76.2 completed as Marmic controller `636570` in 9 minutes 38 seconds.
+  Provider package is `providerdiscovery_c495df17e0817f1e59016637963dee189ebaf1447c1bc013325df3d18b59bbc8`.
+- All 13 independent Foldseek children were submitted together and completed
+  successfully with 32 CPUs, 192 GB, and four-hour limits. Their observed
+  durations were 41 seconds to 4 minutes 41 seconds, peak RSS 21.1--22.2 GB,
+  and peak virtual memory 45.8--45.9 GB. The full resume reported the identical
+  13 native jobs as `CACHED`.
+- Complete coverage is retained for 1,625 source records and 1,621 sequence
+  groups. Foldseek produced 1,621 typed results across exactly 13 batches
+  (1,283 hit, 337 no-hit, one ineligible) and direct PDB produced 1,621 results
+  (911 hit, 709 no-hit, one ineligible). The merged provider package retains
+  6,262 hits.
+- All 38 private input-authority members, three owned crystallographic reviews,
+  strict Phenix, P0/database/localisation/empty-gel identities, raw per-batch
+  logs/results, and output inventories passed collection. AFDB remained
+  explicit-mapping-only, ESM Atlas disabled, network acquisition false, and no
+  coordinate acquisition/registration, model preparation, Phaser, refinement,
+  or other scientific MR process ran. Before/after output manifests and first/
+  resume task identities are byte-identical.
+- `PH3-P1-34`, `PH3-P1-36`, and `PH3-P1-53` are accepted; discovery-side
+  qualification for `PH3-P1-35`, `PH3-P1-37`, and `PH3-P1-40` passes. Commit
+  this evidence, then stage only the parent-bound bounded-login unknown-screen
+  child from exact source `e898700`; never use the cancelled predecessor.
+
+## 2026-08-29 - Unknown-screen staging exposes incomplete stage-failure diagnostics
+
+- Parent-bound child
+  `gtd-unknown-screen-20260829T205819Z-e898700f325e-1759da00` failed before
+  scheduler submission with `transfer_failure` during bounded login-side
+  provider acquisition. No unknown-screen scientific execution or cache exists.
+- The reviewed `logs` call returned empty because stage-specific unknown-screen
+  logs were not selected. Remote collection retained the stage state/logs, but
+  the local validator rejected the archive because it incorrectly required a
+  Slurm job ID/result for every terminal state. These are diagnostics defects;
+  provider logic remains unclassified until the exact acquisition log is read.
+- `PH3-P1-55` selects the latest unknown-screen parent/acquisition/validation
+  stage log. `PH3-P1-56` authenticates `stage_failed` archives from manifest,
+  phase, non-success failure class, and retained logs without fabricating
+  scheduler evidence; scheduled terminal runs retain all existing checks.
+- Next run the two focused regressions plus neighbouring terminal-evidence and
+  wrapper gates, commit/push once, deploy, then retrieve this exact failed stage
+  before any provider edit or successor.
+
+## 2026-08-29 - Retained mapping gaps were incorrectly treated as selected coordinates
+
+- Diagnostic commit `a2e4fb86d89e28f0819a1b9cef037234226f3c63` passed CI
+  `33275315980` / `99160909436` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `53087356…`, `5f2b7830…`, and
+  `5334a95d…`. Bounded logs and stage-failure collection now pass for the exact
+  failed child; failure signature is `9c7e1aec…`.
+- The retained acquisition log shows all parent/plan contracts passed. It then
+  rejected Foldseek hit `hit_d4e12697…`, whose discovery evidence explicitly
+  records `eligibility_status=deferred`, namespace `foldseek_target_unmapped`,
+  and reason `retained Foldseek hit without a PDB sequence coordinate mapping`.
+- `PH3-P1-57` records the defect: coordinate staging validated every retained
+  hit as selected before applying its bounded selection. The minimal fix keeps
+  all deferred evidence immutable but validates, ranks, and acquires coordinates
+  only for `selected` hits. One focused mapping-gap regression protects the
+  exact real shape.
+- Next run the focused coordinate/owned-stage tests plus lint/type/wrapper gates,
+  commit/push once, deploy, and stage one fresh parent-bound screen successor.
+
+## 2026-08-29 - Shared PDB bytes must retain every entity-specific source record
+
+- Coordinate-selection correction `0ea68c4e5df5f25932a0d3f84a1873ca872af1e1`
+  passed CI `33276701627` / `99164570976` under Pixi 0.76.2 and deployed with
+  dispatcher/job-wrapper/recovery digests `53087356…`, `5f2b7830…`, and
+  `5334a95d…`. Exact-source authority attempt 9 was built as
+  `phase3exec_1ef7f20c…` with review stage `unknownreviewstages_77c42248…`.
+- Fresh discovery `gtd-unknown-discovery-20260829T220429Z-0ea68c4e5df5-40c5f37d`,
+  Slurm `636621`, entered the 13-batch search. It was cancelled deliberately
+  and is non-reusable after a read-only audit proved its exact source could not
+  safely parent the next screen; cancellation is terminal with a persisted
+  non-success class.
+- The real 25-mapping selection contains three records from 7NKG, two from
+  9NTA, three from 9O17, and three from 9ZNF. Each entry's chain/entity records
+  legitimately share one downloaded mmCIF checksum. Login staging copied one
+  object per checksum but also skipped later records, so subsequent owned-source
+  lookup would fail (`PH3-P1-58`).
+- The minimal correction stores one published path per object checksum and
+  still rewrites and retains every coordinate-source record. The focused
+  two-entity/one-object round trip, all seven coordinate-registration tests,
+  neighbouring login-stage tests, three client stage tests, and the real
+  dispatcher unknown-screen integration pass.
+- Formatting, lint, type, documentation, diff, and wrapper checks pass. Next
+  commit/push once, watch one CI, deploy, build fresh authority attempt 10, and
+  run one fresh discovery before its exact-parent screen. Never reuse job
+  `636621`, failed screen ending `1759da00`, or their caches.
+
+## 2026-08-30 - Atomic login staging exposed stale owned coordinate paths
+
+- Shared-record correction `8c5a253dcd3e4f379b2b6dd9994189c10149898e`
+  passed CI `33278273200` / `99168785296`. Fresh authority attempt 10 bound
+  execution `phase3exec_2f65e9fd…` and review stage
+  `unknownreviewstages_e187ea9a…` to that exact source.
+- Discovery run `gtd-unknown-discovery-20260829T224347Z-8c5a253dcd3e-8f67422a`,
+  Slurm `636646`, completed successfully. It retained 1,625 source records,
+  1,621 sequence groups, 13 concurrent 32-CPU/192-GB Foldseek batches, 6,262
+  merged hits, and provider package `providerdiscovery_a61e4f21…`; all 23
+  resume tasks cached and the task/output manifests are byte-identical.
+- Exact-parent screen staging produced preparation `providerstage_53ee2431…`:
+  all deferred evidence remained retained, exactly 25 selected mappings and 25
+  entity-specific source records passed, and 18 unique mmCIF objects were copied.
+  This accepts the login boundaries of `PH3-P1-57` and `PH3-P1-58`.
+- Screen job `636671` then ended `environment_failure` before Nextflow, model
+  preparation, or MR. Every owned source still pointed below the temporary
+  `.unknown-screen-stage.tmp.*` directory that the wrapper had atomically moved;
+  the final coordinate objects existed but the recorded paths did not
+  (`PH3-P1-59`, signature `119bc421…`).
+- The minimal clean-break correction advances provider-login to v3, publishes
+  `../coordinate_objects/...` paths relative to both owned source files, rejects
+  absolute owned paths, and resolves each row against its package location.
+  The shared-object regression now relocates the whole preparation before
+  validation; 29 focused provider/discovery/screen tests pass.
+- Formatting, lint, type, documentation, wrapper, diff, client, and dispatcher
+  checks pass together with 33 focused provider/discovery/screen cases. Next
+  commit/push once, watch one CI, deploy, then stage one fresh exact-parent
+  screen from accepted discovery `636646`. Never reuse failed job `636671` or
+  its cache.
+
+## 2026-08-30 - Portable coordinates must remain inside provider ownership
+
+- At the user's direction, provider-login v3 correction
+  `e8be84c1bc2f5d9a618c486a960bc3039a1f53f4` used `[skip ci]` after 33 focused
+  provider/discovery/screen, dispatcher, client, formatting, lint, type, docs,
+  wrapper, and diff checks passed locally.
+- Fresh discovery job `636672` completed successfully with provider package
+  `providerdiscovery_1f731c91…`: 1,625 source records, 1,621 groups, 6,262 hits,
+  all 13 bounded Foldseek batches, and all 23 resume tasks cached with
+  byte-identical output and task manifests.
+- Exact-parent screen `636699` validated the relocated v3 preparation and strict
+  Phenix runtime, accepting `PH3-P1-59`. It reached Nextflow model preparation,
+  then failed before MR because `../coordinate_objects/...` correctly violated
+  the experimental adapter's registration-confinement rule. Failure signature
+  is `90f9433e…`; this failed run/cache is non-reusable (`PH3-P1-60`).
+- The smallest correction keeps the generic model-preparation confinement rule.
+  PDB and AFDB preparations now each own their deduplicated
+  `coordinate_objects/` subtree and publish paths relative to their own source
+  file. Shared PDB entity rows still converge on one provider-owned object, and
+  relocating the complete preparation remains valid. Twenty-nine focused
+  provider/discovery/screen tests pass.
+- Formatting, lint, type, docs, wrapper, diff, client, and dispatcher checks
+  pass with the 29 focused provider/discovery/screen cases. Next commit/push
+  with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
+  discovery/screen successor. Never reuse jobs `636671` or `636699` or their
+  caches.
+
+## 2026-08-30 - Funnel tasks must own validated localisation bytes
+
+- Provider-package confinement correction
+  `af7365ccff93c5e622b73d2a3f05527fadae60f6` used `[skip ci]` at the user's
+  direction after the focused local gate passed. Fresh discovery job `636707`
+  completed with 1,621 groups on both provider routes, 6,262 merged hits, 13
+  bounded Foldseek batches, and all 23 resume tasks cached.
+- Exact-parent screen `636733` validated provider preparation
+  `providerstage_87451224…`, strict Phenix, all three crystal dispatches, and
+  completed both predicted and experimental model preparation. This accepts
+  `PH3-P1-60`.
+- All three first-copy funnels then failed before Phaser because Nextflow linked
+  the physical `VALIDATE_PHASE3_LOCALISATION_BUNDLE` output directory into each
+  task. The localisation importer correctly rejected the symlink root as unsafe
+  (`PH3-P1-61`, signature `e6a67233…`). No MR or scientific result exists and
+  the failed run/cache is non-reusable.
+- The smallest fix retains strict localisation safety and sets
+  `stageInMode 'copy'` only on the Phase III funnel process. Its exact
+  localisation path remains unchanged, while all staged inputs become
+  task-owned physical bytes. The focused repository-policy regression,
+  Nextflow syntax gate, and complete three-crystal cached stub pass.
+- Formatting, lint, type, docs, wrapper, and diff checks pass. Next commit/push
+  with `[skip ci]`, deploy, build a fresh exact-source authority, and run one
+  discovery/screen successor. Never reuse jobs `636699` or `636733` or their
+  caches.
+
+## 2026-08-30 - Pass-2 closure now binds the executed source and complete panel
+
+- Read-only RG7 review found that the private pass-2 closure was internally
+  source-consistent but not compared with the commit/tree actually staged for
+  execution or the successful single-component parent. It also accepted any
+  one-to-three subset of the three frozen crystals.
+- Input-bundle v2 requires the expected staged commit/tree, parent run, and
+  tracked finding-ledger checksum. Every assessment and execution identity must
+  agree; the remote checkout independently re-derives those values at archive
+  acceptance and again before submit. The fixed panel must contain each frozen
+  crystal exactly once.
+- Focused archive mutation/subset, client propagation, and fake-dispatcher
+  checks pass locally. No HPC operation ran. Findings `PH3-P1-62` and
+  `PH3-P1-63` remain locally fixed pending exact-source CI and required remote
+  qualification.
+- Remaining independent review findings are deliberately out of this wave:
+  typed RG7 evidence semantics and immutable original-finding inventory,
+  no-A hypothesis-byte binding, pass-2 human-decision continuation, terminal
+  alternative retention, result-to-attempt binding, and PH8 reporting/release.
+  Next start with focused format/lint/type/docs/wrapper/diff gates, then review
+  and commit this bounded correction without launching pass 2.
+
+## 2026-08-30 - M6 preflight audit closes three fixed-profile blockers
+
+- `PH3-P1-64` found that leakage correctly reused truthless tasks, but the
+  baseline child/resource evidence required every first-pass task to be newly
+  completed. Track-aware schema-1.1 evidence now permits cached import, PDB,
+  and Foldseek tasks only; every track-specific task must complete and every
+  resume task must cache.
+- `PH3-P1-65` closes the M6 source/site bypass. Both input and scientific
+  staging now accept only Viper/`main` or Marmic/`dev/phase3`, rejecting the
+  crossed pairs before archive inspection or transfer.
+- `PH3-P1-66` makes final collection independently authenticate the exact
+  operational parent, rehash its four-file precheck, and match every reused
+  truthless task hash and complete child-file inventory. Missing, changed, or
+  cross-parent evidence fails closed.
+- Sixty focused M6 unit tests, 18 M6 HPC client/CLI tests, three fake-dispatcher
+  integrations, the 26-task cache-mutation stub, formatting, lint, type,
+  documentation, wrapper syntax, and diff hygiene pass. No HPC profile ran.
+- `PH3-P1-67` remains open: the per-track cache-invalidation flag proves key
+  sensitivity, not a checksum-bound observed fixed-profile mutation. Next run
+  exact-source CI for this focused commit, then qualify operational, observed
+  mutation, and leakage separately; do not reinterpret the local stub as M6
+  acceptance.
+
+## 2026-08-30 - Unknown continuation handoff is locally executable
+
+- A read-only continuation audit found four blockers independent of the active
+  screen: the handoff consumed nonexistent `finished_at` rather than the
+  wrapper's canonical `completed_at`, omitted the empty directory required by
+  owned-run registration, converted a valid crystallographic hold into wrapper
+  failure by demanding three A packages, and gave the controller no runtime
+  slack beyond a 24-hour MR child.
+- The focused clean break consumes only canonical `completed_at`, creates the
+  registry before registration, conserves exactly three distinct reviewed
+  crystal outcomes across A packages and holds, and gives screen and
+  single-component controllers 48 hours while retaining the 24-hour MR-child
+  bound. Discovery remains 24 hours and pass 2 remains 72 hours.
+- Seven focused handoff tests, the two-case real dispatcher lifecycle, and 24
+  repository-policy tests pass. The lifecycle accepts two A packages plus one
+  hold and rejects a duplicated hold/package crystal that omits its sibling.
+  Formatting, lint, type, documentation, and all reviewed wrapper syntax pass.
+- No HPC operation or scientific interpretation was performed. After this
+  focused `[skip ci]` commit is integrated, qualify the exact source and
+  deployed wrappers before staging the reviewed A-decision continuation from a
+  genuinely successful collected screen.
+
+## 2026-08-30 - Independent fixed profiles may run concurrently
+
+- The user explicitly authorised a fresh integrated-source discovery alongside
+  the active earlier-source unknown screen. The existing global managed-run
+  lock correctly blocked the first submit before Slurm; no duplicate job was
+  created and the staged run is retained as non-scheduler diagnostic state.
+- Managed-run locks are now scoped by fixed profile. A second run of the same
+  profile remains rejected, while a different reviewed profile may be admitted
+  for scheduler-controlled execution. The submit lock still serialises the
+  decision and each job removes only its own profile lock.
+- The transition explicitly recognises the one active legacy global lock,
+  authenticates its run and recorded profile, and permits only a different
+  profile beside it. Invalid legacy state fails closed; a stale legacy lock is
+  removed only after the scheduler reports no active job.
+- The focused real-dispatcher regression exercises a legacy active smoke lock,
+  a concurrently admitted network-probe profile, same-profile rejection, and
+  stale-lock recovery. Formatting, lint, Bash wrapper syntax, and diff hygiene
+  pass locally. GitHub CI remains skipped at the user's direction.
+
+## 2026-08-30 - Slurm owns managed scientific-run concurrency
+
+- The user rejected the remaining same-profile admission restriction as
+  unnecessary. It was an operational guard, not a scientific dependency, and
+  duplicated scheduler policy already owned by Slurm.
+- The clean break removes all non-database active-run locks. The global submit
+  lock now only serialises admission and rechecks the exact run's staged phase
+  and absent job ID inside that critical section. Separate owned runs may be
+  submitted concurrently, including the same fixed profile; the same run
+  cannot be submitted twice.
+- Database administration retains its separate active-database lock. The
+  focused dispatcher regression covers rejected `sbatch`, concurrent different
+  profiles, concurrent same-profile runs, and duplicate submission rejection.
+  Formatting, lint, Bash wrapper syntax, documentation, and diff hygiene pass
+  locally. GitHub CI remains skipped at the user's direction.
+
+## 2026-08-30 - Slurm owns Phase III child-job concurrency
+
+- The user separately removed Nextflow's job-count upper limits. This does not
+  change scientific attempt budgets: pass-1 still contains 75 MR hypotheses,
+  refinement still retains at most nine finalists, pass 2 still permits 25
+  attempts per depth and 100 per crystal, and no-A expansion remains 175.
+- Phase III first-copy, refinement, no-A, and composition-beam processes no
+  longer declare `maxForks`. Marmic sets `executor.queueSize = 0`, which
+  Nextflow treats as unlimited task-monitor capacity, so Slurm owns admission
+  and concurrent placement. The bounded submission-rate setting remains a
+  controller-protection rate, not a concurrent-job limit.
+- The active screen was already submitted and is unchanged. The focused policy
+  regression now rejects process-local caps and requires the Marmic unlimited
+  queue setting; exact-source syntax/config and future Marmic evidence remain.
+
+## 2026-08-31 - Live localisation reopen exposed an invalid process cast
+
+- Exact-source unknown-screen job `636956` validated its provider, reviews,
+  localisation, diffraction, and seven-command Phenix authorities, then
+  submitted 54 first-copy hypotheses. The first complete 25-result branch
+  reached localisation reopen after about 19 hours.
+- Nextflow rejected `item[2] as List<Path>` while constructing that live process
+  script, before assigning it a work directory, and killed ten still-running
+  children. The collected failure signature is
+  `3fa1130c15f2ec0b4ac642c9986ad7e11960a96358616ce85210f0a0e698cb85`.
+  This is an execution failure, not a no-hit; no A checkpoint is valid.
+- Parameterised list casts are removed from all five affected active process
+  script blocks. A non-stub regression executes the formerly failing reopen
+  block through a fake CLI, and a repository contract rejects reintroduction.
+  The focused live multi-crystal gate, 26 policy tests, formatting, lint, type,
+  and Nextflow syntax pass locally.
+- Next start: complete diff/docs checks, commit and push the focused fix with
+  CI intentionally skipped, deploy that exact source, build a fresh source-
+  bound private authority, and run one fresh discovery/screen successor. Never
+  reuse job `636956` or any of its killed scientific children.
+
+## 2026-08-31 - Phase III MR resources become workload-bound and retryable
+
+- The user approved deterministic first-attempt allocation for every current
+  Phase III MR route while leaving M6 and immutable historical routes fixed.
+  Scientific hypothesis IDs remain independent: one separate schema-v2
+  `MrResourcePlan` is content-addressed and bound one-way to its hypothesis or
+  composition execution input.
+- The version-1 workload is reflections multiplied by moving-copy plus fixed
+  polymer atoms and a symmetry factor capped at eight. Standard, heavy, and
+  very-heavy first attempts request 4/16/12, 6/24/18, and 8/32/24 CPU/GB/hour.
+  One retry uses linear `task.attempt` scaling under 16 CPU, 64 GB, and 48 hour
+  caps. Only exit 75 and scheduler/resource interruption codes 104, 130--145,
+  and 175--177 retry; scientific no-hit and contract/parse failures do not.
+- Screen, reviewed-single-component, and five-depth pass-2 controllers now
+  request 96, 120, and 384 hours. Slurm still owns aggregate concurrency; no
+  active Phase III `maxForks` was introduced. The running earlier-source
+  unknown screen `637180`, its pointer, allocation, and caches were untouched.
+- A live local Nextflow fixture proves attempt one exits 75, attempt two receives
+  doubled resources, and canonical resume reuses that successful retry as
+  `CACHED`. The full locked gate passes: 1,410 unit, 145 contract, and 98
+  integration tests; all schemas (now ten packaged contracts), documentation,
+  action, Nextflow syntax/stub/resume, scientific fan-out, M6 mutation,
+  packaging, wrapper, formatting, lint, type, and diff checks are green.
+- Next commit and push the isolated dynamic-resource branch, run CI as the user
+  requested, and retain it as the successor to the unintegrated blanket
+  eight-CPU change. Do not deploy or alter the current Marmic chain; integrate
+  and build a new source-bound authority only after its mandatory checkpoint.
+- After the user requested immediate `dev/phase3` integration, CI run
+  `33437926992` exposed two stub-only workflows inheriting the production
+  four-CPU minimum on a two-CPU runner. Follow-up run `33438716467` passed all
+  1,653 Python tests and most workflow gates, then exposed the same constraint
+  in the composition fan-out stub. Every portable stub profile now caps
+  `process_mr` at one CPU/1 GB while the dedicated retry fixture deliberately
+  retains dynamic resources. All affected stubs and a structural policy test
+  pass locally; production resource directives are unchanged. Next run one
+  replacement exact-source CI and delete the temporary feature branch locally
+  and remotely after it finishes.
+
+## 2026-08-31 - Successor screen exposes two live post-MR contract defects
+
+- Dynamic-resource commit `511bbcdfe61fe3009daaf172277ff8e40b126781`
+  is the exact remote `dev/phase3` tip accepted by replacement CI run
+  `33441583997`, job `99650836948`, in 23 minutes 47 seconds. The temporary
+  feature and obsolete blanket-eight-CPU branches and their worktrees are
+  deleted. The older-source screen remained untouched while it ran.
+- Owned screen `gtd-unknown-screen-20260831T015817Z-ec49354d0c0b-57ad1c1d`,
+  Slurm controller `637180`, ended `FAILED`/exit 1 after 18 hours 56 minutes.
+  Its collected signature is
+  `a2db930a99d66a7fb042ed5b06d3ee6b1ad763a95e24454370d70f76a42c1bf6`.
+  Static input and provider checksum inventories reverify completely.
+- Trace evidence is uncapped (`maxForks=0`, executor capacity zero), but the
+  funnel itself emitted only 54 hypotheses: 25 `AD4QS1P4G2_18`, four
+  `CD4QS2P2G1_15`, and 25 `CD6QS2P2G1_5`. Forty-five children exited zero:
+  20 AD4 and all 25 CD6. Nine were still running and killed at controller
+  abort; no CD4 child completed. The other 21 CD4 hypotheses were never in the
+  funnel and therefore were not scheduler-throttled.
+- Under the old fixed 4-CPU/16-GB/24-hour allocation, completed AD4 tasks ran
+  from 1:38:52 to 16:57:21 (median 5:10:55); completed CD6 tasks ran from
+  0:04:08 to 18:51:26 (median 1:14:42). No completed child timed out. The nine
+  killed jobs had run for about 18 hours 52 minutes, leaving about five hours
+  of their allocation, but their individual Phaser logs were not retained, so
+  timely completion cannot be asserted.
+- The first complete CD6 branch exposed two source defects simultaneously.
+  Localisation reopen requested nonexistent
+  `diverse_first_copy_funnel_manifest.json` instead of canonical
+  `funnel_manifest.json`; MR review did not stage its
+  `phase3_first_copy_<crystal>_<hypothesis>` outputs under the validator's
+  required `first_copy_phaser_<hypothesis>` names. Both are execution failures,
+  not scientific no-hits. No A checkpoint or identity claim exists.
+- The smallest clean fixes use the canonical manifest name and construct one
+  validated canonical review-result root. Thirty-three focused unit/contract
+  tests pass, and the live multi-crystal Nextflow gate now executes both
+  formerly failing process scripts non-stub before its cached application
+  replay. Failed-run child evidence omission and the 54-versus-75 scientific
+  funnel shortfall remain explicit open findings; do not submit a successor
+  until both are dispositioned and exact-source CI is green.
+
+## 2026-08-31 - Root onboarding and public package boundary are clean
+
+- The root README is now a user-first guide rather than a chronological
+  development report. It leads from locked installation through validated
+  examples, catalogue import, diffraction preflight, and Matthews hypotheses;
+  it then states the scientific interpretation boundary, external Phenix and
+  database requirements, outputs, privacy policy, validation, and stable
+  documentation entry points. Historical reports remain isolated under
+  `docs/`.
+- The installed research wheel now exposes only `genome-to-diffraction` and
+  excludes the repository-internal HPC client package. The client remains
+  available from a source checkout through the named `nf-gtd-hpc-test` Pixi
+  task and through its separately built immutable validation zipapp.
+- All three README contract-validation commands pass as written. The internal
+  Pixi task emits its help, 35 focused packaging/policy tests pass, and the
+  locked offline wheel gate builds and installs version `0.2.0` with one public
+  entry point and all ten packaged schemas while proving that no HPC client
+  files entered the wheel. Formatting, lint, type, documentation-link, and
+  diff-hygiene checks pass.
+- No scientific threshold, candidate decision, private input, HPC state, or
+  active run changed. Next review and commit this focused onboarding/package
+  boundary, refresh exact-source CI when requested, and continue the separate
+  Phase III evidence and candidate-inventory findings before another screen.
+
+## 2026-08-31 - v0.3 goal is candidate-confidence first
+
+- The user changed the canonical development order. First complete
+  checksum-reconstructible candidate assessments and supervisor-ready reports
+  for all three frozen unknown crystals; only then continue M6, final finding
+  closure, unknown pass 2, atlas/package completion, and the `v0.3.0` release.
+- The initial screen now retains configured Matthews expected-copy hypotheses
+  but searches exactly one copy. The active scientific path must delete the
+  joint-copy option and special four-copy admission filter. Additional copies
+  are placed sequentially only after explicit A approval. An outcome-blind
+  frozen-input audit already produces at least 25 candidates per crystal under
+  this policy, supporting a 75-task pass-1 budget without threshold tuning.
+- `docs/v0.3-roadmap.md` now defines the ordered scientific, evidence,
+  human-review, report, and release acceptance conditions. `AGENTS.md`, the
+  documentation index, Phase III technical roadmap, finding ledger, sole
+  mutable pointer, and durable heartbeat all route to that order. The heartbeat
+  is active and still forbids subagents, raw SSH, direct Slurm, duplicate jobs,
+  failed-cache reuse, and inferred human approval.
+- The goal service retained its blocked historical objective and refused an
+  in-place replacement; it was not falsely marked complete. The new objective
+  is therefore recorded explicitly in the pointer and canonical tracked
+  policy. No executable source or scientific run changed in this documentation
+  wave.
+- Next implement the one-copy screen and deterministic one-copy resource plans,
+  then the bounded checksum-authenticated failed-child evidence collector.
+  Run focused and full local gates, commit/push exact source, require CI, and
+  only then build a fresh discovery/screen authority.
+
+## 2026-08-31 - Initial unknown screening is one copy without a static ceiling
+
+- The user-approved clean break removes the active joint-copy CLI/workflow
+  option and special four-copy funnel filter. Phase III funnel adapter v6
+  retains the Matthews expected copy count while every initial hypothesis and
+  resource plan searches one copy. Static four-copy restrictions are also
+  removed from the A-screen, assessment, per-placement, fixed-component, and
+  current component-execution contracts needed by later sequential completion.
+- The deterministic one-copy resource plan remains a separate schema-v2 record
+  and does not enter the scientific hypothesis payload. Expected copy counts
+  greater than four are therefore visible scientific alternatives without
+  making the first Phaser task a simultaneous high-copy search.
+- The outcome-blind checksum-frozen audit now selects 25 hypotheses for each of
+  AD4, CD4, and CD6. CD4 retains expected copy counts 4--12 and 16; every
+  selected hypothesis and resource plan records one searched copy. This is
+  exactly the required 75-task pass-1 inventory and does not use unknown MR
+  outcomes to alter ranking.
+- The successful fixed wrapper now writes a deterministic per-crystal MR task
+  inventory and requires 25 tasks for each proceeding crystal and zero for a
+  crystallographic hold. That inventory is checksum-bound and collected. The
+  mixed two-proceed/one-hold real-dispatcher regression remains valid.
+- One hundred sixty focused scientific/contract tests, the two-case remote
+  lifecycle, Nextflow syntax, the live/cached multi-crystal gate, the isolated
+  unknown-screen stub, wrapper syntax, formatting, lint, type and documentation
+  checks pass locally. Next commit this focused scientific policy, then
+  implement failed-run child evidence collection before any successor run.
+
+## 2026-09-01 - Failed MR children become a bounded diagnostic contract
+
+- Either first-run or resume failure in the unknown-screen wrapper now invokes
+  one source-bound collector over the exact controller log and run-local
+  Nextflow work tree before terminal publication. The successful path and the
+  current Marmic run are unchanged.
+- The package conserves the funnel's complete hypothesis inventory and records
+  submitted, completed, unfinished-at-abort, and unsubmitted states. Per
+  attempt it retains native job identity, observed exit/timing state, Slurm
+  CPU/memory/time directives, schema-validated normalised-result state,
+  bounded command evidence, Phaser assets, and the hypothesis resource plan.
+- At most 75 hypotheses and 150 attempts are accepted; each file is limited to
+  128 MiB and the package to 2 GiB. Symlinks, path escapes, contradictory or
+  cross-funnel records, unsafe collection paths, checksum differences, and
+  count mismatches fail closed.
+- The manifest fixes `scientific_evidence_accepted=false` and
+  `cache_reusable=false`. Therefore a completed child from a failed controller
+  remains diagnostic execution evidence and can never become a hit, no-hit,
+  identity claim, or cache authority.
+- Focused collector tests pass for completed, unfinished, and unsubmitted
+  children, valid result parsing, allocated-resource capture, checksum
+  conservation, and cross-funnel rejection. The two-path remote lifecycle
+  passes authenticated collection and deliberate tamper rejection; wrapper
+  syntax, policy, formatting, lint, and type checks pass.
+- The first full gate exposed a stale negative harness that invoked the
+  stub-only boundary with `-resume`; Nextflow correctly replayed its previous
+  stub cache instead of executing the non-stub rejection. The negative case
+  now starts a new non-resume session, reaches exit 64, and proves the boundary
+  directly. The isolated unknown-pass-1 cached-stub task passes with this fix.
+- Next run documentation and exact full local gates, commit this review point,
+  push all candidate-first commits to `dev/phase3`, require CI, and deploy only
+  the resulting exact source before staging a fresh owned discovery/screen
+  chain. The historical failed and cancelled caches remain non-reusable.
+
+## 2026-09-01 - Active development moves to main
+
+- The user confirmed that `v0.2.0` is already released and that the private
+  repository has no external users, then directed all unreleased v0.3 work to
+  continue on `main`. The v0.2 tag and release evidence remain immutable.
+- The complete candidate-first `dev/phase3` line is merged with the three
+  release-only main commits. Conflicts preserve the current one-copy screen,
+  failed-child diagnostics, complete finding ledger, and user-first README
+  while retaining the v0.2 release facts and historical journal chronology.
+- The internal HPC controller, CLI, CI trigger, M6 site policy, runbooks, and
+  current roadmaps now accept only commits reachable from `origin/main`.
+  `dev/phase3` is a retired historical integration branch, not a current
+  execution authority.
+- The exact Marmic screen already running from `f6910e1` is untouched. Its
+  immutable source is retained in the merged history; changing branch labels
+  cannot change that run, its cache, or its evidence.
+- Formatting, lint, type checking, documentation links, wrapper syntax, all
+  151 contract tests, and 158 focused HPC client/CLI tests pass on the merge.
+  Next integrate the separate documentation-atlas inventory without restoring
+  its older joint-copy narrative, run the complete locked gate, commit/push
+  `main`, require exact-source CI, and only then delete the merged remote
+  development branches.

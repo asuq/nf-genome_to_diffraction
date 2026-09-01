@@ -3,6 +3,8 @@ nextflow.enable.types = true
 process RETRIEVE_AFDB_EXACT {
     tag 'catalogue-wide-exact-afdb-retrieval'
     label 'process_network'
+    label 'needs_internet'
+    label 'run_local'
     publishDir params.outdir, mode: 'copy', overwrite: true
 
     input:
