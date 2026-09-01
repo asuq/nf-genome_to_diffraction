@@ -14952,3 +14952,96 @@ with a collapsed combined parent or a guessed command.
   its older joint-copy narrative, run the complete locked gate, commit/push
   `main`, require exact-source CI, and only then delete the merged remote
   development branches.
+## 2026-08-31 - Documentation preflight flow and reader sizing corrected
+
+- The scientist overview no longer presents a routine interactive approval
+  between preflight and model discovery. Qualification and failure semantics
+  remain in the stage detail rather than as first-screen workflow boxes.
+- The documentation viewer previously alternated between two desktop widths
+  because custom top spacing and the arrow legend sat outside Archify's measured
+  reader frame. Both are now included in the measured layout. Browser probes at
+  1440 by 900 and a narrow viewport remained stable with no horizontal overflow.
+- Archify showcase validation passed all nine checks, the focused documentation
+  tests and lint pass, and no workflow code or HPC run changed. Next review the
+  corrected prototype before making further workflow-documentation changes.
+
+## 2026-08-31 - Phase III scientist diagram clarified
+
+- Follow-up review distinguished internal Phase III file contracts from the
+  newcomer-facing scientific sequence. The scientist diagram now shows MTZ
+  preflight followed by model discovery without a visible approval pause; the
+  implementation-level review bundle remains developer documentation.
+- Minor failure and hold outcomes were removed from the first-screen diagram to
+  keep its main scientific path legible. No workflow code or scientific policy
+  changed.
+- Newcomer-facing wording at this historical prototype point used numbered
+  components rather than letter names or slots. Its joint 1--4-copy first
+  search was later superseded by the candidate-confidence one-copy clean break;
+  generated current atlas content must reflect the later policy.
+- A five-step plain-language introduction now appears above the scientist
+  diagram and defines the supplied protein list and MTZ files. Scientist-facing
+  stage text no longer uses "protein catalogue" or assumes that readers know
+  file-identity terminology. The corrected Archify artifact passes all nine
+  showcase checks.
+- The scientist diagram now separates organism/sample name, protein FASTA,
+  genome FASTA, gene annotation, MTZ diffraction data, and optional
+  molecular-weight evidence. It marks required and optional inputs explicitly.
+  The current manifest's missing dedicated organism/sample-name field is shown
+  as an input-contract gap; no schema or workflow code changed.
+- The model-discovery stage now names MMseqs2/PDB SEQRES and
+  ProstT5/Foldseek/PDB100, their current E-value and 50% query-coverage filters,
+  the three-hit caps, explicit-only AlphaFold DB mapping, disabled-by-default
+  ESM Atlas route, and coordinate/sequence validation before model testing.
+- Input arrows now distinguish context from processing: the scientific species
+  name is intended to resolve the genome, annotation, and proteome sources; the
+  protein FASTA feeds
+  explicit PSORTb/DeepTMHMM, MMseqs2/PDB SEQRES, and
+  ProstT5/Foldseek/PDB100 boxes; both model-search routes feed a separate model-
+  validation/preparation box;
+  the MTZ feeds preflight; molecular-weight evidence changes search order.
+  Required paths are solid and context/optional paths are dashed.
+- The composition wording now describes the actual heteromer mechanism: each
+  hypothesis adds one candidate gene product to a retained component set and
+  tests whether they work together. Competing hypotheses may evaluate different
+  partner candidates; no arbitrary single protein is chosen in advance.
+- Removed the user-rejected phrase "that scientists can inspect" from the
+  newcomer workflow summary; no workflow semantics changed.
+- Replaced "You provide" with an Inputs heading and separate bullets for sample
+  identity, required files, and optional files/evidence.
+- Re-authored the scientist map as a larger, taller workflow so internal
+  localisation and model-search computations are boxes rather than long labelled
+  arrows. Separate Arrow and Box colours panels identify relationship and node
+  semantics.
+- Molecular-weight evidence now enters first-component search horizontally from
+  the right; preflight and prepared models use separate top ports. The two PDB
+  search boxes are closer together and model preparation is shifted left.
+- Scientist-facing copy no longer calls the species identity or reviewed report
+  "human-readable". It records that species-to-reference resolution is not yet
+  implemented and that exact genome/proteome selection may additionally require
+  strain or assembly identity. Next inspect the live prototype before further
+  workflow-documentation changes.
+
+## 2026-09-01 - Documentation atlas joins main with current one-copy policy
+
+- The separate atlas inventory is merged after the active code line. Its stale
+  long-form README is not restored; the current user-first README gains one
+  canonical offline-atlas link.
+- Scientist sources now retain the complete configured Matthews expectation
+  while every initial MR task searches one copy. Joint-copy and four-copy
+  admission wording is removed from current portal content, stage decisions,
+  generator text, and focused tests. Additional copies remain sequential and
+  require explicit A approval.
+- The Archify scientist specification passes all nine showcase checks with
+  zero errors and warnings. Delivery records specification SHA-256
+  `a9f06763…` and HTML SHA-256 `7549c1ee…`. Automated visual capture was
+  truthfully skipped because Chrome/Chromium was unavailable; no visual-review
+  claim is made from that skipped receipt.
+- The atlas inventory now describes the merged source: 155 Python modules,
+  2,267 Python symbols, 73 Nextflow files, 118 Nextflow declarations, six
+  shell files, 108 shell functions, ten schemas, and 144 test modules. The
+  deterministic builder publishes 395 current files, the freshness check
+  passes, and all eight focused atlas tests pass.
+- Next run the complete locked repository gate on merged `main`, commit and
+  push once, require exact-source CI, update the active development pointer,
+  and delete only the two remote branches whose heads are then reachable from
+  `main`.

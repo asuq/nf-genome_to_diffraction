@@ -15,6 +15,13 @@ file-based human decisions without treating any single score as proof.
 > candidate-confidence and general-composition development now continues on
 > `main` toward `v0.3.0`; it is not part of the `v0.2.0` release contract.
 
+## Documentation
+
+Open the deterministic offline [technical atlas](docs/atlas/current/index.html)
+for scientist and developer views of the workflow, executable inventory,
+contracts, module relationships, and validation evidence. The
+[documentation index](docs/README.md) remains the canonical text entry point.
+
 ## What the application does
 
 ```text

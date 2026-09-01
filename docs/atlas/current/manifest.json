@@ -1,0 +1,1971 @@
+{
+  "files": [
+    {
+      "path": "assets/atlas.css",
+      "sha256": "40de34925cb72678a2adb1950c04816be56e05d74346c8f8bcc2f4d163635d3e",
+      "size_bytes": 6954
+    },
+    {
+      "path": "assets/atlas.js",
+      "sha256": "e34082b2b3b27a5f67272bb62fa7e85128a1c8cb27713b19ea7b15a149f67c65",
+      "size_bytes": 484
+    },
+    {
+      "path": "contracts/schemas-catalogue-manifest-schema-json-5f561cc9ff.html",
+      "sha256": "80682ca145c0e2600b6d3bd8c7961364181095293e33472f2431a5872754192d",
+      "size_bytes": 1436
+    },
+    {
+      "path": "contracts/schemas-crystal-manifest-schema-json-b44fcd2bdc.html",
+      "sha256": "94e0765d5f297615d4a6f26c068601fe370e752b665702ff813a610442333738",
+      "size_bytes": 1410
+    },
+    {
+      "path": "contracts/schemas-database-manifest-schema-json-95d7ea7272.html",
+      "sha256": "b99c548fde98ee01054b427deb1675afa6bc5e7b5d424d30e61d8ed84c13c95f",
+      "size_bytes": 1498
+    },
+    {
+      "path": "contracts/schemas-gel-evidence-manifest-schema-json-6c13c8d059.html",
+      "sha256": "a707794532622072f1880b2cb038fb73654354bf18c103e2ccc0486d64536004",
+      "size_bytes": 1400
+    },
+    {
+      "path": "contracts/schemas-mr-hypothesis-schema-json-4ce18ee7b9.html",
+      "sha256": "5765afed755259e757cc2aae816a2abcae7a7d5bf581126b8c6c197570cda788",
+      "size_bytes": 1759
+    },
+    {
+      "path": "contracts/schemas-mr-resource-plan-schema-json-7b74506b8b.html",
+      "sha256": "8cf2f75543fffca41a8965bc3fbcb6fc5e28887112287f49129ba55ffcd46fa7",
+      "size_bytes": 1929
+    },
+    {
+      "path": "contracts/schemas-phenix-install-manifest-schema-json-7514046934.html",
+      "sha256": "8d817f5d2fcac2c1552ceaf12d1c61b414f02a18bccec1b4a5a8f8f7f8bfc064",
+      "size_bytes": 1699
+    },
+    {
+      "path": "contracts/schemas-pipeline-config-schema-json-0000a95753.html",
+      "sha256": "1abc482ebbb2deb764da0c5e79043777462687a79d395fd7f3af2e18d9911a6e",
+      "size_bytes": 1607
+    },
+    {
+      "path": "contracts/schemas-provider-execution-plan-schema-json-bd660939cc.html",
+      "sha256": "9d2cccdf65fc1f5ac9988425ca8adb190f98a2f92a98890bcc7f0baebba010b4",
+      "size_bytes": 1706
+    },
+    {
+      "path": "contracts/schemas-review-decision-schema-json-b479c8a378.html",
+      "sha256": "15595466ac1f10a24712bf9f15b667a562672e36c65849ac8604f6b036ade550",
+      "size_bytes": 1421
+    },
+    {
+      "path": "developer-view.html",
+      "sha256": "ac100ab49a95e2d4d68c508864ac574224d53ddd06df38581e4fe531eed581ac",
+      "size_bytes": 756740
+    },
+    {
+      "path": "diagrams/developer-architecture.html",
+      "sha256": "3f58fbe57005645d81ef5e62fa37fce62cf304f426796d96b4a6f83820ef61e3",
+      "size_bytes": 719863
+    },
+    {
+      "path": "diagrams/scientist-workflow.html",
+      "sha256": "7549c1ee2318ddd2e27952ffd6b0309d20a2bfcc2413b6dbfa5759e79938b130",
+      "size_bytes": 728375
+    },
+    {
+      "path": "documentation.html",
+      "sha256": "1c5b8f6756b5371c06694d002d8befe481693593f16b324481d0d4488848053c",
+      "size_bytes": 787209
+    },
+    {
+      "path": "external-tools.html",
+      "sha256": "b44ae30597210bc07ec86c6b6b37e678fdc5858ccee53a612f2b7357de57c0ed",
+      "size_bytes": 2379
+    },
+    {
+      "path": "index.html",
+      "sha256": "96e91d71ee68b3404c849ae94c26bd41d20f434cfbb99fa9e50f8cd422da00b7",
+      "size_bytes": 259
+    },
+    {
+      "path": "inventory.html",
+      "sha256": "b00f2b19df09e73d4095e917c455d53e517093cf8c612fa2e7e2b5f63f1b2ed1",
+      "size_bytes": 1832864
+    },
+    {
+      "path": "modules/entrypoint-m6-validation-nf-c60881d6ed.html",
+      "sha256": "eea7d0415b1a8bc1477a425648345cecc84b050ffb31fac06491530d9b64a450",
+      "size_bytes": 1588
+    },
+    {
+      "path": "modules/entrypoint-main-nf-0da9c197ff.html",
+      "sha256": "10cbf5284156fecf41edcf3fe587d26a30bc2cf0c54cdb874ed73eddc6a0ac6d",
+      "size_bytes": 1552
+    },
+    {
+      "path": "modules/entrypoint-phase3-application-nf-0e0d444c3f.html",
+      "sha256": "c4cfcd34c440a4d12e5c3a0ecfee46d4a53f2b4a92fb802b6555921dc6fdef92",
+      "size_bytes": 1873
+    },
+    {
+      "path": "modules/entrypoint-prepare-databases-nf-401b764ff7.html",
+      "sha256": "ff9810420dc58f15c2a05d3d1663dc0195039b49656fdff68840eaad84077569",
+      "size_bytes": 1600
+    },
+    {
+      "path": "modules/entrypoint-qualification-nf-6f831c9111.html",
+      "sha256": "4a07640993a2ecb4c9cf467a46a6f89cb8b9cca68fbf1b1a9521f8d33887645a",
+      "size_bytes": 2021
+    },
+    {
+      "path": "modules/nextflow-module-build-diverse-first-copy-funnel-nf-c1ebe6334f.html",
+      "sha256": "f933e67eccc26019eacf7efc9629388e78b9a96df97bd84f006960ee78b9b321",
+      "size_bytes": 2099
+    },
+    {
+      "path": "modules/nextflow-module-build-exact-predicted-funnel-nf-799b76dd58.html",
+      "sha256": "6af98939f3398f6e39f876540d9068e84c689d88c78a4d713ce82b11fb7ef57e",
+      "size_bytes": 2078
+    },
+    {
+      "path": "modules/nextflow-module-build-live-sequence-checkpoint-nf-916bf2ee9f.html",
+      "sha256": "4eaa2208e203c5dc0cb93bb9769250122defd985d9bdd052adfc703eb33fe355",
+      "size_bytes": 3624
+    },
+    {
+      "path": "modules/nextflow-module-build-mr-seed-review-nf-29e4223bc4.html",
+      "sha256": "32af9fde65281ce548703145687fb7af438403775f5dac17b6c7215bccc16544",
+      "size_bytes": 2020
+    },
+    {
+      "path": "modules/nextflow-module-build-partner-plan-nf-309d4039cb.html",
+      "sha256": "25f1087defc4f070d3e4f134349588bf5c849960dfae0c6327e1fbf83ccbfcd3",
+      "size_bytes": 2000
+    },
+    {
+      "path": "modules/nextflow-module-build-phase3-diverse-first-copy-funnel-nf-80a48a4c6e.html",
+      "sha256": "006f4647b259a2c79d25358f608dd95d888ba209a2599ed7119716705f5dffb5",
+      "size_bytes": 2148
+    },
+    {
+      "path": "modules/nextflow-module-dispatch-crystal-item-nf-b638422dcf.html",
+      "sha256": "7299cb5fa68a7da0e31482e69661d887b897b449190699ed293c0807e7829a94",
+      "size_bytes": 2023
+    },
+    {
+      "path": "modules/nextflow-module-emit-disabled-provider-bundle-nf-ba2e9d4a01.html",
+      "sha256": "8ecbdab867653c459c803c95b159a6c0f118904191635130d7dd96fb90370bbf",
+      "size_bytes": 2087
+    },
+    {
+      "path": "modules/nextflow-module-enumerate-matthews-nf-bd94dff581.html",
+      "sha256": "616a39cb5e25724f6f385a3a0400faf2456818905a328b446eb53448fc13c060",
+      "size_bytes": 2008
+    },
+    {
+      "path": "modules/nextflow-module-import-catalogues-nf-0ba45e3eea.html",
+      "sha256": "a5cd72464b0d08696b22a3eabeb25bd7f0962ae8d558e3ea1ce2e6dd92b4f465",
+      "size_bytes": 1993
+    },
+    {
+      "path": "modules/nextflow-module-localisation-wave-tasks-nf-bd8b72d362.html",
+      "sha256": "38a0f11251fc2e49bab504d0028232f1bbbfc5b7a5ad667d6b6d34d21fc30ef6",
+      "size_bytes": 3030
+    },
+    {
+      "path": "modules/nextflow-module-m6-nextflow-tasks-nf-3fc17ac2a0.html",
+      "sha256": "fd5d98c16a80b10f8070831c451889bd06b3093285103a396879c5533c77779b",
+      "size_bytes": 9254
+    },
+    {
+      "path": "modules/nextflow-module-m6-truthless-cache-tasks-nf-9070dc6fb2.html",
+      "sha256": "fd54ada0ef556e41c1b8ae3133b9d8eb3ea154e661005ad9df22030f0f8d23af",
+      "size_bytes": 2880
+    },
+    {
+      "path": "modules/nextflow-module-merge-pdb-provider-hits-nf-6f30235bc9.html",
+      "sha256": "3ec72040048ab774bac17817e489b64f5ed79f333895fca9cb73a6744812c736",
+      "size_bytes": 2045
+    },
+    {
+      "path": "modules/nextflow-module-mtz-preflight-nf-625dcabbe8.html",
+      "sha256": "7cadf2c31be37392aa52b3d43ab828d1866d4259928532fd0ac64e0c130a1012",
+      "size_bytes": 1969
+    },
+    {
+      "path": "modules/nextflow-module-package-phase3-provider-discovery-nf-1c4e2e6699.html",
+      "sha256": "fade683cc7a51cdeec338264377f3a54ede0a1d55b95e2ed46fb122efb445962",
+      "size_bytes": 2115
+    },
+    {
+      "path": "modules/nextflow-module-phase3-composition-beam-tasks-nf-3dcadbbae6.html",
+      "sha256": "3be2f115e3444c93f5c1719b3ade6c8f385b8fb28b98c784fb56d3bb57d6d882",
+      "size_bytes": 3510
+    },
+    {
+      "path": "modules/nextflow-module-phase3-foldseek-batch-tasks-nf-cfafb14c5f.html",
+      "sha256": "010b5edf2d0484a33ab94eb10bcee9be8bec991be9900b6d6cedc2bf17027c3f",
+      "size_bytes": 3011
+    },
+    {
+      "path": "modules/nextflow-module-phase3-multicrystal-first-copy-tasks-nf-e9ac16adfc.html",
+      "sha256": "550319e9865ee00f1b817c5d23bf5c2ee729b8e749c41cf1f17b14a477abe69c",
+      "size_bytes": 4081
+    },
+    {
+      "path": "modules/nextflow-module-phase3-no-a-tasks-nf-175554be5d.html",
+      "sha256": "51056b0b0161754555bbe6bbc56de8def6107c8fbef89214ad9a6642f77738a3",
+      "size_bytes": 2936
+    },
+    {
+      "path": "modules/nextflow-module-plan-phase3-localisation-reopen-nf-f21a62ff2e.html",
+      "sha256": "f9d9b35a32c05cbaa69150fa75f7c3533f067612260f7caea2e9e2565d3fba0b",
+      "size_bytes": 2103
+    },
+    {
+      "path": "modules/nextflow-module-prepare-database-resources-nf-86fa594e26.html",
+      "sha256": "27b480c4e8e3ccce2e8ae625c2f3d0ee74110bafc32062e392a26e364468827d",
+      "size_bytes": 2056
+    },
+    {
+      "path": "modules/nextflow-module-prepare-experimental-models-nf-45cc742690.html",
+      "sha256": "516bdb8a95d1e5a4b3ad09a1671555f59856f2504b9c3361d2b22b5ac7a700b9",
+      "size_bytes": 2065
+    },
+    {
+      "path": "modules/nextflow-module-prepare-predicted-models-nf-9be51f070a.html",
+      "sha256": "e3ac1e313c53e1d2b0442f13a0e2dafe1787ca030c3e63a91eba345b764aefa1",
+      "size_bytes": 2044
+    },
+    {
+      "path": "modules/nextflow-module-provider-empty-graph-tasks-nf-cc24e01b69.html",
+      "sha256": "8465f96bb264bd7820eb1c3f33fc15d53027f3e823998eccc12dbe014eb40a1e",
+      "size_bytes": 2534
+    },
+    {
+      "path": "modules/nextflow-module-register-pdb-coordinates-nf-b6a9b3971b.html",
+      "sha256": "0d0eb2c31d1f871b947c52563e974942d308d09227ea1618869ab483216c2940",
+      "size_bytes": 2052
+    },
+    {
+      "path": "modules/nextflow-module-resolve-provider-plan-nf-aac443a27e.html",
+      "sha256": "de26a2241651b708d1e5bbc269ce5222455fa04398088a0a77c0dbe3f6ed23b3",
+      "size_bytes": 2031
+    },
+    {
+      "path": "modules/nextflow-module-retrieve-afdb-exact-nf-331e392879.html",
+      "sha256": "461d960de6f308225f2cf5aaa67ca71085981d1f9b491e66b799fd69dec3fd8b",
+      "size_bytes": 2007
+    },
+    {
+      "path": "modules/nextflow-module-run-additional-copy-phaser-nf-292b8e5413.html",
+      "sha256": "a5f809a81747f25f2601bc21602b3011cb2b78d84e8b1fc61b7ef4a495093e6a",
+      "size_bytes": 2552
+    },
+    {
+      "path": "modules/nextflow-module-run-approved-partner-phaser-nf-17b15ff1f0.html",
+      "sha256": "ccf18d3f4009b5cc7fef12b0b0a1e4e9e3472376ef7afa1ff1b1f883ff454fcb",
+      "size_bytes": 2079
+    },
+    {
+      "path": "modules/nextflow-module-run-brief-refinement-nf-29672afc7a.html",
+      "sha256": "120571cd9eee9b5f8b45c0ebb922e0822405d134e9c677495105bd968a74ea28",
+      "size_bytes": 2474
+    },
+    {
+      "path": "modules/nextflow-module-run-first-copy-phaser-nf-5afe81a83c.html",
+      "sha256": "2f31cb5de172ff9b32b5509404cf7d3a0fc394ed03da1565258801b2b817d640",
+      "size_bytes": 2037
+    },
+    {
+      "path": "modules/nextflow-module-run-offline-localisation-task-nf-de63e24007.html",
+      "sha256": "ed1ea3e7ab546deaf7f052fda61fe2590cc32a77ffba1e4536b45ecc0703481d",
+      "size_bytes": 2091
+    },
+    {
+      "path": "modules/nextflow-module-run-phase3-composition-attempt-nf-9b2f093ae3.html",
+      "sha256": "16a5b4f1247a081bb16cfbbcd690506a0e743d5e051d770d694cc4eadaa703e3",
+      "size_bytes": 2094
+    },
+    {
+      "path": "modules/nextflow-module-run-planned-partner-phaser-nf-677db35632.html",
+      "sha256": "dfaa0f111ef6ad68a84f6c827539e6e15c0da3c8c6643b1cfb87d6d40b543a66",
+      "size_bytes": 2072
+    },
+    {
+      "path": "modules/nextflow-module-search-foldseek-prostt5-nf-13fb175b24.html",
+      "sha256": "6e0c8dda96d895d9e622b4fb14a54626c926a4293e961112a0ebcb0a9fe4eb96",
+      "size_bytes": 2045
+    },
+    {
+      "path": "modules/nextflow-module-search-pdb-sequences-nf-fa810002ad.html",
+      "sha256": "d66300d24874425c971d3a070957b7a0b07c404f44e9d604a4ab6e902cd3ade5",
+      "size_bytes": 2024
+    },
+    {
+      "path": "modules/nextflow-module-select-single-crystal-nf-e63803f4e8.html",
+      "sha256": "52a82ee27ad2b5f309ec18d67739260c18dcd46d200d822fa2404013ebd807b2",
+      "size_bytes": 2481
+    },
+    {
+      "path": "modules/nextflow-module-stage-approved-mr-seeds-nf-01367f4c33.html",
+      "sha256": "c34d66e73222ec17aa3490fc4c51c9a2fa5a8604aabadd9a114c125bd0b1401d",
+      "size_bytes": 2035
+    },
+    {
+      "path": "modules/nextflow-module-stage-live-t12-nf-6e3302089f.html",
+      "sha256": "2d01d9248134be64177162ed22b94ccb053cd0ca5e42e9fe1be7146932f4c19d",
+      "size_bytes": 2413
+    },
+    {
+      "path": "modules/nextflow-module-stage-phase3-approved-mr-seeds-nf-8ce4bbb631.html",
+      "sha256": "3b4926b328fcce9f2d4fc50bb6ca36088a6e3540c6f0c48f599574dd53241542",
+      "size_bytes": 2583
+    },
+    {
+      "path": "modules/nextflow-module-summarize-partner-attempts-nf-f6b3638baa.html",
+      "sha256": "17b4c18a131087286520c13cee89afdda06bb2196388054c19884c0b1e6ad078",
+      "size_bytes": 2056
+    },
+    {
+      "path": "modules/nextflow-module-unknown-pass1-screen-tasks-nf-0617abb4a9.html",
+      "sha256": "1ca957be5c6b671774e708627b6045f5a998ecd2671978b485eb12b3111c7b25",
+      "size_bytes": 2568
+    },
+    {
+      "path": "modules/nextflow-module-validate-phase3-localisation-bundle-nf-c404c00808.html",
+      "sha256": "140cf0fd07787fe026d7bdbea0589a7f7e1b328d765e3c31798e6d0f534e069f",
+      "size_bytes": 2131
+    },
+    {
+      "path": "modules/nextflow-module-validate-phase3-offline-provider-input-nf-3446079ac4.html",
+      "sha256": "278c9c1beb5529e1f89b46cab52b8afd0ca348f6432da2637047de617be4c0b9",
+      "size_bytes": 2150
+    },
+    {
+      "path": "modules/nextflow-module-validate-task05-inputs-nf-b8b3984e60.html",
+      "sha256": "ae52aea06e810297842e40485528022ed23bd7209ba0d7607f842c2a2339c616",
+      "size_bytes": 2028
+    },
+    {
+      "path": "modules/nextflow-workflow-additional-copy-workflow-nf-e03474b681.html",
+      "sha256": "b5761bf0c95650fd515c616e0eed6b87f2d358d791f323c18404d109c103535a",
+      "size_bytes": 3210
+    },
+    {
+      "path": "modules/nextflow-workflow-brief-refinement-workflow-nf-17fa16c12e.html",
+      "sha256": "7eebb4b923988371a0576be96c6fdf12be3b773c28bd26682c4d0d964aea18ea",
+      "size_bytes": 3151
+    },
+    {
+      "path": "modules/nextflow-workflow-composition-attempt-workflow-nf-27a70d285b.html",
+      "sha256": "6df728a017339517b4ffd9ff26e45f4627e62d6ecc5c4fc82be9d5a56a25c1c8",
+      "size_bytes": 2146
+    },
+    {
+      "path": "modules/nextflow-workflow-control-first-copy-mr-workflow-nf-a7b0bc23cc.html",
+      "sha256": "7b9365498c2f339f9da8f961ed83be1e1af7b97bfb1f24ee22d61f70b86901fd",
+      "size_bytes": 2157
+    },
+    {
+      "path": "modules/nextflow-workflow-crystal-fanout-workflow-nf-78b96b4aa8.html",
+      "sha256": "b58d32f4b5da611be2fb3f67353c98d75515394ad2a12469ddaa78e3e27f248b",
+      "size_bytes": 2092
+    },
+    {
+      "path": "modules/nextflow-workflow-database-prep-workflow-nf-e628efe80b.html",
+      "sha256": "34c74ec1d88df251ee75dca8bd2777bd4098801451365019a3bf6cd202224b55",
+      "size_bytes": 2090
+    },
+    {
+      "path": "modules/nextflow-workflow-diverse-first-copy-mr-workflow-nf-3ccb516790.html",
+      "sha256": "ba80fc9bcbe7968facf8cc5c336bf42143a37476b24258089361575597b9fa1e",
+      "size_bytes": 2210
+    },
+    {
+      "path": "modules/nextflow-workflow-first-copy-mr-workflow-nf-8d45d29c82.html",
+      "sha256": "7f792fffa4a97af422a0e9603610e5aa2ac9fa79bf46062d481fc5b1ca8d9589",
+      "size_bytes": 2151
+    },
+    {
+      "path": "modules/nextflow-workflow-localisation-wave-workflow-nf-a5200ad02d.html",
+      "sha256": "434102314d23a93616adb50843364a45c9688198e982138c69b91749dddd7d29",
+      "size_bytes": 2297
+    },
+    {
+      "path": "modules/nextflow-workflow-m6-validation-workflow-nf-7a77a9330b.html",
+      "sha256": "54b408055e9192928d3932b8bf4450bc88ab4abda0da24a057d58202409baf29",
+      "size_bytes": 2875
+    },
+    {
+      "path": "modules/nextflow-workflow-main-workflow-nf-25d165e2c7.html",
+      "sha256": "69826c3441156f5db4a32f3e7c055161c817ae11e4a91574ad2d4dbb9b5762ca",
+      "size_bytes": 2781
+    },
+    {
+      "path": "modules/nextflow-workflow-partner-search-workflow-nf-dc4f8d623c.html",
+      "sha256": "39d246b6d29887686ba409d4cb50fee84ee73a845550b7b52d50c9e7fe67cef8",
+      "size_bytes": 2185
+    },
+    {
+      "path": "modules/nextflow-workflow-pdb-sequence-discovery-workflow-nf-b7ed1cf706.html",
+      "sha256": "405bde1bda6f2d3f8fe87cd92c5dc54a9f82087f1309ae9b033698b1b3bdefd7",
+      "size_bytes": 2751
+    },
+    {
+      "path": "modules/nextflow-workflow-phase3-application-workflow-nf-1155c7ad77.html",
+      "sha256": "a0a40d84cbc3406453e4154a456af68bb22a7a04bd26d0b9ffbee9a5762e24dc",
+      "size_bytes": 3923
+    },
+    {
+      "path": "modules/nextflow-workflow-phase3-composition-beam-workflow-nf-e5877e5e0a.html",
+      "sha256": "6daa51ca58d2dee426b483fcbdca63256a71ad177ac0963a11ded6acdc00ab34",
+      "size_bytes": 2277
+    },
+    {
+      "path": "modules/nextflow-workflow-phase3-full-composition-beam-workflow-nf-acee33efa7.html",
+      "sha256": "d7c9e64aed2be1e7ea1ffc0da35eca79551b3ec2f20f0d433cf690cc744bf7f1",
+      "size_bytes": 2640
+    },
+    {
+      "path": "modules/nextflow-workflow-phase3-multicrystal-first-copy-workflow-nf-90a975a194.html",
+      "sha256": "a518d6b9aa955e3d6cab391cd70c5ada0a0858a74c7484f65cbeaf970482660c",
+      "size_bytes": 2596
+    },
+    {
+      "path": "modules/nextflow-workflow-phase3-no-a-expansion-workflow-nf-93591a65df.html",
+      "sha256": "55df43c066f5e347d9d002f44a422fe39ec1ecf837fd646da023f455abc1e46e",
+      "size_bytes": 2254
+    },
+    {
+      "path": "modules/nextflow-workflow-phase3-reviewed-single-component-workflow-nf-6babc7213c.html",
+      "sha256": "1fa7415f995cec22f76dc914a3cce3b92e513803ed5bfb07eb0d5b661b164c84",
+      "size_bytes": 2545
+    },
+    {
+      "path": "modules/nextflow-workflow-provider-empty-graph-workflow-nf-9865d559a9.html",
+      "sha256": "ef65263e7c8f693832493a6a4248508c384fd2790afd8155db4a0c12b232d732",
+      "size_bytes": 2455
+    },
+    {
+      "path": "modules/nextflow-workflow-qualification-phase3-network-probe-nf-8b7a2dc958.html",
+      "sha256": "4d73beda4f0def8dbafc11fad90d92391ebc2e5c324a9e8276baf6ee7dacff1a",
+      "size_bytes": 3026
+    },
+    {
+      "path": "modules/nextflow-workflow-unknown-pass1-screen-workflow-nf-bf5dce66d3.html",
+      "sha256": "389f6f8ad7a27ef69693738cadb297192b61909a209861994e94906e9c95006a",
+      "size_bytes": 2206
+    },
+    {
+      "path": "modules/python-benchmarks-control-matrix-run-py-ab9469a0b6.html",
+      "sha256": "5f5c02b317f2552992db69c8ff0e3d1eb11436ebd690ff053563f0a102d686cd",
+      "size_bytes": 7588
+    },
+    {
+      "path": "modules/python-benchmarks-control-slice-run-py-86a9ceec59.html",
+      "sha256": "f760f8776009a16f202a1ff491c73e912b6d15d24329ef0dda1b915d2156475c",
+      "size_bytes": 9302
+    },
+    {
+      "path": "modules/python-benchmarks-heteromer-catalogue-control-py-50f86171a3.html",
+      "sha256": "1c246a753761e13d089e58c894ff267f11ca33a021049b7f18cd6efd126f6216",
+      "size_bytes": 8425
+    },
+    {
+      "path": "modules/python-benchmarks-heteromer-control-py-ca2727ef75.html",
+      "sha256": "33e706a1a4f4cf81bacdf6302dc4a4731983a0593b05fb99e1fc6f2f4b0d9ced",
+      "size_bytes": 21699
+    },
+    {
+      "path": "modules/python-benchmarks-heteromer-slice-py-0c0407ac92.html",
+      "sha256": "05fbb946430704db07582786ac7f285f7bb7306372ddfc08f2eb71612672ecb8",
+      "size_bytes": 22259
+    },
+    {
+      "path": "modules/python-benchmarks-m6-collection-py-fe641c11e3.html",
+      "sha256": "f75f7ff2d694e91d9f6582d4b2e1533ee79b19e583b23e25a51d6fcbc436fb14",
+      "size_bytes": 25869
+    },
+    {
+      "path": "modules/python-benchmarks-m6-edge-py-5525bc9697.html",
+      "sha256": "4b4b1c20644111d9a158b71d10c4ff92ee091def1afacce96b04edba76a182ee",
+      "size_bytes": 28810
+    },
+    {
+      "path": "modules/python-benchmarks-m6-evaluation-py-b787ad9f42.html",
+      "sha256": "490828a92f491ffcc794b361a43820747bcfdc01cc949f7f11392e237fbce902",
+      "size_bytes": 11225
+    },
+    {
+      "path": "modules/python-benchmarks-m6-execution-py-514deb478c.html",
+      "sha256": "83e7eb983df42c0bf489632b9abef1dfcab858c44fc167cc17451d88bc40b12c",
+      "size_bytes": 21297
+    },
+    {
+      "path": "modules/python-benchmarks-m6-identity-py-d124a38fc9.html",
+      "sha256": "8769d1a2822b3b646649f34dd3815aabff7384ce3455051d449711b468865ce4",
+      "size_bytes": 11142
+    },
+    {
+      "path": "modules/python-benchmarks-m6-model-policy-py-3ef51f3b24.html",
+      "sha256": "ddbb3985633d12b4bc2906dabd1bd35068a074f9f06d8625f25caca5cd06428a",
+      "size_bytes": 13708
+    },
+    {
+      "path": "modules/python-benchmarks-m6-nextflow-py-eea75326ef.html",
+      "sha256": "697d2537dd0996f6d475057fe8f174d1257b7fb6a7f0b011182094ddbdaa7822",
+      "size_bytes": 69162
+    },
+    {
+      "path": "modules/python-benchmarks-m6-prepare-py-fb20f9890b.html",
+      "sha256": "2dc5ebc2753dca2dc5881826192fdb7dfa5f60f4dd8804af81ee0f9c30314de4",
+      "size_bytes": 33937
+    },
+    {
+      "path": "modules/python-benchmarks-m6-protocol-py-955e7ecdd9.html",
+      "sha256": "44b41ea8e7661781c21e97909ff721ad33fcf4195de170b21b8df82980739c69",
+      "size_bytes": 14848
+    },
+    {
+      "path": "modules/python-benchmarks-m6-runner-py-d6b61845c9.html",
+      "sha256": "9b1ce9aa72d5b8405bafcdd403b4473fe67fe689ae0c47dca04f6299f0fd7455",
+      "size_bytes": 13182
+    },
+    {
+      "path": "modules/python-benchmarks-m6-scientific-py-75954cc596.html",
+      "sha256": "17256a17b9450c8a81baf3e77fe81acf1c0564d35fc047c67388a11fb2d66f1a",
+      "size_bytes": 6161
+    },
+    {
+      "path": "modules/python-benchmarks-m6-verification-py-5fe06f45ac.html",
+      "sha256": "5fa953d6fec8f22b03b3797fbaf576e39007ebf277f70c3fafec0530fa17a27f",
+      "size_bytes": 11832
+    },
+    {
+      "path": "modules/python-benchmarks-mr-controls-py-a97db316af.html",
+      "sha256": "d7fd593b497098c6de383a96a490e4a56d7edd4224d56adcc57d2c2d811f1cb4",
+      "size_bytes": 18119
+    },
+    {
+      "path": "modules/python-benchmarks-panel-py-96b5466b20.html",
+      "sha256": "756a1a9050faf1224caad5fb9f309656203c2ee05788fe29554e9ebe3bd49db1",
+      "size_bytes": 14870
+    },
+    {
+      "path": "modules/python-benchmarks-phase3-control-py-8efc1946ef.html",
+      "sha256": "a3508d4834b4d6cb6a5ba7c7e2f4c4dbcfb2e248072cf0b34ce04e0de2254f9d",
+      "size_bytes": 9889
+    },
+    {
+      "path": "modules/python-benchmarks-phase3-control-run-py-ec35e5bec5.html",
+      "sha256": "a6d4752173bfd89d86845011fd0895320759218e990268eeb36708eff2b9004c",
+      "size_bytes": 15423
+    },
+    {
+      "path": "modules/python-benchmarks-public-control-py-bbc9afed9f.html",
+      "sha256": "e0ec6ed409d2e709b0dbc845bac29d2b1ea0e20b49e859f30d747b224ab67f15",
+      "size_bytes": 26472
+    },
+    {
+      "path": "modules/python-catalogue-annotations-py-3f2145c538.html",
+      "sha256": "cf39241abedc2a4d51014ef0d9aadd6a4d064b927cc71d4c9d411c5b2b4903b4",
+      "size_bytes": 13988
+    },
+    {
+      "path": "modules/python-catalogue-importer-py-a937f2f321.html",
+      "sha256": "b57e43e9f91905312f438b3ea9285e4a221a9f5293cd92ea235227f85835452a",
+      "size_bytes": 16486
+    },
+    {
+      "path": "modules/python-catalogue-mass-py-69a6616727.html",
+      "sha256": "bf2dc79080dfbf4eaaa52546707a31f28a6f93cc9e9ea1d6546214685f3ef0ce",
+      "size_bytes": 4326
+    },
+    {
+      "path": "modules/python-checksums-py-31aa180a2f.html",
+      "sha256": "90484470a210bd5a24b85e5a289e7d7978609bda5815052e5b32db2a4505d586",
+      "size_bytes": 5581
+    },
+    {
+      "path": "modules/python-cli-py-faa0a6a2d8.html",
+      "sha256": "655459ed0a8cfb3cacf1298312e48711833a6c554362f6f525951fd55697b97b",
+      "size_bytes": 41929
+    },
+    {
+      "path": "modules/python-databases-cache-py-4ab89a5ff6.html",
+      "sha256": "4dcb83fe79af47dd23ee52008888472deec38bc8640b8a0b8905be9bbcf1debf",
+      "size_bytes": 16852
+    },
+    {
+      "path": "modules/python-databases-common-py-88510676ed.html",
+      "sha256": "6206a332998f35d557e362fc3047d3cee90ea560dab1e0d70a60c0c84e826787",
+      "size_bytes": 27941
+    },
+    {
+      "path": "modules/python-databases-network-py-5c35d4577b.html",
+      "sha256": "43307c6008be13dc978f2b7103c1d73a62ed8f122bd682ea2236c6c44992791c",
+      "size_bytes": 19316
+    },
+    {
+      "path": "modules/python-databases-preflight-py-ee6e3ecbf3.html",
+      "sha256": "b578f4ebfe9b1c420ede19d232eee23f1e0cda812164e83a48a2f992ee70871a",
+      "size_bytes": 9268
+    },
+    {
+      "path": "modules/python-databases-prepare-py-d270a3e1a1.html",
+      "sha256": "e02e549513518ff7da393501788795916553bba3503d6ae6df570ffab5c3ee6d",
+      "size_bytes": 59420
+    },
+    {
+      "path": "modules/python-databases-sources-py-399c339fa3.html",
+      "sha256": "6ba76f590e561f217cf7d0dad40b946923c1fe9e728dacb982042b2f59a8c7ab",
+      "size_bytes": 20584
+    },
+    {
+      "path": "modules/python-diffraction-dispatch-py-3c21ff7c32.html",
+      "sha256": "c45ae094b021d39369932e46589b15b7c0d061f19299ef894d2df25fad024589",
+      "size_bytes": 8334
+    },
+    {
+      "path": "modules/python-diffraction-free-r-identity-py-1986d362d8.html",
+      "sha256": "ad9f9019b7c27e2c20f5f7baa51555564f756d811838ab6ed3ad4d614ee15d1e",
+      "size_bytes": 10310
+    },
+    {
+      "path": "modules/python-diffraction-free-r-py-f1147bd8b1.html",
+      "sha256": "247c286113735d48a42256ffaaf331ffc71eda8b9dbe2a20f2b4a8d7978d8fda",
+      "size_bytes": 5186
+    },
+    {
+      "path": "modules/python-diffraction-preflight-py-5481d03f9b.html",
+      "sha256": "3050d2f4139be092c498e3eb574f682ea66b623466f682e8dee0ef86eba4bc00",
+      "size_bytes": 25654
+    },
+    {
+      "path": "modules/python-diffraction-selection-py-d5e66cf74f.html",
+      "sha256": "3fee7a079e6cac5a0c0fc837642bb100555a66dd606925e1836c506139e8297a",
+      "size_bytes": 9308
+    },
+    {
+      "path": "modules/python-execution-composition-beam-py-bc7493342f.html",
+      "sha256": "d77aa9c9b6ec1818cfcad9423eca4721e223978b8ce4a1c3173215dc040609ae",
+      "size_bytes": 12960
+    },
+    {
+      "path": "modules/python-execution-composition-depth-py-611c95748d.html",
+      "sha256": "9440e16d7f8ff3875a746173bcff8f639ef522b5a928bdf09833c645a4b83bb9",
+      "size_bytes": 13291
+    },
+    {
+      "path": "modules/python-execution-composition-py-2ddb679b23.html",
+      "sha256": "ac5a4e861b28816ca23193b1a97c2b389a526bac7b6f7d54d44c94e6b9523210",
+      "size_bytes": 10007
+    },
+    {
+      "path": "modules/python-execution-composition-runtime-py-136a60b7d6.html",
+      "sha256": "7365fbeb4469e1c3607cb726f7c80f480b4a5cbb2170cffb58eed10e61b74412",
+      "size_bytes": 17778
+    },
+    {
+      "path": "modules/python-execution-finding-closure-py-0352935688.html",
+      "sha256": "8237822039ab3219703cd261dd9082edd5ecaa0acf66b694e645d1541252ba7e",
+      "size_bytes": 9405
+    },
+    {
+      "path": "modules/python-execution-network-probe-py-ef3f2697ec.html",
+      "sha256": "ce49bb655d7f6380686c61d6e57ca10af44ddbd828501627d0ca929e00ca8e4e",
+      "size_bytes": 7530
+    },
+    {
+      "path": "modules/python-execution-pass2-seed-py-a9ac7413c0.html",
+      "sha256": "04a6e4b687813cbb83aabf2a324b716eb9162442bbf622f72d60d187edf8d16c",
+      "size_bytes": 7606
+    },
+    {
+      "path": "modules/python-execution-provider-empty-graph-py-d10b1dee91.html",
+      "sha256": "92f526dc6ab8628a1a7e5c2cb5fbef43ee26d82a79cc47596666e58de5bf6419",
+      "size_bytes": 11989
+    },
+    {
+      "path": "modules/python-execution-unknown-screen-py-45205e7e71.html",
+      "sha256": "affc158f262d18938f28f9fb5321e64425829da6186ef1a40e751307e4d4eb0b",
+      "size_bytes": 26804
+    },
+    {
+      "path": "modules/python-hpc-cli-py-6689f384c4.html",
+      "sha256": "9452af5708b9f7aa51e717da09356652c0d354d27da9c5101d878f7571040159",
+      "size_bytes": 7757
+    },
+    {
+      "path": "modules/python-hpc-client-py-a7c0683348.html",
+      "sha256": "1773da1b0e8c21adac6e46959f12ced863febda4c35378394a002d52d9e6f360",
+      "size_bytes": 118567
+    },
+    {
+      "path": "modules/python-hpc-control-matrix-py-db3232e828.html",
+      "sha256": "92a57b0cc096f38461933c15b2cacde97065c3080155a91d9a941b85e36b45aa",
+      "size_bytes": 7175
+    },
+    {
+      "path": "modules/python-hpc-control-slice-py-f97a4c546c.html",
+      "sha256": "820fe22ad993044f2f2e692e159a5743f1d773c16aadeb6201234bbb8eca316d",
+      "size_bytes": 6897
+    },
+    {
+      "path": "modules/python-hpc-m4-import-py-ac376e54de.html",
+      "sha256": "880dabf3acd13a3b60f487b493d565fbc7cdbec9696e27ce4ba288aca9a7e835",
+      "size_bytes": 6641
+    },
+    {
+      "path": "modules/python-hpc-models-py-e0a045413d.html",
+      "sha256": "6dd7d9730a355f80b866b49019b4c26617c1a70e357857bcc41d8fd338242ea3",
+      "size_bytes": 16134
+    },
+    {
+      "path": "modules/python-hpc-mr-failure-evidence-py-72dc732a62.html",
+      "sha256": "2410c73475f1573140dfe7cdfb1d46eb674e9276327a7e5eb2ae2d3ef14a280b",
+      "size_bytes": 16594
+    },
+    {
+      "path": "modules/python-hpc-p0-inputs-py-be3978ce9a.html",
+      "sha256": "73c9f028aaf0d3a8e18954f3e060e24d887a911b221d5628fdfb720eafc19911",
+      "size_bytes": 13129
+    },
+    {
+      "path": "modules/python-hpc-unknown-inputs-py-1f6f4d76a4.html",
+      "sha256": "ba3d8ee0b1aa24bacab0b8671f8d566ef2aee36d4f871db8e36059a84f24a13b",
+      "size_bytes": 17590
+    },
+    {
+      "path": "modules/python-hpc-unknown-pass2-inputs-py-385e124e6d.html",
+      "sha256": "3a3d62b097517f453eabe83032676a4bc36a37c6a058febaedd8ee82e39e37e8",
+      "size_bytes": 16227
+    },
+    {
+      "path": "modules/python-hpc-unknown-single-inputs-py-7c58ca02e8.html",
+      "sha256": "9d0b11c6050b1f4a7fc4f226e7ff2b944d949bc7537805666cf10fe26e0b4196",
+      "size_bytes": 13449
+    },
+    {
+      "path": "modules/python-ids-py-22f8199daa.html",
+      "sha256": "57fa8870a396eef0362bc155487e479526072965a9cca5cb5ba9b0aac04a3f16",
+      "size_bytes": 8523
+    },
+    {
+      "path": "modules/python-localisation-adapters-py-33341bb87c.html",
+      "sha256": "29e07c0af703190c0de2f68455937a87cbd2b59c845ab4e88001591d91af053f",
+      "size_bytes": 12190
+    },
+    {
+      "path": "modules/python-localisation-batch-py-43cdb66ff1.html",
+      "sha256": "dc1014bbe7c91e262f835cc88ef74723ede123bc8327cb1c15efa31af1ccc135",
+      "size_bytes": 21288
+    },
+    {
+      "path": "modules/python-localisation-container-execution-py-5b66f5de6a.html",
+      "sha256": "bcbacfc01fbebf726af4f56bc59103dd09c396dac6c91ecd5fed135ebd75269a",
+      "size_bytes": 13016
+    },
+    {
+      "path": "modules/python-localisation-contracts-py-3f3e4ce1de.html",
+      "sha256": "426d964a798ebb67e09ce4e6302ddbf8b250c803c5856659408bc0ba7d065d9c",
+      "size_bytes": 10755
+    },
+    {
+      "path": "modules/python-localisation-policy-py-a85d8db462.html",
+      "sha256": "03611c77858b6cc952f66cff31f707d1e0ddedd4c25a60c0f9f4d8f73ed83346",
+      "size_bytes": 39416
+    },
+    {
+      "path": "modules/python-localisation-reopen-batch-py-b07b4feb8d.html",
+      "sha256": "6cf7ccb049f619fdfabbfac7296c3936bcd06e582a6559a14698c526c185a031",
+      "size_bytes": 9496
+    },
+    {
+      "path": "modules/python-logging-py-fdbe4511fe.html",
+      "sha256": "c55cca7af5d17d15f1ca95baed02040a0f982b9a20836e645382646e5bc14683",
+      "size_bytes": 7333
+    },
+    {
+      "path": "modules/python-matthews-enumerate-py-5ea8b05e11.html",
+      "sha256": "97f9f841c786861b824923e9779a86bd7343cb13969360a16237011deecaa295",
+      "size_bytes": 15073
+    },
+    {
+      "path": "modules/python-matthews-reference-py-e07f9b2312.html",
+      "sha256": "6494f4421f03efc38083244f035c15ed47cdee4e6bce33ef053625fc3304b99b",
+      "size_bytes": 16123
+    },
+    {
+      "path": "modules/python-model-registry-all-eligible-py-bf239904b7.html",
+      "sha256": "ec72b8e02ea104ee32ed57d7e02d08e31500dde6815addd847388c9c74f7cb72",
+      "size_bytes": 16383
+    },
+    {
+      "path": "modules/python-model-registry-experimental-py-b3217cd997.html",
+      "sha256": "d4f7d84d4cf91448c47e4d2a1668ad9c1cdb6d74b79ab3d15aa3ea693c51c747",
+      "size_bytes": 15946
+    },
+    {
+      "path": "modules/python-model-registry-predicted-py-655401e158.html",
+      "sha256": "8c8ec2706a8d81260a38d61eefe80e8796a58075d0cf97fbbd423a7fb2eb76c1",
+      "size_bytes": 16220
+    },
+    {
+      "path": "modules/python-mr-add-copy-py-586053e117.html",
+      "sha256": "53680ebcf9394d601c48e00a4aba2e60d9424fd037c2715d00cef582516c530e",
+      "size_bytes": 16389
+    },
+    {
+      "path": "modules/python-mr-approved-partner-py-2c1d8433af.html",
+      "sha256": "e144ce8b29cc84f577236a0a69025ba2bd7b447a7060f4792edb3cb64c98adc1",
+      "size_bytes": 9226
+    },
+    {
+      "path": "modules/python-mr-copy-report-py-4c78aa1ee2.html",
+      "sha256": "774448cbf2a2db5978a1467482d1db49abdc6ce79ba8b93fd82c909c7a4d9bfc",
+      "size_bytes": 6196
+    },
+    {
+      "path": "modules/python-mr-fixed-components-py-4a285fffce.html",
+      "sha256": "252e13cef72d4598efb3c37ddca317fa233d12260575885ebbce6cfa9236c1e9",
+      "size_bytes": 5861
+    },
+    {
+      "path": "modules/python-mr-multi-fixed-py-6415862227.html",
+      "sha256": "b37d26ec8325c9e2fd7d7091ca67f8d27d82649314e905c0bdc1e7561daeb6fe",
+      "size_bytes": 12129
+    },
+    {
+      "path": "modules/python-mr-partner-py-a07e7920ad.html",
+      "sha256": "6bc06c7977b19ea567876ae980feed5498353b16d1f66189538599a5743a5486",
+      "size_bytes": 12189
+    },
+    {
+      "path": "modules/python-mr-partner-summary-py-9528a7520d.html",
+      "sha256": "c74334594a86f51832a7fe1516efe06bd5a4c02a480c717ed7e7272a43918530",
+      "size_bytes": 3748
+    },
+    {
+      "path": "modules/python-mr-per-placement-py-9d4e4a5ed8.html",
+      "sha256": "0ee94e6c73f5892e1ec6023784b4814190757a8deab4947cf67a31ec909faf5d",
+      "size_bytes": 12571
+    },
+    {
+      "path": "modules/python-mr-phaser-py-68db88ac7a.html",
+      "sha256": "0ad4196d9ff096c94543ffc0c92e1df50544581d137cf51029c8d540c3ea672a",
+      "size_bytes": 25763
+    },
+    {
+      "path": "modules/python-mr-policy-py-986bb84412.html",
+      "sha256": "9719f313b863a9619504885ae7ca12f84aac856014cfaac6d10a32409de92499",
+      "size_bytes": 2215
+    },
+    {
+      "path": "modules/python-mr-resources-py-653fd2d806.html",
+      "sha256": "cce59c88f255075393579adf29e60b72a27b27b8c3aafe8c29e27f9e826813b9",
+      "size_bytes": 6277
+    },
+    {
+      "path": "modules/python-mr-stage-add-copy-py-0d0f0bf862.html",
+      "sha256": "0d7a4b07c2c097c1e33b48acf94c0b41654c448fc6d984bbdcccfbfd781df827",
+      "size_bytes": 29421
+    },
+    {
+      "path": "modules/python-phenix-errors-py-a7d5985783.html",
+      "sha256": "ffc25f9fe5b95e233b900e48e496dd4f557223b3519269eceb6ffc10e5cadb01",
+      "size_bytes": 6781
+    },
+    {
+      "path": "modules/python-phenix-installer-py-5cf8c9a873.html",
+      "sha256": "1396913a34b93c3658a231dd0cc4a3d819480e9a530a30309e2119fda131b2c3",
+      "size_bytes": 16049
+    },
+    {
+      "path": "modules/python-phenix-interface-probe-py-26eba2587b.html",
+      "sha256": "a11afe994b4373bc9acf068a016ded378a40e5fa56834ccedd770039e7c27601",
+      "size_bytes": 4393
+    },
+    {
+      "path": "modules/python-phenix-recovery-py-844f56904a.html",
+      "sha256": "3f40c387e6cfe1fab7c9dfdfcd3f86d163c5793581ace4d98f5ffa17b4732b95",
+      "size_bytes": 9408
+    },
+    {
+      "path": "modules/python-phenix-runtime-py-cfc03db660.html",
+      "sha256": "96cd0f3c65b06d966d2a09993a9a8e6f2a21b3ec50f2edfe8a4db5f453f4ee64",
+      "size_bytes": 22697
+    },
+    {
+      "path": "modules/python-ranking-candidate-generation-py-0bb2e490f2.html",
+      "sha256": "d6d64249b100852fc0f9ce3d9d4f14f860b579d2d047a0ee263fba8842071b11",
+      "size_bytes": 31133
+    },
+    {
+      "path": "modules/python-ranking-composition-py-d576a26e97.html",
+      "sha256": "5be1c88b916265033b5606a61a6cca23bc693517ca4efdeec435fdcaa997faf3",
+      "size_bytes": 24336
+    },
+    {
+      "path": "modules/python-ranking-funnel-py-3dd07d926f.html",
+      "sha256": "31a8ec5634dffeb8940106e15a7223a7d29d1cbbaf0a4fb0d8c65deed2fa3bf6",
+      "size_bytes": 32648
+    },
+    {
+      "path": "modules/python-ranking-partner-py-2d9ca107ca.html",
+      "sha256": "a8b6034f115e618c436714f36d64c4afbe3e57a880595fbeeb5590993352f254",
+      "size_bytes": 15143
+    },
+    {
+      "path": "modules/python-refinement-brief-py-93457ddafb.html",
+      "sha256": "84995d12debbe22a9d9a986982620c0fff59b732794d4c74961416c0f12d4492",
+      "size_bytes": 26176
+    },
+    {
+      "path": "modules/python-refinement-stage-py-ce18f20611.html",
+      "sha256": "aefda09297e04b0cccc6d0c58642b323d9e0a83a32aada041410bbb5997fd58d",
+      "size_bytes": 20638
+    },
+    {
+      "path": "modules/python-reporting-unknown-pass1-derivation-py-54b922bcad.html",
+      "sha256": "795a3a202d21e134643e99ac1599422fb95c96d7fe98cba5bf48efd8cb1eb30e",
+      "size_bytes": 21250
+    },
+    {
+      "path": "modules/python-reporting-unknown-pass1-py-1f35eeaca8.html",
+      "sha256": "da85c7fae3be62e344bb1adb87d74e29c3f9bf5a854df82dfb9c686830d8303e",
+      "size_bytes": 20026
+    },
+    {
+      "path": "modules/python-review-component-identity-py-868db2f21a.html",
+      "sha256": "c134830ac3d30dc50b3ec0c06574c9fe4c43217da15b48789f3ff7636f9f72da",
+      "size_bytes": 7052
+    },
+    {
+      "path": "modules/python-review-historical-checkpoint-py-c47c73663d.html",
+      "sha256": "e5db9d6b76fa3d4870cffe310fa4338751cde9c74ae0c3786161c5e3842f1b1a",
+      "size_bytes": 4728
+    },
+    {
+      "path": "modules/python-review-mr-seed-py-1b40f78c39.html",
+      "sha256": "bf176c28114f1e2fcb1467816387286d6f786552803f08bc4ca6db581913bd24",
+      "size_bytes": 30915
+    },
+    {
+      "path": "modules/python-review-owned-run-py-2a422d7b3b.html",
+      "sha256": "8b286cac1869782f9720e4e1fc886f8792078d5f38d5a4ddf3c4bb6658914999",
+      "size_bytes": 16918
+    },
+    {
+      "path": "modules/python-review-pass2-package-py-4c2e6303db.html",
+      "sha256": "77384fef1a902332999aa8bc3efe4042e3b3c17b3508f22eb697641daaaf596c",
+      "size_bytes": 7727
+    },
+    {
+      "path": "modules/python-review-phase3-package-py-3865e7f1ee.html",
+      "sha256": "d307dd52bc926ba091f3dd9fb66b5c86b7a8d17568ea306bc5c9d14a1ba2d80a",
+      "size_bytes": 22832
+    },
+    {
+      "path": "modules/python-review-phase3-stage-py-0497c7ac0d.html",
+      "sha256": "94147dae39a7e831837c9a7c365d4b17c27f175a918d05c263a39f7c39102c81",
+      "size_bytes": 13282
+    },
+    {
+      "path": "modules/python-review-resource-summary-py-13e6702845.html",
+      "sha256": "48028efc649ad20abf600c9542d8b939a23644584ee9775f2de4ebcd9cd25041",
+      "size_bytes": 19274
+    },
+    {
+      "path": "modules/python-review-sequence-checkpoint-py-31a7b4c3b1.html",
+      "sha256": "3c094f58185b2cc19b205fa39aacfcace224e52d1592c5cbc1a54ebdeafaca9c",
+      "size_bytes": 26075
+    },
+    {
+      "path": "modules/python-schema-check-py-6db102432e.html",
+      "sha256": "7fb552c9732b47dd3020c01ad09f2ff8877895d4469befe7f2f9a5fabae65a26",
+      "size_bytes": 5184
+    },
+    {
+      "path": "modules/python-schemas-base-py-1ec030edb8.html",
+      "sha256": "f6e05a7cf7198028b646d850b957bb63d27e30aa5d55932d2a0520142e7c0d35",
+      "size_bytes": 3923
+    },
+    {
+      "path": "modules/python-schemas-io-py-fda12f2242.html",
+      "sha256": "eed0796e604af7b1a15d136a5e77c800a05339e3516c190639a861cf014a61a6",
+      "size_bytes": 30366
+    },
+    {
+      "path": "modules/python-schemas-manifests-py-9a92128f2d.html",
+      "sha256": "d11e423f7b2864c7bb47e5c8c39e7547e08dd00c1a07ea4affe6b30731d059a1",
+      "size_bytes": 24652
+    },
+    {
+      "path": "modules/python-schemas-mr-resources-py-8717504a55.html",
+      "sha256": "ce27b5a934a2f9df63222ce30f3189ee4d5101873c31f0b22543832de963c4a3",
+      "size_bytes": 4731
+    },
+    {
+      "path": "modules/python-schemas-providers-py-c690972e6d.html",
+      "sha256": "57f0ac01a846ef55cbd0d7f969d4896352cf27aa85dbf4453091476bae7df931",
+      "size_bytes": 7974
+    },
+    {
+      "path": "modules/python-schemas-results-py-e491ab1af3.html",
+      "sha256": "4608740c1cc6a68a94a9a0a5fc35a9fc61acedf29c1b1c30fbfead8e6730297f",
+      "size_bytes": 36121
+    },
+    {
+      "path": "modules/python-schemas-v2-component-execution-input-py-b32f713c47.html",
+      "sha256": "c79ba8889008856003f20a8013a4ee7f6ec88bd32229e811e0735afb6620d6ed",
+      "size_bytes": 7850
+    },
+    {
+      "path": "modules/python-schemas-v2-composition-attempts-py-63967a8679.html",
+      "sha256": "7b479ca47e357a07ada761739686a51f3981c724cdb35d256e2e27c17d1b9593",
+      "size_bytes": 7936
+    },
+    {
+      "path": "modules/python-schemas-v2-composition-py-18e55fe30a.html",
+      "sha256": "12e63dec01332f1238c3cf17deaf6b2ce793e366c9d79f47832062ca3044c5c7",
+      "size_bytes": 30263
+    },
+    {
+      "path": "modules/python-schemas-v2-diffraction-py-ce408813f3.html",
+      "sha256": "bfb11e4c1b6c5ce09a358c1af6a6fe3e3ff55d93a0df832ac29da3c9d10989f5",
+      "size_bytes": 12004
+    },
+    {
+      "path": "modules/python-schemas-v2-execution-py-49e3055696.html",
+      "sha256": "6070fa74fdfe5e7bad57b51be9166b5ca71d59d6b0afda86d7018443e06381b6",
+      "size_bytes": 4176
+    },
+    {
+      "path": "modules/python-schemas-v2-owned-run-py-6192835d11.html",
+      "sha256": "4e9e61c5a8a2e91ebce5834c963616f63698db0ade4cdc63366af76745c6bbca",
+      "size_bytes": 3370
+    },
+    {
+      "path": "modules/python-schemas-v2-phaser-placements-py-d93cd8c2d3.html",
+      "sha256": "a1f0b40c8e21c902cfb1a88ce18b782f8db3340ee64027e01cc30ac1d05a3a97",
+      "size_bytes": 6354
+    },
+    {
+      "path": "modules/python-schemas-v2-review-py-75b56f465d.html",
+      "sha256": "d8bbf258432247b995f4520532ae1d7658090cb86886d9340fbca3ea6f9038a7",
+      "size_bytes": 11259
+    },
+    {
+      "path": "modules/python-schemas-v2-unknown-assessment-py-46d19e404c.html",
+      "sha256": "6e3132ee03b23cbaf64cab65d1485ebeac9e1dc80c8b473c725bff3a8a11ae5a",
+      "size_bytes": 13058
+    },
+    {
+      "path": "modules/python-schemas-v2-unknown-collection-py-384e1e5b71.html",
+      "sha256": "a6b72de96cc86fe2bc939cc8107aec7635aa79e28315cdf0063c7e2220e8e6c5",
+      "size_bytes": 5990
+    },
+    {
+      "path": "modules/python-schemas-v2-unknown-screen-py-3f5444b175.html",
+      "sha256": "ef1eb3c3dd123ad8078700f48716e681880ef64005007fcc3ec29670851e654f",
+      "size_bytes": 9309
+    },
+    {
+      "path": "modules/python-status-py-eb3cd094d7.html",
+      "sha256": "35a2d2e72e8ec14146622f60909b9cc2f6a8a0109e9c1ae70cb8344c844b10d3",
+      "size_bytes": 5657
+    },
+    {
+      "path": "modules/python-structure-search-afdb-exact-py-59ae8353f0.html",
+      "sha256": "e5450f6bbfa011b6d2e8bdc60f36b23fa577974eca40c6777af13a990b19b0f3",
+      "size_bytes": 20862
+    },
+    {
+      "path": "modules/python-structure-search-pdb-coordinates-py-7dd4cdd805.html",
+      "sha256": "9895609a4fba1b434170bd1388d66d3fdbc552413972444bed4a54fb69c3d1b9",
+      "size_bytes": 18325
+    },
+    {
+      "path": "modules/python-structure-search-pdb-sequence-py-99751d55ef.html",
+      "sha256": "12ed102c0abb45facbfc7237d8195b368112fcca52c5745a7a5941ed3c716524",
+      "size_bytes": 16995
+    },
+    {
+      "path": "modules/python-structure-search-phase3-batches-py-008fb4ce8c.html",
+      "sha256": "7baee3c8eeb82b60e2b43be75f158a6f4dbacf0e1b9a5063a62b563670d6409e",
+      "size_bytes": 8179
+    },
+    {
+      "path": "modules/python-structure-search-phase3-discovery-package-py-9ab09b4bbf.html",
+      "sha256": "32033a5ec3ec1e1fbb2a9f954161191775bb60e39cdd4a991ddc538b652266e5",
+      "size_bytes": 16105
+    },
+    {
+      "path": "modules/python-structure-search-phase3-login-stage-py-17be448d5e.html",
+      "sha256": "272562235f7f508ae7b63361f4974763a488e521661549394bf5ff8ec426e958",
+      "size_bytes": 17426
+    },
+    {
+      "path": "modules/python-structure-search-prostt5-foldseek-py-b21fadb82b.html",
+      "sha256": "8955695cd06434f0ad72f7ea69af785a57e0f4eba07be626f44431fca4146098",
+      "size_bytes": 21051
+    },
+    {
+      "path": "modules/python-structure-search-provider-empty-py-6757579a73.html",
+      "sha256": "a2409a959b48ca4decccf401b69705a65ddb904893e9674a5ba35de8dd2610fb",
+      "size_bytes": 6703
+    },
+    {
+      "path": "modules/python-structure-search-provider-hits-py-9fcb4f9614.html",
+      "sha256": "7492c5e2899e9bc9f8bbd9662003172e7156ffc2f2b157bddabf05137c67d520",
+      "size_bytes": 5430
+    },
+    {
+      "path": "modules/python-structure-search-provider-plan-py-c9e01941fc.html",
+      "sha256": "5f270290926d9e36fa4dee75c6b2d28000083f02a78b8226dc4ec48392710e64",
+      "size_bytes": 14660
+    },
+    {
+      "path": "modules/python-structure-search-qualification-py-6b9ccc1271.html",
+      "sha256": "e5b25256445b285eac02cec100a874a781335cd645f2bc2e5d9cf639e3ffe796",
+      "size_bytes": 10650
+    },
+    {
+      "path": "modules/python-time-py-d42623e1f7.html",
+      "sha256": "96ba02450f495897eac6b18e23dc33b381257d7425f626448d4a0bb88c596d2b",
+      "size_bytes": 2631
+    },
+    {
+      "path": "modules/test-contract-test-repository-policy-py-2f149de14d.html",
+      "sha256": "dd6ec6f47c1d2d87160af14cfa680f2ea066589cc87d1223183ea149e2da8e56",
+      "size_bytes": 25563
+    },
+    {
+      "path": "modules/test-contract-test-schemas-py-d2e6358e7f.html",
+      "sha256": "92b55447459055ae3e6b0a2e1f264f0cbc06e46e2545c7549f16786d3344c292",
+      "size_bytes": 2834
+    },
+    {
+      "path": "modules/test-contract-test-typed-contracts-py-bf8c42d097.html",
+      "sha256": "bda5235e6a0fbb681b5d8b3281f7a6bca3c47afb841b8914a2419bd215ca1a61",
+      "size_bytes": 36404
+    },
+    {
+      "path": "modules/test-integration-test-foundation-wiring-py-78195c7116.html",
+      "sha256": "0e12d97d40e07080816a2b140e760377f6bc3b3ad10c39ca18a732d715b48d9c",
+      "size_bytes": 4877
+    },
+    {
+      "path": "modules/test-integration-test-hpc-remote-dispatcher-py-996956732f.html",
+      "sha256": "f972e525750c5ff0c659bda74edb9224c8a6a489793141446b539b36de2aa3e3",
+      "size_bytes": 119422
+    },
+    {
+      "path": "modules/test-integration-test-stub-fixture-copy-py-a2c1d545b5.html",
+      "sha256": "c35e42a3d5862587d25472fbde9036a63c69e05cb6a4ae8ad2dc966edb6ee95e",
+      "size_bytes": 6481
+    },
+    {
+      "path": "modules/test-integration-test-transient-retry-py-e0dfe367d1.html",
+      "sha256": "813583fc57dcfec5bb41e234ee53757d7cdfe9d4f354c45cdb6309a0526ed127",
+      "size_bytes": 3302
+    },
+    {
+      "path": "modules/test-scripts-build-phase3-owned-sequence-stub-py-45af0ba444.html",
+      "sha256": "69c1d1437cd390a9d653caeb6d5fc1e4290691e9cf12560f66967053573d0c48",
+      "size_bytes": 3088
+    },
+    {
+      "path": "modules/test-scripts-check-composition-attempt-fanout-py-73b08712d5.html",
+      "sha256": "48011723c50bbe2f59c620a844a804d7103b7e0e5090267539c7f6eb5508643d",
+      "size_bytes": 16312
+    },
+    {
+      "path": "modules/test-scripts-check-docs-py-e5916eac5f.html",
+      "sha256": "da98b10f750156e54698f281b20fcac07b39f1724bf85f7f0b39e0e3d7e26533",
+      "size_bytes": 2702
+    },
+    {
+      "path": "modules/test-scripts-check-heteromer-application-py-6cbcf6640d.html",
+      "sha256": "0c24ead5b8573154cba962c00f36f147df3d4fbd15f9f7dbd59ee98046508790",
+      "size_bytes": 7092
+    },
+    {
+      "path": "modules/test-scripts-check-m6-cache-mutation-py-05f1b834e0.html",
+      "sha256": "dddbd4b155827df8c196f5d7cbf59979cba3097227de0251f907c8afe0ff9b35",
+      "size_bytes": 5740
+    },
+    {
+      "path": "modules/test-scripts-check-mr-resource-retry-py-ad03e02f5a.html",
+      "sha256": "77c007efe4efdc598b051159fd8ab9ca590b72af23239356e4029d60394a3abb",
+      "size_bytes": 3664
+    },
+    {
+      "path": "modules/test-scripts-check-multicrystal-fanout-py-493eee5d16.html",
+      "sha256": "e97c29635eec6ecd1ec965397525de4e685a42fedc9a73709cd1d36e7c228169",
+      "size_bytes": 11699
+    },
+    {
+      "path": "modules/test-scripts-check-nextflow-py-01eb7c18b9.html",
+      "sha256": "35decab157a2d26a95cfe2da8ac4c1dd832cfca11d4fbd73d6638c07b9ca9090",
+      "size_bytes": 22945
+    },
+    {
+      "path": "modules/test-scripts-check-offline-wheel-py-8056bb12d8.html",
+      "sha256": "24463a5c158c3810954bfd2245555241a18a2529069597f1050534572d400771",
+      "size_bytes": 12595
+    },
+    {
+      "path": "modules/test-scripts-check-phase3-composition-beam-py-c25e72f3ab.html",
+      "sha256": "8540f2803f6cac6e0bf094d99f88b271ad3d202840c038ce09c8a8027ee4a6bc",
+      "size_bytes": 3888
+    },
+    {
+      "path": "modules/test-scripts-check-phase3-foldseek-batches-py-8577d72164.html",
+      "sha256": "1aacc0488a56cfca4b4633f88756ec309ddd72c24b37ffd0d3f6ae387b46e08e",
+      "size_bytes": 5735
+    },
+    {
+      "path": "modules/test-scripts-check-provider-empty-graph-py-487de48a46.html",
+      "sha256": "8acd38a0e8e577e8bba64af7c0fdef39dcf7c0172a1cf2daa3dbf531030ff9c5",
+      "size_bytes": 6097
+    },
+    {
+      "path": "modules/test-scripts-check-unknown-pass1-screen-py-88a3fbcf78.html",
+      "sha256": "f20bdbcea88a99a8e568b99109ef071d9b7998b747e5d3aa681323c01cd7db9a",
+      "size_bytes": 8911
+    },
+    {
+      "path": "modules/test-scripts-materialise-catalogue-import-stub-py-8d8a9d8791.html",
+      "sha256": "2c1399e63910230a4bd8ace6a811ff4b81d398f072ffa84fb77de79dbd5ff48d",
+      "size_bytes": 4204
+    },
+    {
+      "path": "modules/test-scripts-materialise-localisation-stub-py-a7e4a4256d.html",
+      "sha256": "a8f6a56d8494fe3b3159c2c6b468b8fdf77189be02b9e49300faa5240661729f",
+      "size_bytes": 5296
+    },
+    {
+      "path": "modules/test-scripts-materialise-mtz-preflight-stub-py-67754f4b9e.html",
+      "sha256": "b6863451073646218909eb7b3232f7fad704fb635d6d527eb41010dcd1f7ad2f",
+      "size_bytes": 3465
+    },
+    {
+      "path": "modules/test-scripts-materialise-provider-no-hit-py-106af4da51.html",
+      "sha256": "f892e63eb6b2da62c96cc5c6fac575567741ae11dfad90cc51e55dcda8f0c78c",
+      "size_bytes": 4336
+    },
+    {
+      "path": "modules/test-scripts-write-phase3-foldseek-batch-stub-py-a0f6feeef7.html",
+      "sha256": "6ff3b700cdae5fdb1172cf7d46bf472bd71eb9f8e79bdfb1fc76fbfb54348cae",
+      "size_bytes": 4786
+    },
+    {
+      "path": "modules/test-support-unknown-pass1-fixture-py-b48ab6bf61.html",
+      "sha256": "6bebc74118d4b8422c24ee9e5dd118749f0d73593e654e2b38fb3697e8246e83",
+      "size_bytes": 17672
+    },
+    {
+      "path": "modules/test-unit-test-add-copy-phaser-py-d0bbd8b09e.html",
+      "sha256": "651e128a7b75cc3cc43802430ce0749574bb520251a9a8d78a664a26447b7a4b",
+      "size_bytes": 30473
+    },
+    {
+      "path": "modules/test-unit-test-afdb-exact-py-1d68a5307d.html",
+      "sha256": "bd1891afcf57132a0f5d6f2e3d3234d8e1699d7316437a0a5a66bfc4e182074a",
+      "size_bytes": 15620
+    },
+    {
+      "path": "modules/test-unit-test-all-eligible-model-registry-py-4cf8fb5c32.html",
+      "sha256": "bbbfc58e7dc939429716fcf64953a7ef28181fc10a271ea1cc2415e5cc986ad0",
+      "size_bytes": 11156
+    },
+    {
+      "path": "modules/test-unit-test-approved-partner-py-b064c3766a.html",
+      "sha256": "46e78774270779c9a380cd6b51da6afa70099902fe9260acf0e15ed75da1e41b",
+      "size_bytes": 11511
+    },
+    {
+      "path": "modules/test-unit-test-brief-refinement-completion-py-3bdebebf16.html",
+      "sha256": "2e0810ca2c4b6fee90cd6a38d0c8620dfc1ef9b70a7036ee69e12483180c0152",
+      "size_bytes": 8873
+    },
+    {
+      "path": "modules/test-unit-test-brief-refinement-py-b383abf23f.html",
+      "sha256": "4dfaaa121e7b8931cdd8b89a74e5fb669a10ebf099e01e7d6c5a4c713b3c91f3",
+      "size_bytes": 30354
+    },
+    {
+      "path": "modules/test-unit-test-catalogue-py-788da7764d.html",
+      "sha256": "c1e27fa88a013c390e951c5e0e5c19abc23462eb5baaac8bf9ac89cd15d20d00",
+      "size_bytes": 12871
+    },
+    {
+      "path": "modules/test-unit-test-checksums-py-0f84ee6497.html",
+      "sha256": "b839d3ee30633f9cec361422b7ab4e1bd3769878923fca019e75886939ff0725",
+      "size_bytes": 6355
+    },
+    {
+      "path": "modules/test-unit-test-cli-py-fad641f3c6.html",
+      "sha256": "732fa3da8ca423dd7f4a5eb60874254aaaf13de6ef586325a263d6bd10ab18f8",
+      "size_bytes": 8795
+    },
+    {
+      "path": "modules/test-unit-test-component-candidate-generation-py-ab32dbf74e.html",
+      "sha256": "fd166991add640057d1dc75ec829bef393838a1e5384621dd9cbbf3cb78299ca",
+      "size_bytes": 17876
+    },
+    {
+      "path": "modules/test-unit-test-component-coordinate-derivation-boundary-py-409e13f120.html",
+      "sha256": "412e2f6da3801ea35f5d0501d5aaf705011b86f3bef74fac737cb9efa136c9d4",
+      "size_bytes": 7219
+    },
+    {
+      "path": "modules/test-unit-test-component-expansion-execution-input-py-490de64923.html",
+      "sha256": "de1ded7bfac5c217435a2f208c1be20defaadec0bbb7d2086c7e9f879d1ea607",
+      "size_bytes": 18526
+    },
+    {
+      "path": "modules/test-unit-test-component-identity-review-py-5f5a48998f.html",
+      "sha256": "b225e3bdfaa085440a13f7b45c747decd86d8e87780fcd7dda772922e7cfcbbd",
+      "size_bytes": 15494
+    },
+    {
+      "path": "modules/test-unit-test-composition-attempt-inventory-py-420c796bb9.html",
+      "sha256": "52baf4c4f8f7c2cd0a15846a4e4a0ecd0d508222a9a5543aedda9838dc5c1f8a",
+      "size_bytes": 13542
+    },
+    {
+      "path": "modules/test-unit-test-composition-beam-py-0522c95189.html",
+      "sha256": "789002c73eba7b71b423936b5c862f435639a17998ac7a83a7fa35771de1962b",
+      "size_bytes": 7825
+    },
+    {
+      "path": "modules/test-unit-test-composition-contracts-v2-py-4b6f003666.html",
+      "sha256": "c8b3e80917941336a5186e61996a80f59f82e61db4efe7193369e1b94802866f",
+      "size_bytes": 18445
+    },
+    {
+      "path": "modules/test-unit-test-composition-expansion-planner-py-512601563e.html",
+      "sha256": "3658e8bd58fb2552c30c2befb5f96a8312632dafb798bf8ca60a92b98f752f59",
+      "size_bytes": 13362
+    },
+    {
+      "path": "modules/test-unit-test-composition-registry-planner-py-bbff5012f2.html",
+      "sha256": "0ea048a4a57843d730d0cafaa55ece479c5862cfe8f4b6a87501a6ad79364a0c",
+      "size_bytes": 15648
+    },
+    {
+      "path": "modules/test-unit-test-composition-runtime-py-4164049f62.html",
+      "sha256": "50685ef9813de692f77b960edde34a75b66add9e8d2661f027ab3adcc6c6f356",
+      "size_bytes": 18104
+    },
+    {
+      "path": "modules/test-unit-test-control-matrix-run-py-f863cac22e.html",
+      "sha256": "ee8518e0d0ec317035241b5e5d853b3ef6be11cedf830c9306a85db7d0e6e571",
+      "size_bytes": 4274
+    },
+    {
+      "path": "modules/test-unit-test-control-slice-archive-py-61d1195a01.html",
+      "sha256": "974c015faa498722b2e51386109943aa98f306a9b9ff059b3ec35f78ca7a729a",
+      "size_bytes": 4430
+    },
+    {
+      "path": "modules/test-unit-test-control-slice-run-py-2a53008061.html",
+      "sha256": "a439f6c1a363a4b3bc39fe59fb31b7021aa019c21349a3a91de5ebe44d0d0216",
+      "size_bytes": 4983
+    },
+    {
+      "path": "modules/test-unit-test-copy-count-report-py-0f77dfc00f.html",
+      "sha256": "4e099c0710c8f03f254246a19b395d55cc0e3b6a7041eb3865d49cda2f81443c",
+      "size_bytes": 5443
+    },
+    {
+      "path": "modules/test-unit-test-crystal-dispatch-py-abbb4bb60d.html",
+      "sha256": "a005bd36cb450fb14067feeaf7758616187e41ef00ae2611c43e0fd482d83c64",
+      "size_bytes": 14038
+    },
+    {
+      "path": "modules/test-unit-test-database-network-py-8838f64fd1.html",
+      "sha256": "2d1cd5f669e660428a2d6a1626d5cc13626897ef4b725944d32f2561f0e2a855",
+      "size_bytes": 20138
+    },
+    {
+      "path": "modules/test-unit-test-database-preflight-py-4551c0532c.html",
+      "sha256": "ac97c60b9c03095ebe76315dd030486d94f661c4cc1093cee23b9880620a650a",
+      "size_bytes": 19181
+    },
+    {
+      "path": "modules/test-unit-test-database-raw-loader-parity-py-7a85e99253.html",
+      "sha256": "0601f054f0ab04ace8e9f56ac1ff3fc86fdd668b912e054b95976bf38c2d82f6",
+      "size_bytes": 3079
+    },
+    {
+      "path": "modules/test-unit-test-database-sources-py-e6ab8b4ce7.html",
+      "sha256": "13fa92b31ae0e49e0f2ca51c1bdb5b6bb39e1902450d071c84d5bd75b85412b5",
+      "size_bytes": 11041
+    },
+    {
+      "path": "modules/test-unit-test-database-storage-py-4743393700.html",
+      "sha256": "744635f349e291e0d94e8b32e8247a762180f09e21ee1a3eb2a7f9958fae2de9",
+      "size_bytes": 14213
+    },
+    {
+      "path": "modules/test-unit-test-databases-py-03a61b4564.html",
+      "sha256": "1b3b48b2c500fde1a0f7dfff0bbba7cbeeba24730f6ea72a6927913087dbdae0",
+      "size_bytes": 59279
+    },
+    {
+      "path": "modules/test-unit-test-diffraction-py-b930fb502a.html",
+      "sha256": "85de562320f4339f3c64c95689c538b36670aa158123caf06272e7dcd13e7872",
+      "size_bytes": 31177
+    },
+    {
+      "path": "modules/test-unit-test-diffraction-selection-v2-py-1a0e2a5605.html",
+      "sha256": "c821c8d5e973abfe453b64e1402db9e7f08acc337d17dac7da869b574dbda762",
+      "size_bytes": 8280
+    },
+    {
+      "path": "modules/test-unit-test-docs-atlas-inventory-py-b4c00f6937.html",
+      "sha256": "baf97015fe5ceee596c1e1f69c9cd9a46a2532c5ff9f606d78022cc09efd0192",
+      "size_bytes": 10043
+    },
+    {
+      "path": "modules/test-unit-test-experimental-model-preparation-py-b2dc0bedec.html",
+      "sha256": "1b7b23247d8e51241a453c63e35a6c8681ac82a4e2ebac9cd5773ec907f1c239",
+      "size_bytes": 8912
+    },
+    {
+      "path": "modules/test-unit-test-failed-mr-evidence-py-dd081952f6.html",
+      "sha256": "8865bfbc0c5a46ab1be81c7eb75ae33df9039cae970052ef7f0049ff1d4a70be",
+      "size_bytes": 6198
+    },
+    {
+      "path": "modules/test-unit-test-free-r-identity-v2-py-c87fc6f2bd.html",
+      "sha256": "95090024117ba0cff791a4570a35a3a4da0334f87d2966ab236cef4e3cec7298",
+      "size_bytes": 12103
+    },
+    {
+      "path": "modules/test-unit-test-heteromer-catalogue-control-py-799c3b217e.html",
+      "sha256": "0f2ac4e84aabce93f50cdc8ee9cb55c9a5a36eaad7da37e2d5c5c7ffd73acec2",
+      "size_bytes": 5559
+    },
+    {
+      "path": "modules/test-unit-test-heteromer-control-py-5b80f05949.html",
+      "sha256": "de4945294cf4cd4b49a7108403dfdc93fc628b44bd283bc94e7736dcaf3c56a5",
+      "size_bytes": 10033
+    },
+    {
+      "path": "modules/test-unit-test-heteromer-slice-py-2232334f0e.html",
+      "sha256": "5db3d6f376d6365e0f9c8ae8c87a8175a3f5fff98958e23593a9af726b6debe1",
+      "size_bytes": 18819
+    },
+    {
+      "path": "modules/test-unit-test-historical-checkpoint-py-b6ab49826a.html",
+      "sha256": "5404b7d41cd07d73c84859a87912ca01e4a85fb552df938c7dce56e4a57e872e",
+      "size_bytes": 5732
+    },
+    {
+      "path": "modules/test-unit-test-hpc-build-py-45fd62a0c3.html",
+      "sha256": "0d2bcc634c12b149d9b3a9bda9839c7049c19fd148950c973ed6b47eea1661fd",
+      "size_bytes": 3335
+    },
+    {
+      "path": "modules/test-unit-test-hpc-cli-py-72dad4a48b.html",
+      "sha256": "00c6f7461f8057f799c94a1330379c18ca44c8e0459e7e898fe59ec8c42e7cfe",
+      "size_bytes": 14871
+    },
+    {
+      "path": "modules/test-unit-test-hpc-client-py-4d02a1b1a3.html",
+      "sha256": "18a4bc16d9041b14f3460f11e4d9131c572198c00466ec3a4b51685c7053332f",
+      "size_bytes": 113245
+    },
+    {
+      "path": "modules/test-unit-test-hpc-models-py-99e47d2ecf.html",
+      "sha256": "29eb807196d133eb2c8952f13bf4354cf771dbd773a40e142d893bc3f463fdb5",
+      "size_bytes": 8781
+    },
+    {
+      "path": "modules/test-unit-test-hpc-raw-loader-parity-py-8ecfbc268c.html",
+      "sha256": "3561901cf122639c96e7dfc12946d0ffe0efe40e79aa6e09b3233d36f62845c2",
+      "size_bytes": 5915
+    },
+    {
+      "path": "modules/test-unit-test-ids-py-391d55d467.html",
+      "sha256": "283f4188450fd38eddd5b5716bc47a1b8de756b11f1e2f8deadd6dc63905dfce",
+      "size_bytes": 4893
+    },
+    {
+      "path": "modules/test-unit-test-localisation-adapters-py-a9fd31618e.html",
+      "sha256": "298a3bded525c7c9b9e87185f3d850cb4bfbd5779cc9edab63ff4c151679b342",
+      "size_bytes": 14515
+    },
+    {
+      "path": "modules/test-unit-test-localisation-batch-py-9916d11185.html",
+      "sha256": "30f21e685e98d392f075b91138e9d0b4af964006ffc4a9c5613f564c358f31bf",
+      "size_bytes": 12419
+    },
+    {
+      "path": "modules/test-unit-test-localisation-container-execution-py-22b2d046d0.html",
+      "sha256": "e34f3fedc6770bda1254673aa4d3c760a691c5f7bef3bb2ae8d606ec8e30bd87",
+      "size_bytes": 6739
+    },
+    {
+      "path": "modules/test-unit-test-localisation-reopen-py-9003794296.html",
+      "sha256": "8e575278bde95a6839832a435ea8c986f6d1d10970cd60485296d02f5c644046",
+      "size_bytes": 6688
+    },
+    {
+      "path": "modules/test-unit-test-localisation-wave-policy-py-200edd0747.html",
+      "sha256": "38bd8a2a0b9f588ea79b84facca44f7392908d1516958841a42b483d4d011393",
+      "size_bytes": 12198
+    },
+    {
+      "path": "modules/test-unit-test-logging-py-e721e90466.html",
+      "sha256": "0cb89d14f557aa82e994eeae53495a9dc83e47c23a8e57243730254f5b0230fa",
+      "size_bytes": 3706
+    },
+    {
+      "path": "modules/test-unit-test-m6-aggregation-order-py-3d14f74fbb.html",
+      "sha256": "a8c452794cca6771631044b4338d1992f3ec7a4aeecc376c91ed6a82b0c823dd",
+      "size_bytes": 7559
+    },
+    {
+      "path": "modules/test-unit-test-m6-batch-partition-py-6aa04c382c.html",
+      "sha256": "2055ab7699f0f9325a7913d9a8cd0e7b35c1e5454e010cc68b3ec4bf16a7cf09",
+      "size_bytes": 4139
+    },
+    {
+      "path": "modules/test-unit-test-m6-benchmark-py-c00097fe7d.html",
+      "sha256": "12e92727c1fdcd860ebe0218cc5eeadb117ab228c5c211990d78727868b1c572",
+      "size_bytes": 70382
+    },
+    {
+      "path": "modules/test-unit-test-m6-edge-py-40fb41dc07.html",
+      "sha256": "6e89c15b4ae25f623c9ceea2c66134575f9fe056b4c57648b0e1f0e65859852e",
+      "size_bytes": 14702
+    },
+    {
+      "path": "modules/test-unit-test-m6-family-truth-py-cf00bd11eb.html",
+      "sha256": "b7ec0af71cc387deb8f3022457de266b6d0aeed1bb1a9ce07c13e899a79ac6f2",
+      "size_bytes": 8616
+    },
+    {
+      "path": "modules/test-unit-test-m6-identity-py-8de24707c0.html",
+      "sha256": "72d071585eab4d4635dce7bf4322a826327a66bacc42782362ee19502cdefbeb",
+      "size_bytes": 7448
+    },
+    {
+      "path": "modules/test-unit-test-m6-raw-loader-parity-py-6687a6892b.html",
+      "sha256": "c65958d1a5aa6f5b4f512f6e72b83d2b54d7c4f8919e2759e86291840d1443a8",
+      "size_bytes": 7245
+    },
+    {
+      "path": "modules/test-unit-test-m6-seed-selection-py-55f37d7481.html",
+      "sha256": "eda91478b3c68fd3e4b8b1ab0954880b339dbb690de7a784fec44b9be031fa8b",
+      "size_bytes": 3449
+    },
+    {
+      "path": "modules/test-unit-test-matthews-inputs-py-38ec15ae23.html",
+      "sha256": "83486c995ca64b6080b946c006fbd1ccbc164a92b1605605fb5d19f0c9540ff4",
+      "size_bytes": 12090
+    },
+    {
+      "path": "modules/test-unit-test-matthews-reference-py-c49d26560a.html",
+      "sha256": "b05d49a4816f140144714b31b80eb8838add85e1269f4d83eaa5a1fa5746308c",
+      "size_bytes": 13432
+    },
+    {
+      "path": "modules/test-unit-test-model-preparation-py-bd81e6ec66.html",
+      "sha256": "ed847723d1dfdf39ee2534eb71f708e09be472ee49fe771c00b49787a944b015",
+      "size_bytes": 12980
+    },
+    {
+      "path": "modules/test-unit-test-mr-controls-py-65b9e0d28c.html",
+      "sha256": "a872346e332236eda13dce3d2442409fa6ebc8735fb6f01e91fd74c0aed263ec",
+      "size_bytes": 7562
+    },
+    {
+      "path": "modules/test-unit-test-mr-resources-py-cde05a7bb0.html",
+      "sha256": "fdefdc8464bfbfe9ce63ac691f32390b7bc97ea0c4fc3d0e5256736d3caf6f4d",
+      "size_bytes": 5270
+    },
+    {
+      "path": "modules/test-unit-test-mr-seed-review-py-76fdacb324.html",
+      "sha256": "13f1ac330827d43b58f4c70312d85fa1ea2346ad551c3a1e685329a905814e77",
+      "size_bytes": 54644
+    },
+    {
+      "path": "modules/test-unit-test-multi-fixed-phaser-py-51370343fe.html",
+      "sha256": "a94916f6433d4f0e01cd68600b2a0adc884f5f4266716af9234ffea080f910d9",
+      "size_bytes": 13950
+    },
+    {
+      "path": "modules/test-unit-test-offline-wheel-gate-py-e76a9a8632.html",
+      "sha256": "a4e1e33a560c75b9a9cd91716e37b1fffa808ebcedd0b73b595248d14205c72b",
+      "size_bytes": 7648
+    },
+    {
+      "path": "modules/test-unit-test-package-py-8268dea642.html",
+      "sha256": "d723fc385a1693c8b38b57ccab82139eb011b03b138d32862261bf9dcf389b6a",
+      "size_bytes": 3423
+    },
+    {
+      "path": "modules/test-unit-test-partner-phaser-py-1d9828a36e.html",
+      "sha256": "749ed1d545a4301190b54b9aa7a73c17d2eee61b4700006f4b00e2d630423974",
+      "size_bytes": 18721
+    },
+    {
+      "path": "modules/test-unit-test-partner-plan-py-9d73366d62.html",
+      "sha256": "4b983171c8da25a2e49daae6fbff931406e8fa36b24f35b82886249d9a8fed72",
+      "size_bytes": 10096
+    },
+    {
+      "path": "modules/test-unit-test-pass2-seed-py-f23a751ef2.html",
+      "sha256": "05c4d7805ded407e99243e9e22bac3e09a1a9206708fdc393763470e2b94a54f",
+      "size_bytes": 5173
+    },
+    {
+      "path": "modules/test-unit-test-pdb-coordinates-py-05f4d140b1.html",
+      "sha256": "a1686b3aa91fb69a5c9e1cd5742f531afbe3f46f4d6d6b29de51af599c666c8d",
+      "size_bytes": 16746
+    },
+    {
+      "path": "modules/test-unit-test-phase3-control-py-7c9cc4c4eb.html",
+      "sha256": "ea59551a567328db6569d7f943e73ca2bf20d17eb8786853049202789669b54f",
+      "size_bytes": 7219
+    },
+    {
+      "path": "modules/test-unit-test-phase3-control-run-py-1dabe93f51.html",
+      "sha256": "73bca417c2afc3be20e104acc51bc2c60a276e48f1bf93ab09eead4e6d9fb437",
+      "size_bytes": 14062
+    },
+    {
+      "path": "modules/test-unit-test-phase3-discovery-package-py-5fe40754a3.html",
+      "sha256": "f14ef9c3e4b60a09fd8f50af68d0e8938f4e9ea289ab9002ed4d51944f2d262e",
+      "size_bytes": 8790
+    },
+    {
+      "path": "modules/test-unit-test-phase3-execution-identity-py-15adbba596.html",
+      "sha256": "c670d6c0e49f347beb88d3794e5472e678604371fc79d819da7295faa550e5c2",
+      "size_bytes": 9370
+    },
+    {
+      "path": "modules/test-unit-test-phase3-finding-closure-py-b184042dea.html",
+      "sha256": "4e076729246f0971bb5d3b3a9c99c955f92b1dafeda4100c7cf65437324706be",
+      "size_bytes": 10611
+    },
+    {
+      "path": "modules/test-unit-test-phase3-foldseek-batches-py-869113b434.html",
+      "sha256": "a71bda883d3a3f7cb097ecbac54802840df0c0f1e0d1668f09f09b9790c5a7b9",
+      "size_bytes": 6428
+    },
+    {
+      "path": "modules/test-unit-test-phase3-network-probe-py-9e292e5054.html",
+      "sha256": "b45cb7bf116cd9b3ead8930346ccacf1f104b306231732fb1c27db20bab62203",
+      "size_bytes": 8034
+    },
+    {
+      "path": "modules/test-unit-test-phase3-owned-run-registry-py-7afd86315f.html",
+      "sha256": "b093487f95f3cd15f65de5e4fe66428dd2a126cb4bb3637d15e142a347dec7df",
+      "size_bytes": 35418
+    },
+    {
+      "path": "modules/test-unit-test-phase3-provider-login-stage-py-327fda93ee.html",
+      "sha256": "5bc237693d5155b6276e5cb7745d3a6555af1cb08c0a4b61ab758f84b1a7b92b",
+      "size_bytes": 12139
+    },
+    {
+      "path": "modules/test-unit-test-phase3-review-contracts-py-95c86260ef.html",
+      "sha256": "472ba92b609bb0a03605e4d08f0e07127aa77bd5e468e7a2f4b7a5c981388e35",
+      "size_bytes": 11472
+    },
+    {
+      "path": "modules/test-unit-test-phase3-review-package-py-4f9053d38d.html",
+      "sha256": "70f0174cee6650eaac23adb36313c08ebb72f6597601284864903a0c0bf3b23c",
+      "size_bytes": 15978
+    },
+    {
+      "path": "modules/test-unit-test-phase3-review-stage-py-41e0945138.html",
+      "sha256": "3eec7321426be4e3e9438a0621ba79663473aca0e753c8ed8d442d62090f72cf",
+      "size_bytes": 18294
+    },
+    {
+      "path": "modules/test-unit-test-phaser-adapter-py-2b41063f09.html",
+      "sha256": "2801683288bb2b87ac395ae990ce1b703c1d8021fcc4fb3b8b3dea70a6ec3e3a",
+      "size_bytes": 44413
+    },
+    {
+      "path": "modules/test-unit-test-phaser-per-placement-py-4b6aa5c671.html",
+      "sha256": "131c6b1327e719e80c0e90412583338e74700271995617fc6b4c5ea65fe6f73a",
+      "size_bytes": 12879
+    },
+    {
+      "path": "modules/test-unit-test-phenix-manifest-refresh-py-b5ff97c3d2.html",
+      "sha256": "3b3dc675f8c16a130c1cc3f5ef4951c045a9ca92d55651953f2b96aefbadf4fc",
+      "size_bytes": 4636
+    },
+    {
+      "path": "modules/test-unit-test-phenix-py-5a7d1abccb.html",
+      "sha256": "0d64a6fc600be8d5f49e0ca5bf717bd741c0fb936c101ebef88d89da3b5ebcbb",
+      "size_bytes": 20555
+    },
+    {
+      "path": "modules/test-unit-test-phenix-recovery-py-a6ec187c05.html",
+      "sha256": "8d5bb9870a26f7d5570feb11cbf64e94220ed232d2392bc15d3bd6a031f76df5",
+      "size_bytes": 8371
+    },
+    {
+      "path": "modules/test-unit-test-provider-bound-adapters-py-d75ed8c91d.html",
+      "sha256": "b51d4474f761a427f3dbff6faeec2629c5fdb76ce04b40da29ffa0ace75b5886",
+      "size_bytes": 13098
+    },
+    {
+      "path": "modules/test-unit-test-provider-empty-graph-py-3f00a20786.html",
+      "sha256": "ad4729bcc19dffd56799945f3d9a34ec0192249963f00ec504d6e54afde96346",
+      "size_bytes": 7539
+    },
+    {
+      "path": "modules/test-unit-test-provider-empty-py-0e500aa4a8.html",
+      "sha256": "4cceb925e25129069bb3920d0b246d713aae4217be90564124db4fe1d017c026",
+      "size_bytes": 11004
+    },
+    {
+      "path": "modules/test-unit-test-provider-hits-py-6ccf29eea7.html",
+      "sha256": "ba139b2f20b861e01070ef42cdc7cd6164c2e8e90462abd7882516bf15fda90c",
+      "size_bytes": 7286
+    },
+    {
+      "path": "modules/test-unit-test-provider-plan-py-91364f6bce.html",
+      "sha256": "f4d8fff8f33f7787a8effba0cf2c064c3598780194c1a1da7ecb358b4872d644",
+      "size_bytes": 17147
+    },
+    {
+      "path": "modules/test-unit-test-public-controls-py-0df84888a9.html",
+      "sha256": "bf4520b0ae97a355156f0cd851657ce02fb36ff62719847d9b270af0353dce29",
+      "size_bytes": 13039
+    },
+    {
+      "path": "modules/test-unit-test-ranking-funnel-py-a5b07d9aa8.html",
+      "sha256": "9d68f788f4399c0a754392298f0a5be0322437dedeb62314067a5b3fb9eb3ab4",
+      "size_bytes": 23642
+    },
+    {
+      "path": "modules/test-unit-test-refinement-stage-py-a78d4d18a2.html",
+      "sha256": "befe73ec5774d6f91050483eb936edfcb4842a87385f06add52f3c2bb856a399",
+      "size_bytes": 15037
+    },
+    {
+      "path": "modules/test-unit-test-release-metadata-py-e0aaba0a16.html",
+      "sha256": "5a8c9afe2d91972f687a2605a3af5688947bfbbc897e377ea2efd60a481642d2",
+      "size_bytes": 2416
+    },
+    {
+      "path": "modules/test-unit-test-resource-summary-py-1a7610b2c7.html",
+      "sha256": "f23bfa9b53af53da74c0ef2063e2238a8fe05a8cc5b06e148ce5bc357806bfff",
+      "size_bytes": 7169
+    },
+    {
+      "path": "modules/test-unit-test-runtime-raw-loader-parity-py-b2507af91c.html",
+      "sha256": "a27436c253eff7f231cd67d9e19ea2efb4d10f37192b1558c2761ae7ba2041e9",
+      "size_bytes": 3516
+    },
+    {
+      "path": "modules/test-unit-test-sequence-checkpoint-py-69918b680f.html",
+      "sha256": "3b43b299ec6405b3de62a971d533387127f15568f3e0f42152a26fbb101e8d86",
+      "size_bytes": 23677
+    },
+    {
+      "path": "modules/test-unit-test-stage-add-copy-py-b3f31b1e5a.html",
+      "sha256": "b9e4585ad7aba6ea88d3855d0fcabc47e387ee5affc8fb6eff1875874beb005a",
+      "size_bytes": 3195
+    },
+    {
+      "path": "modules/test-unit-test-status-py-57ea436cff.html",
+      "sha256": "94d1dfffb2a548c3b6dec73702edf1fe2516bcd852c7c3e936d6b3dfc8582ef4",
+      "size_bytes": 3396
+    },
+    {
+      "path": "modules/test-unit-test-structure-search-py-4c4b1d7d22.html",
+      "sha256": "4b94af4de70ca436ff99c7645ede3dad8385406194918dae22db796942819cf9",
+      "size_bytes": 20808
+    },
+    {
+      "path": "modules/test-unit-test-unknown-discovery-inputs-py-f04c986105.html",
+      "sha256": "f74c00535155398292b75133b68d03db1b136b30838161e3f07cdf21d6592297",
+      "size_bytes": 12580
+    },
+    {
+      "path": "modules/test-unit-test-unknown-pass1-assessment-v2-py-198ed93e79.html",
+      "sha256": "353e9970b01b71873d345869bf3dd6bdff050b21dbab2134d5836642724aa628",
+      "size_bytes": 16200
+    },
+    {
+      "path": "modules/test-unit-test-unknown-pass1-collection-py-d41d43ad38.html",
+      "sha256": "3769050902358df4b7e417bb53bca8248bf4bd4ebf6af714f121c02e7db8b10b",
+      "size_bytes": 25615
+    },
+    {
+      "path": "modules/test-unit-test-unknown-pass1-derivation-py-c59ee30e29.html",
+      "sha256": "3668732d2236f3c3d0cf84d0e8a0cbe4101c47f48812607c7910a39d75fc2e19",
+      "size_bytes": 9946
+    },
+    {
+      "path": "modules/test-unit-test-unknown-pass1-review-stage-wiring-py-0b77c7f049.html",
+      "sha256": "6ee3ee0b97c45d85583af137d014a9992ec934e2550afeaf8a7d6c48935b9442",
+      "size_bytes": 9945
+    },
+    {
+      "path": "modules/test-unit-test-unknown-pass1-screen-py-2b788bfcee.html",
+      "sha256": "8e6bebd4744b43bee7b061060d334e39c9118afe09364b7089a8ef5d91159242",
+      "size_bytes": 14388
+    },
+    {
+      "path": "modules/test-unit-test-unknown-pass2-inputs-py-0bf23d4e6e.html",
+      "sha256": "e93af84bbeca5b6045c9e066a056651c2dd7151a5acc9d02e6a25f2c19068537",
+      "size_bytes": 10315
+    },
+    {
+      "path": "modules/test-unit-test-unknown-single-inputs-py-c99f2971ac.html",
+      "sha256": "036d4d7e74c1caf2e17bf8b19b52c52599e541430753ead537a0833a2526166a",
+      "size_bytes": 11782
+    },
+    {
+      "path": "modules/wrapper-nf-gtd-hpc-recover-tools-6f36ac551f.html",
+      "sha256": "8aa261a671d9e4e3eba291e173530cc4626220fa7f1c94724a173e0834898518",
+      "size_bytes": 2843
+    },
+    {
+      "path": "modules/wrapper-nf-gtd-hpc-remote-e83c8cf013.html",
+      "sha256": "0943dd1a3c973868c6306f962a5da33355441cfc3bf2323be64b721b03000a16",
+      "size_bytes": 27557
+    },
+    {
+      "path": "modules/wrapper-nf-gtd-hpc-smoke-job-6bc32ef799.html",
+      "sha256": "a2304c71d24a150542ff04e0a8974e196a72394a46139d8b094e12ac97dac15d",
+      "size_bytes": 22019
+    },
+    {
+      "path": "modules/wrapper-prepare-project-layout-sh-86388535f1.html",
+      "sha256": "16b358133e78e370a03d5397a13aae4f94580d33b91aff53796c5b5f8835afb1",
+      "size_bytes": 2399
+    },
+    {
+      "path": "stages/composition.html",
+      "sha256": "34d6fbea21a3abca9e3a792ad521caf82e9fd84af8a327943bded53853b40708",
+      "size_bytes": 7734
+    },
+    {
+      "path": "stages/discovery-models.html",
+      "sha256": "b3d73284f55addd2cbfe6e5df87e683831de86c5b2244794e62d7a756ff558ff",
+      "size_bytes": 6292
+    },
+    {
+      "path": "stages/inputs-records.html",
+      "sha256": "171847c51bc1aabd291842aa17ccc3e00402802f0fe239b31b53f23447485292",
+      "size_bytes": 6147
+    },
+    {
+      "path": "stages/preflight.html",
+      "sha256": "3d0d28b009e17e8414149cf6b3925b336160b7bef0177e42fabb98386fd8f20d",
+      "size_bytes": 5073
+    },
+    {
+      "path": "stages/rank-mr.html",
+      "sha256": "ad32f0e1cd316ec09cd92fb18700d693c6ee528e0248c81f3162176021db5c2a",
+      "size_bytes": 5626
+    },
+    {
+      "path": "stages/report.html",
+      "sha256": "bf43fe20459f9725890aa0bd65bff5a9fbe8b8209978a8dda030f93e30da7526",
+      "size_bytes": 5051
+    },
+    {
+      "path": "stages/review-refine-maps.html",
+      "sha256": "c64f22ea63631b4251d66963e0564a1d36d37a617322a41ab9a45fa94cd6d6a8",
+      "size_bytes": 5011
+    },
+    {
+      "path": "subsystems/candidate-ranking-4f06ae7273.html",
+      "sha256": "d82ea2c452e9c7589b4a1e2c7ca4c2e956b227ea77063bb161502097daff576c",
+      "size_bytes": 3625
+    },
+    {
+      "path": "subsystems/catalogue-identity-5886d5b99a.html",
+      "sha256": "15fe6c446b21d5e585adb5c6562b764aa07549a4a0820ca4cd52f03fc909803b",
+      "size_bytes": 2095
+    },
+    {
+      "path": "subsystems/composition-search-d0d775819e.html",
+      "sha256": "9b12ff4979c1e8aa0739cb4d024257a6956727424462c64e0e077c4496fe836c",
+      "size_bytes": 3705
+    },
+    {
+      "path": "subsystems/contracts-traceability-c85b388256.html",
+      "sha256": "c1d81c5bd32b44e3f386debf9a588262f76d42d0d528b6480f680f715c2e93eb",
+      "size_bytes": 5448
+    },
+    {
+      "path": "subsystems/crystallography-5615d30788.html",
+      "sha256": "e73f512a95e3445b4239865a22e1e4511b9315f5831619ceb7378b7e80bb37b6",
+      "size_bytes": 2691
+    },
+    {
+      "path": "subsystems/execution-hpc-830c452725.html",
+      "sha256": "fab2e0a94dc4f70c7c19ae8fe7b648c50488d25caa1b11f4052c03db7a9b145e",
+      "size_bytes": 12450
+    },
+    {
+      "path": "subsystems/localisation-weight-d44500dc4f.html",
+      "sha256": "f9a6163a071e42e8288246dff2532901824c8b5492e45807ff043d142779ef0c",
+      "size_bytes": 3737
+    },
+    {
+      "path": "subsystems/model-registry-03ea82cc4d.html",
+      "sha256": "f702f837aa2bd6c9e8a4c7ad822a4e6cdefbeaf8c03ba9ae348b0589ce716329",
+      "size_bytes": 2548
+    },
+    {
+      "path": "subsystems/molecular-replacement-f47ddc34ec.html",
+      "sha256": "11a9ba6cb6b082cda7c583e75b8a35f7fa95f8ef02e83d8085670f48b1407821",
+      "size_bytes": 4904
+    },
+    {
+      "path": "subsystems/provider-discovery-3466837c74.html",
+      "sha256": "cd2927f6c94ed18bed9c063cb8f121f4e62b0121d4aee045ac5ac15cae9eab74",
+      "size_bytes": 7102
+    },
+    {
+      "path": "subsystems/refinement-maps-eac2f27039.html",
+      "sha256": "231698417a6065754e4795ea0abb695860e479bf10d4d4da246491455fe3be11",
+      "size_bytes": 2314
+    },
+    {
+      "path": "subsystems/review-reporting-6fb0a86519.html",
+      "sha256": "4861841821914cacab0991392cea55814bc0efddb5d58f6234b48b1ab146e019",
+      "size_bytes": 3954
+    },
+    {
+      "path": "subsystems/unclassified-6c53159145.html",
+      "sha256": "90aba4930f7f2d141a8f27b9ba01be6426a7399bc3bd47f12c2bc7c3ae34e951",
+      "size_bytes": 1673
+    },
+    {
+      "path": "subsystems/validation-98c41dcd20.html",
+      "sha256": "c827554a470a3a7f61689f5a40d161e24447e0607465c17c8ba497a179697eeb",
+      "size_bytes": 30118
+    },
+    {
+      "path": "validation.html",
+      "sha256": "dcd63c8a89eeeb36c5f426d38854073651e0cd418718ebfa1121c86b1f358fa3",
+      "size_bytes": 2552
+    }
+  ],
+  "inventory_id": "atlasinv_17ae01f591b113f64134313e38b6ebe0bcbccd43493a1a75d90c1743ebc2aa83",
+  "schema_version": "1.0"
+}

@@ -1,0 +1,355 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Genome-to-Diffraction Scientific Workflow",
+    "locale": "en",
+    "output": "docs/atlas/current/diagrams/scientist-workflow.html",
+    "quality_profile": "showcase",
+    "viewBox": [1300, 920],
+    "legend": {"mode": "hidden"},
+    "views": [
+      {
+        "id": "end_to_end",
+        "label": "End-to-end analysis",
+        "focus": ["diffraction_data", "protein_sequences", "preflight", "pdb_sequence_search", "pdb_structure_search", "prepare_models", "first_component_search_review", "heteromer_partner", "partner_copy_search", "report"],
+        "note": "Follow required inputs through internal model searches, hypothesis testing, and a reviewed report."
+      },
+      {
+        "id": "inputs_records",
+        "label": "Inputs and evidence",
+        "focus": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data", "molecular_weight_evidence"],
+        "note": "Required and optional inputs are shown separately from evidence derived inside the workflow."
+      },
+      {
+        "id": "internal_analysis",
+        "label": "Internal analysis",
+        "focus": ["preflight", "localisation_tools", "pdb_sequence_search", "pdb_structure_search", "prepare_models"],
+        "note": "The workflow checks diffraction, predicts localisation, searches local structure resources, and validates coordinates."
+      },
+      {
+        "id": "search_and_review",
+        "label": "Search and review",
+        "focus": ["first_component_search_review", "heteromer_partner", "partner_copy_search", "report"],
+        "note": "Screen one copy for every retained first-component hypothesis, review A seeds, then evaluate one heteromer partner per approved state."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "organism_metadata",
+      "type": "database",
+      "label": "Scientific Species Name",
+      "sublabel": "species taxon + assembly identity",
+      "tag": "source resolution not yet implemented",
+      "pos": [290, 40],
+      "size": [220, 68]
+    },
+    {
+      "id": "genome_sequence",
+      "type": "database",
+      "label": "Genome Sequence",
+      "sublabel": "genome FASTA (.fna)",
+      "tag": "optional",
+      "pos": [30, 140],
+      "size": [190, 68]
+    },
+    {
+      "id": "annotation_input",
+      "type": "database",
+      "label": "Gene Annotation",
+      "sublabel": "GFF / GBFF + source version",
+      "tag": "source + version required",
+      "pos": [260, 140],
+      "size": [230, 68]
+    },
+    {
+      "id": "protein_sequences",
+      "type": "database",
+      "label": "Protein Sequences",
+      "sublabel": "protein FASTA (.faa)",
+      "tag": "required",
+      "pos": [520, 140],
+      "size": [190, 68]
+    },
+    {
+      "id": "diffraction_data",
+      "type": "database",
+      "label": "Diffraction Data",
+      "sublabel": "MTZ + crystal name",
+      "tag": "required",
+      "pos": [930, 140],
+      "size": [190, 68]
+    },
+    {
+      "id": "localisation_tools",
+      "type": "backend",
+      "label": "Predict Localisation",
+      "sublabel": "PSORTb 3.0.6 + DeepTMHMM 1.0",
+      "tag": "offline; network disabled",
+      "pos": [30, 290],
+      "size": [220, 68]
+    },
+    {
+      "id": "pdb_sequence_search",
+      "type": "backend",
+      "label": "PDB Sequence Search",
+      "sublabel": "MMseqs2 → PDB SEQRES",
+      "tag": "E≤1e-5; ≥50% coverage",
+      "pos": [275, 290],
+      "size": [220, 68]
+    },
+    {
+      "id": "pdb_structure_search",
+      "type": "backend",
+      "label": "Structure-Sensitive Search",
+      "sublabel": "ProstT5 → Foldseek → PDB100",
+      "tag": "E≤1e-3; ≥50% coverage",
+      "pos": [540, 290],
+      "size": [280, 68]
+    },
+    {
+      "id": "preflight",
+      "type": "security",
+      "label": "MTZ Preflight",
+      "sublabel": "symmetry + Free-R",
+      "tag": "automatic check",
+      "pos": [930, 290],
+      "size": [190, 68]
+    },
+    {
+      "id": "prepare_models",
+      "type": "backend",
+      "label": "Validate + Prepare Models",
+      "sublabel": "chain + sequence + checksum checks",
+      "tag": "Gemmi; Phenix for predictions",
+      "pos": [420, 410],
+      "size": [260, 68]
+    },
+    {
+      "id": "first_component_search_review",
+      "type": "backend",
+      "label": "First-Copy Screen + A Review",
+      "sublabel": "Matthews expectation → one-copy MR → review",
+      "tag": "25 hypotheses per crystal",
+      "pos": [450, 520],
+      "size": [300, 68]
+    },
+    {
+      "id": "molecular_weight_evidence",
+      "type": "database",
+      "label": "Molecular-Weight Evidence",
+      "sublabel": "apparent mass observations",
+      "tag": "optional; missing is neutral",
+      "pos": [800, 520],
+      "size": [230, 68]
+    },
+    {
+      "id": "heteromer_partner",
+      "type": "backend",
+      "label": "Evaluate Heteromer Partner",
+      "sublabel": "one gene product per hypothesis",
+      "tag": "tested with retained components",
+      "pos": [470, 670],
+      "size": [260, 68]
+    },
+    {
+      "id": "partner_copy_search",
+      "type": "backend",
+      "label": "Test Copy Count + Review",
+      "sublabel": "1, 2, 3, or 4 copies",
+      "tag": "review partner placement",
+      "pos": [490, 800],
+      "size": [220, 68]
+    },
+    {
+      "id": "report",
+      "type": "database",
+      "label": "Reviewed Report",
+      "sublabel": "supported + uncertain findings",
+      "tag": "bounded conclusion",
+      "pos": [220, 800],
+      "size": [200, 68]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Inputs supplied before the run",
+      "wraps": ["organism_metadata", "protein_sequences", "genome_sequence", "annotation_input", "diffraction_data"],
+      "pad": 16
+    },
+    {
+      "kind": "region",
+      "label": "Internal checks, localisation, and model preparation",
+      "wraps": ["preflight", "localisation_tools", "pdb_sequence_search", "pdb_structure_search", "prepare_models"],
+      "pad": 10
+    },
+    {
+      "kind": "region",
+      "label": "First-component screening",
+      "wraps": ["first_component_search_review", "molecular_weight_evidence"],
+      "pad": 30
+    },
+    {
+      "kind": "region",
+      "label": "Heteromer partners, up to six components total",
+      "wraps": ["heteromer_partner", "partner_copy_search", "report"],
+      "pad": 30
+    }
+  ],
+  "connections": [
+    {
+      "id": "species_genome_source",
+      "from": "organism_metadata",
+      "to": "genome_sequence",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "species_annotation_source",
+      "from": "organism_metadata",
+      "to": "annotation_input",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "species_proteome_source",
+      "from": "organism_metadata",
+      "to": "protein_sequences",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "diffraction_preflight",
+      "from": "diffraction_data",
+      "to": "preflight",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "protein_pdb_sequence",
+      "from": "protein_sequences",
+      "to": "pdb_sequence_search",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "protein_localisation",
+      "from": "protein_sequences",
+      "to": "localisation_tools",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "protein_structure_search",
+      "from": "protein_sequences",
+      "to": "pdb_structure_search",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "pdb_sequence_prepare",
+      "from": "pdb_sequence_search",
+      "to": "prepare_models",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "pdb_structure_prepare",
+      "from": "pdb_structure_search",
+      "to": "prepare_models",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "prepare_first_search",
+      "from": "prepare_models",
+      "to": "first_component_search_review",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "localisation_first_search",
+      "from": "localisation_tools",
+      "to": "first_component_search_review",
+      "label": "orders first search wave",
+      "labelAt": [270, 478],
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "via": [[140, 490], [410, 490], [410, 554]]
+    },
+    {
+      "id": "preflight_first_search",
+      "from": "preflight",
+      "to": "first_component_search_review",
+      "label": "qualified diffraction",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "molecular_weight_first_search",
+      "from": "molecular_weight_evidence",
+      "to": "first_component_search_review",
+      "variant": "dashed",
+      "route": "straight",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "first_search_partner",
+      "from": "first_component_search_review",
+      "to": "heteromer_partner",
+      "label": "reviewed first component",
+      "labelAt": [600, 630],
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "partner_copy_search",
+      "from": "heteromer_partner",
+      "to": "partner_copy_search",
+      "variant": "emphasis",
+      "route": "straight",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "copy_search_next_partner",
+      "from": "partner_copy_search",
+      "to": "heteromer_partner",
+      "label": "next partner candidate",
+      "labelAt": [850, 770],
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "right",
+      "via": [[850, 834], [850, 704]]
+    },
+    {
+      "id": "copy_search_report",
+      "from": "partner_copy_search",
+      "to": "report",
+      "label": "stop",
+      "labelAt": [455, 775],
+      "variant": "security",
+      "route": "straight",
+      "fromSide": "left",
+      "toSide": "right"
+    }
+  ]
+}

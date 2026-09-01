@@ -65,6 +65,9 @@ test-integration = "pytest --basetemp=/tmp/nf-gtd-pytest-integration -q tests/in
 test = { depends-on = ["test-unit", "test-contract", "test-integration"] }
 schema-check = "genome-to-diffraction schema-check"
 docs-check = "python tests/scripts/check_docs.py"
+docs-atlas-inventory = "python tools/docs_atlas/build_inventory.py"
+docs-atlas-build = "python tools/docs_atlas/build_html.py"
+docs-atlas-check = "python tools/docs_atlas/build_html.py --check"
 actionlint-check = "actionlint .github/workflows/ci.yml"
 nextflow-check = "python tests/scripts/check_nextflow.py --syntax"
 nextflow-stub = "python tests/scripts/check_nextflow.py --stub"
@@ -86,4 +89,4 @@ prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 prepare-public-control = "genome-to-diffraction benchmark prepare-public-control --specification benchmarks/public-controls/pdb_8oox.yaml"
 public-panel-check = "genome-to-diffraction benchmark check-public-panel --panel benchmarks/public-controls/panel.yaml"
 prepare-public-panel = "genome-to-diffraction benchmark prepare-public-panel --panel benchmarks/public-controls/panel.yaml --outdir .untracked/public-controls/panel-v2"
-check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "actionlint-check", "nextflow-check", "nextflow-stub", "heteromer-application-stub", "m6-cache-mutation-stub", "composition-attempt-stub", "phase3-composition-beam-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "phase3-multicrystal-stub", "phase3-foldseek-batch-stub", "provider-empty-graph-stub", "offline-wheel-check", "hpc-wrapper-check", "mr-resource-retry-check"] }
+check = { depends-on = ["format-check", "lint", "typecheck", "test", "schema-check", "public-panel-check", "docs-check", "docs-atlas-check", "actionlint-check", "nextflow-check", "nextflow-stub", "heteromer-application-stub", "m6-cache-mutation-stub", "composition-attempt-stub", "phase3-composition-beam-stub", "localisation-wave-stub", "unknown-pass1-screen-stub", "phase3-multicrystal-stub", "phase3-foldseek-batch-stub", "provider-empty-graph-stub", "offline-wheel-check", "hpc-wrapper-check", "mr-resource-retry-check"] }
