@@ -15018,8 +15018,22 @@ with a collapsed combined parent or a guessed command.
 - Scientist-facing copy no longer calls the species identity or reviewed report
   "human-readable". It records that species-to-reference resolution is not yet
   implemented and that exact genome/proteome selection may additionally require
-  strain or assembly identity. Next inspect the live prototype before further
-  workflow-documentation changes.
+  strain or assembly identity.
+- The four scientific-input boxes and four internal-analysis boxes now use equal
+  widths and equal horizontal gaps. The structure-search boxes are closer,
+  model preparation is shifted left, and Reviewed Report uses a dedicated output
+  colour with an Output/report legend entry.
+- Gene Annotation and Protein Sequences have been swapped so Protein Sequences
+  sits directly above PDB Sequence Search. That central connection is straight;
+  localisation and structure-sensitive search branch through independent left
+  and right corridors without sharing segments.
+- The main search-and-review spine is shifted left to favour straight vertical
+  connections rather than centring the diagram's visual weight. The floating
+  "stop" label has been removed from the Reviewed Report connection.
+- The source-organism input is labelled "Organism Name" and aligned directly
+  above Protein Sequences. Scientist-facing summaries and node documentation use
+  the same term. Next inspect the live prototype before further workflow-
+  documentation changes.
 
 ## 2026-09-01 - Documentation atlas joins main with current one-copy policy
 
@@ -15045,3 +15059,24 @@ with a collapsed combined parent or a guessed command.
   push once, require exact-source CI, update the active development pointer,
   and delete only the two remote branches whose heads are then reachable from
   `main`.
+
+## 2026-09-01 - Concurrent atlas layout commits preserved before branch retirement
+
+- The first merged `main` snapshot, `9d169da`, passed locked local validation
+  and exact-source GitHub Actions run `33542890790`. The subsequent ancestry
+  audit found that the documentation branch had advanced during the merge by
+  `9f45387` and `adf8f98`; branch deletion therefore stopped fail-closed.
+- Those commits contribute equal input/analysis box spacing, clearer independent
+  search routes, an output/report colour, and the more general `Organism Name`
+  label. Their historical joint-search and four-copy wording is not restored:
+  the initial screen remains one-copy, and later copies are placed sequentially
+  within the configured Matthews range.
+- The combined Archify specification passes all nine showcase checks with zero
+  errors and warnings. Delivery records specification SHA-256
+  `eda36b8d272e0c33c7b1282abfd056e0dde7de3afa8832379f848bed05514504`
+  and HTML SHA-256
+  `2f7813c7de51b25dbcf62b44318bac668260d10f6ae176dd0001673de769ab6c`.
+- The regenerated 395-file atlas is current at inventory
+  `atlasinv_b020457150e3af1dd788f01ce839fd485db148b666531cef48df1b6db624bc39`.
+  Next require focused checks, a clean merge commit, and exact-source CI before
+  retiring the now-merged development and documentation branches.

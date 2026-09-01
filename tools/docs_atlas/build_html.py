@@ -445,7 +445,7 @@ def _composition_loop() -> str:
         f'<span class="composition-cycle-step">{label}</span>'
         for label in (
             "Evaluate one candidate gene product as a possible heteromer partner",
-            "Test 1, 2, 3, or 4 copies with Molecular Replacement",
+            "Place configured Matthews-plausible copies sequentially with Molecular Replacement",
             "Collect states",
             "Human review",
         )
@@ -634,6 +634,7 @@ VIEWER_DRAWER_STYLE = """
     .atlas-box-key::before { content: ""; width: 12px; height: 12px; border: 1px solid var(--database-stroke); border-radius: 3px; background: var(--database-fill); }
     .atlas-box-key.analysis::before { border-color: var(--backend-stroke); background: var(--backend-fill); }
     .atlas-box-key.review::before { border-color: var(--security-stroke); background: var(--security-fill); }
+    .atlas-box-key.output::before { border-color: var(--frontend-stroke); background: var(--frontend-fill); }
     @media (max-width: 700px) {
       html[data-atlas-docs-open="true"] body { padding-right: 0; }
       html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
@@ -803,7 +804,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '<h2 id="atlas-workflow-intro-title">What this workflow does</h2>'
             '<div class="atlas-workflow-copy"><p>The workflow narrows many possible proteins into a small set of structural explanations.</p>'
             '<ol class="atlas-workflow-steps"><li><strong>1 · Check data</strong>Check the MTZ diffraction measurements.</li><li><strong>2 · Find models</strong>Find protein structure models for proteins on the supplied list.</li><li><strong>3 · Choose copy counts</strong>Use Matthews analysis to keep copy counts that physically fit.</li><li><strong>4 · Test and review</strong>Place each model hypothesis with Molecular Replacement, then inspect maps.</li><li><strong>5 · Expand or finish</strong>Evaluate candidate gene products as possible heteromer partners, then write a reviewed report.</li></ol>'
-            '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul><li>Scientific species name and source assembly identity</li><li><strong>Required:</strong> protein FASTA (.faa), annotation source/version, and MTZ file with crystal name</li><li><strong>Optional:</strong> genome FASTA (.fna), GFF/GBFF, protein-to-locus map, and molecular-weight evidence</li><li><strong>Derived internally:</strong> PSORTb and DeepTMHMM localisation predictions from the protein FASTA</li></ul></div></div>'
+            '<div class="atlas-workflow-inputs"><strong>Inputs</strong><ul><li>Organism name and source assembly identity</li><li><strong>Required:</strong> protein FASTA (.faa), annotation source/version, and MTZ file with crystal name</li><li><strong>Optional:</strong> genome FASTA (.fna), GFF/GBFF, protein-to-locus map, and molecular-weight evidence</li><li><strong>Derived internally:</strong> PSORTb and DeepTMHMM localisation predictions from the protein FASTA</li></ul></div></div>'
             '</section>\n'
             '      <div class="atlas-legend-row no-print">'
             '<div class="atlas-arrow-legend" aria-label="Arrow meanings">'
@@ -816,6 +817,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '<span class="atlas-box-key">Input / evidence</span>'
             '<span class="atlas-box-key analysis">Analysis step</span>'
             '<span class="atlas-box-key review">Review / validation</span>'
+            '<span class="atlas-box-key output">Output / report</span>'
             "</div></div>\n"
         )
         document = document.replace(
@@ -878,11 +880,11 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
     mapping = {
         "organism_metadata": (
             {
-                "title": "Scientific species name",
-                "summary": "The scientific species name identifies the species from which the crystal sample originates.",
+                "title": "Organism name",
+                "summary": "The organism name identifies the organism from which the crystal sample originates.",
                 "purpose": "Use the species identity to obtain and bind the correct genome sequence, gene annotation, and proteome for the crystal-source organism.",
                 "inputs": [
-                    "Scientific species name",
+                    "Organism name",
                     "Strain or isolate identity, when applicable",
                     "Assembly accession and version needed to select the exact genome/proteome source",
                 ],
@@ -892,15 +894,15 @@ def _scientist_node_details(stages: list[dict[str, Any]]) -> str:
                     "Resolved proteome source",
                 ],
                 "decisions": [
-                    "Do not infer the species name from structure-search results",
+                    "Do not infer the organism name from structure-search results",
                     "Require an assembly accession or reviewed reference when a species has multiple strains or assemblies",
                 ],
                 "boundaries": [
-                    "The current manifest has no dedicated scientific_species_name field",
-                    "Species-to-genome/proteome source resolution is not yet implemented",
+                    "The current manifest has no dedicated organism-name field",
+                    "Organism-to-genome/proteome source resolution is not yet implemented",
                 ],
                 "maturity": "input-contract gap documented",
-                "warning": "A species name identifies a species taxon, but the exact genome/proteome still requires strain or assembly identity when multiple references exist.",
+                "warning": "An organism name identifies the biological source, but the exact genome/proteome still requires strain or assembly identity when multiple references exist.",
             },
             input_links,
         ),

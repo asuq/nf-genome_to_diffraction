@@ -5528,7 +5528,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_17ae01f591b113f64134313e38b6ebe0bcbccd43493a1a75d90c1743ebc2aa83",
+  "inventory_id": "atlasinv_b020457150e3af1dd788f01ce839fd485db148b666531cef48df1b6db624bc39",
   "nextflow_files": [
     {
       "declarations": [],
@@ -73343,7 +73343,7 @@
         "types"
       ],
       "path": "tests/unit/test_docs_atlas_inventory.py",
-      "sha256": "895419d0415165831b52cb2ad31271441d6649f3002be66b805c975f030d2d17",
+      "sha256": "1987ef5589847ffcc6652145ff6f7d193910c24d273e39788eb70e289d6e9b61",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -73483,7 +73483,7 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 216,
+          "end_line": 220,
           "kind": "function",
           "line": 140,
           "name": "test_scientist_home_stage_order_and_progressive_disclosure",
@@ -73499,9 +73499,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 232,
+          "end_line": 236,
           "kind": "function",
-          "line": 219,
+          "line": 223,
           "name": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
           "public": true,
           "qualname": "test_surfaced_viewers_derive_from_unchanged_frozen_archify_artifacts",
@@ -73517,9 +73517,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 375,
+          "end_line": 381,
           "kind": "function",
-          "line": 235,
+          "line": 239,
           "name": "test_node_focus_opens_dark_reserved_documentation_panel",
           "public": true,
           "qualname": "test_node_focus_opens_dark_reserved_documentation_panel",
@@ -73533,9 +73533,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 389,
+          "end_line": 395,
           "kind": "function",
-          "line": 378,
+          "line": 384,
           "name": "test_developer_legend_uses_domain_labels",
           "public": true,
           "qualname": "test_developer_legend_uses_domain_labels",

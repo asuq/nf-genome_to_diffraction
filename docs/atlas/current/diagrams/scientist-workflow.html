@@ -5030,97 +5030,97 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Inputs supplied before the run" x="14" y="16" width="1122" height="212" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Inputs supplied before the run" x="14" y="16" width="1032" height="212" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="1" data-composition-frame-label="Internal checks, localisation, and model preparation" x="20" y="266" width="1110" height="232" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="1" data-composition-frame-label="Internal checks, localisation, and model preparation" x="20" y="266" width="1020" height="232" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="2" data-composition-frame-label="First-component screening" x="420" y="490" width="640" height="118" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="2" data-composition-frame-label="First-component screening" x="220" y="490" width="640" height="118" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="3" data-composition-frame-label="Heteromer partners, up to six components total" x="190" y="640" width="570" height="248" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="3" data-composition-frame-label="Heteromer partners, up to six components total" x="10" y="640" width="550" height="248" rx="12" class="c-region" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="organism_metadata" data-edge-to="genome_sequence" data-edge-key="0" data-edge-id="species_genome_source" data-composition-points="386,108;386,124;125,124;125,140" d="M 386 108 L 386 116 Q 386 124 378 124 L 133 124 Q 125 124 125 132 L 125 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="organism_metadata" data-edge-to="annotation_input" data-edge-key="1" data-edge-id="species_annotation_source" data-composition-points="400,108;400,124;375,124;375,140" d="M 400 108 L 400 116 Q 400 124 392 124 L 383 124 Q 375 124 375 132 L 375 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="organism_metadata" data-edge-to="protein_sequences" data-edge-key="2" data-edge-id="species_proteome_source" data-composition-points="414,108;414,124;615,124;615,140" d="M 414 108 L 414 116 Q 414 124 422 124 L 607 124 Q 615 124 615 132 L 615 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="diffraction_data" data-edge-to="preflight" data-edge-key="3" data-edge-id="diffraction_preflight" data-composition-points="1025,208;1025,290" d="M 1025 208 L 1025 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="protein_sequences" data-edge-to="pdb_sequence_search" data-edge-key="4" data-edge-id="protein_pdb_sequence" data-composition-points="615,208;615,249;385,249;385,290" d="M 615 208 L 615 241 Q 615 249 607 249 L 393 249 Q 385 249 385 257 L 385 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="protein_sequences" data-edge-to="localisation_tools" data-edge-key="5" data-edge-id="protein_localisation" data-composition-points="601,208;601,249;140,249;140,290" d="M 601 208 L 601 241 Q 601 249 593 249 L 148 249 Q 140 249 140 257 L 140 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="protein_sequences" data-edge-to="pdb_structure_search" data-edge-key="6" data-edge-id="protein_structure_search" data-composition-points="629,208;629,249;680,249;680,290" d="M 629 208 L 629 241 Q 629 249 637 249 L 672 249 Q 680 249 680 257 L 680 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="pdb_sequence_search" data-edge-to="prepare_models" data-edge-key="7" data-edge-id="pdb_sequence_prepare" data-composition-points="385,358;385,384;543,384;543,410" d="M 385 358 L 385 376 Q 385 384 393 384 L 535 384 Q 543 384 543 392 L 543 410" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="pdb_structure_search" data-edge-to="prepare_models" data-edge-key="8" data-edge-id="pdb_structure_prepare" data-composition-points="680,358;680,384;557,384;557,410" d="M 680 358 L 680 376 Q 680 384 672 384 L 565 384 Q 557 384 557 392 L 557 410" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="prepare_models" data-edge-to="first_component_search_review" data-edge-key="9" data-edge-id="prepare_first_search" data-composition-points="550,478;550,499;593,499;593,520" d="M 550 478 L 550 491 Q 550 499 558 499 L 585 499 Q 593 499 593 507 L 593 520" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="localisation_tools" data-edge-to="first_component_search_review" data-edge-label="orders first search wave" data-edge-key="10" data-edge-id="localisation_first_search" data-composition-points="140,358;140,490;410,490;410,554;450,554" d="M 140 358 L 140 482 Q 140 490 148 490 L 402 490 Q 410 490 410 498 L 410 546 Q 410 554 418 554 L 450 554" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="preflight" data-edge-to="first_component_search_review" data-edge-label="qualified diffraction" data-edge-key="11" data-edge-id="preflight_first_search" data-composition-points="1025,358;1025,496;607,496;607,520" d="M 1025 358 L 1025 488 Q 1025 496 1017 496 L 615 496 Q 607 496 607 504 L 607 520" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="molecular_weight_evidence" data-edge-to="first_component_search_review" data-edge-key="12" data-edge-id="molecular_weight_first_search" data-composition-points="800,554;750,554" d="M 800 554 L 750 554" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="first_component_search_review" data-edge-to="heteromer_partner" data-edge-label="reviewed first component" data-edge-key="13" data-edge-id="first_search_partner" data-composition-points="600,588;600,670" d="M 600 588 L 600 670" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="heteromer_partner" data-edge-to="partner_copy_search" data-edge-key="14" data-edge-id="partner_copy_search" data-composition-points="600,738;600,800" d="M 600 738 L 600 800" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="partner_copy_search" data-edge-to="heteromer_partner" data-edge-label="next partner candidate" data-edge-key="15" data-edge-id="copy_search_next_partner" data-composition-points="710,834;850,834;850,704;730,704" d="M 710 834 L 842 834 Q 850 834 850 826 L 850 712 Q 850 704 842 704 L 730 704" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="partner_copy_search" data-edge-to="report" data-edge-label="stop" data-edge-key="16" data-edge-id="copy_search_report" data-composition-points="490,834;420,834" d="M 490 834 L 420 834" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="organism_metadata" data-edge-to="genome_sequence" data-edge-key="0" data-edge-id="species_genome_source" data-composition-points="386,108;386,124;140,124;140,140" d="M 386 108 L 386 116 Q 386 124 378 124 L 148 124 Q 140 124 140 132 L 140 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="organism_metadata" data-edge-to="annotation_input" data-edge-key="1" data-edge-id="species_annotation_source" data-composition-points="414,108;414,124;660,124;660,140" d="M 414 108 L 414 116 Q 414 124 422 124 L 652 124 Q 660 124 660 132 L 660 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="organism_metadata" data-edge-to="protein_sequences" data-edge-key="2" data-edge-id="species_proteome_source" data-composition-points="400,108;400,140" d="M 400 108 L 400 140" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="diffraction_data" data-edge-to="preflight" data-edge-key="3" data-edge-id="diffraction_preflight" data-composition-points="920,208;920,290" d="M 920 208 L 920 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="protein_sequences" data-edge-to="pdb_sequence_search" data-edge-key="4" data-edge-id="protein_pdb_sequence" data-composition-points="400,208;400,290" d="M 400 208 L 400 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="protein_sequences" data-edge-to="localisation_tools" data-edge-key="5" data-edge-id="protein_localisation" data-composition-points="290,174;270,174;270,250;140,250;140,290" d="M 290 174 L 278 174 Q 270 174 270 182 L 270 242 Q 270 250 262 250 L 148 250 Q 140 250 140 258 L 140 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="protein_sequences" data-edge-to="pdb_structure_search" data-edge-key="6" data-edge-id="protein_structure_search" data-composition-points="510,174;530,174;530,270;660,270;660,290" d="M 510 174 L 522 174 Q 530 174 530 182 L 530 262 Q 530 270 538 270 L 652 270 Q 660 270 660 278 L 660 290" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="pdb_sequence_search" data-edge-to="prepare_models" data-edge-key="7" data-edge-id="pdb_sequence_prepare" data-composition-points="400,358;400,410" d="M 400 358 L 400 410" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="pdb_structure_search" data-edge-to="prepare_models" data-edge-key="8" data-edge-id="pdb_structure_prepare" data-composition-points="660,358;660,384;400,384;400,410" d="M 660 358 L 660 376 Q 660 384 652 384 L 408 384 Q 400 384 400 392 L 400 410" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="prepare_models" data-edge-to="first_component_search_review" data-edge-key="9" data-edge-id="prepare_first_search" data-composition-points="400,478;400,520" d="M 400 478 L 400 520" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="localisation_tools" data-edge-to="first_component_search_review" data-edge-label="orders first search wave" data-edge-key="10" data-edge-id="localisation_first_search" data-composition-points="140,358;140,490;210,490;210,554;250,554" d="M 140 358 L 140 482 Q 140 490 148 490 L 202 490 Q 210 490 210 498 L 210 546 Q 210 554 218 554 L 250 554" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="preflight" data-edge-to="first_component_search_review" data-edge-label="qualified diffraction" data-edge-key="11" data-edge-id="preflight_first_search" data-composition-points="920,358;920,496;400,496;400,520" d="M 920 358 L 920 488 Q 920 496 912 496 L 408 496 Q 400 496 400 504 L 400 520" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="molecular_weight_evidence" data-edge-to="first_component_search_review" data-edge-key="12" data-edge-id="molecular_weight_first_search" data-composition-points="600,554;550,554" d="M 600 554 L 550 554" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="first_component_search_review" data-edge-to="heteromer_partner" data-edge-label="reviewed first component" data-edge-key="13" data-edge-id="first_search_partner" data-composition-points="400,588;400,670" d="M 400 588 L 400 670" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="heteromer_partner" data-edge-to="partner_copy_search" data-edge-key="14" data-edge-id="partner_copy_search" data-composition-points="400,738;400,800" d="M 400 738 L 400 800" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="partner_copy_search" data-edge-to="heteromer_partner" data-edge-label="next partner candidate" data-edge-key="15" data-edge-id="copy_search_next_partner" data-composition-points="510,834;700,834;700,704;530,704" d="M 510 834 L 692 834 Q 700 834 700 826 L 700 712 Q 700 704 692 704 L 530 704" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="partner_copy_search" data-edge-to="report" data-edge-key="16" data-edge-id="copy_search_report" data-composition-points="290,834;240,834" d="M 290 834 L 240 834" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
 
         <!-- Components -->
-        <g id="node-organism_metadata" data-node-id="organism_metadata" data-node-label="Scientific Species Name" tabindex="0" role="button" aria-label="Focus Scientific Species Name, species taxon + assembly identity, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="species taxon + assembly identity" data-node-tag="source resolution not yet implemented" data-node-context="Inputs supplied before the run">
-          <title>Scientific Species Name · species taxon + assembly identity · Inputs supplied before the run · source resolution not yet implemented</title>
+        <g id="node-organism_metadata" data-node-id="organism_metadata" data-node-label="Organism Name" tabindex="0" role="button" aria-label="Focus Organism Name, species taxon + assembly identity, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="species taxon + assembly identity" data-node-tag="source resolution not yet implemented" data-node-context="Inputs supplied before the run">
+          <title>Organism Name · species taxon + assembly identity · Inputs supplied before the run · source resolution not yet implemented</title>
           <rect x="290" y="40" width="220" height="68" rx="6" class="c-mask"/>
           <rect x="290" y="40" width="220" height="68" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(296 46) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="400" y="72" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Scientific Species Name</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="72" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Organism Name</text>
         <text data-detail="context" x="400" y="88" class="t-muted" font-size="9" text-anchor="middle">species taxon + assembly identity</text>
         <text data-detail="fine" x="400" y="100" class="t-database" font-size="7" text-anchor="middle">source resolution not yet implemented</text>
         </g>
 
         <g id="node-genome_sequence" data-node-id="genome_sequence" data-node-label="Genome Sequence" tabindex="0" role="button" aria-label="Focus Genome Sequence, genome FASTA (.fna), Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="genome FASTA (.fna)" data-node-tag="optional" data-node-context="Inputs supplied before the run">
           <title>Genome Sequence · genome FASTA (.fna) · Inputs supplied before the run · optional</title>
-          <rect x="30" y="140" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="30" y="140" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <rect x="30" y="140" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="30" y="140" width="220" height="68" rx="6" class="c-database" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(36 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="125" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Genome Sequence</text>
-        <text data-detail="context" x="125" y="188" class="t-muted" font-size="9" text-anchor="middle">genome FASTA (.fna)</text>
-        <text data-detail="fine" x="125" y="200" class="t-database" font-size="7" text-anchor="middle">optional</text>
+          <text data-node-label="" data-detail-anchor="" x="140" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Genome Sequence</text>
+        <text data-detail="context" x="140" y="188" class="t-muted" font-size="9" text-anchor="middle">genome FASTA (.fna)</text>
+        <text data-detail="fine" x="140" y="200" class="t-database" font-size="7" text-anchor="middle">optional</text>
         </g>
 
         <g id="node-annotation_input" data-node-id="annotation_input" data-node-label="Gene Annotation" tabindex="0" role="button" aria-label="Focus Gene Annotation, GFF / GBFF + source version, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="GFF / GBFF + source version" data-node-tag="source + version required" data-node-context="Inputs supplied before the run">
           <title>Gene Annotation · GFF / GBFF + source version · Inputs supplied before the run · source + version required</title>
-          <rect x="260" y="140" width="230" height="68" rx="6" class="c-mask"/>
-          <rect x="260" y="140" width="230" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(266 146) scale(0.6875)">
+          <rect x="550" y="140" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="550" y="140" width="220" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(556 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="375" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gene Annotation</text>
-        <text data-detail="context" x="375" y="188" class="t-muted" font-size="9" text-anchor="middle">GFF / GBFF + source version</text>
-        <text data-detail="fine" x="375" y="200" class="t-database" font-size="7" text-anchor="middle">source + version required</text>
+          <text data-node-label="" data-detail-anchor="" x="660" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Gene Annotation</text>
+        <text data-detail="context" x="660" y="188" class="t-muted" font-size="9" text-anchor="middle">GFF / GBFF + source version</text>
+        <text data-detail="fine" x="660" y="200" class="t-database" font-size="7" text-anchor="middle">source + version required</text>
         </g>
 
         <g id="node-protein_sequences" data-node-id="protein_sequences" data-node-label="Protein Sequences" tabindex="0" role="button" aria-label="Focus Protein Sequences, protein FASTA (.faa), Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="protein FASTA (.faa)" data-node-tag="required" data-node-context="Inputs supplied before the run">
           <title>Protein Sequences · protein FASTA (.faa) · Inputs supplied before the run · required</title>
-          <rect x="520" y="140" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="520" y="140" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(526 146) scale(0.6875)">
+          <rect x="290" y="140" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="290" y="140" width="220" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(296 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="615" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Protein Sequences</text>
-        <text data-detail="context" x="615" y="188" class="t-muted" font-size="9" text-anchor="middle">protein FASTA (.faa)</text>
-        <text data-detail="fine" x="615" y="200" class="t-database" font-size="7" text-anchor="middle">required</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Protein Sequences</text>
+        <text data-detail="context" x="400" y="188" class="t-muted" font-size="9" text-anchor="middle">protein FASTA (.faa)</text>
+        <text data-detail="fine" x="400" y="200" class="t-database" font-size="7" text-anchor="middle">required</text>
         </g>
 
         <g id="node-diffraction_data" data-node-id="diffraction_data" data-node-label="Diffraction Data" tabindex="0" role="button" aria-label="Focus Diffraction Data, MTZ + crystal name, Inputs supplied before the run" aria-pressed="false" data-node-kind="database" data-node-sublabel="MTZ + crystal name" data-node-tag="required" data-node-context="Inputs supplied before the run">
           <title>Diffraction Data · MTZ + crystal name · Inputs supplied before the run · required</title>
-          <rect x="930" y="140" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="930" y="140" width="190" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(936 146) scale(0.6875)">
+          <rect x="810" y="140" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="810" y="140" width="220" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(816 146) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="1025" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Diffraction Data</text>
-        <text data-detail="context" x="1025" y="188" class="t-muted" font-size="9" text-anchor="middle">MTZ + crystal name</text>
-        <text data-detail="fine" x="1025" y="200" class="t-database" font-size="7" text-anchor="middle">required</text>
+          <text data-node-label="" data-detail-anchor="" x="920" y="172" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Diffraction Data</text>
+        <text data-detail="context" x="920" y="188" class="t-muted" font-size="9" text-anchor="middle">MTZ + crystal name</text>
+        <text data-detail="fine" x="920" y="200" class="t-database" font-size="7" text-anchor="middle">required</text>
         </g>
 
         <g id="node-localisation_tools" data-node-id="localisation_tools" data-node-label="Predict Localisation" tabindex="0" role="button" aria-label="Focus Predict Localisation, PSORTb 3.0.6 + DeepTMHMM 1.0, Internal checks, localisation, and model preparation" aria-pressed="false" data-node-kind="backend" data-node-sublabel="PSORTb 3.0.6 + DeepTMHMM 1.0" data-node-tag="offline; network disabled" data-node-context="Internal checks, localisation, and model preparation">
@@ -5137,113 +5137,115 @@
 
         <g id="node-pdb_sequence_search" data-node-id="pdb_sequence_search" data-node-label="PDB Sequence Search" tabindex="0" role="button" aria-label="Focus PDB Sequence Search, MMseqs2 → PDB SEQRES, Internal checks, localisation, and model preparation" aria-pressed="false" data-node-kind="backend" data-node-sublabel="MMseqs2 → PDB SEQRES" data-node-tag="E≤1e-5; ≥50% coverage" data-node-context="Internal checks, localisation, and model preparation">
           <title>PDB Sequence Search · MMseqs2 → PDB SEQRES · Internal checks, localisation, and model preparation · E≤1e-5; ≥50% coverage</title>
-          <rect x="275" y="290" width="220" height="68" rx="6" class="c-mask"/>
-          <rect x="275" y="290" width="220" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(281 296) scale(0.6875)">
+          <rect x="290" y="290" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="290" y="290" width="220" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(296 296) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="385" y="322" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">PDB Sequence Search</text>
-        <text data-detail="context" x="385" y="338" class="t-muted" font-size="9" text-anchor="middle">MMseqs2 → PDB SEQRES</text>
-        <text data-detail="fine" x="385" y="350" class="t-backend" font-size="7" text-anchor="middle">E≤1e-5; ≥50% coverage</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="322" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">PDB Sequence Search</text>
+        <text data-detail="context" x="400" y="338" class="t-muted" font-size="9" text-anchor="middle">MMseqs2 → PDB SEQRES</text>
+        <text data-detail="fine" x="400" y="350" class="t-backend" font-size="7" text-anchor="middle">E≤1e-5; ≥50% coverage</text>
         </g>
 
         <g id="node-pdb_structure_search" data-node-id="pdb_structure_search" data-node-label="Structure-Sensitive Search" tabindex="0" role="button" aria-label="Focus Structure-Sensitive Search, ProstT5 → Foldseek → PDB100, Internal checks, localisation, and model preparation" aria-pressed="false" data-node-kind="backend" data-node-sublabel="ProstT5 → Foldseek → PDB100" data-node-tag="E≤1e-3; ≥50% coverage" data-node-context="Internal checks, localisation, and model preparation">
           <title>Structure-Sensitive Search · ProstT5 → Foldseek → PDB100 · Internal checks, localisation, and model preparation · E≤1e-3; ≥50% coverage</title>
-          <rect x="540" y="290" width="280" height="68" rx="6" class="c-mask"/>
-          <rect x="540" y="290" width="280" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(546 296) scale(0.6875)">
+          <rect x="550" y="290" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="550" y="290" width="220" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(556 296) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="680" y="322" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Structure-Sensitive Search</text>
-        <text data-detail="context" x="680" y="338" class="t-muted" font-size="9" text-anchor="middle">ProstT5 → Foldseek → PDB100</text>
-        <text data-detail="fine" x="680" y="350" class="t-backend" font-size="7" text-anchor="middle">E≤1e-3; ≥50% coverage</text>
+          <text data-node-label="" data-detail-anchor="" x="660" y="322" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Structure-Sensitive Search</text>
+        <text data-detail="context" x="660" y="338" class="t-muted" font-size="9" text-anchor="middle">ProstT5 → Foldseek → PDB100</text>
+        <text data-detail="fine" x="660" y="350" class="t-backend" font-size="7" text-anchor="middle">E≤1e-3; ≥50% coverage</text>
         </g>
 
         <g id="node-preflight" data-node-id="preflight" data-node-label="MTZ Preflight" tabindex="0" role="button" aria-label="Focus MTZ Preflight, symmetry + Free-R, Internal checks, localisation, and model preparation" aria-pressed="false" data-node-kind="security" data-node-sublabel="symmetry + Free-R" data-node-tag="automatic check" data-node-context="Internal checks, localisation, and model preparation">
           <title>MTZ Preflight · symmetry + Free-R · Internal checks, localisation, and model preparation · automatic check</title>
-          <rect x="930" y="290" width="190" height="68" rx="6" class="c-mask"/>
-          <rect x="930" y="290" width="190" height="68" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(936 296) scale(0.6875)">
+          <rect x="810" y="290" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="810" y="290" width="220" height="68" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(816 296) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="1025" y="322" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MTZ Preflight</text>
-        <text data-detail="context" x="1025" y="338" class="t-muted" font-size="9" text-anchor="middle">symmetry + Free-R</text>
-        <text data-detail="fine" x="1025" y="350" class="t-security" font-size="7" text-anchor="middle">automatic check</text>
+          <text data-node-label="" data-detail-anchor="" x="920" y="322" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MTZ Preflight</text>
+        <text data-detail="context" x="920" y="338" class="t-muted" font-size="9" text-anchor="middle">symmetry + Free-R</text>
+        <text data-detail="fine" x="920" y="350" class="t-security" font-size="7" text-anchor="middle">automatic check</text>
         </g>
 
         <g id="node-prepare_models" data-node-id="prepare_models" data-node-label="Validate + Prepare Models" tabindex="0" role="button" aria-label="Focus Validate + Prepare Models, chain + sequence + checksum checks, Internal checks, localisation, and model preparation" aria-pressed="false" data-node-kind="backend" data-node-sublabel="chain + sequence + checksum checks" data-node-tag="Gemmi; Phenix for predictions" data-node-context="Internal checks, localisation, and model preparation">
           <title>Validate + Prepare Models · chain + sequence + checksum checks · Internal checks, localisation, and model preparation · Gemmi; Phenix for predictions</title>
-          <rect x="420" y="410" width="260" height="68" rx="6" class="c-mask"/>
-          <rect x="420" y="410" width="260" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(426 416) scale(0.6875)">
+          <rect x="270" y="410" width="260" height="68" rx="6" class="c-mask"/>
+          <rect x="270" y="410" width="260" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(276 416) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="550" y="442" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Validate + Prepare Models</text>
-        <text data-detail="context" x="550" y="458" class="t-muted" font-size="9" text-anchor="middle">chain + sequence + checksum checks</text>
-        <text data-detail="fine" x="550" y="470" class="t-backend" font-size="7" text-anchor="middle">Gemmi; Phenix for predictions</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="442" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Validate + Prepare Models</text>
+        <text data-detail="context" x="400" y="458" class="t-muted" font-size="9" text-anchor="middle">chain + sequence + checksum checks</text>
+        <text data-detail="fine" x="400" y="470" class="t-backend" font-size="7" text-anchor="middle">Gemmi; Phenix for predictions</text>
         </g>
 
         <g id="node-first_component_search_review" data-node-id="first_component_search_review" data-node-label="First-Copy Screen + A Review" tabindex="0" role="button" aria-label="Focus First-Copy Screen + A Review, Matthews expectation → one-copy MR → review, First-component screening" aria-pressed="false" data-node-kind="backend" data-node-sublabel="Matthews expectation → one-copy MR → review" data-node-tag="25 hypotheses per crystal" data-node-context="First-component screening">
           <title>First-Copy Screen + A Review · Matthews expectation → one-copy MR → review · First-component screening · 25 hypotheses per crystal</title>
-          <rect x="450" y="520" width="300" height="68" rx="6" class="c-mask"/>
-          <rect x="450" y="520" width="300" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(456 526) scale(0.6875)">
+          <rect x="250" y="520" width="300" height="68" rx="6" class="c-mask"/>
+          <rect x="250" y="520" width="300" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(256 526) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="600" y="552" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">First-Copy Screen + A Review</text>
-        <text data-detail="context" x="600" y="568" class="t-muted" font-size="9" text-anchor="middle">Matthews expectation → one-copy MR → review</text>
-        <text data-detail="fine" x="600" y="580" class="t-backend" font-size="7" text-anchor="middle">25 hypotheses per crystal</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="552" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">First-Copy Screen + A Review</text>
+        <text data-detail="context" x="400" y="568" class="t-muted" font-size="9" text-anchor="middle">Matthews expectation → one-copy MR → review</text>
+        <text data-detail="fine" x="400" y="580" class="t-backend" font-size="7" text-anchor="middle">25 hypotheses per crystal</text>
         </g>
 
         <g id="node-molecular_weight_evidence" data-node-id="molecular_weight_evidence" data-node-label="Molecular-Weight Evidence" tabindex="0" role="button" aria-label="Focus Molecular-Weight Evidence, apparent mass observations, First-component screening" aria-pressed="false" data-node-kind="database" data-node-sublabel="apparent mass observations" data-node-tag="optional; missing is neutral" data-node-context="First-component screening">
           <title>Molecular-Weight Evidence · apparent mass observations · First-component screening · optional; missing is neutral</title>
-          <rect x="800" y="520" width="230" height="68" rx="6" class="c-mask"/>
-          <rect x="800" y="520" width="230" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(806 526) scale(0.6875)">
+          <rect x="600" y="520" width="230" height="68" rx="6" class="c-mask"/>
+          <rect x="600" y="520" width="230" height="68" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(606 526) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="915" y="552" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Molecular-Weight Evidence</text>
-        <text data-detail="context" x="915" y="568" class="t-muted" font-size="9" text-anchor="middle">apparent mass observations</text>
-        <text data-detail="fine" x="915" y="580" class="t-database" font-size="7" text-anchor="middle">optional; missing is neutral</text>
+          <text data-node-label="" data-detail-anchor="" x="715" y="552" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Molecular-Weight Evidence</text>
+        <text data-detail="context" x="715" y="568" class="t-muted" font-size="9" text-anchor="middle">apparent mass observations</text>
+        <text data-detail="fine" x="715" y="580" class="t-database" font-size="7" text-anchor="middle">optional; missing is neutral</text>
         </g>
 
         <g id="node-heteromer_partner" data-node-id="heteromer_partner" data-node-label="Evaluate Heteromer Partner" tabindex="0" role="button" aria-label="Focus Evaluate Heteromer Partner, one gene product per hypothesis, Heteromer partners, up to six components total" aria-pressed="false" data-node-kind="backend" data-node-sublabel="one gene product per hypothesis" data-node-tag="tested with retained components" data-node-context="Heteromer partners, up to six components total">
           <title>Evaluate Heteromer Partner · one gene product per hypothesis · Heteromer partners, up to six components total · tested with retained components</title>
-          <rect x="470" y="670" width="260" height="68" rx="6" class="c-mask"/>
-          <rect x="470" y="670" width="260" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(476 676) scale(0.6875)">
+          <rect x="270" y="670" width="260" height="68" rx="6" class="c-mask"/>
+          <rect x="270" y="670" width="260" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(276 676) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="600" y="702" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Evaluate Heteromer Partner</text>
-        <text data-detail="context" x="600" y="718" class="t-muted" font-size="9" text-anchor="middle">one gene product per hypothesis</text>
-        <text data-detail="fine" x="600" y="730" class="t-backend" font-size="7" text-anchor="middle">tested with retained components</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="702" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Evaluate Heteromer Partner</text>
+        <text data-detail="context" x="400" y="718" class="t-muted" font-size="9" text-anchor="middle">one gene product per hypothesis</text>
+        <text data-detail="fine" x="400" y="730" class="t-backend" font-size="7" text-anchor="middle">tested with retained components</text>
         </g>
 
-        <g id="node-partner_copy_search" data-node-id="partner_copy_search" data-node-label="Test Copy Count + Review" tabindex="0" role="button" aria-label="Focus Test Copy Count + Review, 1, 2, 3, or 4 copies, Heteromer partners, up to six components total" aria-pressed="false" data-node-kind="backend" data-node-sublabel="1, 2, 3, or 4 copies" data-node-tag="review partner placement" data-node-context="Heteromer partners, up to six components total">
-          <title>Test Copy Count + Review · 1, 2, 3, or 4 copies · Heteromer partners, up to six components total · review partner placement</title>
-          <rect x="490" y="800" width="220" height="68" rx="6" class="c-mask"/>
-          <rect x="490" y="800" width="220" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(496 806) scale(0.6875)">
+        <g id="node-partner_copy_search" data-node-id="partner_copy_search" data-node-label="Test Copy Count + Review" tabindex="0" role="button" aria-label="Focus Test Copy Count + Review, sequential copies in configured range, Heteromer partners, up to six components total" aria-pressed="false" data-node-kind="backend" data-node-sublabel="sequential copies in configured range" data-node-tag="review partner placement" data-node-context="Heteromer partners, up to six components total">
+          <title>Test Copy Count + Review · sequential copies in configured range · Heteromer partners, up to six components total · review partner placement</title>
+          <rect x="290" y="800" width="220" height="68" rx="6" class="c-mask"/>
+          <rect x="290" y="800" width="220" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(296 806) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="600" y="832" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Test Copy Count + Review</text>
-        <text data-detail="context" x="600" y="848" class="t-muted" font-size="9" text-anchor="middle">1, 2, 3, or 4 copies</text>
-        <text data-detail="fine" x="600" y="860" class="t-backend" font-size="7" text-anchor="middle">review partner placement</text>
+          <text data-node-label="" data-detail-anchor="" x="400" y="832" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Test Copy Count + Review</text>
+        <text data-detail="context" x="400" y="848" class="t-muted" font-size="9" text-anchor="middle">sequential copies in configured range</text>
+        <text data-detail="fine" x="400" y="860" class="t-backend" font-size="7" text-anchor="middle">review partner placement</text>
         </g>
 
-        <g id="node-report" data-node-id="report" data-node-label="Reviewed Report" tabindex="0" role="button" aria-label="Focus Reviewed Report, supported + uncertain findings, Heteromer partners, up to six components total" aria-pressed="false" data-node-kind="database" data-node-sublabel="supported + uncertain findings" data-node-tag="bounded conclusion" data-node-context="Heteromer partners, up to six components total">
+        <g id="node-report" data-node-id="report" data-node-label="Reviewed Report" tabindex="0" role="button" aria-label="Focus Reviewed Report, supported + uncertain findings, Heteromer partners, up to six components total" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="supported + uncertain findings" data-node-tag="bounded conclusion" data-node-context="Heteromer partners, up to six components total">
           <title>Reviewed Report · supported + uncertain findings · Heteromer partners, up to six components total · bounded conclusion</title>
-          <rect x="220" y="800" width="200" height="68" rx="6" class="c-mask"/>
-          <rect x="220" y="800" width="200" height="68" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(226 806) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          <rect x="40" y="800" width="200" height="68" rx="6" class="c-mask"/>
+          <rect x="40" y="800" width="200" height="68" rx="6" class="c-frontend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(46 806) scale(0.6875)">
+            <rect x="2" y="3" width="12" height="10" rx="2"/>
+            <path d="M2 6.5h12"/>
+            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
+            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="320" y="832" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Reviewed Report</text>
-        <text data-detail="context" x="320" y="848" class="t-muted" font-size="9" text-anchor="middle">supported + uncertain findings</text>
-        <text data-detail="fine" x="320" y="860" class="t-database" font-size="7" text-anchor="middle">bounded conclusion</text>
+          <text data-node-label="" data-detail-anchor="" x="140" y="832" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Reviewed Report</text>
+        <text data-detail="context" x="140" y="848" class="t-muted" font-size="9" text-anchor="middle">supported + uncertain findings</text>
+        <text data-detail="fine" x="140" y="860" class="t-frontend" font-size="7" text-anchor="middle">bounded conclusion</text>
         </g>
 
         <!-- Connection labels -->
@@ -5258,27 +5260,24 @@
 
 
         <g data-detail="context" data-edge-from="localisation_tools" data-edge-to="first_component_search_review" data-edge-label="orders first search wave" data-edge-key="10" data-edge-id="localisation_first_search">
-          <rect x="207.4" y="468" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="270" y="478" class="t-messagebus" font-size="8" text-anchor="middle">orders first search wave</text>
+          <rect x="112.4" y="468" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
+          <text x="175" y="478" class="t-messagebus" font-size="8" text-anchor="middle">orders first search wave</text>
         </g>
         <g data-detail="context" data-edge-from="preflight" data-edge-to="first_component_search_review" data-edge-label="qualified diffraction" data-edge-key="11" data-edge-id="preflight_first_search">
-          <rect x="760.6" y="476" width="110.8" height="14" rx="3" class="c-mask"/>
-          <text x="816" y="486" class="t-backend" font-size="8" text-anchor="middle">qualified diffraction</text>
+          <rect x="604.6" y="476" width="110.8" height="14" rx="3" class="c-mask"/>
+          <text x="660" y="486" class="t-backend" font-size="8" text-anchor="middle">qualified diffraction</text>
         </g>
 
         <g data-detail="context" data-edge-from="first_component_search_review" data-edge-to="heteromer_partner" data-edge-label="reviewed first component" data-edge-key="13" data-edge-id="first_search_partner">
-          <rect x="537.4" y="620" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="600" y="630" class="t-security" font-size="8" text-anchor="middle">reviewed first component</text>
+          <rect x="337.4" y="620" width="125.19999999999999" height="14" rx="3" class="c-mask"/>
+          <text x="400" y="630" class="t-security" font-size="8" text-anchor="middle">reviewed first component</text>
         </g>
 
         <g data-detail="context" data-edge-from="partner_copy_search" data-edge-to="heteromer_partner" data-edge-label="next partner candidate" data-edge-key="15" data-edge-id="copy_search_next_partner">
-          <rect x="792.2" y="760" width="115.6" height="14" rx="3" class="c-mask"/>
-          <text x="850" y="770" class="t-messagebus" font-size="8" text-anchor="middle">next partner candidate</text>
+          <rect x="642.2" y="760" width="115.6" height="14" rx="3" class="c-mask"/>
+          <text x="700" y="770" class="t-messagebus" font-size="8" text-anchor="middle">next partner candidate</text>
         </g>
-        <g data-detail="context" data-edge-from="partner_copy_search" data-edge-to="report" data-edge-label="stop" data-edge-key="16" data-edge-id="copy_search_report">
-          <rect x="440" y="765" width="30" height="14" rx="3" class="c-mask"/>
-          <text x="455" y="775" class="t-security" font-size="8" text-anchor="middle">stop</text>
-        </g>
+
 
         <!-- Boundary labels (foreground masks keep routes out of titles) -->
         <g data-graph-role="structural-frame-label" data-composition-frame-id="0" data-composition-frame-kind="region" data-composition-frame-label="Inputs supplied before the run">
@@ -5292,13 +5291,13 @@
         </g>
 
         <g data-graph-role="structural-frame-label" data-composition-frame-id="2" data-composition-frame-kind="region" data-composition-frame-label="First-component screening">
-          <rect data-graph-role="structural-frame-label-mask" x="424" y="500" width="145" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="428" y="513" class="t-cloud" font-size="9" font-weight="600">First-component screening</text>
+          <rect data-graph-role="structural-frame-label-mask" x="224" y="500" width="145" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="228" y="513" class="t-cloud" font-size="9" font-weight="600">First-component screening</text>
         </g>
 
         <g data-graph-role="structural-frame-label" data-composition-frame-id="3" data-composition-frame-kind="region" data-composition-frame-label="Heteromer partners, up to six components total">
-          <rect data-graph-role="structural-frame-label-mask" x="194" y="650" width="258.4" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="198" y="663" class="t-cloud" font-size="9" font-weight="600">Heteromer partners, up to six components total</text>
+          <rect data-graph-role="structural-frame-label-mask" x="14" y="650" width="258.4" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="18" y="663" class="t-cloud" font-size="9" font-weight="600">Heteromer partners, up to six components total</text>
         </g>
 
         <!-- Legend -->
