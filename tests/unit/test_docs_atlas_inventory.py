@@ -178,6 +178,7 @@ def test_scientist_home_stage_order_and_progressive_disclosure() -> None:
     assert "Input / evidence" in scientist
     assert "Analysis step" in scientist
     assert "Review / validation" in scientist
+    assert "Output / report" in scientist
 
     composition = outputs[module.CURRENT / "stages/composition.html"].decode("utf-8")
     assert (
@@ -321,6 +322,8 @@ def test_node_focus_opens_dark_reserved_documentation_panel() -> None:
     assert "Additional Slots" not in scientist
     assert "Input Error" not in scientist
     assert "Held Dataset" not in scientist
+    report_node = scientist[scientist.index('id="node-report"') :]
+    assert 'data-node-kind="frontend"' in report_node[:600]
     assert 'data-edge-from="diffraction_data" data-edge-to="preflight"' in scientist
     assert (
         'data-edge-from="organism_metadata" data-edge-to="genome_sequence"'

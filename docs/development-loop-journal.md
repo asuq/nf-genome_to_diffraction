@@ -14786,5 +14786,16 @@ with a collapsed combined parent or a guessed command.
 - Scientist-facing copy no longer calls the species identity or reviewed report
   "human-readable". It records that species-to-reference resolution is not yet
   implemented and that exact genome/proteome selection may additionally require
-  strain or assembly identity. Next inspect the live prototype before further
-  workflow-documentation changes.
+  strain or assembly identity.
+- The four scientific-input boxes and four internal-analysis boxes now use equal
+  widths and equal horizontal gaps. The structure-search boxes are closer,
+  model preparation is shifted left, and Reviewed Report uses a dedicated output
+  colour with an Output/report legend entry.
+- Gene Annotation and Protein Sequences have been swapped so Protein Sequences
+  sits directly above PDB Sequence Search. That central connection is straight;
+  localisation and structure-sensitive search branch through independent left
+  and right corridors without sharing segments.
+- The main search-and-review spine is shifted left to favour straight vertical
+  connections rather than centring the diagram's visual weight. The floating
+  "stop" label has been removed from the Reviewed Report connection. Next
+  inspect the live prototype before further workflow-documentation changes.

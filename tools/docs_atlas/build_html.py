@@ -634,6 +634,7 @@ VIEWER_DRAWER_STYLE = """
     .atlas-box-key::before { content: ""; width: 12px; height: 12px; border: 1px solid var(--database-stroke); border-radius: 3px; background: var(--database-fill); }
     .atlas-box-key.analysis::before { border-color: var(--backend-stroke); background: var(--backend-fill); }
     .atlas-box-key.review::before { border-color: var(--security-stroke); background: var(--security-fill); }
+    .atlas-box-key.output::before { border-color: var(--frontend-stroke); background: var(--frontend-fill); }
     @media (max-width: 700px) {
       html[data-atlas-docs-open="true"] body { padding-right: 0; }
       html[data-atlas-docs-open="true"] .toolbar { right: 1rem; }
@@ -816,6 +817,7 @@ def _derive_viewer_home(base: bytes, drawer: str, audience: str) -> bytes:
             '<span class="atlas-box-key">Input / evidence</span>'
             '<span class="atlas-box-key analysis">Analysis step</span>'
             '<span class="atlas-box-key review">Review / validation</span>'
+            '<span class="atlas-box-key output">Output / report</span>'
             "</div></div>\n"
         )
         document = document.replace(
