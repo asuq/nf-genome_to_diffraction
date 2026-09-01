@@ -345,7 +345,7 @@ def main() -> int:
             raise RuntimeError("a sibling crystal mutation changed unrelated outputs")
 
         live_result = _run(
-            [*command[:5], "-resume"],
+            command[:5],
             launch_root=launch_root,
             environment=environment,
             expected_success=False,

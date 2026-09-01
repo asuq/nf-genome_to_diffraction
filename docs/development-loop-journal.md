@@ -14920,6 +14920,11 @@ with a collapsed combined parent or a guessed command.
   conservation, and cross-funnel rejection. The two-path remote lifecycle
   passes authenticated collection and deliberate tamper rejection; wrapper
   syntax, policy, formatting, lint, and type checks pass.
+- The first full gate exposed a stale negative harness that invoked the
+  stub-only boundary with `-resume`; Nextflow correctly replayed its previous
+  stub cache instead of executing the non-stub rejection. The negative case
+  now starts a new non-resume session, reaches exit 64, and proves the boundary
+  directly. The isolated unknown-pass-1 cached-stub task passes with this fix.
 - Next run documentation and exact full local gates, commit this review point,
   push all candidate-first commits to `dev/phase3`, require CI, and deploy only
   the resulting exact source before staging a fresh owned discovery/screen
