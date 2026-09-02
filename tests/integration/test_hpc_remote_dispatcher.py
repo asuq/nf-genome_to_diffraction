@@ -4297,15 +4297,21 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         "outdir=\n"
+        "nextflow_log=\n"
+        "cache_root=\n"
         "status=COMPLETED\n"
         "previous=\n"
         'hold_crystal="${FAKE_UNKNOWN_HOLD_CRYSTAL:-public_stub_02}"\n'
         'for argument in "$@"; do\n'
         '  [[ "$previous" != --outdir ]] || outdir="$argument"\n'
+        '  [[ "$previous" != -log ]] || nextflow_log="$argument"\n'
+        '  [[ "$previous" != --cache_root ]] || cache_root="$argument"\n'
         '  [[ "$argument" != -resume ]] || status=CACHED\n'
         '  previous="$argument"\n'
         "done\n"
-        '[[ -n "$outdir" ]] || exit 2\n'
+        '[[ -n "$outdir" && -n "$nextflow_log" && -n "$cache_root" ]] || exit 2\n'
+        'mkdir -p "$(dirname "$nextflow_log")" "$cache_root/work"\n'
+        ': > "$nextflow_log"\n'
         'mkdir -p "$outdir/pipeline_info" '
         '"$outdir/phase3_offline_provider_input" '
         '"$outdir/phase3_localisation_reopen_stub" '
@@ -4337,6 +4343,13 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         "done\n"
         "for crystal in public_stub_01 public_stub_03; do\n"
         "  for rank in $(seq 1 25); do\n"
+        '    if [[ "$status" == COMPLETED && "$crystal" == public_stub_01 '
+        '&& "$rank" == 1 ]]; then\n'
+        '      printf "%s\\t%s\\t%s\\t%s\\n" '
+        '"hash-mr-retried-failure" "RUN_PHASE3_FIRST_COPY_PHASER" '
+        '"phase3-first-copy:${crystal}:mrhyp_${rank}" "FAILED" '
+        '>> "$outdir/pipeline_info/trace.tsv"\n'
+        "    fi\n"
         '    printf "%s\\t%s\\t%s\\t%s\\n" '
         '"hash-mr-${crystal}-${rank}" "RUN_PHASE3_FIRST_COPY_PHASER" '
         '"phase3-first-copy:${crystal}:mrhyp_${rank}" "$status" '
@@ -4369,18 +4382,10 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         failed_package = (
             child / "artifacts/qualification/unknown-screen-failed-mr-children"
         )
-        failed_package.mkdir()
         failed_manifest = failed_package / "manifest.json"
-        failed_manifest.write_text(
-            '{"cache_reusable":false,"scientific_evidence_accepted":false}\n',
-            encoding="ascii",
-        )
-        failed_digest = hashlib.sha256(failed_manifest.read_bytes()).hexdigest()
-        (failed_package / "checksums.sha256").write_text(
-            f"{failed_digest}  manifest.json\n",
-            encoding="ascii",
-        )
-        (failed_package / "file-count").write_text("1\n", encoding="ascii")
+        failed_evidence = json.loads(failed_manifest.read_text(encoding="utf-8"))
+        assert failed_evidence["cache_reusable"] is False
+        assert failed_evidence["scientific_evidence_accepted"] is False
         failed_archive = _run(
             [str(dispatcher), "collect", UNKNOWN_SCREEN_RUN_ID, "2" * 32],
             cwd=tmp_path,
@@ -4404,6 +4409,15 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         return
     assert screen_result["failure_class"] == "success"
     assert screen_result["scheduler_state"] == "COMPLETED"
+    first_identities = (
+        child / "artifacts/qualification/unknown-screen-first-task-identities.tsv"
+    ).read_text(encoding="utf-8")
+    assert "hash-mr-retried-failure" not in first_identities
+    mr_inventory = (
+        child / "artifacts/qualification/unknown-screen-first-mr-inventory.tsv"
+    ).read_text(encoding="utf-8")
+    assert "public_stub_01\t25" in mr_inventory
+    assert "public_stub_03\t25" in mr_inventory
     screen_trace = (
         child / "artifacts/qualification/unknown-screen-resume-pipeline-info/trace.tsv"
     ).read_text(encoding="utf-8")

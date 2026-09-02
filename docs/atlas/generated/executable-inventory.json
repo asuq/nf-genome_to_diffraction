@@ -1001,42 +1001,7 @@
       "token": "T12"
     },
     {
-      "line": 307,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 311,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 316,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 321,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 326,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 331,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 338,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P0"
-    },
-    {
-      "line": 342,
+      "line": 345,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
@@ -1046,12 +1011,12 @@
       "token": "P0"
     },
     {
-      "line": 353,
+      "line": 354,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 357,
+      "line": 359,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
@@ -1061,127 +1026,152 @@
       "token": "P0"
     },
     {
-      "line": 368,
+      "line": 369,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 372,
+      "line": 376,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 558,
+      "line": 380,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 565,
+      "line": 387,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 630,
+      "line": 391,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 647,
+      "line": 395,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 651,
+      "line": 402,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 728,
+      "line": 406,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 410,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 596,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 603,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 668,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 685,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 689,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P0"
+    },
+    {
+      "line": 766,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 735,
+      "line": 773,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 741,
+      "line": 779,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 746,
+      "line": 784,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 753,
+      "line": 791,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 759,
+      "line": 797,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 793,
+      "line": 831,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 799,
+      "line": 837,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 804,
+      "line": 842,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 810,
+      "line": 848,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 824,
+      "line": 862,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 850,
+      "line": 888,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 854,
+      "line": 892,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P1"
     },
     {
-      "line": 900,
+      "line": 938,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 900,
+      "line": 938,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 950,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P2"
-    },
-    {
-      "line": 964,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "P2"
-    },
-    {
-      "line": 997,
+      "line": 988,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
@@ -1191,179 +1181,174 @@
       "token": "P2"
     },
     {
-      "line": 1011,
+      "line": 1035,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1024,
+      "line": 1040,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1043,
+      "line": 1049,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1047,
+      "line": 1062,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1134,
+      "line": 1081,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1134,
+      "line": 1085,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P2"
+    },
+    {
+      "line": 1172,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "P2"
+    },
+    {
+      "line": 1172,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P0"
     },
     {
-      "line": 1139,
+      "line": 1177,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1144,
+      "line": 1182,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1155,
+      "line": 1193,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1170,
+      "line": 1208,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1209,
+      "line": 1247,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1215,
+      "line": 1253,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1223,
+      "line": 1261,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1236,
+      "line": 1274,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1265,
+      "line": 1303,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1276,
+      "line": 1314,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1289,
+      "line": 1327,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1307,
+      "line": 1345,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1329,
+      "line": 1367,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1341,
+      "line": 1379,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1386,
+      "line": 1424,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1395,
+      "line": 1433,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1403,
+      "line": 1441,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1417,
+      "line": 1455,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1486,
+      "line": 1524,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1490,
+      "line": 1528,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 1541,
+      "line": 1579,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P2"
     },
     {
-      "line": 3402,
+      "line": 3434,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P6"
     },
     {
-      "line": 3475,
+      "line": 3507,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P6"
     },
     {
-      "line": 3483,
+      "line": 3515,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P6"
     },
     {
-      "line": 3487,
+      "line": 3519,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P6"
     },
     {
-      "line": 3490,
+      "line": 3522,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "P6"
-    },
-    {
-      "line": 3923,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "M6"
-    },
-    {
-      "line": 3937,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "M6"
-    },
-    {
-      "line": 3949,
-      "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "token": "M6"
     },
     {
       "line": 3955,
@@ -1371,137 +1356,152 @@
       "token": "M6"
     },
     {
-      "line": 3960,
+      "line": 3969,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 3966,
+      "line": 3981,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4080,
+      "line": 3987,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4092,
+      "line": 3992,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4101,
+      "line": 3998,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4113,
+      "line": 4112,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4226,
+      "line": 4124,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4250,
+      "line": 4133,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4252,
+      "line": 4145,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4254,
+      "line": 4258,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4260,
+      "line": 4282,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4262,
+      "line": 4284,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4264,
+      "line": 4286,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4275,
+      "line": 4292,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4312,
+      "line": 4294,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4335,
+      "line": 4296,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4337,
+      "line": 4307,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4339,
+      "line": 4344,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4341,
+      "line": 4367,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4343,
+      "line": 4369,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4345,
+      "line": 4371,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4347,
+      "line": 4373,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4536,
+      "line": 4375,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4548,
+      "line": 4377,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4558,
+      "line": 4379,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M6"
     },
     {
-      "line": 4775,
+      "line": 4568,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "M6"
+    },
+    {
+      "line": 4580,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "M6"
+    },
+    {
+      "line": 4590,
+      "path": "bootstrap/nf-gtd-hpc-smoke-job",
+      "token": "M6"
+    },
+    {
+      "line": 4807,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "M4"
     },
     {
-      "line": 4955,
+      "line": 4987,
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
       "token": "T12"
     },
@@ -5528,7 +5528,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_b020457150e3af1dd788f01ce839fd485db148b666531cef48df1b6db624bc39",
+  "inventory_id": "atlasinv_84535b8f79faa4bce3ef973945e5b3f0ab275f00ad39ac6defb0c922e15c8096",
   "nextflow_files": [
     {
       "declarations": [],
@@ -55839,180 +55839,184 @@
           "name": "finalise"
         },
         {
-          "line": 254,
+          "line": 259,
           "name": "handle_signal"
         },
         {
-          "line": 262,
+          "line": 267,
           "name": "path_within_root"
         },
         {
-          "line": 268,
+          "line": 273,
           "name": "write_trace_identity_manifest"
         },
         {
-          "line": 286,
+          "line": 295,
+          "name": "collect_unknown_screen_failure_evidence"
+        },
+        {
+          "line": 324,
           "name": "site_resolved_path"
         },
         {
-          "line": 301,
+          "line": 339,
           "name": "load_p0_config"
         },
         {
-          "line": 385,
+          "line": 423,
           "name": "load_database_config"
         },
         {
-          "line": 492,
+          "line": 530,
           "name": "run_smoke"
         },
         {
-          "line": 516,
+          "line": 554,
           "name": "run_p0_nextflow"
         },
         {
-          "line": 535,
+          "line": 573,
           "name": "run_p0"
         },
         {
-          "line": 656,
+          "line": 694,
           "name": "run_p1_nextflow"
         },
         {
-          "line": 673,
+          "line": 711,
           "name": "run_p1_model_nextflow"
         },
         {
-          "line": 690,
+          "line": 728,
           "name": "run_p1"
         },
         {
-          "line": 862,
+          "line": 900,
           "name": "run_p2_first_copy_nextflow"
         },
         {
-          "line": 884,
+          "line": 922,
           "name": "run_p2"
         },
         {
-          "line": 1052,
+          "line": 1090,
           "name": "run_p2_diverse_model_nextflow"
         },
         {
-          "line": 1070,
+          "line": 1108,
           "name": "run_p2_diverse_first_copy_nextflow"
         },
         {
-          "line": 1101,
+          "line": 1139,
           "name": "run_p2_diverse"
         },
         {
-          "line": 1495,
+          "line": 1533,
           "name": "run_p2_control_nextflow"
         },
         {
-          "line": 1513,
+          "line": 1551,
           "name": "run_p2_control"
         },
         {
-          "line": 1706,
+          "line": 1744,
           "name": "run_phase3_phenix_probe"
         },
         {
-          "line": 1766,
+          "line": 1804,
           "name": "run_phase3_network_probe"
         },
         {
-          "line": 1871,
+          "line": 1909,
           "name": "run_unknown_discovery_nextflow"
         },
         {
-          "line": 1898,
+          "line": 1936,
           "name": "run_unknown_discovery"
         },
         {
-          "line": 2040,
+          "line": 2078,
           "name": "run_unknown_screen_nextflow"
         },
         {
-          "line": 2068,
+          "line": 2106,
           "name": "run_unknown_screen"
         },
         {
-          "line": 2310,
+          "line": 2342,
           "name": "run_unknown_single_component_nextflow"
         },
         {
-          "line": 2334,
+          "line": 2366,
           "name": "run_unknown_single_component"
         },
         {
-          "line": 2456,
+          "line": 2488,
           "name": "run_unknown_pass2_nextflow"
         },
         {
-          "line": 2472,
+          "line": 2504,
           "name": "run_unknown_pass2"
         },
         {
-          "line": 2627,
+          "line": 2659,
           "name": "run_heteromer_smoke"
         },
         {
-          "line": 3752,
+          "line": 3784,
           "name": "run_control_slice"
         },
         {
-          "line": 3812,
+          "line": 3844,
           "name": "run_control_matrix"
         },
         {
-          "line": 3880,
+          "line": 3912,
           "name": "run_m6_inputs"
         },
         {
-          "line": 3910,
+          "line": 3942,
           "name": "load_m6_smoke_site_contract"
         },
         {
-          "line": 3970,
+          "line": 4002,
           "name": "run_m6_stub_nextflow"
         },
         {
-          "line": 4001,
+          "line": 4033,
           "name": "run_m6_nextflow_smoke"
         },
         {
-          "line": 4414,
+          "line": 4446,
           "name": "run_m6_nextflow"
         },
         {
-          "line": 4434,
+          "line": 4466,
           "name": "run_m6_scientific"
         },
         {
-          "line": 4733,
+          "line": 4765,
           "name": "run_m4_copy_nextflow"
         },
         {
-          "line": 4754,
+          "line": 4786,
           "name": "run_m4_copy"
         },
         {
-          "line": 4918,
+          "line": 4950,
           "name": "run_t12_nextflow"
         },
         {
-          "line": 4935,
+          "line": 4967,
           "name": "run_t12"
         },
         {
-          "line": 5075,
+          "line": 5107,
           "name": "run_database"
         }
       ],
       "path": "bootstrap/nf-gtd-hpc-smoke-job",
-      "sha256": "95ab057e58f169e78878d304b7cf39b2d03d4b12ec39e0a0e39d388a0d33ef82",
+      "sha256": "477afdd1b5c00c42e2f5e6a5ef9295263e71798dc0cdb08b680b486e143aebca",
       "subsystem": "execution_hpc"
     },
     {
@@ -56116,7 +56120,7 @@
         "yaml"
       ],
       "path": "tests/contract/test_repository_policy.py",
-      "sha256": "0bb7cb08637d4d5f406960de3558c87281211752c318793294623ddfc9a0551f",
+      "sha256": "055c411fa819c6c31fbd8745f5621fed7fec85c7f157e1c169adb310979276d8",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -56512,14 +56516,14 @@
         },
         {
           "calls": [
+            "collector.count",
             "job.split",
             "read_text",
-            "split",
-            "unknown_screen.count"
+            "split"
           ],
           "decorators": [],
           "doc": "Keep failed MR diagnostics private, bounded, and checksum-authenticated.",
-          "end_line": 601,
+          "end_line": 606,
           "kind": "function",
           "line": 574,
           "name": "test_failed_unknown_screen_retains_bounded_child_evidence",
@@ -56535,9 +56539,9 @@
           ],
           "decorators": [],
           "doc": "Keep M6 independent of the legacy single-root P0 site contract.",
-          "end_line": 626,
+          "end_line": 631,
           "kind": "function",
-          "line": 604,
+          "line": 609,
           "name": "test_m6_scientific_stage_uses_viper_runtime_manifests",
           "public": true,
           "qualname": "test_m6_scientific_stage_uses_viper_runtime_manifests",
@@ -56554,9 +56558,9 @@
             "pytest.mark.parametrize(('function_name', 'next_function_name'), (('run_m6_scientific', 'run_m4_copy_nextflow'), ('run_m4_copy', 'run_t12_nextflow'), ('run_t12', 'run_database')))"
           ],
           "doc": "Legacy scientific profiles must never share an account-owned cache.",
-          "end_line": 661,
+          "end_line": 666,
           "kind": "function",
-          "line": 637,
+          "line": 642,
           "name": "test_scientific_profiles_use_run_owned_apptainer_caches",
           "public": true,
           "qualname": "test_scientific_profiles_use_run_owned_apptainer_caches",
@@ -56568,9 +56572,9 @@
           ],
           "decorators": [],
           "doc": "Retain scientific finish semantics without retrying deterministic failures.",
-          "end_line": 679,
+          "end_line": 684,
           "kind": "function",
-          "line": 664,
+          "line": 669,
           "name": "test_only_explicit_transient_failures_receive_one_nextflow_retry",
           "public": true,
           "qualname": "test_only_explicit_transient_failures_receive_one_nextflow_retry",
@@ -56589,9 +56593,9 @@
           ],
           "decorators": [],
           "doc": "Prevent a return to one multi-sample Python/Slurm allocation.",
-          "end_line": 757,
+          "end_line": 762,
           "kind": "function",
-          "line": 682,
+          "line": 687,
           "name": "test_m6_scientific_fanout_remains_nextflow_owned",
           "public": true,
           "qualname": "test_m6_scientific_fanout_remains_nextflow_owned",
@@ -56604,9 +56608,9 @@
           ],
           "decorators": [],
           "doc": "Retain preparation helpers without resurrecting direct scientific drivers.",
-          "end_line": 783,
+          "end_line": 788,
           "kind": "function",
-          "line": 760,
+          "line": 765,
           "name": "test_control_helpers_expose_no_direct_or_nested_python_schedulers",
           "public": true,
           "qualname": "test_control_helpers_expose_no_direct_or_nested_python_schedulers",
@@ -56626,9 +56630,9 @@
           ],
           "decorators": [],
           "doc": "Keep M6 reuse inside one standard Nextflow work/cache boundary.",
-          "end_line": 835,
+          "end_line": 840,
           "kind": "function",
-          "line": 786,
+          "line": 791,
           "name": "test_m6_uses_standard_nextflow_resume_cache_without_store_dir",
           "public": true,
           "qualname": "test_m6_uses_standard_nextflow_resume_cache_without_store_dir",
@@ -56643,9 +56647,9 @@
           ],
           "decorators": [],
           "doc": "Keep Marmic migration closed over staged immutable run state.",
-          "end_line": 891,
+          "end_line": 896,
           "kind": "function",
-          "line": 838,
+          "line": 843,
           "name": "test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies",
           "public": true,
           "qualname": "test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies",
@@ -57623,7 +57627,7 @@
         "tests.support.unknown_pass1_fixture"
       ],
       "path": "tests/integration/test_hpc_remote_dispatcher.py",
-      "sha256": "2a0a92880ab99de217b01d9110986e5c2f2c62536e9cf02a9187aa7ce5e7add8",
+      "sha256": "2152058514813e2d33aec3a29610348f21dc9d6ba89db3ca3bc5f3b117902b70",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -59200,9 +59204,8 @@
             "decision.write_text",
             "dict",
             "exists",
-            "failed_manifest.read_bytes",
+            "failed_manifest.read_text",
             "failed_manifest.write_text",
-            "failed_package.mkdir",
             "fake_python.unlink",
             "hashlib.sha256",
             "hexdigest",
@@ -59243,7 +59246,7 @@
             "pytest.mark.parametrize(('held_crystal', 'screen_success'), (('public_stub_02', True), ('public_stub_01', False)))"
           ],
           "doc": "",
-          "end_line": 4635,
+          "end_line": 4649,
           "kind": "function",
           "line": 4028,
           "name": "test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed",
@@ -59272,9 +59275,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4693,
+          "end_line": 4707,
           "kind": "function",
-          "line": 4638,
+          "line": 4652,
           "name": "test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home",
           "public": true,
           "qualname": "test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home",
@@ -59307,9 +59310,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4754,
+          "end_line": 4768,
           "kind": "function",
-          "line": 4696,
+          "line": 4710,
           "name": "test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes",
           "public": true,
           "qualname": "test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes",
@@ -59331,9 +59334,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4785,
+          "end_line": 4799,
           "kind": "function",
-          "line": 4757,
+          "line": 4771,
           "name": "test_p0_stage_fails_when_login_environment_install_fails",
           "public": true,
           "qualname": "test_p0_stage_fails_when_login_environment_install_fails",
@@ -59346,9 +59349,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4842,
+          "end_line": 4856,
           "kind": "function",
-          "line": 4788,
+          "line": 4802,
           "name": "_install_fake_p0_runtime",
           "public": false,
           "qualname": "_install_fake_p0_runtime",
@@ -59377,9 +59380,9 @@
             "pytest.mark.parametrize(('all_cached', 'success', 'failure_class'), [(True, True, 'success'), (False, False, 'test_failure')])"
           ],
           "doc": "",
-          "end_line": 4939,
+          "end_line": 4953,
           "kind": "function",
-          "line": 4849,
+          "line": 4863,
           "name": "test_p0_job_enforces_the_cached_resume_gate",
           "public": true,
           "qualname": "test_p0_job_enforces_the_cached_resume_gate",
@@ -59392,9 +59395,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5251,
+          "end_line": 5265,
           "kind": "function",
-          "line": 4942,
+          "line": 4956,
           "name": "_install_fake_p1_runtime",
           "public": false,
           "qualname": "_install_fake_p1_runtime",
@@ -59421,9 +59424,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5384,
+          "end_line": 5398,
           "kind": "function",
-          "line": 5254,
+          "line": 5268,
           "name": "test_p1_job_uses_fixed_real_search_profile_and_collects_qualification",
           "public": true,
           "qualname": "test_p1_job_uses_fixed_real_search_profile_and_collects_qualification",
@@ -59444,9 +59447,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5412,
+          "end_line": 5426,
           "kind": "function",
-          "line": 5387,
+          "line": 5401,
           "name": "test_p1_stage_refuses_missing_reviewed_provider_plan",
           "public": true,
           "qualname": "test_p1_stage_refuses_missing_reviewed_provider_plan",
@@ -59466,9 +59469,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5444,
+          "end_line": 5458,
           "kind": "function",
-          "line": 5415,
+          "line": 5429,
           "name": "test_p1_stage_classifies_login_node_afdb_transfer_failure",
           "public": true,
           "qualname": "test_p1_stage_classifies_login_node_afdb_transfer_failure",
@@ -59488,9 +59491,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5499,
+          "end_line": 5513,
           "kind": "function",
-          "line": 5447,
+          "line": 5461,
           "name": "test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch",
           "public": true,
           "qualname": "test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch",
@@ -59514,9 +59517,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5579,
+          "end_line": 5593,
           "kind": "function",
-          "line": 5502,
+          "line": 5516,
           "name": "test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result",
           "public": true,
           "qualname": "test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result",
@@ -59537,9 +59540,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5630,
+          "end_line": 5644,
           "kind": "function",
-          "line": 5582,
+          "line": 5596,
           "name": "test_p2_job_rejects_adapter_failure_as_test_failure",
           "public": true,
           "qualname": "test_p2_job_rejects_adapter_failure_as_test_failure",
@@ -59565,9 +59568,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5715,
+          "end_line": 5729,
           "kind": "function",
-          "line": 5633,
+          "line": 5647,
           "name": "test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile",
           "public": true,
           "qualname": "test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile",
@@ -59590,9 +59593,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5768,
+          "end_line": 5782,
           "kind": "function",
-          "line": 5718,
+          "line": 5732,
           "name": "test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe",
           "public": true,
           "qualname": "test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe",
@@ -59615,9 +59618,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5827,
+          "end_line": 5841,
           "kind": "function",
-          "line": 5771,
+          "line": 5785,
           "name": "test_staged_phase3_phenix_probe_logs_expose_migration_failure",
           "public": true,
           "qualname": "test_staged_phase3_phenix_probe_logs_expose_migration_failure",
@@ -59637,9 +59640,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5854,
+          "end_line": 5868,
           "kind": "function",
-          "line": 5830,
+          "line": 5844,
           "name": "test_unknown_screen_stage_failure_exposes_login_acquisition_log",
           "public": true,
           "qualname": "test_unknown_screen_stage_failure_exposes_login_acquisition_log",
@@ -59662,9 +59665,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5908,
+          "end_line": 5922,
           "kind": "function",
-          "line": 5857,
+          "line": 5871,
           "name": "test_phase3_phenix_migration_retains_exact_command_failure",
           "public": true,
           "qualname": "test_phase3_phenix_migration_retains_exact_command_failure",
@@ -59696,9 +59699,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5983,
+          "end_line": 5997,
           "kind": "function",
-          "line": 5911,
+          "line": 5925,
           "name": "test_phase3_phenix_probe_is_fixed_and_collectable",
           "public": true,
           "qualname": "test_phase3_phenix_probe_is_fixed_and_collectable",
@@ -59720,9 +59723,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6043,
+          "end_line": 6057,
           "kind": "function",
-          "line": 5986,
+          "line": 6000,
           "name": "test_phase3_network_probe_stages_only_the_tracked_marmic_policy",
           "public": true,
           "qualname": "test_phase3_network_probe_stages_only_the_tracked_marmic_policy",
@@ -59736,9 +59739,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6058,
+          "end_line": 6072,
           "kind": "function",
-          "line": 6046,
+          "line": 6060,
           "name": "test_phase3_network_probe_uses_the_canonical_qualification_root",
           "public": true,
           "qualname": "test_phase3_network_probe_uses_the_canonical_qualification_root",
@@ -59752,9 +59755,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6078,
+          "end_line": 6092,
           "kind": "function",
-          "line": 6061,
+          "line": 6075,
           "name": "test_heteromer_multicopy_partner_preserves_parent_model_uncertainty",
           "public": true,
           "qualname": "test_heteromer_multicopy_partner_preserves_parent_model_uncertainty",
@@ -59768,9 +59771,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6098,
+          "end_line": 6112,
           "kind": "function",
-          "line": 6081,
+          "line": 6095,
           "name": "test_heteromer_wrong_partner_preserves_parent_model_uncertainty",
           "public": true,
           "qualname": "test_heteromer_wrong_partner_preserves_parent_model_uncertainty",
@@ -59784,9 +59787,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6120,
+          "end_line": 6134,
           "kind": "function",
-          "line": 6101,
+          "line": 6115,
           "name": "test_9ecn_wrong_c_uses_the_frozen_distinct_control_model",
           "public": true,
           "qualname": "test_9ecn_wrong_c_uses_the_frozen_distinct_control_model",
@@ -59827,9 +59830,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6508,
+          "end_line": 6522,
           "kind": "function",
-          "line": 6123,
+          "line": 6137,
           "name": "test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain",
           "public": true,
           "qualname": "test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain",
@@ -59842,9 +59845,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6521,
+          "end_line": 6535,
           "kind": "function",
-          "line": 6511,
+          "line": 6525,
           "name": "test_heteromer_collection_allowlist_has_no_duplicate_p6_report",
           "public": true,
           "qualname": "test_heteromer_collection_allowlist_has_no_duplicate_p6_report",
@@ -59874,9 +59877,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6568,
+          "end_line": 6582,
           "kind": "function",
-          "line": 6524,
+          "line": 6538,
           "name": "test_heteromer_collection_accepts_large_3u7q_mtz_evidence",
           "public": true,
           "qualname": "test_heteromer_collection_accepts_large_3u7q_mtz_evidence",
@@ -59905,9 +59908,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6631,
+          "end_line": 6645,
           "kind": "function",
-          "line": 6571,
+          "line": 6585,
           "name": "test_heteromer_collection_retains_partial_9ecn_parent_evidence",
           "public": true,
           "qualname": "test_heteromer_collection_retains_partial_9ecn_parent_evidence",
@@ -59938,9 +59941,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6707,
+          "end_line": 6721,
           "kind": "function",
-          "line": 6634,
+          "line": 6648,
           "name": "test_heteromer_p6_no_hit_omits_only_conditional_solution_assets",
           "public": true,
           "qualname": "test_heteromer_p6_no_hit_omits_only_conditional_solution_assets",
@@ -59965,9 +59968,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6740,
+          "end_line": 6754,
           "kind": "function",
-          "line": 6710,
+          "line": 6724,
           "name": "test_heteromer_stage_rejects_unbound_p6_protocol_provenance",
           "public": true,
           "qualname": "test_heteromer_stage_rejects_unbound_p6_protocol_provenance",
@@ -59995,9 +59998,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6868,
+          "end_line": 6882,
           "kind": "function",
-          "line": 6743,
+          "line": 6757,
           "name": "test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package",
           "public": true,
           "qualname": "test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package",
@@ -60025,9 +60028,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6985,
+          "end_line": 6999,
           "kind": "function",
-          "line": 6871,
+          "line": 6885,
           "name": "_install_review_asset_fixture",
           "public": false,
           "qualname": "_install_review_asset_fixture",
@@ -60053,9 +60056,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7033,
+          "end_line": 7047,
           "kind": "function",
-          "line": 6988,
+          "line": 7002,
           "name": "test_review_collect_streams_all_manifest_inspectable_checksum_assets",
           "public": true,
           "qualname": "test_review_collect_streams_all_manifest_inspectable_checksum_assets",
@@ -60076,9 +60079,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7091,
+          "end_line": 7105,
           "kind": "function",
-          "line": 7036,
+          "line": 7050,
           "name": "test_review_collect_rejects_manifest_checksum_and_asset_tampering",
           "public": true,
           "qualname": "test_review_collect_rejects_manifest_checksum_and_asset_tampering",
@@ -60109,9 +60112,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7220,
+          "end_line": 7234,
           "kind": "function",
-          "line": 7094,
+          "line": 7108,
           "name": "_install_t12_review_asset_fixture",
           "public": false,
           "qualname": "_install_t12_review_asset_fixture",
@@ -60132,9 +60135,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7264,
+          "end_line": 7278,
           "kind": "function",
-          "line": 7223,
+          "line": 7237,
           "name": "test_t12_review_collect_streams_only_typed_checksum_assets",
           "public": true,
           "qualname": "test_t12_review_collect_streams_only_typed_checksum_assets",
@@ -60154,9 +60157,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7296,
+          "end_line": 7310,
           "kind": "function",
-          "line": 7267,
+          "line": 7281,
           "name": "test_p2_diverse_stage_classifies_coordinate_registration_failure",
           "public": true,
           "qualname": "test_p2_diverse_stage_classifies_coordinate_registration_failure",
@@ -60173,9 +60176,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7384,
+          "end_line": 7398,
           "kind": "function",
-          "line": 7299,
+          "line": 7313,
           "name": "test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit",
           "public": true,
           "qualname": "test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit",
@@ -60194,9 +60197,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7442,
+          "end_line": 7456,
           "kind": "function",
-          "line": 7387,
+          "line": 7401,
           "name": "test_remote_dispatcher_classifies_node_failure_and_oversized_collection",
           "public": true,
           "qualname": "test_remote_dispatcher_classifies_node_failure_and_oversized_collection",
@@ -60217,9 +60220,9 @@
             "pytest.mark.parametrize(('environment_key', 'expected_class'), [('FAKE_PIXI_INSTALL_FAIL', 'environment_failure'), ('FAKE_PIXI_RUN_FAIL', 'test_failure')])"
           ],
           "doc": "",
-          "end_line": 7483,
+          "end_line": 7497,
           "kind": "function",
-          "line": 7452,
+          "line": 7466,
           "name": "test_smoke_job_distinguishes_environment_and_test_failures",
           "public": true,
           "qualname": "test_smoke_job_distinguishes_environment_and_test_failures",
@@ -60239,9 +60242,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7521,
+          "end_line": 7535,
           "kind": "function",
-          "line": 7486,
+          "line": 7500,
           "name": "test_smoke_job_records_term_signal_as_cancellation",
           "public": true,
           "qualname": "test_smoke_job_records_term_signal_as_cancellation",

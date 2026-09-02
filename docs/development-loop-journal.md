@@ -15080,3 +15080,41 @@ with a collapsed combined parent or a guessed command.
   `atlasinv_b020457150e3af1dd788f01ce839fd485db148b666531cef48df1b6db624bc39`.
   Next require focused checks, a clean merge commit, and exact-source CI before
   retiring the now-merged development and documentation branches.
+
+## 2026-09-02 - All 75 one-copy jobs complete; retry accounting fails qualification
+
+- Owned unknown-screen run
+  `gtd-unknown-screen-20260901T055533Z-f6910e1b2f61-30068193`, Marmic job
+  `637462`, ended `FAILED` with wrapper exit 4 and failure signature
+  `525da781943a33bfeb11d418c26fd508834cb036490f66fc69f1c7a358e72c6c`.
+  This was a post-resume qualification failure, not an MR execution failure or
+  a scientific no-hit.
+- The first trace contains 75 unique successful one-copy hypotheses: 25 each
+  for AD4, CD4, and CD6. Two additional rows are failed first attempts of
+  existing CD4 hypotheses. Their sole dynamic retries scaled from 4 CPUs,
+  16 GB, and 12 hours to 8 CPUs, 32 GB, and 24 hours, and from 6 CPUs, 24 GB,
+  and 18 hours to 12 CPUs, 48 GB, and 36 hours; both retries completed. The
+  resume contains all 75 successful MR tasks as cached.
+- The workflow built all three A packages, preserved pre/post-resume output
+  equality, and completed scratch cleanup. The wrapper nevertheless counted
+  both failed-attempt rows as candidates and included them in the first task
+  identity manifest. This inflated CD4 to 27 and made the first 77-row attempt
+  view differ from the 75-row successful resume view.
+- Because both Nextflow commands returned zero, the failed-child collector was
+  not called: its first implementation covered controller-command failure but
+  not later wrapper postconditions. The failed run therefore supplies useful
+  execution diagnostics but no accepted candidate evidence, no reusable cache,
+  and no supervisor-facing identity claim.
+- The local repair restricts identity and candidate inventories to unique
+  successful task tags while leaving failed attempts visible to diagnostics.
+  The wrapper finaliser now invokes bounded failed-child collection for every
+  unknown-screen test failure before cleanup, using the first controller log
+  to conserve original attempts and retries. The success path is unchanged.
+- Focused syntax, formatting, lint, collector-unit, and two-path remote
+  lifecycle tests pass, including an injected failed attempt followed by a
+  successful retry, automatic postcondition evidence publication, checksum
+  collection, and tamper rejection. The complete locked local gate also passes
+  1,422 unit, 151 contract, and 98 integration tests plus every schema, docs,
+  atlas, Nextflow, packaging, wrapper, and MR-retry check. Next commit and push
+  this focused repair on `main`, require exact-source CI, then stage one fresh
+  discovery/screen chain. No failed or cancelled scientific cache may be reused.

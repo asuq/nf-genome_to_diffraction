@@ -581,18 +581,23 @@ def test_failed_unknown_screen_retains_bounded_child_evidence() -> None:
     unknown_screen = job.split("run_unknown_screen() {", maxsplit=1)[1].split(
         "run_unknown_single_component_nextflow() {", maxsplit=1
     )[0]
+    finaliser = job.split("finalise() {", maxsplit=1)[1].split(
+        "handle_signal() {", maxsplit=1
+    )[0]
+    collector = job.split("collect_unknown_screen_failure_evidence() {", maxsplit=1)[
+        1
+    ].split("site_resolved_path() {", maxsplit=1)[0]
 
-    assert unknown_screen.count("genome_to_diffraction.hpc.mr_failure_evidence") == 2
-    assert '--nextflow-log "$RUN/logs/unknown-screen-nextflow-first.log"' in (
-        unknown_screen
-    )
-    assert '--nextflow-log "$RUN/logs/unknown-screen-nextflow-resume.log"' in (
-        unknown_screen
-    )
-    assert '--work-root "$RUN/cache/unknown-screen-nextflow/work"' in unknown_screen
+    assert "collect_unknown_screen_failure_evidence" in finaliser
+    assert '"$PROFILE" == unknown-screen && "$PHASE" == test' in finaliser
+    assert collector.count("genome_to_diffraction.hpc.mr_failure_evidence") == 1
+    assert 'nextflow_log="$RUN/logs/unknown-screen-nextflow-first.log"' in collector
+    assert 'work_root="$RUN/cache/unknown-screen-nextflow/work"' in collector
     assert (
-        '--outdir "$qualification/unknown-screen-failed-mr-children"' in unknown_screen
+        'output="$RUN/artifacts/qualification/unknown-screen-failed-mr-children"'
+        in collector
     )
+    assert "genome_to_diffraction.hpc.mr_failure_evidence" not in unknown_screen
     assert "scientific_evidence_accepted" not in unknown_screen
     assert "failed MR child checksum row is unsafe" in dispatcher
     assert "failed MR child checksum differs" in dispatcher

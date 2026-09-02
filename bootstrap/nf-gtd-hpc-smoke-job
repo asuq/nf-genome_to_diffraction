@@ -131,6 +131,11 @@ finalise() {
         failure_class=software_failure
         scheduler_state=FAILED
     fi
+    if (( exit_code != 0 )) && [[ "$PROFILE" == unknown-screen && "$PHASE" == test ]]; then
+        if ! collect_unknown_screen_failure_evidence; then
+            printf 'failed_mr_child_evidence_status=collection_failed\n' >&2
+        fi
+    fi
     if [[ "$PROFILE" == database ]]; then
         exec 9>"$ROOT/_locks/submit.lock"
         flock -x 9
@@ -275,13 +280,46 @@ write_trace_identity_manifest() {
                 if ($i == "hash") hash_column = i
                 if ($i == "process") process_column = i
                 if ($i == "tag") tag_column = i
+                if ($i == "status") status_column = i
             }
-            if (hash_column == 0 || process_column == 0 || tag_column == 0) exit 2
+            if (hash_column == 0 || process_column == 0 ||
+                tag_column == 0 || status_column == 0) exit 2
             next
         }
-        { print $process_column "\t" $tag_column "\t" $hash_column }
-    ' "$trace" | LC_ALL=C sort > "$output"
+        $status_column == "COMPLETED" || $status_column == "CACHED" {
+            print $process_column "\t" $tag_column "\t" $hash_column
+        }
+    ' "$trace" | LC_ALL=C sort -u > "$output"
     [[ -s "$output" ]]
+}
+
+collect_unknown_screen_failure_evidence() {
+    local python="$RUN/source/.pixi/envs/hpc/bin/python"
+    local nextflow_log="$RUN/logs/unknown-screen-nextflow-first.log"
+    local work_root="$RUN/cache/unknown-screen-nextflow/work"
+    local output="$RUN/artifacts/qualification/unknown-screen-failed-mr-children"
+    local collection_log="$RUN/logs/unknown-screen-failed-mr-children.log"
+    if [[ -e "$output" || -L "$output" ]]; then
+        printf 'failed MR child evidence output already exists\n' \
+            > "$collection_log"
+        return 1
+    fi
+    if [[ ! -x "$python" || ! -f "$nextflow_log" || -L "$nextflow_log" || \
+          ! -d "$work_root" || -L "$work_root" ]]; then
+        printf 'failed MR child evidence inputs are unavailable or unsafe\n' \
+            > "$collection_log"
+        return 1
+    fi
+    if ! PYTHONPATH="$RUN/source/src" \
+        "$python" -m genome_to_diffraction.hpc.mr_failure_evidence \
+            --run-id "$RUN_ID" \
+            --nextflow-log "$nextflow_log" \
+            --work-root "$work_root" \
+            --outdir "$output" \
+            >"$collection_log" 2>&1; then
+        return 1
+    fi
+    printf 'failed_mr_child_evidence_status=collected\n'
 }
 
 site_resolved_path() {
@@ -2097,7 +2135,9 @@ run_unknown_screen() {
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
     JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
-    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" && -x "$PYTHON" ]] || \
+        return 2
     export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
     export JAVA_CMD
     export NXF_HOME="$RUN/cache/nextflow-home"
@@ -2124,12 +2164,6 @@ run_unknown_screen() {
     PHASE=test
     printf 'phase=unknown_screen_first profile=unknown-screen\n'
     if ! run_unknown_screen_nextflow first; then
-        "$PYTHON" -m genome_to_diffraction.hpc.mr_failure_evidence \
-            --run-id "$RUN_ID" \
-            --nextflow-log "$RUN/logs/unknown-screen-nextflow-first.log" \
-            --work-root "$RUN/cache/unknown-screen-nextflow/work" \
-            --outdir "$qualification/unknown-screen-failed-mr-children" \
-            >"$RUN/logs/unknown-screen-failed-mr-children.log" 2>&1 || return 4
         return 4
     fi
     cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
@@ -2143,12 +2177,6 @@ run_unknown_screen() {
     ) > "$qualification/unknown-screen-before-resume.sha256"
     printf 'phase=unknown_screen_resume profile=unknown-screen\n'
     if ! run_unknown_screen_nextflow resume -resume; then
-        "$PYTHON" -m genome_to_diffraction.hpc.mr_failure_evidence \
-            --run-id "$RUN_ID" \
-            --nextflow-log "$RUN/logs/unknown-screen-nextflow-resume.log" \
-            --work-root "$RUN/cache/unknown-screen-nextflow/work" \
-            --outdir "$qualification/unknown-screen-failed-mr-children" \
-            >"$RUN/logs/unknown-screen-failed-mr-children.log" 2>&1 || return 4
         return 4
     fi
     cp -a "$UNKNOWN_SCREEN_OUT/pipeline_info" \
@@ -2173,11 +2201,15 @@ run_unknown_screen() {
             for (i = 1; i <= NF; i++) {
                 if ($i == "process") process_column = i
                 if ($i == "tag") tag_column = i
+                if ($i == "status") status_column = i
             }
             next
         }
         process_column > 0 && tag_column > 0 &&
-        $process_column ~ /RUN_PHASE3_FIRST_COPY_PHASER$/ {
+        status_column > 0 &&
+        ($status_column == "COMPLETED" || $status_column == "CACHED") &&
+        $process_column ~ /RUN_PHASE3_FIRST_COPY_PHASER$/ &&
+        !seen[$tag_column]++ {
             parts_count = split($tag_column, parts, ":")
             if (parts_count == 3 && parts[1] == "phase3-first-copy") {
                 counts[parts[2]]++
