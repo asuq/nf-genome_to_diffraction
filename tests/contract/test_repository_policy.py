@@ -433,9 +433,14 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
         "withLabel: process_prostt5_search", maxsplit=1
     )[0]
     assert "resourceLimits" in mr_block
+    assert "clusterOptions = '--export=ALL --exclude=slurm-003'" in mr_block
     assert "cpus: 16" in mr_block
     assert "memory: 64.GB" in mr_block
     assert "time: 48.h" in mr_block
+    assert (
+        "--exclude=slurm-003"
+        not in wrapper.split("withLabel: process_mr", maxsplit=1)[0]
+    )
     assert "Slurm owns aggregate" in wrapper
     database_block = wrapper.split("withLabel: process_database_download", maxsplit=1)[
         1

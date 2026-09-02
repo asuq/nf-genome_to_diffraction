@@ -15118,3 +15118,19 @@ with a collapsed combined parent or a guessed command.
   atlas, Nextflow, packaging, wrapper, and MR-retry check. Next commit and push
   this focused repair on `main`, require exact-source CI, then stage one fresh
   discovery/screen chain. No failed or cancelled scientific cache may be reused.
+
+## 2026-09-02 - Marmic MR children exclude one observed slow node
+
+- During the fresh pass-1 screen, two identical CD4 hypotheses on `slurm-003`
+  exceeded their prior `slurm-401` runtimes by at least 44% and 94%. Repeated
+  accounting snapshots showed that both continued consuming their complete
+  six-CPU allocations, so the evidence indicates lower node throughput rather
+  than a stalled process or memory pressure.
+- Future Marmic `process_mr` children and their retries exclude only
+  `slurm-003`. Controllers and lightweight tasks remain unrestricted, and the
+  already-running source-bound screen is unchanged. The broader `slurm-0XX`
+  range is not excluded because contemporaneous jobs on `slurm-002` progressed
+  normally.
+- The focused repository-policy regression and the Nextflow syntax gate pass.
+  The change remains local until a later exact-source review point is committed,
+  pushed, CI-qualified, and deployed before another scientific submission.
