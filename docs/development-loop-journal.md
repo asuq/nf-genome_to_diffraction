@@ -15134,3 +15134,24 @@ with a collapsed combined parent or a guessed command.
 - The focused repository-policy regression and the Nextflow syntax gate pass.
   The change remains local until a later exact-source review point is committed,
   pushed, CI-qualified, and deployed before another scientific submission.
+
+## 2026-09-03 - Fresh pass-1 screen succeeds and stops at A review
+
+- Exact-source Marmic screen `gtd-unknown-screen-20260902T071750Z-9c3bac6f2343-a6940fa6`,
+  job `638943`, completed normally after about 34 hours. It emitted 25 unique
+  hypotheses for each frozen crystal, completed all 75 after four bounded CD4
+  retries, and cached all 75 on its qualification replay.
+- The retry-aware first/resume identity inventories are byte-identical, the
+  pre/post-resume output manifests are byte-identical, the strict Phenix
+  binding matches, and collection verified the final checksum inventory. Each
+  crystal now has one complete checksum-owned A review package; no decision or
+  identity is inferred from its rank.
+- AD4 exposed a new review boundary. Although all command and resource records
+  requested one copy, Phaser MR_AUTO detected a two-member tNCS set and edited
+  every AD4 search to two physical placements. CD4 and CD6 remained literal
+  one-copy searches. The coupled AD4 evidence is retained without relabelling;
+  accepting it or requiring a strict non-tNCS successor is a human decision.
+- Development is stopped at the mandatory A-seed gate. Next obtain explicit
+  package-bound decisions for the bounded candidate targets, including the AD4
+  tNCS disposition, before any sequential-copy, refinement, pass-2, or
+  composition work.
