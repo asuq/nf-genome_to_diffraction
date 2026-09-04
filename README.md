@@ -21,6 +21,8 @@ Open the deterministic offline [technical atlas](docs/atlas/current/index.html)
 for scientist and developer views of the workflow, executable inventory,
 contracts, module relationships, and validation evidence. The
 [documentation index](docs/README.md) remains the canonical text entry point.
+Contributors continuing unreleased work should also read the sanitised
+[v0.3 development handoff](docs/v0.3-development-handoff.md).
 
 ## What the application does
 

@@ -6,6 +6,10 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [Sanitised v0.3 development handoff](v0.3-development-handoff.md): current
+  repository-safe engineering state, scientific invariants, human stop gate,
+  validation strategy, remaining roadmap, and restart checklist without
+  private inputs or candidate results.
 - [Canonical v0.3 candidate-confidence-first roadmap](v0.3-roadmap.md): the
   authoritative execution order from one-copy unknown screening through
   A-seed review, sequential copy completion, refinement/map/sequence reports,
