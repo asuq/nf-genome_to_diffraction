@@ -1,107 +1,107 @@
 {
   "active_milestone_identifiers": [
     {
-      "line": 303,
+      "line": 304,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 306,
+      "line": 307,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 309,
+      "line": 310,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 313,
+      "line": 314,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 317,
+      "line": 318,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 321,
+      "line": 322,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 324,
+      "line": 325,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 328,
+      "line": 329,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 334,
+      "line": 335,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 339,
+      "line": 340,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 344,
+      "line": 345,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 350,
+      "line": 351,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 360,
+      "line": 361,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 364,
+      "line": 365,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 376,
+      "line": 377,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 381,
+      "line": 382,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 392,
+      "line": 393,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 405,
+      "line": 406,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 412,
+      "line": 413,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 420,
+      "line": 421,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 430,
+      "line": 432,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
@@ -111,22 +111,12 @@
       "token": "P0"
     },
     {
-      "line": 444,
+      "line": 445,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 448,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 452,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 463,
+      "line": 460,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
@@ -136,27 +126,27 @@
       "token": "P0"
     },
     {
-      "line": 472,
+      "line": 474,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 477,
+      "line": 478,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 480,
+      "line": 482,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 496,
+      "line": 493,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 499,
+      "line": 500,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
@@ -166,37 +156,17 @@
       "token": "P0"
     },
     {
-      "line": 505,
+      "line": 507,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 509,
+      "line": 510,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 511,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 518,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 521,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 525,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 527,
+      "line": 526,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
@@ -211,12 +181,12 @@
       "token": "P0"
     },
     {
-      "line": 534,
+      "line": 535,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 538,
+      "line": 539,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
@@ -226,47 +196,67 @@
       "token": "P0"
     },
     {
-      "line": 552,
+      "line": 548,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 554,
+      "line": 551,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 556,
+      "line": 555,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 558,
+      "line": 557,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 607,
+      "line": 559,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 616,
+      "line": 562,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 618,
+      "line": 564,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 621,
+      "line": 568,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 627,
+      "line": 571,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 582,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 584,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 586,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 588,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
@@ -276,142 +266,157 @@
       "token": "P0"
     },
     {
-      "line": 666,
+      "line": 646,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 751,
+      "line": 648,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 754,
+      "line": 651,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 1372,
+      "line": 657,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 667,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 696,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 781,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 784,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 1402,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 1375,
+      "line": 1405,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 1378,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 1474,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 1478,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 1493,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 1499,
+      "line": 1408,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
       "line": 1504,
       "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 1508,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 1523,
+      "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 1514,
+      "line": 1529,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 1591,
+      "line": 1534,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 1544,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 1621,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 1637,
+      "line": 1667,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 1637,
+      "line": 1667,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P1"
     },
     {
-      "line": 1652,
+      "line": 1682,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P1"
     },
     {
-      "line": 1702,
+      "line": 1732,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P1"
     },
     {
-      "line": 1713,
+      "line": 1743,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P1"
     },
     {
-      "line": 1734,
+      "line": 1764,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P1"
     },
     {
-      "line": 1791,
+      "line": 1821,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 1804,
+      "line": 1834,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 1819,
+      "line": 1849,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 1827,
+      "line": 1857,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 1869,
+      "line": 1899,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 1886,
+      "line": 1916,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 1975,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P6"
-    },
-    {
-      "line": 2032,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P6"
-    },
-    {
-      "line": 2042,
+      "line": 2005,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
@@ -421,74 +426,49 @@
       "token": "P6"
     },
     {
-      "line": 2065,
+      "line": 2072,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2068,
+      "line": 2092,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2077,
+      "line": 2095,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2087,
+      "line": 2098,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2096,
+      "line": 2107,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2106,
+      "line": 2117,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2112,
+      "line": 2126,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 2647,
+      "line": 2136,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M4"
+      "token": "P6"
     },
     {
-      "line": 2647,
+      "line": 2142,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P2"
-    },
-    {
-      "line": 2650,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M4"
-    },
-    {
-      "line": 2652,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M4"
-    },
-    {
-      "line": 2659,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M4"
-    },
-    {
-      "line": 2659,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P2"
-    },
-    {
-      "line": 2663,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M4"
+      "token": "P6"
     },
     {
       "line": 2677,
@@ -496,29 +476,29 @@
       "token": "M4"
     },
     {
-      "line": 2683,
+      "line": 2677,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P2"
+    },
+    {
+      "line": 2680,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2687,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 2687,
+      "line": 2682,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2690,
+      "line": 2689,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2690,
+      "line": 2689,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
+      "token": "P2"
     },
     {
       "line": 2693,
@@ -526,64 +506,59 @@
       "token": "M4"
     },
     {
-      "line": 2695,
+      "line": 2707,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2711,
+      "line": 2713,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2715,
+      "line": 2717,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 2717,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2719,
+      "line": 2720,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2743,
+      "line": 2720,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
+      "token": "P0"
     },
     {
-      "line": 2743,
+      "line": 2723,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2746,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 2748,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 2755,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 2755,
+      "line": 2725,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 2759,
+      "line": 2741,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
+      "token": "M4"
     },
     {
-      "line": 2770,
+      "line": 2745,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
+      "token": "M4"
+    },
+    {
+      "line": 2749,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M4"
     },
     {
       "line": 2773,
@@ -591,52 +566,67 @@
       "token": "T12"
     },
     {
-      "line": 2786,
+      "line": 2773,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M4"
+    },
+    {
+      "line": 2776,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 2790,
+      "line": 2778,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 2794,
+      "line": 2785,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 3099,
+      "line": 2785,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M4"
+    },
+    {
+      "line": 2789,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 2800,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 2803,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 2816,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 2820,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 2824,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 3129,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3111,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3113,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3118,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3124,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3135,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3138,
+      "line": 3141,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
@@ -646,97 +636,82 @@
       "token": "M6"
     },
     {
-      "line": 3146,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
       "line": 3148,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3150,
+      "line": 3154,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3153,
+      "line": 3165,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3177,
+      "line": 3168,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3181,
+      "line": 3173,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3208,
+      "line": 3176,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3212,
+      "line": 3178,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3214,
+      "line": 3180,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3218,
+      "line": 3183,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3221,
+      "line": 3207,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3224,
+      "line": 3211,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3227,
+      "line": 3238,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3229,
+      "line": 3242,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3231,
+      "line": 3244,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3233,
+      "line": 3248,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3239,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3241,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3246,
+      "line": 3251,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
@@ -746,7 +721,12 @@
       "token": "M6"
     },
     {
-      "line": 3258,
+      "line": 3257,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3259,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
@@ -761,312 +741,322 @@
       "token": "M6"
     },
     {
-      "line": 3268,
+      "line": 3269,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3274,
+      "line": 3271,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3287,
+      "line": 3276,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3296,
+      "line": 3284,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3303,
+      "line": 3288,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3331,
+      "line": 3291,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3346,
+      "line": 3293,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3354,
+      "line": 3298,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3360,
+      "line": 3304,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3372,
+      "line": 3317,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3381,
+      "line": 3326,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3393,
+      "line": 3333,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3396,
+      "line": 3361,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3541,
+      "line": 3376,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3384,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3390,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3402,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3411,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3423,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3426,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "M6"
+    },
+    {
+      "line": 3571,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3543,
+      "line": 3573,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3545,
+      "line": 3575,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3581,
+      "line": 3611,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3584,
+      "line": 3614,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3599,
+      "line": 3629,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3602,
+      "line": 3632,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3608,
+      "line": 3638,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3617,
+      "line": 3647,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3656,
+      "line": 3686,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3662,
+      "line": 3692,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M4"
     },
     {
-      "line": 3702,
+      "line": 3732,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3705,
+      "line": 3735,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3720,
+      "line": 3750,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3723,
+      "line": 3753,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3727,
+      "line": 3757,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
-    },
-    {
-      "line": 3731,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "M6"
-    },
-    {
-      "line": 3755,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
-    },
-    {
-      "line": 3758,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
     },
     {
       "line": 3761,
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "P0"
+      "token": "M6"
     },
     {
-      "line": 3763,
+      "line": 3787,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P0"
     },
     {
-      "line": 3778,
+      "line": 3790,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3793,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3795,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3810,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3841,
+      "line": 3873,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "RG7"
     },
     {
-      "line": 5130,
+      "line": 5162,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5135,
+      "line": 5167,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5140,
+      "line": 5172,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5144,
+      "line": 5176,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5874,
+      "line": 5906,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 6032,
+      "line": 6064,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6038,
+      "line": 6070,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6095,
+      "line": 6127,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6099,
+      "line": 6131,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6103,
+      "line": 6135,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6111,
+      "line": 6143,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6123,
+      "line": 6155,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6126,
+      "line": 6158,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6136,
+      "line": 6168,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6138,
+      "line": 6170,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6140,
+      "line": 6172,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6160,
+      "line": 6192,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6175,
+      "line": 6207,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6188,
+      "line": 6220,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6191,
+      "line": 6223,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6206,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6210,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6222,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6231,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6234,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6236,
+      "line": 6238,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
@@ -1076,17 +1066,42 @@
       "token": "T12"
     },
     {
-      "line": 6250,
+      "line": 6254,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6255,
+      "line": 6263,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6259,
+      "line": 6266,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6268,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6274,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6282,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6287,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6291,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
@@ -5648,7 +5663,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_44d27b4033e435d782a0b450509fef9d7409c2ba627600c62b75b6d009be57dc",
+  "inventory_id": "atlasinv_b0bae6aeee24eb78eeebcec009e987e8c355bc8ba7f7c8934b8a0994c65dbbbd",
   "nextflow_files": [
     {
       "declarations": [],
@@ -56182,172 +56197,172 @@
           "name": "p0_configure"
         },
         {
-          "line": 461,
+          "line": 491,
           "name": "p0_input_tree_verify"
         },
         {
-          "line": 543,
+          "line": 573,
           "name": "p0_inputs_stage"
         },
         {
-          "line": 681,
+          "line": 711,
           "name": "unknown_discovery_inputs_stage"
         },
         {
-          "line": 819,
+          "line": 849,
           "name": "database_config_readiness"
         },
         {
-          "line": 921,
+          "line": 951,
           "name": "database_readiness"
         },
         {
-          "line": 954,
+          "line": 984,
           "name": "database_runtime_configure"
         },
         {
-          "line": 1015,
+          "line": 1045,
           "name": "cleanup_deploy_staging"
         },
         {
-          "line": 1022,
+          "line": 1052,
           "name": "deploy_failure"
         },
         {
-          "line": 1030,
+          "line": 1060,
           "name": "deploy_tools"
         },
         {
-          "line": 1135,
+          "line": 1165,
           "name": "stage_run_common"
         },
         {
-          "line": 2269,
+          "line": 2299,
           "name": "stage_run"
         },
         {
-          "line": 2280,
+          "line": 2310,
           "name": "stage_archive_run"
         },
         {
-          "line": 2291,
+          "line": 2321,
           "name": "phenix_runtime_migrate_run"
         },
         {
-          "line": 2359,
+          "line": 2389,
           "name": "unknown_screen_stage_run"
         },
         {
-          "line": 2491,
+          "line": 2521,
           "name": "unknown_single_component_stage_run"
         },
         {
-          "line": 2627,
+          "line": 2657,
           "name": "m4_copy_stage_run"
         },
         {
-          "line": 2732,
+          "line": 2762,
           "name": "t12_stage_run"
         },
         {
-          "line": 2808,
+          "line": 2838,
           "name": "control_slice_stage_run"
         },
         {
-          "line": 2947,
+          "line": 2977,
           "name": "control_matrix_stage_run"
         },
         {
-          "line": 3096,
+          "line": 3126,
           "name": "m6_runner_stage_common"
         },
         {
-          "line": 3319,
+          "line": 3349,
           "name": "m6_inputs_stage_run"
         },
         {
-          "line": 3325,
+          "line": 3355,
           "name": "m6_scientific_stage_run"
         },
         {
-          "line": 3335,
+          "line": 3365,
           "name": "m6_leakage_parent_bind_run"
         },
         {
-          "line": 3407,
+          "line": 3437,
           "name": "unknown_pass2_inputs_stage_run"
         },
         {
-          "line": 3527,
+          "line": 3557,
           "name": "m4_import_stage_run"
         },
         {
-          "line": 3682,
+          "line": 3712,
           "name": "database_stage_run"
         },
         {
-          "line": 3687,
+          "line": 3717,
           "name": "validate_m6_smoke_site_state"
         },
         {
-          "line": 3733,
+          "line": 3763,
           "name": "submit_run"
         },
         {
-          "line": 3948,
+          "line": 3980,
           "name": "database_submit_run"
         },
         {
-          "line": 4001,
+          "line": 4033,
           "name": "status_run"
         },
         {
-          "line": 4068,
+          "line": 4100,
           "name": "database_diagnostic_log"
         },
         {
-          "line": 4092,
+          "line": 4124,
           "name": "nextflow_failure_workdir"
         },
         {
-          "line": 4139,
+          "line": 4171,
           "name": "require_database_retained_staging"
         },
         {
-          "line": 4206,
+          "line": 4238,
           "name": "logs_run"
         },
         {
-          "line": 4316,
+          "line": 4348,
           "name": "cancel_run"
         },
         {
-          "line": 4339,
+          "line": 4371,
           "name": "database_archive_failed_run"
         },
         {
-          "line": 4442,
+          "line": 4474,
           "name": "collect_run"
         },
         {
-          "line": 5748,
+          "line": 5780,
           "name": "review_collect_run"
         },
         {
-          "line": 6014,
+          "line": 6046,
           "name": "t12_review_collect_run"
         },
         {
-          "line": 6263,
+          "line": 6295,
           "name": "clean_run"
         },
         {
-          "line": 6287,
+          "line": 6319,
           "name": "main"
         }
       ],
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "sha256": "d8fed5020207bdf91c0f855dfe0bd9a4dcd5d801aafc27046c737ed85b6f0923",
+      "sha256": "c95ef27fa1e3b65892c8a379bab9161115044471df8ba4bb79b0ed38265225c3",
       "subsystem": "execution_hpc"
     },
     {
@@ -58183,7 +58198,7 @@
         "tests.support.unknown_pass1_fixture"
       ],
       "path": "tests/integration/test_hpc_remote_dispatcher.py",
-      "sha256": "e2b593242d567bb5b613b46d3dc94d857c8227a609e599cfd831891cc117c090",
+      "sha256": "85f4f8ecfc53093a36e2925fe9920e8beabf2c6aa4878dd2059e2e158020168e",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -59819,6 +59834,7 @@
             "_write_p0_paths",
             "base64.b64encode",
             "decode",
+            "dict",
             "encode",
             "hashlib.sha256",
             "hexdigest",
@@ -59840,7 +59856,7 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4774,
+          "end_line": 4776,
           "kind": "function",
           "line": 4652,
           "name": "test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home",
@@ -59875,9 +59891,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4845,
+          "end_line": 4847,
           "kind": "function",
-          "line": 4777,
+          "line": 4779,
           "name": "test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes",
           "public": true,
           "qualname": "test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes",
@@ -59899,9 +59915,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4876,
+          "end_line": 4878,
           "kind": "function",
-          "line": 4848,
+          "line": 4850,
           "name": "test_p0_stage_fails_when_login_environment_install_fails",
           "public": true,
           "qualname": "test_p0_stage_fails_when_login_environment_install_fails",
@@ -59914,9 +59930,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4933,
+          "end_line": 4935,
           "kind": "function",
-          "line": 4879,
+          "line": 4881,
           "name": "_install_fake_p0_runtime",
           "public": false,
           "qualname": "_install_fake_p0_runtime",
@@ -59945,9 +59961,9 @@
             "pytest.mark.parametrize(('all_cached', 'success', 'failure_class'), [(True, True, 'success'), (False, False, 'test_failure')])"
           ],
           "doc": "",
-          "end_line": 5030,
+          "end_line": 5032,
           "kind": "function",
-          "line": 4940,
+          "line": 4942,
           "name": "test_p0_job_enforces_the_cached_resume_gate",
           "public": true,
           "qualname": "test_p0_job_enforces_the_cached_resume_gate",
@@ -59960,9 +59976,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5342,
+          "end_line": 5344,
           "kind": "function",
-          "line": 5033,
+          "line": 5035,
           "name": "_install_fake_p1_runtime",
           "public": false,
           "qualname": "_install_fake_p1_runtime",
@@ -59989,9 +60005,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5475,
+          "end_line": 5477,
           "kind": "function",
-          "line": 5345,
+          "line": 5347,
           "name": "test_p1_job_uses_fixed_real_search_profile_and_collects_qualification",
           "public": true,
           "qualname": "test_p1_job_uses_fixed_real_search_profile_and_collects_qualification",
@@ -60012,9 +60028,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5503,
+          "end_line": 5505,
           "kind": "function",
-          "line": 5478,
+          "line": 5480,
           "name": "test_p1_stage_refuses_missing_reviewed_provider_plan",
           "public": true,
           "qualname": "test_p1_stage_refuses_missing_reviewed_provider_plan",
@@ -60034,9 +60050,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5535,
+          "end_line": 5537,
           "kind": "function",
-          "line": 5506,
+          "line": 5508,
           "name": "test_p1_stage_classifies_login_node_afdb_transfer_failure",
           "public": true,
           "qualname": "test_p1_stage_classifies_login_node_afdb_transfer_failure",
@@ -60056,9 +60072,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5590,
+          "end_line": 5592,
           "kind": "function",
-          "line": 5538,
+          "line": 5540,
           "name": "test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch",
           "public": true,
           "qualname": "test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch",
@@ -60082,9 +60098,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5670,
+          "end_line": 5672,
           "kind": "function",
-          "line": 5593,
+          "line": 5595,
           "name": "test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result",
           "public": true,
           "qualname": "test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result",
@@ -60105,9 +60121,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5721,
+          "end_line": 5723,
           "kind": "function",
-          "line": 5673,
+          "line": 5675,
           "name": "test_p2_job_rejects_adapter_failure_as_test_failure",
           "public": true,
           "qualname": "test_p2_job_rejects_adapter_failure_as_test_failure",
@@ -60133,9 +60149,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5806,
+          "end_line": 5808,
           "kind": "function",
-          "line": 5724,
+          "line": 5726,
           "name": "test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile",
           "public": true,
           "qualname": "test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile",
@@ -60158,9 +60174,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5859,
+          "end_line": 5861,
           "kind": "function",
-          "line": 5809,
+          "line": 5811,
           "name": "test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe",
           "public": true,
           "qualname": "test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe",
@@ -60183,9 +60199,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5918,
+          "end_line": 5920,
           "kind": "function",
-          "line": 5862,
+          "line": 5864,
           "name": "test_staged_phase3_phenix_probe_logs_expose_migration_failure",
           "public": true,
           "qualname": "test_staged_phase3_phenix_probe_logs_expose_migration_failure",
@@ -60205,9 +60221,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5945,
+          "end_line": 5947,
           "kind": "function",
-          "line": 5921,
+          "line": 5923,
           "name": "test_unknown_screen_stage_failure_exposes_login_acquisition_log",
           "public": true,
           "qualname": "test_unknown_screen_stage_failure_exposes_login_acquisition_log",
@@ -60230,9 +60246,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5999,
+          "end_line": 6001,
           "kind": "function",
-          "line": 5948,
+          "line": 5950,
           "name": "test_phase3_phenix_migration_retains_exact_command_failure",
           "public": true,
           "qualname": "test_phase3_phenix_migration_retains_exact_command_failure",
@@ -60264,9 +60280,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6074,
+          "end_line": 6076,
           "kind": "function",
-          "line": 6002,
+          "line": 6004,
           "name": "test_phase3_phenix_probe_is_fixed_and_collectable",
           "public": true,
           "qualname": "test_phase3_phenix_probe_is_fixed_and_collectable",
@@ -60288,9 +60304,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6134,
+          "end_line": 6136,
           "kind": "function",
-          "line": 6077,
+          "line": 6079,
           "name": "test_phase3_network_probe_stages_only_the_tracked_marmic_policy",
           "public": true,
           "qualname": "test_phase3_network_probe_stages_only_the_tracked_marmic_policy",
@@ -60304,9 +60320,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6149,
+          "end_line": 6151,
           "kind": "function",
-          "line": 6137,
+          "line": 6139,
           "name": "test_phase3_network_probe_uses_the_canonical_qualification_root",
           "public": true,
           "qualname": "test_phase3_network_probe_uses_the_canonical_qualification_root",
@@ -60320,9 +60336,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6169,
+          "end_line": 6171,
           "kind": "function",
-          "line": 6152,
+          "line": 6154,
           "name": "test_heteromer_multicopy_partner_preserves_parent_model_uncertainty",
           "public": true,
           "qualname": "test_heteromer_multicopy_partner_preserves_parent_model_uncertainty",
@@ -60336,9 +60352,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6189,
+          "end_line": 6191,
           "kind": "function",
-          "line": 6172,
+          "line": 6174,
           "name": "test_heteromer_wrong_partner_preserves_parent_model_uncertainty",
           "public": true,
           "qualname": "test_heteromer_wrong_partner_preserves_parent_model_uncertainty",
@@ -60352,9 +60368,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6211,
+          "end_line": 6213,
           "kind": "function",
-          "line": 6192,
+          "line": 6194,
           "name": "test_9ecn_wrong_c_uses_the_frozen_distinct_control_model",
           "public": true,
           "qualname": "test_9ecn_wrong_c_uses_the_frozen_distinct_control_model",
@@ -60395,9 +60411,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6599,
+          "end_line": 6601,
           "kind": "function",
-          "line": 6214,
+          "line": 6216,
           "name": "test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain",
           "public": true,
           "qualname": "test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain",
@@ -60410,9 +60426,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6612,
+          "end_line": 6614,
           "kind": "function",
-          "line": 6602,
+          "line": 6604,
           "name": "test_heteromer_collection_allowlist_has_no_duplicate_p6_report",
           "public": true,
           "qualname": "test_heteromer_collection_allowlist_has_no_duplicate_p6_report",
@@ -60442,9 +60458,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6659,
+          "end_line": 6661,
           "kind": "function",
-          "line": 6615,
+          "line": 6617,
           "name": "test_heteromer_collection_accepts_large_3u7q_mtz_evidence",
           "public": true,
           "qualname": "test_heteromer_collection_accepts_large_3u7q_mtz_evidence",
@@ -60473,9 +60489,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6722,
+          "end_line": 6724,
           "kind": "function",
-          "line": 6662,
+          "line": 6664,
           "name": "test_heteromer_collection_retains_partial_9ecn_parent_evidence",
           "public": true,
           "qualname": "test_heteromer_collection_retains_partial_9ecn_parent_evidence",
@@ -60506,9 +60522,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6798,
+          "end_line": 6800,
           "kind": "function",
-          "line": 6725,
+          "line": 6727,
           "name": "test_heteromer_p6_no_hit_omits_only_conditional_solution_assets",
           "public": true,
           "qualname": "test_heteromer_p6_no_hit_omits_only_conditional_solution_assets",
@@ -60533,9 +60549,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6831,
+          "end_line": 6833,
           "kind": "function",
-          "line": 6801,
+          "line": 6803,
           "name": "test_heteromer_stage_rejects_unbound_p6_protocol_provenance",
           "public": true,
           "qualname": "test_heteromer_stage_rejects_unbound_p6_protocol_provenance",
@@ -60563,9 +60579,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6959,
+          "end_line": 6961,
           "kind": "function",
-          "line": 6834,
+          "line": 6836,
           "name": "test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package",
           "public": true,
           "qualname": "test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package",
@@ -60593,9 +60609,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7076,
+          "end_line": 7078,
           "kind": "function",
-          "line": 6962,
+          "line": 6964,
           "name": "_install_review_asset_fixture",
           "public": false,
           "qualname": "_install_review_asset_fixture",
@@ -60621,9 +60637,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7124,
+          "end_line": 7126,
           "kind": "function",
-          "line": 7079,
+          "line": 7081,
           "name": "test_review_collect_streams_all_manifest_inspectable_checksum_assets",
           "public": true,
           "qualname": "test_review_collect_streams_all_manifest_inspectable_checksum_assets",
@@ -60644,9 +60660,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7182,
+          "end_line": 7184,
           "kind": "function",
-          "line": 7127,
+          "line": 7129,
           "name": "test_review_collect_rejects_manifest_checksum_and_asset_tampering",
           "public": true,
           "qualname": "test_review_collect_rejects_manifest_checksum_and_asset_tampering",
@@ -60677,9 +60693,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7311,
+          "end_line": 7313,
           "kind": "function",
-          "line": 7185,
+          "line": 7187,
           "name": "_install_t12_review_asset_fixture",
           "public": false,
           "qualname": "_install_t12_review_asset_fixture",
@@ -60700,9 +60716,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7355,
+          "end_line": 7357,
           "kind": "function",
-          "line": 7314,
+          "line": 7316,
           "name": "test_t12_review_collect_streams_only_typed_checksum_assets",
           "public": true,
           "qualname": "test_t12_review_collect_streams_only_typed_checksum_assets",
@@ -60722,9 +60738,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7387,
+          "end_line": 7389,
           "kind": "function",
-          "line": 7358,
+          "line": 7360,
           "name": "test_p2_diverse_stage_classifies_coordinate_registration_failure",
           "public": true,
           "qualname": "test_p2_diverse_stage_classifies_coordinate_registration_failure",
@@ -60741,9 +60757,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7475,
+          "end_line": 7477,
           "kind": "function",
-          "line": 7390,
+          "line": 7392,
           "name": "test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit",
           "public": true,
           "qualname": "test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit",
@@ -60762,9 +60778,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7533,
+          "end_line": 7535,
           "kind": "function",
-          "line": 7478,
+          "line": 7480,
           "name": "test_remote_dispatcher_classifies_node_failure_and_oversized_collection",
           "public": true,
           "qualname": "test_remote_dispatcher_classifies_node_failure_and_oversized_collection",
@@ -60785,9 +60801,9 @@
             "pytest.mark.parametrize(('environment_key', 'expected_class'), [('FAKE_PIXI_INSTALL_FAIL', 'environment_failure'), ('FAKE_PIXI_RUN_FAIL', 'test_failure')])"
           ],
           "doc": "",
-          "end_line": 7574,
+          "end_line": 7576,
           "kind": "function",
-          "line": 7543,
+          "line": 7545,
           "name": "test_smoke_job_distinguishes_environment_and_test_failures",
           "public": true,
           "qualname": "test_smoke_job_distinguishes_environment_and_test_failures",
@@ -60807,9 +60823,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7612,
+          "end_line": 7614,
           "kind": "function",
-          "line": 7577,
+          "line": 7579,
           "name": "test_smoke_job_records_term_signal_as_cancellation",
           "public": true,
           "qualname": "test_smoke_job_records_term_signal_as_cancellation",

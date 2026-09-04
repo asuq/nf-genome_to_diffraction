@@ -4718,6 +4718,9 @@ def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
         checksum + "\n", encoding="ascii"
     )
     (active_run / "state" / "phase").write_text("submitted\n", encoding="ascii")
+    (active_run / "state" / "job-id").write_text("123\n", encoding="ascii")
+    active_environment = dict(environment)
+    active_environment["FAKE_SQUEUE_STATE"] = "RUNNING"
 
     blocked = _run(
         [
@@ -4728,14 +4731,13 @@ def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
             checksum,
         ],
         cwd=tmp_path,
-        environment=environment,
+        environment=active_environment,
         success=False,
     )
     assert _decode_protocol(blocked.stdout)["message"] == (
         "P0 configuration is referenced by an active run"
     )
 
-    (active_run / "state" / "phase").write_text("staged\n", encoding="ascii")
     rotated = _run(
         [
             str(dispatcher),

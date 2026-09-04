@@ -299,6 +299,7 @@ p0_configure() {
     local replace_current_checksum="${3:-}"
     local config_directory resolved temporary actual_checksum status size
     local current_checksum retired run_candidate run_phase run_checksum
+    local run_job_id scheduler_state sacct_line
     [[ "$expected_checksum" =~ $CHECKSUM_RE ]] || \
         fail wrapper_failure "P0 configuration checksum is invalid"
     if [[ -n "$replace_current_checksum" ]]; then
@@ -422,8 +423,37 @@ p0_configure() {
         run_checksum="$(<"$run_candidate/state/p0-config-sha256")"
         [[ "$run_checksum" == "$current_checksum" ]] || continue
         run_phase="$(<"$run_candidate/state/phase")"
-        case "$run_phase" in
-            completed|stage_failed|staged|submission_failed) ;;
+        if [[ ! -e "$run_candidate/state/job-id" ]]; then
+            case "$run_phase" in
+                stage_failed|staged|submission_failed) ;;
+                *)
+                    rm -f -- "$temporary"
+                    fail wrapper_failure \
+                        "P0 configuration is referenced by an active run"
+                    ;;
+            esac
+            continue
+        fi
+        [[ -f "$run_candidate/state/job-id" && \
+           ! -L "$run_candidate/state/job-id" ]] || {
+            rm -f -- "$temporary"
+            fail filesystem_failure "P0 rotation encountered an unsafe job identity"
+        }
+        run_job_id="$(<"$run_candidate/state/job-id")"
+        [[ "$run_job_id" =~ $INTEGER_RE ]] || {
+            rm -f -- "$temporary"
+            fail wrapper_failure "P0 rotation encountered an invalid job identity"
+        }
+        scheduler_state="$(scheduler_queue_state "$run_job_id")"
+        if [[ -z "$scheduler_state" ]]; then
+            sacct_line="$({
+                sacct -n -P -j "$run_job_id" --format=State 2>"$DISCARD" || true
+            } | awk -F'|' '$1 != "" {print $1; exit}')"
+            scheduler_state="${sacct_line%% *}"
+            scheduler_state="${scheduler_state%%+*}"
+        fi
+        case "$scheduler_state" in
+            BOOT_FAIL|CANCELLED|COMPLETED|DEADLINE|FAILED|NODE_FAIL|OUT_OF_MEMORY|PREEMPTED|REVOKED|TIMEOUT) ;;
             *)
                 rm -f -- "$temporary"
                 fail wrapper_failure \
@@ -3750,6 +3780,8 @@ submit_run() {
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
     if [[ -e "$run/state/p0-config-sha256" ]]; then
+        exec 8>"$LOCKS/p0-configure.lock"
+        flock -x 8
         [[ -f "$run/state/p0-config-sha256" && \
            ! -L "$run/state/p0-config-sha256" ]] || \
             fail filesystem_failure "recorded P0 configuration identity is unsafe"
