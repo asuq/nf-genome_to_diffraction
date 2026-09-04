@@ -15228,3 +15228,29 @@ with a collapsed combined parent or a guessed command.
   push this review point, require exact-source CI, deploy the reviewed wrapper,
   rotate P0, require readiness, then stage one fresh discovery. Job `641480`
   and all other failed or cancelled scientific caches remain forbidden.
+
+## 2026-09-04 - Dynamic-Matthews pass-1 succeeds and stops at A review
+
+- Checksum-gated P0 rotation completed and exact-source discovery job `641842`
+  passed. Parent-bound screen `gtd-unknown-screen-20260904T102507Z-040b08385db5-0cd5b543`,
+  job `641884`, then completed normally in 9 hours 21 minutes from commit
+  `040b083`.
+- The first trace completed all 98 tasks. Its 75 unique MR hypotheses comprise
+  exactly 25 per crystal, all completed on attempt one, and used 36 x 8-CPU,
+  36 x 12-CPU, and 3 x 16-CPU allocations. The resume cached all 98 tasks,
+  including all 75 MR hypotheses. First/resume task identities and pre/post
+  result manifests are byte-identical.
+- Local collection verified every listed input, provider, and output checksum,
+  the strict seven-command Phenix manifest, exact source/parent/provider/input
+  authority, and the complete three-crystal package inventory. AD4 has 25
+  inspectable hits, CD4 has 25 inspectable hits, and CD6 retains 19 hits, five
+  scientific no-hits, and one failed-parse result without relabelling failure
+  as no-hit.
+- Phaser again expanded every requested one-copy AD4 search to a two-member
+  tNCS placement. CD4 and CD6 remained literal one-copy placements. Three new
+  checksum-owned A packages are retained outside the repository with complete
+  candidate lists and a bounded three-target recommendation per crystal.
+- The integrated pointer is now `needs_user`. Next obtain the exact AD4 tNCS
+  disposition and approve, defer, or reject the package-bound A targets. Do not
+  start sequential-copy placement, refinement, sequence analysis, pass 2, or
+  composition work before those decisions.
