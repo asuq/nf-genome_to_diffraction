@@ -61,10 +61,13 @@ an independently explicit initial searched-copy count of one. Both fields
 participate in the content-addressed hypothesis identity, and the screen refuses
 a task that changes either value. Current application execution enters through
 `phase3_application.nf`; there is no joint-copy compatibility switch or special
-four-copy admission filter. Expected copy counts remain eligible through the
-configured Matthews range, while execution remains bounded to 25 ranked
-one-copy A hypotheses per crystal. Only a separately approved A seed may add
-copies sequentially.
+four-copy admission filter. Expected copy counts remain eligible through each
+candidate-specific range derived from ASU volume, sequence mass, and solvent
+bounds, without a configured scientific ceiling. The resolution-conditioned
+empirical Matthews prior and soft ASU-copy frequency weight change order but do
+not delete a possible state. Execution remains bounded to 25 ranked one-copy A
+hypotheses per crystal. Only a separately approved A seed may add copies
+sequentially.
 
 ## Status, failure, and cache semantics
 

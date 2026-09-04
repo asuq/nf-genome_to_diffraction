@@ -23,7 +23,7 @@ MrResourcePlanIdentifier = Annotated[
     Field(pattern=r"^mrresource_[a-f0-9]{64}$"),
 ]
 
-MR_RESOURCE_ADAPTER_VERSION = "phase3-mr-resource-allocation-v1"
+MR_RESOURCE_ADAPTER_VERSION = "phase3-mr-resource-allocation-v2-overprovisioned"
 MR_RESOURCE_SYMMETRY_CAP = 8
 MR_RESOURCE_STANDARD_MAX_SCORE = 1_000_000_000
 MR_RESOURCE_HEAVY_MAX_SCORE = 10_000_000_000
@@ -44,9 +44,9 @@ class MrResourceTier(StrEnum):
 
 
 MR_RESOURCE_TIER_RESOURCES: dict[MrResourceTier, tuple[int, int, int]] = {
-    MrResourceTier.STANDARD: (4, 16, 12),
-    MrResourceTier.HEAVY: (6, 24, 18),
-    MrResourceTier.VERY_HEAVY: (8, 32, 24),
+    MrResourceTier.STANDARD: (8, 32, 24),
+    MrResourceTier.HEAVY: (12, 48, 36),
+    MrResourceTier.VERY_HEAVY: (16, 64, 48),
 }
 
 
@@ -68,7 +68,7 @@ class MrResourcePlan(ContractModel):
 
     schema_version: Literal["2.0"]
     resource_plan_id: MrResourcePlanIdentifier
-    adapter_version: Literal["phase3-mr-resource-allocation-v1"] = (
+    adapter_version: Literal["phase3-mr-resource-allocation-v2-overprovisioned"] = (
         MR_RESOURCE_ADAPTER_VERSION
     )
     owner_kind: Literal["mr_hypothesis", "component_execution_input"]

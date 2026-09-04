@@ -600,11 +600,17 @@ def test_sequence_checkpoint_publishes_bounded_and_full_views(tmp_path: Path) ->
             delimiter="\t",
         )
     )
-    assert {
+    copy_counts = {
         int(row["copy_count"])
         for row in matthews
         if row["sequence_group_id"] == first_group
-    } == set(range(1, 17))
+    }
+    assert copy_counts == set(range(1, max(copy_counts) + 1))
+    assert max(copy_counts) > 16
+    assert manifest["matthews_policy"]["copy_count_policy"] == (
+        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+    )
+    assert manifest["matthews_policy"]["static_copy_count_ceiling"] is None
     checkpoint_html = output.review_html.read_text(encoding="utf-8")
     assert "mFo-DFc" in checkpoint_html
     assert "ASU = nA" in checkpoint_html

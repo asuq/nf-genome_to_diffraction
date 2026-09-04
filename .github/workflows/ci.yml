@@ -13,26 +13,113 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  quality:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        pixi-version: [v0.76.2]
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
           submodules: recursive
-
       - name: Install locked Pixi environment
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
-          pixi-version: ${{ matrix.pixi-version }}
+          pixi-version: v0.76.2
           cache: true
           cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
           frozen: true
+      - run: pixi run --locked format-check
+      - run: pixi run --locked lint
+      - run: pixi run --locked typecheck
+      - run: pixi run --locked test-contract
+      - run: pixi run --locked schema-check
+      - run: pixi run --locked public-panel-check
+      - run: pixi run --locked docs-check
+      - run: pixi run --locked docs-atlas-check
+      - run: pixi run --locked actionlint-check
+      - run: pixi run --locked offline-wheel-check
+      - run: pixi run --locked hpc-wrapper-check
 
-      - name: Run foundation checks
-        run: pixi run --locked check
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.76.2
+          cache: true
+          cache-write: false
+          frozen: true
+      - run: pixi run --locked test-unit
+
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.76.2
+          cache: true
+          cache-write: false
+          frozen: true
+      - run: pixi run --locked test-integration
+
+  nextflow-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.76.2
+          cache: true
+          cache-write: false
+          frozen: true
+      - run: pixi run --locked nextflow-check
+      - run: pixi run --locked nextflow-stub
+
+  scientific-stubs-a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.76.2
+          cache: true
+          cache-write: false
+          frozen: true
+      - run: pixi run --locked heteromer-application-stub
+      - run: pixi run --locked m6-cache-mutation-stub
+      - run: pixi run --locked composition-attempt-stub
+      - run: pixi run --locked phase3-composition-beam-stub
+      - run: pixi run --locked localisation-wave-stub
+
+  scientific-stubs-b:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.76.2
+          cache: true
+          cache-write: false
+          frozen: true
+      - run: pixi run --locked unknown-pass1-screen-stub
+      - run: pixi run --locked phase3-multicrystal-stub
+      - run: pixi run --locked phase3-foldseek-batch-stub
+      - run: pixi run --locked provider-empty-graph-stub
+      - run: pixi run --locked mr-resource-retry-check

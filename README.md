@@ -157,8 +157,12 @@ pixi run --locked genome-to-diffraction matthews enumerate \
   --outdir /absolute/results/matthews
 ```
 
-Matthews estimates are physical priors, not identity evidence. Multiple
-plausible copy counts remain available for downstream review.
+Matthews estimates are physical priors, not identity evidence. The active
+development line derives each candidate's complete copy range from ASU volume,
+sequence mass, and solvent bounds; it has no configured copy ceiling. Its
+checksum-pinned empirical prior combines resolution-conditioned solvent density
+with a soft observed-copy-frequency weight, while retaining even zero-weight
+states for review. See the [Matthews method and limits](docs/matthews-probability.md).
 
 ### 4. Continue to structural search and MR
 
@@ -276,12 +280,27 @@ pixi run --locked test-contract
 pixi run --locked docs-check
 ```
 
+`test-unit` and `test-integration` use all locally visible CPUs. Embedded
+Nextflow unit tests share one lock-safe group; integration fixtures use isolated
+per-test roots. Use `test-unit-serial` or `test-integration-serial` when
+reproducing an order-sensitive failure. A convenient pre-review gate omits the
+slow stateful workflow stubs:
+
+```bash
+pixi run --locked check-fast
+```
+
 The complete repository gate includes Python, schemas, docs, Nextflow syntax,
 stub/resume workflows, offline wheel inspection, and wrapper syntax:
 
 ```bash
 pixi run --locked check
 ```
+
+Run the complete gate once at a scientific integration, deployment, or release
+boundary rather than after every edit. GitHub Actions runs quality, unit,
+integration, core Nextflow, and two scientific-stub lanes in parallel; one CI
+run is required for the exact commit selected for Marmic deployment.
 
 The repository-specific HPC wrapper is an **internal validation tool**, not a
 public research-package command. From a source checkout, invoke it only through

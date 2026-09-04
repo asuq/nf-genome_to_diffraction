@@ -37,6 +37,7 @@ from genome_to_diffraction.localisation import (
     BatchLocalisationReopenStatus,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
+from genome_to_diffraction.schemas.mr_resources import MR_RESOURCE_ADAPTER_VERSION
 from genome_to_diffraction.schemas.results import MrHypothesis
 from genome_to_diffraction.schemas.v2 import (
     CompositionState,
@@ -286,7 +287,7 @@ def _validate_source(
             "phase3_composition_attempt": (
                 "phase3-composition-attempt-execution-v2-resource-plan"
             ),
-            "phase3_mr_resources": "phase3-mr-resource-allocation-v1",
+            "phase3_mr_resources": MR_RESOURCE_ADAPTER_VERSION,
             "phase3_composition_beam": "phase3-composition-beam-depth-v1",
             "phase3_composition_depth": "phase3-composition-depth-input-v1",
             "phase3_no_a_expansion": "phase3-no-a-expansion-v2",

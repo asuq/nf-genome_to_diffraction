@@ -337,7 +337,7 @@ def _request(
             phenix_manifest=phenix_manifest,
             execution_identity=execution_identity,
             output_directory=tmp_path / "output",
-            threads=4,
+            threads=8,
         ),
         inventory,
     )

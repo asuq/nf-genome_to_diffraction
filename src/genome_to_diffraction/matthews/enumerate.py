@@ -3,6 +3,7 @@
 import csv
 import io
 import logging
+import math
 import os
 import tempfile
 from collections import defaultdict
@@ -17,6 +18,12 @@ from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_text
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.matthews.probability import (
+    PRIOR_BACKEND,
+    MatthewsProbabilityDistribution,
+    probability_distribution,
+    reference_metadata,
+)
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -36,7 +43,8 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.matthews")
-PRIOR_BACKEND = "broad_solvent_centrality_v1_uncalibrated"
+COPY_RANGE_BACKEND = "asu_sequence_mass_solvent_overlap_v1"
+MAXIMUM_SAFE_DYNAMIC_COPY_COUNT = 100_000
 _EXCLUDED_SEQUENCE_FLAGS = frozenset(
     {
         "excluded_ambiguous_or_nonstandard_residue",
@@ -218,14 +226,53 @@ def physical_status(
     return PhysicalStatus.PLAUSIBLE
 
 
-def prior_score(solvent_midpoint: float, *, minimum: float, maximum: float) -> float:
-    """Return a transparent bounded heuristic, not an empirical probability."""
+def prior_score(
+    solvent_midpoint: float,
+    *,
+    resolution_high_a: float,
+    copy_count: int,
+) -> float:
+    """Return the empirical single-component Matthews ranking prior."""
 
-    centre = (minimum + maximum) / 2
-    half_width = (maximum - minimum) / 2
-    if half_width <= 0:
-        raise ValueError("solvent-fraction bounds must span a positive interval")
-    return max(0.0, 1.0 - abs(solvent_midpoint - centre) / half_width)
+    return probability_distribution(resolution_high_a).single_component_prior(
+        copy_count,
+        solvent_midpoint,
+    )
+
+
+def dynamic_copy_counts(
+    *,
+    v_asu_a3: float,
+    mass_lower_da: float,
+    mass_upper_da: float,
+    minimum_solvent_fraction: float,
+    maximum_solvent_fraction: float,
+) -> tuple[tuple[int, ...], tuple[str, ...]]:
+    """Derive the complete finite copy range that overlaps physical bounds."""
+
+    if not math.isfinite(v_asu_a3) or v_asu_a3 <= 0:
+        raise MatthewsInputError("Matthews ASU volume must be finite and positive")
+    if not 0 <= minimum_solvent_fraction < maximum_solvent_fraction <= 1:
+        raise MatthewsInputError("Matthews solvent bounds do not span an interval")
+    if (
+        not math.isfinite(mass_lower_da)
+        or not math.isfinite(mass_upper_da)
+        or mass_lower_da <= 0
+        or mass_upper_da < mass_lower_da
+    ):
+        raise MatthewsInputError("Matthews sequence-mass bounds are invalid")
+    upper_real = v_asu_a3 * (1.0 - minimum_solvent_fraction) / (1.23 * mass_lower_da)
+    first = 1
+    last = math.floor(upper_real + 1e-12)
+    warnings: tuple[str, ...] = ()
+    if last < first:
+        last = first
+        warnings = ("no_positive_copy_count_reaches_minimum_solvent_bound",)
+    if last > MAXIMUM_SAFE_DYNAMIC_COPY_COUNT:
+        raise MatthewsInputError(
+            "dynamic Matthews copy range exceeds the fail-closed safety bound"
+        )
+    return tuple(range(first, last + 1)), warnings
 
 
 def _sds_fields(assessment: SdsAssessment, crystal: CrystalEntry) -> dict[str, object]:
@@ -243,6 +290,8 @@ def enumerate_group(
     crystal: CrystalEntry,
     preflight: MtzPreflightRecord,
     config: PipelineConfig,
+    *,
+    distribution: MatthewsProbabilityDistribution | None = None,
 ) -> tuple[MatthewsHypothesis, ...]:
     """Enumerate and rank all configured copy counts for one candidate."""
 
@@ -259,17 +308,27 @@ def enumerate_group(
             f"sequence group has no usable molecular mass: {group.sequence_group_id}"
         )
     sds = assess_sds(group, crystal)
+    empirical = distribution or probability_distribution(preflight.resolution_high_a)
     rows: list[MatthewsHypothesis] = []
     minimum = config.matthews.min_solvent_fraction
     maximum = config.matthews.max_solvent_fraction
-    for copy_count in range(
-        config.matthews.min_copy_count, config.matthews.max_copy_count + 1
-    ):
+    mass_lower = exact_mass if exact_mass is not None else lower_mass
+    mass_upper = exact_mass if exact_mass is not None else upper_mass
+    assert mass_lower is not None and mass_upper is not None
+    copy_counts, copy_range_warnings = dynamic_copy_counts(
+        v_asu_a3=preflight.asu_volume_a3,
+        mass_lower_da=mass_lower,
+        mass_upper_da=mass_upper,
+        minimum_solvent_fraction=minimum,
+        maximum_solvent_fraction=maximum,
+    )
+    for copy_count in copy_counts:
         identity = {
             "preflight_id": preflight.preflight_id,
             "sequence_group_id": group.sequence_group_id,
             "copy_count": copy_count,
             "prior_backend": PRIOR_BACKEND,
+            "copy_range_backend": COPY_RANGE_BACKEND,
         }
         common: dict[str, object] = {
             "schema_version": "1.0",
@@ -283,13 +342,13 @@ def enumerate_group(
             "retained": False,
             **_sds_fields(sds, crystal),
         }
-        warnings = list(sds.warnings)
+        warnings = [*sds.warnings, *copy_range_warnings]
         if exact_mass is not None:
             total_mass = exact_mass * copy_count
             coefficient = preflight.asu_volume_a3 / total_mass
             solvent = 1.0 - 1.23 / coefficient
             status = physical_status(solvent, solvent, minimum=minimum, maximum=maximum)
-            prior = prior_score(solvent, minimum=minimum, maximum=maximum)
+            prior = empirical.single_component_prior(copy_count, solvent)
             row = MatthewsHypothesis.model_validate(
                 {
                     **common,
@@ -316,10 +375,10 @@ def enumerate_group(
                 minimum=minimum,
                 maximum=maximum,
             )
-            prior = prior_score(
-                (solvent_lower + solvent_upper) / 2,
-                minimum=minimum,
-                maximum=maximum,
+            prior = empirical.single_component_interval_prior(
+                copy_count,
+                solvent_lower,
+                solvent_upper,
             )
             warnings.append("matthews_uses_sequence_mass_bounds")
             row = MatthewsHypothesis.model_validate(
@@ -415,8 +474,11 @@ def _write_outputs(
     lines = [
         "# Matthews and SDS-PAGE hypothesis report",
         "",
-        f"Prior backend: `{PRIOR_BACKEND}`. This is a transparent broad physical",
-        "ranking heuristic, not a calibrated empirical probability.",
+        f"Prior backend: `{PRIOR_BACKEND}`. This multiplies a resolution-conditioned",
+        "relative solvent density by the published empirical ASU homooligomer-copy",
+        "frequency. It is a soft ranking weight, not an identity probability.",
+        f"Copy range backend: `{COPY_RANGE_BACKEND}`; no static copy ceiling.",
+        f"Reference resource SHA-256: `{reference_metadata()['resource_sha256']}`.",
         "",
     ]
     for row in hypotheses:
@@ -528,6 +590,9 @@ def enumerate_matthews(request: MatthewsRequest) -> MatthewsResult:
                 f"catalogue {crystal.catalogue_id} has no imported sequence groups"
             )
         enumerated_groups = 0
+        crystal_hypothesis_count = 0
+        crystal_maximum_copy_count = 0
+        empirical = probability_distribution(preflight.resolution_high_a)
         for group_id in tqdm(
             group_ids,
             desc=f"Matthews {crystal.crystal_id}",
@@ -546,8 +611,20 @@ def enumerate_matthews(request: MatthewsRequest) -> MatthewsResult:
                     },
                 )
                 continue
-            hypotheses.extend(enumerate_group(group, crystal, preflight, config_model))
+            group_hypotheses = enumerate_group(
+                group,
+                crystal,
+                preflight,
+                config_model,
+                distribution=empirical,
+            )
+            hypotheses.extend(group_hypotheses)
             enumerated_groups += 1
+            crystal_hypothesis_count += len(group_hypotheses)
+            crystal_maximum_copy_count = max(
+                crystal_maximum_copy_count,
+                max(row.copy_count for row in group_hypotheses),
+            )
         if enumerated_groups == 0:
             raise MatthewsInputError(
                 f"crystal {crystal.crystal_id} has no mass-eligible sequence groups"
@@ -557,11 +634,9 @@ def enumerate_matthews(request: MatthewsRequest) -> MatthewsResult:
             extra={
                 "crystal_id": crystal.crystal_id,
                 "sequence_groups": enumerated_groups,
-                "copy_counts_per_group": (
-                    config_model.matthews.max_copy_count
-                    - config_model.matthews.min_copy_count
-                    + 1
-                ),
+                "dynamic_hypothesis_count": crystal_hypothesis_count,
+                "maximum_dynamic_copy_count": crystal_maximum_copy_count,
+                "probability_reference_records": empirical.reference_record_count,
             },
         )
     ordered = tuple(

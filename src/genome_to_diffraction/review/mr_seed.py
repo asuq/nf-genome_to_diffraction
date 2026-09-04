@@ -32,6 +32,8 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_digest, content_id
+from genome_to_diffraction.matthews.enumerate import COPY_RANGE_BACKEND
+from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.mr.policy import (
     LEGACY_SCORE_GATE_LLG,
     LEGACY_SCORE_GATE_TFZ,
@@ -59,11 +61,16 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v3"
+_ADAPTER_VERSION = "mr-seed-review-v4-matthews-dual-rank"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
     "rank",
+    "review_priority_rank",
+    "mr_rank",
+    "matthews_rank",
+    "rank_discordance",
+    "rank_discordant",
     "sequence_group_rank",
     "shortlist",
     "solution_id",
@@ -81,6 +88,8 @@ _TSV_COLUMNS = (
     "matthews_coefficient",
     "solvent_fraction",
     "matthews_prior",
+    "matthews_prior_backend",
+    "matthews_copy_range_complete",
     "matthews_physical_status",
     "sds_page_prior_label",
     "sds_page_fractional_difference",
@@ -443,6 +452,16 @@ def _join_candidates(
     funnel_document = _load_json_object(
         request.funnel_manifest, label="funnel manifest"
     )
+    if funnel_document.get("adapter_version") == (
+        "multi-source-first-copy-funnel-v7-dynamic-matthews"
+    ) and (
+        funnel_document.get("matthews_prior_backend") != PRIOR_BACKEND
+        or funnel_document.get("matthews_copy_range_backend") != COPY_RANGE_BACKEND
+        or funnel_document.get("matthews_copy_range_complete") is not True
+        or funnel_document.get("matthews_copy_range_validation")
+        != "rederived_from_preflight_sequence_mass_and_solvent_bounds"
+    ):
+        raise MrSeedReviewError("funnel Matthews range authority is incomplete")
     funnel_id, entries = _funnel_entries(funnel_document, hypotheses)
     input_paths = {
         "hypotheses": request.hypotheses_jsonl,
@@ -505,6 +524,23 @@ def _join_candidates(
         ):
             raise MrSeedReviewError(
                 f"Matthews provenance differs: {hypothesis.hypothesis_id}"
+            )
+        features = hypothesis.priority_features
+        if (
+            matthews.prior_backend != PRIOR_BACKEND
+            or features.get("matthews_prior_backend") != PRIOR_BACKEND
+        ):
+            raise MrSeedReviewError(
+                "Matthews probability backend is superseded: "
+                f"{hypothesis.hypothesis_id}"
+            )
+        range_complete = features.get("matthews_copy_range_complete") is True
+        fixed_control_exemption = features.get(
+            "matthews_copy_range_exemption"
+        ) == "fixed_known_control" and isinstance(features.get("control_role"), str)
+        if not range_complete and not fixed_control_exemption:
+            raise MrSeedReviewError(
+                f"Matthews copy range is incomplete: {hypothesis.hypothesis_id}"
             )
         bundle = _result_bundle(
             root=root,
@@ -588,7 +624,7 @@ def _descending(value: float | None) -> float:
     return float("inf") if value is None else -value
 
 
-def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+def _mr_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     status_rank = {
         ExecutionStatus.COMPLETED_HIT: 0,
         ExecutionStatus.COMPLETED_NO_HIT: 1,
@@ -604,6 +640,31 @@ def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
         else 1,
         _descending(candidate.result.llg),
         _descending(candidate.result.tfz),
+        candidate.funnel_order,
+    )
+
+
+def _matthews_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+    physical_rank = {
+        "plausible": 0,
+        "review": 1,
+        "impossible": 2,
+    }[candidate.matthews.physical_status.value]
+    return (
+        physical_rank,
+        -candidate.matthews.matthews_prior,
+        candidate.matthews.rank_within_candidate,
+        candidate.funnel_order,
+    )
+
+
+def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+    """Order review priority by physical ASU support before MR tie-breakers."""
+
+    return (
+        *_mr_sort_key(candidate)[:2],
+        *_matthews_sort_key(candidate)[:-1],
+        *_mr_sort_key(candidate)[2:-1],
         candidate.funnel_order,
     )
 
@@ -651,6 +712,8 @@ def _row(
     *,
     candidate: _Candidate,
     rank: int,
+    mr_rank: int,
+    matthews_rank: int,
     group_rank: int,
     config: PipelineConfig,
     copied: Mapping[str, str],
@@ -668,6 +731,11 @@ def _row(
         warnings.append("ancillary_phaser_assets_not_copied_due_to_retention_cap")
     return {
         "rank": rank,
+        "review_priority_rank": rank,
+        "mr_rank": mr_rank,
+        "matthews_rank": matthews_rank,
+        "rank_discordance": abs(mr_rank - matthews_rank),
+        "rank_discordant": mr_rank != matthews_rank,
         "sequence_group_rank": group_rank,
         "shortlist": _shortlist(group_rank, config),
         "solution_id": candidate.solution_id,
@@ -691,6 +759,10 @@ def _row(
         "matthews_coefficient": matthews.matthews_coefficient or "",
         "solvent_fraction": matthews.solvent_fraction or "",
         "matthews_prior": matthews.matthews_prior,
+        "matthews_prior_backend": matthews.prior_backend,
+        "matthews_copy_range_complete": features.get(
+            "matthews_copy_range_complete", False
+        ),
         "matthews_physical_status": matthews.physical_status.value,
         "sds_page_prior_label": matthews.sds_page_prior_label,
         "sds_page_fractional_difference": (
@@ -740,6 +812,11 @@ def _write_approval_candidates(
         "solution_id",
         "hypothesis_id",
         "rank",
+        "review_priority_rank",
+        "mr_rank",
+        "matthews_rank",
+        "rank_discordance",
+        "rank_discordant",
         "sequence_group_rank",
         "shortlist",
         "inspectable_solution",
@@ -778,6 +855,9 @@ def _html_report(
 ) -> str:
     headings = (
         "rank",
+        "mr_rank",
+        "matthews_rank",
+        "rank_discordance",
         "sequence_group_rank",
         "shortlist",
         "solution_id",
@@ -785,6 +865,11 @@ def _html_report(
         "model_source",
         "model_target",
         "copy_count_expected",
+        "matthews_coefficient",
+        "solvent_fraction",
+        "matthews_prior",
+        "matthews_prior_backend",
+        "matthews_physical_status",
         "llg",
         "tfz",
         "top_solution_packed",
@@ -831,13 +916,14 @@ code{overflow-wrap:anywhere}.note{max-width:75rem}
 <h1>First-copy MR seed checkpoint</h1>
 <p><strong>Package:</strong> <code>PACKAGE_ID</code></p>
 <p class="note">Every tested hypothesis is retained. Every parsed solution with
-coordinate and MTZ assets is available for Coot inspection. Rows use explicit
-lexicographic evidence: inspectable assets, execution class, the provisional
-LLG &gt; 50 or TFZ &gt; 5 screen, packing, placed-copy agreement, raw LLG, raw
-TFZ, then immutable funnel order. The numeric screen ranks and annotates; it
-does not exclude candidates or grant approval.
-This ranking is not a calibrated probability. Human map and packing inspection
-remains required.</p>
+coordinate and MTZ assets is available for Coot inspection. Review priority
+orders inspectable execution evidence, physical ASU status, and the
+resolution/copy-weighted empirical Matthews prior before using the provisional
+LLG/TFZ screen, packing, copy agreement, raw LLG, and raw TFZ as tie-breakers.
+Independent Matthews and MR ranks plus their absolute discordance are shown.
+The screen does not exclude candidates or grant approval.
+This ranking is not a calibrated probability of identity; human map and packing
+inspection remains required.</p>
 <p>Primary sequence-group limit: PRIMARY. Extended sequence-group limit:
 EXTENDED. Full-result-asset retention limit: RETENTION.</p>
 <table><thead><tr>HEADINGS</tr></thead><tbody>ROWS</tbody></table>
@@ -857,6 +943,15 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
     """Assemble the bounded first-copy report and empty approval template."""
 
     config, funnel_id, input_sha256, joined = _join_candidates(request)
+    mr_ranked = tuple(sorted(joined, key=_mr_sort_key))
+    matthews_ranked = tuple(sorted(joined, key=_matthews_sort_key))
+    mr_ranks = {
+        candidate.solution_id: rank for rank, candidate in enumerate(mr_ranked, start=1)
+    }
+    matthews_ranks = {
+        candidate.solution_id: rank
+        for rank, candidate in enumerate(matthews_ranked, start=1)
+    }
     ranked = tuple(sorted(joined, key=_candidate_sort_key))
     created_at = utc_now_iso()
     if request.output_directory.is_symlink():
@@ -908,6 +1003,8 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
         row = _row(
             candidate=candidate,
             rank=rank,
+            mr_rank=mr_ranks[candidate.solution_id],
+            matthews_rank=matthews_ranks[candidate.solution_id],
             group_rank=group_rank,
             config=config,
             copied=copied,
@@ -919,6 +1016,17 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "hypothesis_id": candidate.hypothesis.hypothesis_id,
                 "sequence_group_id": group_id,
                 "rank": rank,
+                "review_priority_rank": rank,
+                "mr_rank": mr_ranks[candidate.solution_id],
+                "matthews_rank": matthews_ranks[candidate.solution_id],
+                "rank_discordance": abs(
+                    mr_ranks[candidate.solution_id]
+                    - matthews_ranks[candidate.solution_id]
+                ),
+                "rank_discordant": (
+                    mr_ranks[candidate.solution_id]
+                    != matthews_ranks[candidate.solution_id]
+                ),
                 "sequence_group_rank": group_rank,
                 "shortlist": row["shortlist"],
                 "inspectable_solution": row["inspectable_solution"],
@@ -976,13 +1084,25 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
             "ordering_policy": [
                 "inspectable_solution",
                 "execution_status",
-                SCORE_GATE_ID,
-                "top_solution_packed",
-                "placed_copy_count_matches",
-                "llg_descending",
-                "tfz_descending",
+                "matthews_physical_status",
+                "resolution_copy_weighted_matthews_prior_descending",
+                "matthews_rank_within_candidate",
+                "mr_score_gate_tiebreaker",
+                "mr_packing_tiebreaker",
+                "mr_placed_copy_match_tiebreaker",
+                "mr_llg_tiebreaker",
+                "mr_tfz_tiebreaker",
                 "immutable_funnel_order",
             ],
+            "independent_rankings": {
+                "matthews_rank": (
+                    "physical_status_then_resolution_copy_weighted_prior"
+                ),
+                "mr_rank": ("score_gate_packing_copy_match_llg_tfz"),
+                "rank_discordance": "absolute_position_difference",
+            },
+            "matthews_prior_backend": PRIOR_BACKEND,
+            "matthews_copy_range_requirement": "complete_dynamic_range",
             "ranking_is_calibrated_probability": False,
             "numeric_screen_excludes_candidates": False,
             "approval_requires_explicit_human_decision": True,

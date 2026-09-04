@@ -19,6 +19,9 @@ def _write_repository(repository: Path) -> None:
     package = repository / "src" / "genome_to_diffraction"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text('__version__ = "0.2.0"\n')
+    matthews_data = package / "matthews" / "data"
+    matthews_data.mkdir(parents=True)
+    (matthews_data / "protein_mattprob_2013.json.gz").write_bytes(b"reference")
     schemas = repository / "schemas"
     schemas.mkdir()
     (schemas / "example.schema.json").write_text('{"schema_version":"2.0"}\n')
@@ -29,6 +32,7 @@ def _write_wheel(
     repository: Path,
     *,
     include_schema: bool = True,
+    include_scientific_resource: bool = True,
     include_internal_hpc: bool = False,
     entry_points: str | None = None,
     version: str = "0.2.0",
@@ -43,6 +47,14 @@ def _write_wheel(
             (repository / "src/genome_to_diffraction/__init__.py").read_bytes(),
         )
         archive.writestr("genome_to_diffraction/cli.py", "")
+        if include_scientific_resource:
+            archive.writestr(
+                "genome_to_diffraction/matthews/data/protein_mattprob_2013.json.gz",
+                (
+                    repository / "src/genome_to_diffraction/matthews/data/"
+                    "protein_mattprob_2013.json.gz"
+                ).read_bytes(),
+            )
         if include_internal_hpc:
             archive.writestr("genome_to_diffraction/hpc/cli.py", "")
         if include_schema:
@@ -86,6 +98,18 @@ def test_wheel_rejects_missing_packaged_schema(
     _write_wheel(wheel, tmp_path, include_schema=False)
 
     with pytest.raises(WheelGateError, match="missing packaged schemas"):
+        inspect_wheel(wheel, tmp_path, distribution_spec)
+
+
+def test_wheel_rejects_missing_scientific_resource(
+    tmp_path: Path,
+    distribution_spec: DistributionSpec,
+) -> None:
+    _write_repository(tmp_path)
+    wheel = tmp_path / "missing_scientific_resource.whl"
+    _write_wheel(wheel, tmp_path, include_scientific_resource=False)
+
+    with pytest.raises(WheelGateError, match="scientific resources"):
         inspect_wheel(wheel, tmp_path, distribution_spec)
 
 

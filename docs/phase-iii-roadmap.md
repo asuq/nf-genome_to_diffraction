@@ -320,13 +320,14 @@ Phaser parsing now produces a claim-free child state only from a verified
 placement inventory. Completed no-hit/tool/parser outcomes remain terminal
 without a child, and depths four through six are explicitly provisional.
 
-The ordinary diverse-model funnel has an explicit Phase III joint-A mode. It
-preserves all four configured, physically possible Matthews copy alternatives,
-excludes counts above four before applying any per-model cap, and constructs
-one joint Phaser hypothesis per retained candidate/copy count. The 25-attempt
-hard ceiling applies across the complete A search. The canonical
-`phase3_application.nf` root always selects this mode and exposes no legacy
-single-copy switch; archival application and standalone controls remain
+The ordinary diverse-model funnel now has one clean Phase III A path. It
+derives each candidate's complete finite Matthews copy range without a
+configured ceiling, retains the expected copy state, and constructs one
+independent one-copy initial Phaser hypothesis per retained candidate/model.
+The checksum-pinned resolution/copy prior changes order without filtering a
+possible state. The 25-attempt hard ceiling applies across the complete initial
+A search. The canonical `phase3_application.nf` root exposes no joint-copy or
+legacy mode switch; archival application and standalone controls remain
 separate.
 Every schema-v2 unknown-screen task now binds the selected hypothesis's exact
 requested copy count; a mismatched task is rejected before fan-out. Real Phase
@@ -345,9 +346,10 @@ both roots reject cross-authority inputs before scheduling. Real Phase III
 Phenix execution remains a separate control-qualified gate. Exact-source CI
 `32904417863` passed on `b55348a`.
 
-Search A jointly over plausible `n=1..4`; sequential placement is rescue-only.
-After review approval of at most three A states, automatically expand through
-B-F. At each depth, exclude represented sequence groups, consider physically
+Search each initial A hypothesis as one copy. After review approval of at most
+three A states, add same-component copies sequentially toward the retained
+Matthews expectation, preserving every intermediate state, before expanding
+through B-F. At each depth, exclude represented sequence groups, consider physically
 possible copy counts `1..4`, rank by localisation wave, SDS/native-PAGE,
 total-composition Matthews plausibility, model quality, and structural
 diversity, and allocate at most 25 attempts deterministically across parents,
@@ -590,6 +592,14 @@ tune the policy, and Slurm still owns aggregate concurrency. Focused local and
 exact-source CI evidence remain before a future Marmic qualification; the
 currently running earlier-source screen is unchanged.
 
+On 4 September the operator explicitly superseded only the active resource
+requests to favour elapsed time. Adapter v2 retains the same workload formula
+and thresholds but raises first attempts to 8/12/16 CPUs, 32/48/64 GB, and
+24/36/48 hours. Linear retry scaling still saturates at 16 CPUs, 64 GB, and 48
+hours. Successor unknown-screen and five-depth pass-2 controllers request 120
+and 528 hours respectively; historical runs and the fixed M6 contract are
+unchanged.
+
 The first uncapped exact-source screen, Marmic job `636956`, subsequently
 validated the owned provider, review, localisation, diffraction, and strict
 Phenix authorities and submitted 54 first-copy hypotheses. When the first
@@ -715,8 +725,9 @@ batch route now enables it (`PH3-P1-36`).
 A pre-screen adverse review then found additional real-run blockers rather
 than isolated test polish. The local hardening wave binds source/P0/catalogue/
 database authority across discovery and both children, makes the copied
-login-stage coordinates the only offline sources, preserves joint A copy
-counts, leaves independent MR/refinement concurrency to Slurm, compares first/
+login-stage coordinates the only offline sources, preserved the then-current
+joint-A copy counts (later superseded by the one-copy clean break), leaves
+independent MR/refinement concurrency to Slurm, compares first/
 resume task
 and output inventories, and collects complete login/single-component authority
 and results (`PH3-P1-37`--`PH3-P1-40`). It also establishes real zero-transition
@@ -730,8 +741,9 @@ The completed pre-screen hardening audit is now implemented in local commits
 `662d29a` and `2faa1c7`. Full crystallographic authority, run-owned provider
 coordinates, exact parent/child source/P0/database bindings, bounded MR and
 refinement attempt inventories, scheduler-managed concurrency, complete replay/
-collection inventories, true joint-A
-copy continuation, and relative single-component routes are enforced. A fixed
+collection inventories, the historical joint-A continuation subsequently
+replaced by reviewed sequential copies, and relative single-component routes
+are enforced. A fixed
 post-review derivation command constructs zero-model, shortlist, mixed failure,
 and credible terminal records only from the collected scheduler/source record,
 all four owned review checkpoints, package-contained copy/packing/refinement/
@@ -1245,8 +1257,9 @@ Release validated research version `v0.3.0` only when:
 - Run one CI workflow per pushed milestone.
 - Fixed wrappers expose no paths, crystal IDs, thresholds, or arbitrary
   commands.
-- Pass-1 MR: 75 hypotheses use deterministic 4/6/8-CPU first attempts from
-  content-addressed reflection/coordinate workload plans. One classified
+- Pass-1 MR: 75 hypotheses use deliberately overprovisioned deterministic
+  8/12/16-CPU first attempts from content-addressed reflection/coordinate
+  workload plans. One classified
   resource/infrastructure retry scales to at most 16 CPUs/64 GB/48 hours;
   Slurm owns concurrency.
 - Refinement: at most nine finalists, 4 CPUs/16 GB; Slurm owns concurrency.

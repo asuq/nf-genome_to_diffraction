@@ -16,6 +16,28 @@ from genome_to_diffraction.schemas.results import ProcessedModelRecord
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
+def test_parallel_ci_lanes_cover_every_complete_gate_leaf_once() -> None:
+    with (REPOSITORY / "pixi.toml").open("rb") as handle:
+        tasks = tomllib.load(handle)["tasks"]
+
+    def leaves(name: str) -> set[str]:
+        task = tasks[name]
+        if isinstance(task, dict) and "depends-on" in task:
+            return {
+                leaf for dependency in task["depends-on"] for leaf in leaves(dependency)
+            }
+        return {name}
+
+    expected = leaves("check")
+    workflow = (REPOSITORY / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    for task in expected:
+        assert workflow.count(f"run: pixi run --locked {task}\n") == 1
+    assert "pytest -n auto --dist loadgroup" in tasks["test-unit"]
+    assert "-n " not in tasks["test-unit-serial"]
+    assert "pytest -n auto --dist worksteal" in tasks["test-integration"]
+    assert "-n " not in tasks["test-integration-serial"]
+
+
 def test_root_nextflow_surface_has_only_intentional_owners() -> None:
     assert {path.name for path in REPOSITORY.glob("*.nf")} == {
         "m6_validation.nf",

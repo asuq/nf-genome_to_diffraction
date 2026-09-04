@@ -15155,3 +15155,52 @@ with a collapsed combined parent or a guessed command.
   package-bound decisions for the bounded candidate targets, including the AD4
   tNCS disposition, before any sequential-copy, refinement, pass-2, or
   composition work.
+
+## 2026-09-04 - Matthews ranking repaired and successor execution accelerated
+
+- Human review correctly found that the successful pass-1 candidate list was
+  dominated by small proteins whose fixed 16-copy states still implied
+  implausibly high solvent content. The execution evidence from job `638943`
+  remains immutable, but its candidate selection and A gate are superseded.
+- The successor removes configured minimum/maximum copy counts. Every
+  candidate now receives the complete finite range derived from ASU volume,
+  exact or bounded sequence mass, and solvent bounds. The funnel independently
+  re-derives the range, mass, Matthews coefficient, solvent fraction, prior,
+  ordering, retention, and content identity before it may declare the range
+  complete.
+- The checksum-pinned 2013 MATTPROB protein reference supplies 60,194 usable
+  resolution/solvent observations and 50,190 positive homooligomer copy-count
+  observations. The active soft prior multiplies cumulative-resolution kernel
+  density by the published empirical `P(n)` frequency; it is not an identity
+  probability and never filters a possible state. The identifier-free bundled
+  resource SHA-256 is `4114691d…`.
+- The frozen-input audit enumerates 76,767 hypotheses and reaches maximum copy
+  counts 72/171/19 for AD4/CD4/CD6. All three validated funnels retain exactly
+  25 candidates. The CD4 S28e/S27e/L39e candidates remain visible at positions
+  19--21 with 48/60/60 expected copies instead of dominating the list. The
+  three selected-inventory SHA-256 values are `9cd23658…`, `c4d5dd43…`, and
+  `f7e9f672…`.
+- The A review publishes independent Matthews and MR ranks, absolute rank
+  discordance, raw metrics, and one physically informed review-priority order.
+  A truncated, stale-backend, self-asserted, or numerically altered Matthews
+  range fails before review. Finding `PH3-P1-81` records the correction.
+- At the operator's explicit request, resource adapter v2 deliberately
+  overprovisions successor MR first attempts to 8/12/16 CPUs, 32/48/64 GB, and
+  24/36/48 hours while preserving the one classified retry and 16-CPU/64-GB/
+  48-hour caps. The selected scientific TSVs are byte-identical across this
+  resource-only change. The screen/pass-2 controllers are 120/528 hours;
+  Slurm still owns aggregate admission. Finding `PH3-P1-82` records this
+  successor policy.
+- Local development is faster without weakening gates. `pytest-xdist` reduced
+  1,435 unit tests from about 3:41 to about 2:01 with embedded Nextflow tests in
+  one lock-safe group. All 98 isolated integration tests passed in about 1:27
+  instead of 5:48. Serial tasks remain available for diagnosis. CI now has six
+  parallel lanes whose union is contract-tested against every complete-gate
+  leaf; CI is required once for the exact deployment commit, not after each
+  edit.
+- The pre-acceleration implementation passed the complete locked gate. The
+  final exact tree still requires one complete locked gate after atlas
+  regeneration. If it passes, commit and push `main`, require every parallel CI
+  lane green, deploy only that source, build a fresh execution authority, and
+  stage exactly one discovery then one parent-bound screen. Do not use raw SSH
+  or reuse predecessor candidate/cache evidence.

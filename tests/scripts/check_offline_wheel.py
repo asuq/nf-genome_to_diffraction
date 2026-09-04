@@ -26,6 +26,11 @@ _REQUIRED_CODE = (
     "genome_to_diffraction/__init__.py",
     "genome_to_diffraction/cli.py",
 )
+_REQUIRED_RESOURCES = {
+    "genome_to_diffraction/matthews/data/protein_mattprob_2013.json.gz": (
+        "src/genome_to_diffraction/matthews/data/protein_mattprob_2013.json.gz"
+    ),
+}
 _INTERNAL_HPC_PREFIX = "genome_to_diffraction/hpc/"
 _NEXTFLOW_VERSION = re.compile(r"^\s*version\s*=\s*'([^']+)'\s*$", re.MULTILINE)
 _SOURCE_VERSION = re.compile(r'^__version__\s*=\s*"([^"]+)"\s*$', re.MULTILINE)
@@ -199,6 +204,17 @@ def inspect_wheel(wheel: Path, repository: Path, spec: DistributionSpec) -> str:
             raise WheelGateError(
                 f"wheel is missing package code: {', '.join(missing_code)}"
             )
+        missing_resources = sorted(set(_REQUIRED_RESOURCES) - names)
+        if missing_resources:
+            raise WheelGateError(
+                "wheel is missing required scientific resources: "
+                f"{', '.join(missing_resources)}"
+            )
+        for name, source in _REQUIRED_RESOURCES.items():
+            if archive.read(name) != (repository / source).read_bytes():
+                raise WheelGateError(
+                    f"packaged scientific resource differs from source: {name}"
+                )
         internal_hpc_members = sorted(
             name for name in names if name.startswith(_INTERNAL_HPC_PREFIX)
         )

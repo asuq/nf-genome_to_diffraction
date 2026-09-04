@@ -13,6 +13,7 @@ broader experimental/model-diversity funnel.
 import csv
 import io
 import logging
+import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -32,6 +33,15 @@ from genome_to_diffraction.localisation.batch import (
     BatchLocalisationPolicy,
     validate_catalogue_localisation_batch,
 )
+from genome_to_diffraction.matthews.enumerate import (
+    COPY_RANGE_BACKEND,
+    dynamic_copy_counts,
+    physical_status,
+)
+from genome_to_diffraction.matthews.probability import (
+    PRIOR_BACKEND,
+    probability_distribution,
+)
 from genome_to_diffraction.model_registry.all_eligible import (
     AllEligibleModelRegistryError,
     AllEligibleModelRegistryOutput,
@@ -48,7 +58,10 @@ from genome_to_diffraction.schemas.io import (
     load_json_document,
 )
 from genome_to_diffraction.schemas.manifests import PipelineConfig, PrototypeProfile
-from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
+from genome_to_diffraction.schemas.mr_resources import (
+    MR_RESOURCE_ADAPTER_VERSION,
+    MrResourcePlan,
+)
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
@@ -68,7 +81,7 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v6-single-copy"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v7-dynamic-matthews"
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
@@ -306,6 +319,159 @@ def _copy_cap(config: PipelineConfig) -> int:
     return min(profile_cap, config.matthews.max_hypotheses_per_candidate)
 
 
+def _complete_matthews_rows(
+    *,
+    group: SequenceGroupRecord,
+    rows_by_key: dict[tuple[str, str], list[MatthewsHypothesis]],
+    preflight_index: dict[str, MtzPreflightRecord],
+    selected_crystals: set[str],
+    config: PipelineConfig,
+) -> tuple[MatthewsHypothesis, ...]:
+    """Validate one complete dynamic Matthews range for every selected crystal."""
+
+    mass_lower = group.molecular_mass_da or group.molecular_mass_lower_da
+    mass_upper = group.molecular_mass_da or group.molecular_mass_upper_da
+    if mass_lower is None or mass_upper is None:
+        raise FunnelInputError(
+            f"sequence group lacks usable mass: {group.sequence_group_id}"
+        )
+    validated: list[MatthewsHypothesis] = []
+    for crystal_id in sorted(selected_crystals):
+        preflight = preflight_index[crystal_id]
+        matching = tuple(rows_by_key.get((crystal_id, group.sequence_group_id), ()))
+        expected_counts, _ = dynamic_copy_counts(
+            v_asu_a3=preflight.asu_volume_a3,
+            mass_lower_da=mass_lower,
+            mass_upper_da=mass_upper,
+            minimum_solvent_fraction=config.matthews.min_solvent_fraction,
+            maximum_solvent_fraction=config.matthews.max_solvent_fraction,
+        )
+        observed_counts = tuple(sorted(row.copy_count for row in matching))
+        if observed_counts != expected_counts:
+            raise FunnelInputError(
+                "Matthews hypothesis range is incomplete or duplicated: "
+                f"{crystal_id}/{group.sequence_group_id}"
+            )
+        distribution = probability_distribution(preflight.resolution_high_a)
+        recomputed: dict[int, tuple[PhysicalStatus, float]] = {}
+        for row in matching:
+            if row.prior_backend != PRIOR_BACKEND:
+                raise FunnelInputError(
+                    "Matthews hypotheses use a superseded probability backend"
+                )
+            if not math.isclose(
+                row.v_asu_a3,
+                preflight.asu_volume_a3,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise FunnelInputError("Matthews ASU volume differs from preflight")
+            expected_id = content_id(
+                "matthews_",
+                {
+                    "preflight_id": preflight.preflight_id,
+                    "sequence_group_id": group.sequence_group_id,
+                    "copy_count": row.copy_count,
+                    "prior_backend": PRIOR_BACKEND,
+                    "copy_range_backend": COPY_RANGE_BACKEND,
+                },
+            )
+            if row.hypothesis_id != expected_id:
+                raise FunnelInputError("Matthews hypothesis identity differs")
+            if group.molecular_mass_da is not None:
+                expected_total = group.molecular_mass_da * row.copy_count
+                expected_coefficient = preflight.asu_volume_a3 / expected_total
+                expected_solvent = 1.0 - 1.23 / expected_coefficient
+                expected_status = physical_status(
+                    expected_solvent,
+                    expected_solvent,
+                    minimum=config.matthews.min_solvent_fraction,
+                    maximum=config.matthews.max_solvent_fraction,
+                )
+                expected_prior = distribution.single_component_prior(
+                    row.copy_count,
+                    expected_solvent,
+                )
+                exact_values = (
+                    (row.sequence_mass_da, group.molecular_mass_da),
+                    (row.total_mass_da, expected_total),
+                    (row.matthews_coefficient, expected_coefficient),
+                    (row.solvent_fraction, expected_solvent),
+                )
+            else:
+                expected_total_lower = mass_lower * row.copy_count
+                expected_total_upper = mass_upper * row.copy_count
+                expected_coefficient_lower = (
+                    preflight.asu_volume_a3 / expected_total_upper
+                )
+                expected_coefficient_upper = (
+                    preflight.asu_volume_a3 / expected_total_lower
+                )
+                expected_solvent_lower = 1.0 - 1.23 / expected_coefficient_lower
+                expected_solvent_upper = 1.0 - 1.23 / expected_coefficient_upper
+                expected_status = physical_status(
+                    expected_solvent_lower,
+                    expected_solvent_upper,
+                    minimum=config.matthews.min_solvent_fraction,
+                    maximum=config.matthews.max_solvent_fraction,
+                )
+                expected_prior = distribution.single_component_interval_prior(
+                    row.copy_count,
+                    expected_solvent_lower,
+                    expected_solvent_upper,
+                )
+                exact_values = (
+                    (row.sequence_mass_lower_da, mass_lower),
+                    (row.sequence_mass_upper_da, mass_upper),
+                    (row.total_mass_lower_da, expected_total_lower),
+                    (row.total_mass_upper_da, expected_total_upper),
+                    (row.matthews_coefficient_lower, expected_coefficient_lower),
+                    (row.matthews_coefficient_upper, expected_coefficient_upper),
+                    (row.solvent_fraction_lower, expected_solvent_lower),
+                    (row.solvent_fraction_upper, expected_solvent_upper),
+                )
+            if any(
+                observed is None
+                or not math.isclose(
+                    observed,
+                    expected,
+                    rel_tol=1e-12,
+                    abs_tol=1e-12,
+                )
+                for observed, expected in exact_values
+            ):
+                raise FunnelInputError("Matthews mass or physical metrics differ")
+            if row.physical_status is not expected_status or not math.isclose(
+                row.matthews_prior,
+                expected_prior,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise FunnelInputError("Matthews status or empirical prior differs")
+            recomputed[row.copy_count] = (expected_status, expected_prior)
+        status_order = {
+            PhysicalStatus.PLAUSIBLE: 0,
+            PhysicalStatus.REVIEW: 1,
+            PhysicalStatus.IMPOSSIBLE: 2,
+        }
+        expected_order = sorted(
+            matching,
+            key=lambda item: (
+                status_order[recomputed[item.copy_count][0]],
+                -recomputed[item.copy_count][1],
+                item.copy_count,
+            ),
+        )
+        for rank, row in enumerate(expected_order, start=1):
+            if row.rank_within_candidate != rank:
+                raise FunnelInputError("Matthews candidate rank differs")
+            should_retain = rank <= config.matthews.max_hypotheses_per_candidate
+            if row.retained is not should_retain:
+                raise FunnelInputError("Matthews retention flag differs from rank")
+        validated.extend(matching)
+    return tuple(validated)
+
+
 def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     status_rank = {
         PhysicalStatus.PLAUSIBLE: 0,
@@ -350,6 +516,11 @@ def _priority_features(
         "estimated_coordinate_error": model.estimated_coordinate_error,
         "matthews_hypothesis_id": matthews.hypothesis_id,
         "matthews_prior": matthews.matthews_prior,
+        "matthews_prior_backend": matthews.prior_backend,
+        "matthews_copy_range_policy": (
+            "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+        ),
+        "matthews_copy_range_complete": True,
         "matthews_rank_within_candidate": matthews.rank_within_candidate,
         "matthews_physical_status": matthews.physical_status.value,
         "sds_page_prior_label": matthews.sds_page_prior_label,
@@ -526,6 +697,13 @@ def _join_candidates(
             "requested crystals lack MTZ preflight records: "
             + ", ".join(sorted(unknown_crystals))
         )
+    matthews_by_key: dict[tuple[str, str], list[MatthewsHypothesis]] = {}
+    for row in matthews_rows:
+        if row.crystal_id in selected_crystals:
+            matthews_by_key.setdefault(
+                (row.crystal_id, row.sequence_group_id), []
+            ).append(row)
+    validated_matthews_by_group: dict[str, tuple[MatthewsHypothesis, ...]] = {}
     per_model_copy_cap = _copy_cap(config)
     candidates: list[_Candidate] = []
     for model in models:
@@ -541,14 +719,21 @@ def _join_candidates(
                 "coordinate does not map exactly to sequence group: "
                 f"{model.coordinate_id}"
             )
+        complete_rows = validated_matthews_by_group.get(group.sequence_group_id)
+        if complete_rows is None:
+            complete_rows = _complete_matthews_rows(
+                group=group,
+                rows_by_key=matthews_by_key,
+                preflight_index=preflight_index,
+                selected_crystals=selected_crystals,
+                config=config,
+            )
+            validated_matthews_by_group[group.sequence_group_id] = complete_rows
         applicable = sorted(
             (
                 row
-                for row in matthews_rows
-                if row.sequence_group_id == group.sequence_group_id
-                and row.crystal_id in selected_crystals
-                and row.retained
-                and row.physical_status is not PhysicalStatus.IMPOSSIBLE
+                for row in complete_rows
+                if row.retained and row.physical_status is not PhysicalStatus.IMPOSSIBLE
             ),
             key=lambda row: (
                 row.crystal_id,
@@ -998,6 +1183,13 @@ def _join_diverse_candidates(
             "requested crystals lack MTZ preflight records: "
             + ", ".join(sorted(unknown_crystals))
         )
+    matthews_by_key: dict[tuple[str, str], list[MatthewsHypothesis]] = {}
+    for row in matthews_rows:
+        if row.crystal_id in selected_crystals:
+            matthews_by_key.setdefault(
+                (row.crystal_id, row.sequence_group_id), []
+            ).append(row)
+    validated_matthews_by_group: dict[str, tuple[MatthewsHypothesis, ...]] = {}
     per_model_copy_cap = _copy_cap(config)
     candidates: list[_Candidate] = []
     for model in models:
@@ -1044,14 +1236,21 @@ def _join_diverse_candidates(
                 "unsupported coordinate provider in diverse funnel: "
                 f"{coordinate.provider}"
             )
+        complete_rows = validated_matthews_by_group.get(group.sequence_group_id)
+        if complete_rows is None:
+            complete_rows = _complete_matthews_rows(
+                group=group,
+                rows_by_key=matthews_by_key,
+                preflight_index=preflight_index,
+                selected_crystals=selected_crystals,
+                config=config,
+            )
+            validated_matthews_by_group[group.sequence_group_id] = complete_rows
         applicable = sorted(
             (
                 row
-                for row in matthews_rows
-                if row.sequence_group_id == group.sequence_group_id
-                and row.crystal_id in selected_crystals
-                and row.retained
-                and row.physical_status is not PhysicalStatus.IMPOSSIBLE
+                for row in complete_rows
+                if row.retained and row.physical_status is not PhysicalStatus.IMPOSSIBLE
             ),
             key=lambda row: (
                 row.crystal_id,
@@ -1060,6 +1259,10 @@ def _join_diverse_candidates(
                 row.copy_count,
             ),
         )
+        if any(row.prior_backend != PRIOR_BACKEND for row in applicable):
+            raise FunnelInputError(
+                "Matthews hypotheses use a superseded probability backend"
+            )
         per_crystal_counts: dict[str, int] = {}
         for row in applicable:
             used = per_crystal_counts.get(row.crystal_id, 0)
@@ -1476,8 +1679,16 @@ def build_diverse_first_copy_funnel(
         {
             "copy_search_mode": "single_copy_then_sequential_completion",
             "initial_searched_copy_count": 1,
-            "expected_copy_count_minimum": config.matthews.min_copy_count,
-            "expected_copy_count_maximum": config.matthews.max_copy_count,
+            "expected_copy_count_policy": (
+                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+            ),
+            "matthews_prior_backend": PRIOR_BACKEND,
+            "matthews_copy_range_backend": COPY_RANGE_BACKEND,
+            "matthews_copy_range_complete": True,
+            "matthews_copy_range_validation": (
+                "rederived_from_preflight_sequence_mass_and_solvent_bounds"
+            ),
+            "static_expected_copy_count_ceiling": None,
             "localisation_policy_id": (
                 localisation_policy.policy_id
                 if localisation_policy is not None
@@ -1496,7 +1707,7 @@ def build_diverse_first_copy_funnel(
                 deferred_localisation_jsonl,
                 progress=False,
             ),
-            "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+            "mr_resource_plan_adapter": MR_RESOURCE_ADAPTER_VERSION,
             "mr_resource_plan_count": len(resource_plan_by_hypothesis),
             "mr_resource_plans_sha256": sha256_file(
                 cast(Path, resource_plans_jsonl),

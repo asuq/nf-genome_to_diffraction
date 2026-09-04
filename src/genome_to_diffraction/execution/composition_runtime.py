@@ -60,6 +60,7 @@ from genome_to_diffraction.mr_resources import (
 )
 from genome_to_diffraction.schemas.base import NonEmptyString, Sha256Hex
 from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
+from genome_to_diffraction.schemas.mr_resources import MR_RESOURCE_ADAPTER_VERSION
 from genome_to_diffraction.schemas.results import (
     NormalisedMrResult,
     SequenceGroupRecord,
@@ -239,7 +240,7 @@ def _verify_execution_authority(
         "phase3_all_model_registry": "all-eligible-model-registry-v3",
         "phase3_composition_attempt": _ADAPTER_VERSION,
         "phase3_component_coordinates": _PLACEMENT_ADAPTER_VERSION,
-        "phase3_mr_resources": "phase3-mr-resource-allocation-v1",
+        "phase3_mr_resources": MR_RESOURCE_ADAPTER_VERSION,
         route_name: route_version,
     }
     if any(

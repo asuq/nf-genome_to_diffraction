@@ -56,6 +56,10 @@ remain authoritative for scientific policy and interface contracts.
 - [Dynamic Phaser resource allocation](mr-resource-allocation.md): deterministic
   reflection/coordinate workload tiers, nf-core-style retry multiplication,
   hard site caps, provenance, failure semantics, and controller bounds.
+- [Dynamic, resolution-aware Matthews priors](matthews-probability.md):
+  checksum-pinned empirical solvent density, soft ASU-copy frequency weighting,
+  candidate-specific copy ranges without a scientific ceiling, claim limits,
+  and focused/frozen-input verification.
 - [Failed MR child evidence](failed-mr-child-evidence.md): private bounded
   post-failure task inventory, resource/log/result retention, checksum-authenticated
   collection, and the explicit prohibition on scientific or cache promotion.
@@ -71,7 +75,7 @@ remain authoritative for scientific policy and interface contracts.
   Nextflow execution, and byte-identical cached-resume evidence.
 - [Phase III multi-crystal first-copy application](phase-iii-multicrystal-first-copy.md):
   one shared catalogue/provider preparation, independent manifest-owned
-  crystal funnels, complete joint-A attempts, and separate unapproved reviews.
+  crystal funnels, bounded one-copy A attempts, and separate unapproved reviews.
 - [Phase III complete-catalogue Foldseek batching](phase-iii-foldseek-batching.md):
   deterministic 128-query Nextflow items, one high-memory task at a time,
   exact catalogue coverage, retained raw evidence, and cached replay.

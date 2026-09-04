@@ -15,6 +15,7 @@ import pytest
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
     PhaseIIISeedStageRequest,
@@ -40,7 +41,14 @@ from genome_to_diffraction.review import (
     validate_mr_seed_approvals,
     validate_phase3_review_package,
 )
-from genome_to_diffraction.review.mr_seed import validate_mr_seed_review_evidence
+from genome_to_diffraction.review.mr_seed import (
+    _Bundle,
+    _Candidate,
+    _candidate_sort_key,
+    _matthews_sort_key,
+    _mr_sort_key,
+    validate_mr_seed_review_evidence,
+)
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import PrototypeProfile
 from genome_to_diffraction.schemas.results import (
@@ -51,6 +59,8 @@ from genome_to_diffraction.schemas.results import (
     NormalisedMrResult,
     PhysicalStatus,
     ReviewDecisionManifest,
+    SequenceGroupRecord,
+    SourceProteinRecord,
 )
 from genome_to_diffraction.schemas.v2 import (
     PhaseIIIExecutionIdentity,
@@ -91,6 +101,11 @@ def _hypothesis(
         resource_profile=PrototypeProfile.PILOT,
         priority_features={
             "matthews_hypothesis_id": "matthews_stub",
+            "matthews_prior_backend": PRIOR_BACKEND,
+            "matthews_copy_range_policy": (
+                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+            ),
+            "matthews_copy_range_complete": True,
             "structural_source_class": "predicted",
             "coordinate_provider_accession": "AF-STUB-F1",
             "exact_sequence_mapping": True,
@@ -112,7 +127,7 @@ def _matthews(*, crystal_id: str = "test_crystal_01") -> MatthewsHypothesis:
         matthews_coefficient=2.4,
         solvent_fraction=0.49,
         matthews_prior=0.75,
-        prior_backend="test-prior",
+        prior_backend=PRIOR_BACKEND,
         rank_within_candidate=1,
         retained=True,
         physical_status=PhysicalStatus.PLAUSIBLE,
@@ -534,6 +549,11 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert rows[0]["inspectable_solution"] == "True"
     assert rows[0]["llg"] == "111.0"
     assert rows[0]["tfz"] == "11.0"
+    assert rows[0]["review_priority_rank"] == "1"
+    assert rows[0]["mr_rank"] == "1"
+    assert rows[0]["matthews_rank"] == "1"
+    assert rows[0]["rank_discordance"] == "0"
+    assert rows[0]["rank_discordant"] == "False"
     assert rows[0]["source_loci"] == "example_archaeon_refseq:stub_protein"
     assert (output.manifest_json.parent / rows[0]["solution_coordinate"]).is_file()
     assert "not a calibrated probability" in output.review_html.read_text(
@@ -549,6 +569,8 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert manifest["numeric_screen_excludes_candidates"] is False
     assert manifest["approval_requires_explicit_human_decision"] is True
     assert manifest["inspectable_solution_count"] == 1
+    assert manifest["matthews_prior_backend"] == PRIOR_BACKEND
+    assert manifest["matthews_copy_range_requirement"] == "complete_dynamic_range"
     template = load_contract(
         output.approval_template_tsv,
         "review-decisions",
@@ -556,6 +578,65 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     )
     assert isinstance(template, ReviewDecisionManifest)
     assert template.decisions == ()
+
+
+def test_review_priority_does_not_let_mr_only_rank_override_matthews() -> None:
+    group = SequenceGroupRecord.model_validate_json(
+        (STUBS / "sequence_groups.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    source = SourceProteinRecord.model_validate_json(
+        (STUBS / "source_records.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    bundle = _Bundle(
+        directory_name="synthetic",
+        file_paths={
+            "solution_coordinate": Path("solution.pdb"),
+            "output_mtz": Path("solution.mtz"),
+        },
+        file_sha256={},
+    )
+    mr_only = _Candidate(
+        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "1" * 64),
+        result=_result(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
+            update={"llg": 120.0, "tfz": 12.0}
+        ),
+        sequence_group=group,
+        sources=(source,),
+        matthews=_matthews().model_copy(
+            update={
+                "matthews_prior": 0.01,
+                "physical_status": PhysicalStatus.REVIEW,
+            }
+        ),
+        funnel_entry={},
+        funnel_order=1,
+        bundle=bundle,
+        solution_id="sol_" + "1" * 64,
+        solution_identity={},
+    )
+    asu_supported = _Candidate(
+        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "2" * 64),
+        result=_result(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
+            update={"llg": 60.0, "tfz": 7.0}
+        ),
+        sequence_group=group,
+        sources=(source,),
+        matthews=_matthews().model_copy(
+            update={
+                "matthews_prior": 0.95,
+                "physical_status": PhysicalStatus.PLAUSIBLE,
+            }
+        ),
+        funnel_entry={},
+        funnel_order=2,
+        bundle=bundle,
+        solution_id="sol_" + "2" * 64,
+        solution_identity={},
+    )
+
+    assert sorted((mr_only, asu_supported), key=_mr_sort_key)[0] is mr_only
+    assert sorted((mr_only, asu_supported), key=_matthews_sort_key)[0] is asu_supported
+    assert sorted((mr_only, asu_supported), key=_candidate_sort_key)[0] is asu_supported
 
 
 def test_no_model_funnel_emits_an_honest_empty_mr_seed_review(
@@ -747,6 +828,7 @@ def test_cli_builds_owned_phase3_a_review_from_exact_execution_evidence(
     assert validate_phase3_review_package(destination).crystal_id == crystal_id
 
 
+@pytest.mark.xdist_group("nextflow")
 def test_owned_a_review_tasks_keep_crystals_and_no_model_outcomes_independent(
     tmp_path: Path,
 ) -> None:
@@ -1262,6 +1344,7 @@ def test_cli_passes_canonical_phase3_a_approval_to_same_component_stage(
         PhaseIIIReviewDecisionValue.DEFER,
     ),
 )
+@pytest.mark.xdist_group("nextflow")
 def test_phase3_a_decision_controls_the_actual_same_component_process(
     tmp_path: Path,
     decision: PhaseIIIReviewDecisionValue,
@@ -1385,6 +1468,7 @@ def test_phase3_a_decision_controls_the_actual_same_component_process(
     assert {row["hash"] for row in cached} == {row["hash"] for row in first}
 
 
+@pytest.mark.xdist_group("nextflow")
 def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
     tmp_path: Path,
 ) -> None:
@@ -1640,6 +1724,7 @@ def test_reviewed_crystals_stage_and_resume_without_cross_consuming_decisions(
 
 
 @pytest.mark.parametrize("single_component_parent", (None, "gtd-owned-screen"))
+@pytest.mark.xdist_group("nextflow")
 def test_phase3_application_requires_distinct_owned_final_review_parent(
     tmp_path: Path,
     single_component_parent: str | None,
@@ -1712,6 +1797,7 @@ def test_phase3_application_requires_distinct_owned_final_review_parent(
             assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
 
 
+@pytest.mark.xdist_group("nextflow")
 def test_application_roots_reject_cross_authority_parameters(tmp_path: Path) -> None:
     environment = dict(os.environ)
     environment.update(
@@ -1794,6 +1880,7 @@ def test_application_roots_reject_cross_authority_parameters(tmp_path: Path) -> 
 
 
 @pytest.mark.parametrize("operation", ("provider_discovery", "first_copy"))
+@pytest.mark.xdist_group("nextflow")
 def test_phase3_application_refuses_missing_localisation_authority(
     tmp_path: Path,
     operation: str,
@@ -1876,6 +1963,7 @@ def test_phase3_application_refuses_missing_localisation_authority(
             assert tuple(csv.DictReader(stream, delimiter="\t")) == ()
 
 
+@pytest.mark.xdist_group("nextflow")
 def test_phase3_application_continues_owned_reviewed_crystals_independently(
     tmp_path: Path,
 ) -> None:

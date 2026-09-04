@@ -58,6 +58,7 @@ from genome_to_diffraction.ranking import (
     build_registry_bound_composition_expansion_plan,
 )
 from genome_to_diffraction.schemas.manifests import GelEvidenceManifest
+from genome_to_diffraction.schemas.mr_resources import MR_RESOURCE_ADAPTER_VERSION
 from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     NormalisedMrResult,
@@ -385,7 +386,7 @@ def build_composition_depth_inputs(
         "phase3_composition_attempt": (
             "phase3-composition-attempt-execution-v2-resource-plan"
         ),
-        "phase3_mr_resources": "phase3-mr-resource-allocation-v1",
+        "phase3_mr_resources": MR_RESOURCE_ADAPTER_VERSION,
         "phase3_composition_beam": "phase3-composition-beam-depth-v1",
         "phase3_composition_depth": _ADAPTER_VERSION,
     }
@@ -441,6 +442,7 @@ def build_composition_depth_inputs(
         ParentMatthewsContext(
             parent_state_id=state.state_id,
             asu_volume_a3=matching_preflight[0].asu_volume_a3,
+            resolution_high_a=matching_preflight[0].resolution_high_a,
             minimum_solvent_fraction=0.45,
             maximum_solvent_fraction=0.75,
             source_evidence_sha256=sha256_file(request.preflight_jsonl),

@@ -115,21 +115,11 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "min_copy_count",
-        "max_copy_count",
         "max_hypotheses_per_candidate",
         "min_solvent_fraction",
         "max_solvent_fraction"
       ],
       "properties": {
-        "min_copy_count": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "max_copy_count": {
-          "type": "integer",
-          "minimum": 1
-        },
         "max_hypotheses_per_candidate": {
           "type": "integer",
           "minimum": 1

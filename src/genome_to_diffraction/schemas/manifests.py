@@ -210,19 +210,15 @@ class ProvidersConfig(ContractModel):
 class MatthewsConfig(ContractModel):
     """Candidate-specific copy enumeration controls."""
 
-    min_copy_count: PositiveInt
-    max_copy_count: PositiveInt
     max_hypotheses_per_candidate: PositiveInt
     min_solvent_fraction: float = Field(ge=0, le=1)
     max_solvent_fraction: float = Field(ge=0, le=1)
 
     @model_validator(mode="after")
     def _ordered_bounds(self) -> Self:
-        if self.min_copy_count > self.max_copy_count:
-            raise ValueError("min_copy_count must not exceed max_copy_count")
-        if self.min_solvent_fraction > self.max_solvent_fraction:
+        if self.min_solvent_fraction >= self.max_solvent_fraction:
             raise ValueError(
-                "min_solvent_fraction must not exceed max_solvent_fraction"
+                "min_solvent_fraction must be less than max_solvent_fraction"
             )
         return self
 

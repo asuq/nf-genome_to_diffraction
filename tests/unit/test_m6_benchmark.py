@@ -1890,8 +1890,6 @@ def _prepared_manifest(
                 "afdb_exact": {"enabled": False, "max_hits": 1},
             },
             "matthews": {
-                "min_copy_count": 1,
-                "max_copy_count": 16,
                 "max_hypotheses_per_candidate": 4,
                 "min_solvent_fraction": 0.1,
                 "max_solvent_fraction": 0.9,

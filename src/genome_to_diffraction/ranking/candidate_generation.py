@@ -46,7 +46,11 @@ from genome_to_diffraction.localisation.policy import (
 from genome_to_diffraction.localisation.policy import (
     first_wave_disposition as localisation_first_wave_disposition,
 )
-from genome_to_diffraction.matthews.enumerate import physical_status, prior_score
+from genome_to_diffraction.matthews.enumerate import physical_status
+from genome_to_diffraction.matthews.probability import (
+    SOLVENT_DENSITY_BACKEND,
+    probability_distribution,
+)
 from genome_to_diffraction.model_registry.all_eligible import (
     AllEligibleModelEntry,
     AllEligibleModelRegistry,
@@ -84,8 +88,8 @@ from genome_to_diffraction.schemas.v2.composition import (
 )
 from genome_to_diffraction.status import InputContractError
 
-_GENERATOR_VERSION = "phase3-component-candidate-generation-v1"
-_MATTHEWS_BACKEND = "broad_solvent_centrality_total_composition_v1_uncalibrated"
+_GENERATOR_VERSION = "phase3-component-candidate-generation-v2-mattprob"
+_MATTHEWS_BACKEND = SOLVENT_DENSITY_BACKEND
 _SOLVENT_MASS_DENSITY_DA_PER_A3 = 1.23
 _COMPONENT_LABELS = ("A", "B", "C", "D", "E", "F")
 _COPY_COUNTS = (1, 2, 3, 4)
@@ -102,14 +106,13 @@ class CandidateGenerationError(InputContractError):
 
 
 class ParentMatthewsContext(ContractModel):
-    """Parent-bound ASU volume and broad solvent bounds for copies 1--4."""
+    """Parent-bound ASU volume, resolution, and solvent bounds for copies 1--4."""
 
     schema_version: Literal["2.0"] = "2.0"
-    backend: Literal["broad_solvent_centrality_total_composition_v1_uncalibrated"] = (
-        _MATTHEWS_BACKEND
-    )
+    backend: Literal["mattprob_kde_2013_resolution_cumulative_v1"] = _MATTHEWS_BACKEND
     parent_state_id: CompositionStateIdentifier
     asu_volume_a3: PositiveFloat
+    resolution_high_a: PositiveFloat
     minimum_solvent_fraction: float = Field(ge=0, lt=1)
     maximum_solvent_fraction: float = Field(gt=0, le=1)
     source_evidence_sha256: Sha256Hex
@@ -138,9 +141,7 @@ class TotalCompositionCopyEvidence(ContractModel):
     """One candidate-copy Matthews assessment using the complete parent mass."""
 
     schema_version: Literal["2.0"] = "2.0"
-    backend: Literal["broad_solvent_centrality_total_composition_v1_uncalibrated"] = (
-        _MATTHEWS_BACKEND
-    )
+    backend: Literal["mattprob_kde_2013_resolution_cumulative_v1"] = _MATTHEWS_BACKEND
     parent_state_id: CompositionStateIdentifier
     sequence_group_id: SequenceGroupIdentifier
     copy_count: PositiveInt = Field(le=4)
@@ -353,7 +354,7 @@ class ComponentExpansionInputInventory(ContractModel):
     _identity_prefix: ClassVar[str] = "compinputgen_"
 
     schema_version: Literal["2.0"] = "2.0"
-    generator_version: Literal["phase3-component-candidate-generation-v1"] = (
+    generator_version: Literal["phase3-component-candidate-generation-v2-mattprob"] = (
         _GENERATOR_VERSION
     )
     inventory_id: NonEmptyString
@@ -847,10 +848,9 @@ def _total_composition_evidence(
             minimum=context.minimum_solvent_fraction,
             maximum=context.maximum_solvent_fraction,
         )
-        prior = prior_score(
-            (solvent_lower + solvent_upper) / 2.0,
-            minimum=context.minimum_solvent_fraction,
-            maximum=context.maximum_solvent_fraction,
+        prior = probability_distribution(context.resolution_high_a).score_interval(
+            solvent_lower,
+            solvent_upper,
         )
         rows.append(
             TotalCompositionCopyEvidence(

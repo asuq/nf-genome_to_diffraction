@@ -42,7 +42,9 @@ crystal-qualified directory. It independently validates complete catalogue
 coverage, binds the localisation policy and per-group evidence into hypothesis
 identities, ranks active before neutral groups, and retains first-wave
 exclusions without scheduling them.
-Joint search retains the existing copy-count and maximum-25-hypothesis policy.
+Each crystal retains candidate-specific Matthews copy expectations without a
+configured scientific ceiling, but every initial task searches one copy. The
+maximum-25-hypothesis execution policy is unchanged.
 Every `RUN_PHASE3_FIRST_COPY_PHASER` item includes its own crystal ID, exact
 MTZ, selected hypothesis, complete model registry, preflight records, shared
 catalogue/provider, and Phenix installation identity. The existing

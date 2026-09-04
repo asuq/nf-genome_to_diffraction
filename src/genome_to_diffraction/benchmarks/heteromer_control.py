@@ -44,6 +44,8 @@ from genome_to_diffraction.ids import (
     canonical_sequence,
     content_id,
 )
+from genome_to_diffraction.matthews.enumerate import COPY_RANGE_BACKEND, prior_score
+from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
     prepare_live_add_copy_stage,
@@ -586,6 +588,8 @@ def _prepare_heteromer_control(
             "sequence_group_id": parent_group.sequence_group_id,
             "copy_count": definition.parent_copy_count,
             "mtz_sha256": sha256_file(mtz_path),
+            "prior_backend": PRIOR_BACKEND,
+            "copy_range_backend": COPY_RANGE_BACKEND,
         },
     )
     hypothesis = MrHypothesis(
@@ -608,6 +612,12 @@ def _prepare_heteromer_control(
             "candidate_source_sequence_identity": 1.0,
             "control_role": f"fixed_{definition.crystal_id.lower()}_parent_A",
             "matthews_hypothesis_id": matthews_id,
+            "matthews_prior_backend": PRIOR_BACKEND,
+            "matthews_copy_range_policy": (
+                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+            ),
+            "matthews_copy_range_complete": False,
+            "matthews_copy_range_exemption": "fixed_known_control",
         },
         status=MrHypothesisStatus.QUEUED,
     )
@@ -780,8 +790,6 @@ def _control_pipeline_config() -> PipelineConfig:
                 "afdb_exact": {"enabled": False, "max_hits": 0},
             },
             "matthews": {
-                "min_copy_count": 1,
-                "max_copy_count": 4,
                 "max_hypotheses_per_candidate": 4,
                 "min_solvent_fraction": 0.10,
                 "max_solvent_fraction": 0.90,
@@ -892,8 +900,12 @@ def build_6rtz_control_review(
         v_asu_a3=asu_volume,
         matthews_coefficient=coefficient,
         solvent_fraction=solvent_fraction,
-        matthews_prior=1.0,
-        prior_backend="fixed_6rtz_control",
+        matthews_prior=prior_score(
+            solvent_fraction,
+            resolution_high_a=mtz.resolution_high(),
+            copy_count=1,
+        ),
+        prior_backend=PRIOR_BACKEND,
         rank_within_candidate=1,
         retained=True,
         physical_status=PhysicalStatus.PLAUSIBLE,

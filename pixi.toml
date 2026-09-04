@@ -31,6 +31,7 @@ rfc8785 = ">=0.1,<1"
 
 [feature.dev.dependencies]
 pytest = ">=8.4,<9"
+pytest-xdist = ">=3.8,<4"
 ruff = ">=0.12,<1"
 ty = ">=0.0.54,<0.1"
 actionlint = ">=1.7,<2"
@@ -59,10 +60,13 @@ format = "ruff format src tests"
 format-check = "ruff format --check src tests"
 lint = "ruff check src tests"
 typecheck = "ty check"
-test-unit = "pytest --basetemp=/tmp/nf-gtd-pytest-unit -q tests/unit"
+test-unit = "pytest -n auto --dist loadgroup --basetemp=/tmp/nf-gtd-pytest-unit -q tests/unit"
+test-unit-serial = "pytest --basetemp=/tmp/nf-gtd-pytest-unit-serial -q tests/unit"
 test-contract = "pytest --basetemp=/tmp/nf-gtd-pytest-contract -q tests/contract"
-test-integration = "pytest --basetemp=/tmp/nf-gtd-pytest-integration -q tests/integration"
+test-integration = "pytest -n auto --dist worksteal --basetemp=/tmp/nf-gtd-pytest-integration -q tests/integration"
+test-integration-serial = "pytest --basetemp=/tmp/nf-gtd-pytest-integration-serial -q tests/integration"
 test = { depends-on = ["test-unit", "test-contract", "test-integration"] }
+check-fast = { depends-on = ["format-check", "lint", "typecheck", "test-unit", "test-contract", "schema-check", "docs-check"] }
 schema-check = "genome-to-diffraction schema-check"
 docs-check = "python tests/scripts/check_docs.py"
 docs-atlas-inventory = "python tools/docs_atlas/build_inventory.py"

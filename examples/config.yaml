@@ -26,11 +26,9 @@ providers:
     max_hits: 1
 
 matthews:
-  min_copy_count: 1
-  max_copy_count: 16
-  # Both Phenix and the transparent pipeline prior rank the known two-copy
-  # 8OOX positive control fourth. Retaining four is an execution-safety cap,
-  # not a fitted probability or a change to the broad ranking heuristic.
+  # Retain the four strongest resolution-aware hypotheses for each candidate.
+  # The complete candidate-specific copy range is derived from ASU volume,
+  # sequence mass, and the solvent bounds below; there is no static copy cap.
   max_hypotheses_per_candidate: 4
   min_solvent_fraction: 0.10
   max_solvent_fraction: 0.90

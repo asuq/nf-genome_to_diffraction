@@ -30,7 +30,7 @@ retained plan with
 `genome-to-diffraction contract validate mr-resource-plan PLAN.json`.
 
 Missing, non-positive, malformed, or contradictory measurements fail before
-Phaser execution. The version-1 formula is:
+Phaser execution. Version 2 retains the same formula:
 
 ```text
 reflection_count
@@ -44,15 +44,19 @@ evidence.
 
 | First-attempt tier | Workload score | CPUs | Memory | Time |
 | --- | ---: | ---: | ---: | ---: |
-| Standard | up to 1,000,000,000 | 4 | 16 GB | 12 h |
-| Heavy | over 1,000,000,000 through 10,000,000,000 | 6 | 24 GB | 18 h |
-| Very heavy | over 10,000,000,000 | 8 | 32 GB | 24 h |
+| Standard | up to 1,000,000,000 | 8 | 32 GB | 24 h |
+| Heavy | over 1,000,000,000 through 10,000,000,000 | 12 | 48 GB | 36 h |
+| Very heavy | over 10,000,000,000 | 16 | 64 GB | 48 h |
 
 The fixed public controls anchor the initial operational bands. Representative
 scores are approximately 0.056 billion for 3W45, 0.139 billion for 6P1F,
 0.399 billion for 1JCF, 2.090 billion for the two-copy 8OOX search, and
 16.952 billion for the first two-copy 3U7Q component. Unknown outcomes were not
-used to choose scientific or resource thresholds.
+used to choose scientific thresholds. After the first full unknown screen
+demonstrated that Phaser receives `phaser.keywords.general.jobs=task.cpus` and
+uses its assigned CPUs, the operator explicitly chose to overprovision the
+successor screen to reduce elapsed time. The workload boundaries remain
+unchanged; only first-attempt resources and the cache identity advance.
 
 ## Retry contract
 
@@ -62,9 +66,9 @@ rule `first_attempt_resource * task.attempt`, bounded at 16 CPUs, 64 GB, and
 
 | Tier | Attempt 1 | Attempt 2 |
 | --- | --- | --- |
-| Standard | 4 CPU / 16 GB / 12 h | 8 CPU / 32 GB / 24 h |
-| Heavy | 6 CPU / 24 GB / 18 h | 12 CPU / 48 GB / 36 h |
-| Very heavy | 8 CPU / 32 GB / 24 h | 16 CPU / 64 GB / 48 h |
+| Standard | 8 CPU / 32 GB / 24 h | 16 CPU / 64 GB / 48 h |
+| Heavy | 12 CPU / 48 GB / 36 h | 16 CPU / 64 GB / 48 h |
+| Very heavy | 16 CPU / 64 GB / 48 h | 16 CPU / 64 GB / 48 h |
 
 A retry is allowed only for exit 75 transient infrastructure failure or the
 nf-core scheduler/resource interruption ranges 104, 130--145, and 175--177.
@@ -96,14 +100,14 @@ version.
 
 The fixed Marmic controllers allow the maximum 48-hour child retry to finish:
 
-- unknown screen: 96 hours;
+- unknown screen: 120 hours;
 - reviewed single-component continuation: 120 hours; and
-- five-depth pass 2: 384 hours, comprising five possible 72-hour
-  first-attempt-plus-retry depth paths and one day for orchestration/replay.
+- five-depth pass 2: 528 hours, comprising five possible 96-hour
+  first-attempt-plus-retry depth paths and two days for orchestration/replay.
 
 Slurm owns aggregate admission. No `maxForks` or executor queue cap limits the
-number of emitted scientific hypotheses. The active source-bound Marmic run
-predating this policy is unchanged and cannot reuse these future task caches.
+number of emitted scientific hypotheses. Historical Marmic runs predating this
+policy remain unchanged and cannot reuse these successor task caches.
 
 ## Validation
 
@@ -115,5 +119,5 @@ retry classification, and absence of Phase III `maxForks`. Cached Nextflow
 stubs preserve task identities. A focused live local fixture proves that an
 exit-75 first attempt is retried at doubled CPU/memory/time and that the
 successful second attempt is reused as `CACHED` on canonical resume.
-Exact-source Marmic qualification must still confirm the emitted 4/6/8-CPU
+Exact-source Marmic qualification must still confirm the emitted 8/12/16-CPU
 first attempts and any observed scheduler/resource retry before release.

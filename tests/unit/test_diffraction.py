@@ -36,6 +36,7 @@ from genome_to_diffraction.schemas.manifests import (
 from genome_to_diffraction.schemas.results import (
     AssessmentStatus,
     MtzPreflightRecord,
+    PhysicalStatus,
     PreflightDecision,
     SequenceGroupRecord,
     SourceProteinRecord,
@@ -615,7 +616,32 @@ def test_matthews_known_cell_mass_and_copy_example() -> None:
     assert copy_two.matthews_coefficient == pytest.approx(2.5)
     assert copy_two.solvent_fraction == pytest.approx(0.508)
     assert copy_two.sds_page_prior_label == "strong"
-    assert sum(row.retained for row in rows) == 4
+    assert {row.copy_count for row in rows} == {1, 2, 3}
+    assert copy_two.rank_within_candidate == 1
+    assert sum(row.retained for row in rows) == 3
+
+
+def test_empirical_copy_prior_prevents_high_copy_small_protein_domination() -> None:
+    large_rows = enumerate_group(
+        _sequence_group(exact_mass=50_000),
+        _crystal(Path("input.mtz")),
+        _preflight(),
+        _config(),
+    )
+    small_rows = enumerate_group(
+        _sequence_group(exact_mass=5_000),
+        _crystal(Path("input.mtz")),
+        _preflight(),
+        _config(),
+    )
+
+    assert max(row.copy_count for row in small_rows) > 16
+    assert max(row.matthews_prior for row in large_rows) > (
+        max(row.matthews_prior for row in small_rows) * 10
+    )
+    assert all(
+        row.physical_status is not PhysicalStatus.IMPOSSIBLE for row in small_rows[:3]
+    )
 
 
 def test_python_matthews_matches_preserved_xtriage_reference_fixture() -> None:
@@ -822,5 +848,6 @@ def test_cli_preflight_to_matthews_outputs_all_copy_counts(tmp_path: Path) -> No
         == 0
     )
     table = pl.read_parquet(matthews_output / "matthews_hypotheses.parquet")
-    assert table.height == 16
-    assert table.filter(pl.col("retained")).height == 4
+    assert table.height == 3
+    assert set(table["copy_count"].to_list()) == {1, 2, 3}
+    assert table.filter(pl.col("retained")).height == 3

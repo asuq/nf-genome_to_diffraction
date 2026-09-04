@@ -402,6 +402,7 @@ def generation_case(tmp_path: Path) -> _GenerationCase:
         ParentMatthewsContext(
             parent_state_id=parent.state.state_id,
             asu_volume_a3=250_000.0,
+            resolution_high_a=2.0,
             minimum_solvent_fraction=0.45,
             maximum_solvent_fraction=0.75,
             source_evidence_sha256=_sha(400 + parent.parent_rank),

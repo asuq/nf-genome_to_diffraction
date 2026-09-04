@@ -217,7 +217,7 @@ def _request(
         search_model=model,
         phenix_manifest=STUBS / "phenix_install_manifest.json",
         output_directory=tmp_path / "add copy output",
-        threads=8,
+        threads=16,
         progress=False,
     )
 
@@ -251,7 +251,7 @@ def _fake_runtime(
         assert "solution_at_origin = True" in parameters
         assert "model_id = search_copy" in parameters
         assert "copies = 1" in parameters
-        assert "jobs = 8" in parameters
+        assert "jobs = 16" in parameters
         assert 'pdb = "' in parameters
         assert 'hklin = "' in parameters
         (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")

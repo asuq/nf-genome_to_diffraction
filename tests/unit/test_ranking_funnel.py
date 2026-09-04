@@ -9,6 +9,11 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.matthews.enumerate import (
+    COPY_RANGE_BACKEND,
+    enumerate_group,
+)
+from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.model_registry import load_all_eligible_model_registry
 from genome_to_diffraction.ranking import (
     DiverseFirstCopyFunnelRequest,
@@ -17,14 +22,17 @@ from genome_to_diffraction.ranking import (
     build_diverse_first_copy_funnel,
     build_exact_predicted_funnel,
 )
+from genome_to_diffraction.schemas.io import load_contract
+from genome_to_diffraction.schemas.manifests import CrystalEntry, PipelineConfig
 from genome_to_diffraction.schemas.results import (
     CoordinateHitMappingRecord,
     CoordinateSourceRecord,
     MatthewsHypothesis,
     MrHypothesis,
     MrHypothesisStatus,
-    PhysicalStatus,
+    MtzPreflightRecord,
     ProcessedModelRecord,
+    SequenceGroupRecord,
 )
 from tests.support.unknown_pass1_fixture import (
     materialise_neutral_localisation_fixture,
@@ -55,33 +63,6 @@ def _coordinate(path: Path) -> None:
     path.write_text(f"{canonical_json_text(record)}\n", encoding="utf-8")
 
 
-def _matthews(
-    *,
-    copy_count: int,
-    rank: int,
-    physical_status: PhysicalStatus,
-    retained: bool = True,
-) -> MatthewsHypothesis:
-    return MatthewsHypothesis(
-        schema_version="1.0",
-        hypothesis_id=f"matthews_{copy_count}",
-        crystal_id="test_crystal_01",
-        sequence_group_id=SEQUENCE_GROUP_ID,
-        copy_count=copy_count,
-        sequence_mass_da=436.4375,
-        total_mass_da=436.4375 * copy_count,
-        v_asu_a3=250_000,
-        matthews_coefficient=250_000 / (436.4375 * copy_count),
-        solvent_fraction=0.50,
-        matthews_prior=1.0 - rank / 10,
-        prior_backend="test-prior",
-        rank_within_candidate=rank,
-        retained=retained,
-        physical_status=physical_status,
-        sds_page_prior_label="unavailable",
-    )
-
-
 def _request(
     tmp_path: Path, *, first_copy_cap: int = 200
 ) -> ExactPredictedFunnelRequest:
@@ -89,28 +70,48 @@ def _request(
     shutil.copytree(STUBS / "predicted_model_preparation", model_preparation)
     coordinates = tmp_path / "coordinate sources.jsonl"
     _coordinate(coordinates)
-    matthews = tmp_path / "Matthews hypotheses.jsonl"
-    rows = (
-        _matthews(copy_count=1, rank=1, physical_status=PhysicalStatus.PLAUSIBLE),
-        _matthews(copy_count=2, rank=2, physical_status=PhysicalStatus.IMPOSSIBLE),
-        _matthews(copy_count=3, rank=3, physical_status=PhysicalStatus.REVIEW),
-        _matthews(
-            copy_count=4,
-            rank=4,
-            physical_status=PhysicalStatus.PLAUSIBLE,
-            retained=False,
-        ),
-    )
-    matthews.write_text(
-        "".join(f"{canonical_json_text(row)}\n" for row in rows),
-        encoding="utf-8",
-    )
     config = tmp_path / "config.yaml"
     config_text = (REPOSITORY / "examples/config.yaml").read_text(encoding="utf-8")
     config.write_text(
         config_text.replace(
             "max_first_copy_jobs: 200", f"max_first_copy_jobs: {first_copy_cap}"
+        )
+        .replace("max_hypotheses_per_candidate: 4", "max_hypotheses_per_candidate: 3")
+        .replace("min_solvent_fraction: 0.10", "min_solvent_fraction: 0.50")
+        .replace("max_solvent_fraction: 0.90", "max_solvent_fraction: 0.85"),
+        encoding="utf-8",
+    )
+    preflight_path = tmp_path / "mtz_preflight.jsonl"
+    preflight_document = json.loads(
+        (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
+    )
+    preflight_document["asu_volume_a3"] = 6_000.0
+    preflight_document["cell_volume_a3"] = 24_000.0
+    preflight_document["unit_cell"] = [20.0, 30.0, 40.0, 90.0, 90.0, 90.0]
+    preflight_path.write_text(
+        f"{canonical_json_text(preflight_document)}\n",
+        encoding="utf-8",
+    )
+    group = SequenceGroupRecord.model_validate_json(
+        (STUBS / "sequence_groups.jsonl").read_text(encoding="utf-8").strip()
+    )
+    preflight = MtzPreflightRecord.model_validate(preflight_document)
+    config_model = load_contract(config, "pipeline-config", progress=False)
+    assert isinstance(config_model, PipelineConfig)
+    rows = enumerate_group(
+        group,
+        CrystalEntry(
+            crystal_id="test_crystal_01",
+            mtz="input.mtz",
+            catalogue_id="example_archaeon_refseq",
+            allow_remote_sequence_submission=False,
         ),
+        preflight,
+        config_model,
+    )
+    matthews = tmp_path / "Matthews hypotheses.jsonl"
+    matthews.write_text(
+        "".join(f"{canonical_json_text(row)}\n" for row in rows),
         encoding="utf-8",
     )
     return ExactPredictedFunnelRequest(
@@ -121,7 +122,7 @@ def _request(
         ),
         sequence_groups_jsonl=STUBS / "sequence_groups.jsonl",
         matthews_hypotheses_jsonl=matthews,
-        mtz_preflight_jsonl=STUBS / "mtz_preflight.jsonl",
+        mtz_preflight_jsonl=preflight_path,
         pipeline_config=config,
         output_directory=tmp_path / "funnel output",
         crystal_ids=("test_crystal_01",),
@@ -132,7 +133,8 @@ def _request(
 def test_funnel_excludes_impossible_rows_and_preserves_features(tmp_path: Path) -> None:
     result = build_exact_predicted_funnel(_request(tmp_path))
 
-    assert [item.copy_count_expected for item in result.hypotheses] == [1, 3]
+    assert [item.copy_count_expected for item in result.hypotheses] == [4, 5, 3]
+    assert all(item.copy_count_expected != 1 for item in result.hypotheses)
     assert all(item.copy_number_to_search == 1 for item in result.hypotheses)
     assert all(item.status == "queued" for item in result.hypotheses)
     first = result.hypotheses[0]
@@ -141,11 +143,11 @@ def test_funnel_excludes_impossible_rows_and_preserves_features(tmp_path: Path) 
     assert first.priority_features["model_retained_fraction"] == 1.0
     assert first.priority_features["matthews_physical_status"] == "plausible"
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
-    assert manifest["candidate_count_before_global_cap"] == 2
-    assert manifest["selected_hypothesis_count"] == 2
+    assert manifest["candidate_count_before_global_cap"] == 3
+    assert manifest["selected_hypothesis_count"] == 3
     assert manifest["per_model_copy_cap"] == 3
     assert "matthews_prior" in manifest["ordering_features"]
-    assert result.hypotheses_tsv.read_text(encoding="utf-8").count("\n") == 3
+    assert result.hypotheses_tsv.read_text(encoding="utf-8").count("\n") == 4
     records = sorted((result.manifest_json.parent / "hypotheses").glob("*.jsonl"))
     assert {record.stem for record in records} == {
         item.hypothesis_id for item in result.hypotheses
@@ -159,10 +161,10 @@ def test_funnel_applies_global_first_copy_cap_deterministically(tmp_path: Path) 
     result = build_exact_predicted_funnel(_request(tmp_path, first_copy_cap=1))
 
     assert len(result.hypotheses) == 1
-    assert result.hypotheses[0].copy_count_expected == 1
+    assert result.hypotheses[0].copy_count_expected == 4
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["global_cap"] == 1
-    assert manifest["excluded_by_global_cap_count"] == 1
+    assert manifest["excluded_by_global_cap_count"] == 2
 
 
 def test_funnel_fails_before_publication_on_model_checksum_change(
@@ -239,7 +241,7 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
 ) -> None:
     result = build_diverse_first_copy_funnel(_diverse_request(tmp_path))
 
-    assert len(result.hypotheses) == 4
+    assert len(result.hypotheses) == 6
     source_classes = {
         item.priority_features["structural_source_class"] for item in result.hypotheses
     }
@@ -258,8 +260,8 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
     assert records.read_text(encoding="utf-8").count("\n") == 2
     assert len(list((registry / "models").rglob("*.pdb"))) == 2
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
-    assert manifest["selected_hypothesis_count"] == 4
-    assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 4}
+    assert manifest["selected_hypothesis_count"] == 6
+    assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 6}
     assert manifest["per_crystal_first_copy_cap"] == 200
     assert manifest["diversity_buckets"] == [
         "sequence_group_id",
@@ -268,22 +270,14 @@ def test_diverse_funnel_preserves_predicted_and_experimental_sources(
     ]
 
 
+def _phase3_diverse_request(tmp_path: Path) -> DiverseFirstCopyFunnelRequest:
+    return _diverse_request(tmp_path)
+
+
 def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     tmp_path: Path,
 ) -> None:
-    request = _diverse_request(tmp_path)
-    rows = tuple(
-        _matthews(
-            copy_count=copy_count,
-            rank=rank,
-            physical_status=PhysicalStatus.PLAUSIBLE,
-        )
-        for rank, copy_count in enumerate((5, 1, 2, 3, 4), start=1)
-    )
-    request.matthews_hypotheses_jsonl.write_text(
-        "".join(f"{canonical_json_text(row)}\n" for row in rows),
-        encoding="utf-8",
-    )
+    request = _phase3_diverse_request(tmp_path)
     localisation = _phase3_localisation_bundle(
         tmp_path,
         sequence_groups_jsonl=request.sequence_groups_jsonl,
@@ -302,7 +296,7 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     assert {
         (item.copy_count_expected, item.copy_number_to_search)
         for item in result.hypotheses
-    } == {(1, 1), (2, 1), (5, 1)}
+    } == {(3, 1), (4, 1), (5, 1)}
     assert all(
         item.priority_features["copy_search_mode"]
         == "single_copy_then_sequential_completion"
@@ -310,14 +304,28 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v6-single-copy"
+        "multi-source-first-copy-funnel-v7-dynamic-matthews"
     )
+    assert manifest["expected_copy_count_policy"] == (
+        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+    )
+    assert manifest["matthews_prior_backend"] == PRIOR_BACKEND
+    assert manifest["matthews_copy_range_backend"] == COPY_RANGE_BACKEND
+    assert manifest["matthews_copy_range_complete"] is True
+    assert manifest["matthews_copy_range_validation"] == (
+        "rederived_from_preflight_sequence_mass_and_solvent_bounds"
+    )
+    assert manifest["static_expected_copy_count_ceiling"] is None
     assert result.resource_plans_jsonl is not None
     resource_rows = tuple(
         json.loads(line)
         for line in result.resource_plans_jsonl.read_text(encoding="utf-8").splitlines()
     )
-    assert {row["resource_plan"]["base_cpus"] for row in resource_rows} <= {4, 6, 8}
+    assert {row["resource_plan"]["base_cpus"] for row in resource_rows} <= {
+        8,
+        12,
+        16,
+    }
     assert {row["resource_plan"]["searched_copy_count"] for row in resource_rows} == {1}
     assert {row["resource_plan"]["owner_id"] for row in resource_rows} == {
         item.hypothesis_id for item in result.hypotheses
@@ -336,11 +344,78 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     )
     assert manifest["copy_search_mode"] == ("single_copy_then_sequential_completion")
     assert manifest["initial_searched_copy_count"] == 1
-    assert manifest["expected_copy_count_minimum"] == 1
-    assert manifest["expected_copy_count_maximum"] == 16
+    assert manifest["expected_copy_count_policy"] == (
+        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+    )
+    assert manifest["static_expected_copy_count_ceiling"] is None
     assert "maximum_joint_copy_count" not in manifest
     assert manifest["per_model_copy_cap"] == 3
     assert manifest["per_crystal_first_copy_cap"] == 25
+
+
+def test_phase3_diverse_funnel_rejects_a_truncated_dynamic_matthews_range(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_diverse_request(tmp_path)
+    rows = tuple(
+        MatthewsHypothesis.model_validate_json(line)
+        for line in request.matthews_hypotheses_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line and '"copy_count":3' not in line
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        "".join(f"{canonical_json_text(row)}\n" for row in rows),
+        encoding="utf-8",
+    )
+    localisation = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    with pytest.raises(FunnelInputError, match="range is incomplete"):
+        build_diverse_first_copy_funnel(
+            replace(
+                request,
+                require_localisation_policy=True,
+                localisation_bundle=localisation,
+            )
+        )
+
+
+def test_phase3_diverse_funnel_recomputes_the_empirical_matthews_prior(
+    tmp_path: Path,
+) -> None:
+    request = _phase3_diverse_request(tmp_path)
+    rows = [
+        MatthewsHypothesis.model_validate_json(line)
+        for line in request.matthews_hypotheses_jsonl.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line
+    ]
+    rows[0] = rows[0].model_copy(
+        update={"matthews_prior": rows[0].matthews_prior + 1e-6}
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        "".join(f"{canonical_json_text(row)}\n" for row in rows),
+        encoding="utf-8",
+    )
+    localisation = _phase3_localisation_bundle(
+        tmp_path,
+        sequence_groups_jsonl=request.sequence_groups_jsonl,
+        source_records_jsonl=STUBS / "source_records.jsonl",
+    )
+
+    with pytest.raises(FunnelInputError, match="empirical prior differs"):
+        build_diverse_first_copy_funnel(
+            replace(
+                request,
+                require_localisation_policy=True,
+                localisation_bundle=localisation,
+            )
+        )
 
 
 def _phase3_localisation_bundle(
@@ -386,7 +461,7 @@ def test_phase3_diverse_funnel_requires_complete_localisation_authority(
 def test_phase3_diverse_funnel_binds_active_localisation_evidence(
     tmp_path: Path,
 ) -> None:
-    request = _diverse_request(tmp_path)
+    request = _phase3_diverse_request(tmp_path)
     bundle = _phase3_localisation_bundle(
         tmp_path,
         sequence_groups_jsonl=request.sequence_groups_jsonl,
@@ -401,7 +476,7 @@ def test_phase3_diverse_funnel_binds_active_localisation_evidence(
         )
     )
 
-    assert len(result.hypotheses) == 4
+    assert len(result.hypotheses) == 6
     assert all(
         item.priority_features["localisation_wave_disposition"] == "active"
         for item in result.hypotheses
@@ -439,7 +514,7 @@ def test_phase3_diverse_funnel_requires_bound_source_records(tmp_path: Path) -> 
 def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
     tmp_path: Path,
 ) -> None:
-    request = _diverse_request(tmp_path)
+    request = _phase3_diverse_request(tmp_path)
     bundle = _phase3_localisation_bundle(
         tmp_path,
         sequence_groups_jsonl=request.sequence_groups_jsonl,
@@ -465,7 +540,7 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
         ).splitlines()
         if line.strip()
     )
-    assert len(deferred) == 4
+    assert len(deferred) == 6
     assert all(item.status is MrHypothesisStatus.SKIPPED for item in deferred)
     assert all(
         item.priority_features["localisation_first_wave_reason"]
@@ -474,7 +549,7 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["localisation_excluded_sequence_group_count"] == 1
-    assert manifest["retained_excluded_hypothesis_count"] == 4
+    assert manifest["retained_excluded_hypothesis_count"] == 6
     assert manifest["selected_hypothesis_count"] == 0
 
 
@@ -508,7 +583,7 @@ def test_diverse_funnel_preserves_documented_empty_model_batches(
         assert registry.manifest.unavailable_sequence_group_count == 1
         assert registry.manifest.sequence_groups[0].unavailable_reason is not None
     else:
-        assert len(output.hypotheses) == 2
+        assert len(output.hypotheses) == 3
         assert all(
             item.priority_features["structural_source_class"] == "experimental"
             for item in output.hypotheses

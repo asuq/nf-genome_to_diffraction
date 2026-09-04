@@ -51,9 +51,9 @@ def _plan_for_score_band(tier: MrResourceTier) -> MrResourcePlan:
 @pytest.mark.parametrize(
     ("tier", "base", "retry"),
     (
-        (MrResourceTier.STANDARD, (4, 16, 12), (8, 32, 24)),
-        (MrResourceTier.HEAVY, (6, 24, 18), (12, 48, 36)),
-        (MrResourceTier.VERY_HEAVY, (8, 32, 24), (16, 64, 48)),
+        (MrResourceTier.STANDARD, (8, 32, 24), (16, 64, 48)),
+        (MrResourceTier.HEAVY, (12, 48, 36), (16, 64, 48)),
+        (MrResourceTier.VERY_HEAVY, (16, 64, 48), (16, 64, 48)),
     ),
 )
 def test_resource_tiers_and_linear_retry_are_bounded(
@@ -92,15 +92,15 @@ def test_resource_attempt_and_threads_fail_closed() -> None:
         verify_mr_thread_allocation(
             plan=plan,
             resource_attempt=2,
-            threads=8,
+            threads=16,
         ).cpus
-        == 8
+        == 16
     )
     with pytest.raises(MrResourcePlanError, match="threads differ"):
         verify_mr_thread_allocation(
             plan=plan,
             resource_attempt=2,
-            threads=4,
+            threads=8,
         )
     with pytest.raises(MrResourcePlanError, match="outside the retry policy"):
         resources_for_attempt(plan, 3)

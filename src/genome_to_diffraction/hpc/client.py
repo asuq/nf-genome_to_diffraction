@@ -73,6 +73,7 @@ from genome_to_diffraction.hpc.unknown_pass2_inputs import (
 from genome_to_diffraction.hpc.unknown_single_inputs import (
     build_unknown_single_component_input_bundle,
 )
+from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.review import (
     SequenceCheckpointRequest,
     build_sequence_checkpoint,
@@ -3899,7 +3900,12 @@ def _review_asset_expectations(
     }
     adapter_version = manifest.get("adapter_version")
     if (
-        adapter_version not in {"mr-seed-review-v2", "mr-seed-review-v3"}
+        adapter_version
+        not in {
+            "mr-seed-review-v2",
+            "mr-seed-review-v3",
+            "mr-seed-review-v4-matthews-dual-rank",
+        }
         or manifest.get("score_gate") != expected_gate
         or summary.get("run_id") != record.run_id
         or summary.get("profile") != "p2-diverse"
@@ -3907,7 +3913,10 @@ def _review_asset_expectations(
         or summary.get("mr_seed_review_manifest_sha256") != manifest_sha256
     ):
         raise ValidationError("MR review evidence identity or policy does not match")
-    if adapter_version == "mr-seed-review-v3" and (
+    if adapter_version in {
+        "mr-seed-review-v3",
+        "mr-seed-review-v4-matthews-dual-rank",
+    } and (
         manifest.get("numeric_screen_excludes_candidates") is not False
         or manifest.get("approval_requires_explicit_human_decision") is not True
     ):
@@ -3916,7 +3925,10 @@ def _review_asset_expectations(
     items = manifest.get("items")
     if not isinstance(items, list):
         raise ValidationError("MR review manifest items must be an array")
-    if adapter_version == "mr-seed-review-v3":
+    if adapter_version in {
+        "mr-seed-review-v3",
+        "mr-seed-review-v4-matthews-dual-rank",
+    }:
         inspectable = [
             item
             for item in items
@@ -3932,10 +3944,29 @@ def _review_asset_expectations(
         ]
     if not 1 <= len(inspectable) <= 25:
         raise ValidationError("MR review package must have 1..25 inspectable solutions")
-    if adapter_version == "mr-seed-review-v3" and (
-        manifest.get("inspectable_solution_count") != len(inspectable)
-    ):
+    if adapter_version in {
+        "mr-seed-review-v3",
+        "mr-seed-review-v4-matthews-dual-rank",
+    } and (manifest.get("inspectable_solution_count") != len(inspectable)):
         raise ValidationError("inspectable review count differs from the manifest")
+    if adapter_version == "mr-seed-review-v4-matthews-dual-rank":
+        independent = manifest.get("independent_rankings")
+        if (
+            manifest.get("matthews_prior_backend") != PRIOR_BACKEND
+            or manifest.get("matthews_copy_range_requirement")
+            != "complete_dynamic_range"
+            or not isinstance(independent, Mapping)
+            or independent.get("rank_discordance") != "absolute_position_difference"
+        ):
+            raise ValidationError("MR review Matthews ranking policy differs")
+        if any(
+            not isinstance(item, Mapping)
+            or not isinstance(item.get("mr_rank"), int)
+            or not isinstance(item.get("matthews_rank"), int)
+            or not isinstance(item.get("rank_discordance"), int)
+            for item in items
+        ):
+            raise ValidationError("MR review dual-rank inventory is incomplete")
 
     expectations = {
         _REVIEW_MANIFEST_RELATIVE.as_posix(): manifest_sha256,

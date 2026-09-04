@@ -212,6 +212,7 @@ def _phase3_inputs(
         diffraction_selection_json=selection_path,
         resource_plan_json=resource_plan_path,
         phase3_hypothesis_id=bound.hypothesis_id,
+        threads=resource_plan.base_cpus,
     )
 
 

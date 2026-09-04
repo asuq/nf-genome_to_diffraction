@@ -38,6 +38,7 @@ from genome_to_diffraction.review.owned_run import (
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.manifests import CrystalManifest
+from genome_to_diffraction.schemas.mr_resources import MR_RESOURCE_ADAPTER_VERSION
 from genome_to_diffraction.schemas.v2 import PhaseIIIExecutionIdentity
 from genome_to_diffraction.status import InputContractError
 
@@ -232,8 +233,8 @@ def _validate_localisation_authority(
     if (
         adapters.get("phase3_localisation_batch") != policy.adapter_version
         or adapters.get("phase3_first_copy_funnel")
-        != "multi-source-first-copy-funnel-v6-single-copy"
-        or adapters.get("phase3_mr_resources") != "phase3-mr-resource-allocation-v1"
+        != "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        or adapters.get("phase3_mr_resources") != MR_RESOURCE_ADAPTER_VERSION
         or adapters.get("phase3_all_model_registry") != "all-eligible-model-registry-v3"
         or adapters.get("phase3_composition_beam") != "phase3-composition-beam-depth-v1"
         or adapters.get("phase3_composition_depth")

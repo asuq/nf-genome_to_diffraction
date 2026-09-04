@@ -105,9 +105,13 @@ def _case(
     (funnel / "funnel_manifest.json").write_text(
         json.dumps(
             {
-                "adapter_version": ("multi-source-first-copy-funnel-v6-single-copy"),
+                "adapter_version": (
+                    "multi-source-first-copy-funnel-v7-dynamic-matthews"
+                ),
                 "localisation_policy_id": policy.policy_id,
-                "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+                "mr_resource_plan_adapter": (
+                    "phase3-mr-resource-allocation-v2-overprovisioned"
+                ),
                 "mr_resource_plan_count": 2,
                 "mr_resource_plans_sha256": sha256_file(resource_plan_path),
             }

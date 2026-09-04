@@ -6,6 +6,7 @@ from genome_to_diffraction.matthews.enumerate import (
     MatthewsResult,
     SdsAssessment,
     assess_sds,
+    dynamic_copy_counts,
     enumerate_group,
     enumerate_matthews,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "PhenixMatthewsRow",
     "SdsAssessment",
     "assess_sds",
+    "dynamic_copy_counts",
     "enumerate_group",
     "enumerate_matthews",
     "parse_phenix_matthews_output",

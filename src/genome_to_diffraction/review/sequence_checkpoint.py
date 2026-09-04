@@ -27,9 +27,11 @@ from genome_to_diffraction.checksums import (
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.matthews.enumerate import (
     PRIOR_BACKEND,
+    dynamic_copy_counts,
     physical_status,
     prior_score,
 )
+from genome_to_diffraction.matthews.probability import probability_distribution
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
@@ -46,10 +48,8 @@ from genome_to_diffraction.schemas.v2.diffraction import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.sequence_checkpoint")
-_ADAPTER_VERSION = "sequence-checkpoint-v2"
-_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v2"
-_MATTHEWS_MIN_COPY_COUNT = 1
-_MATTHEWS_MAX_COPY_COUNT = 16
+_ADAPTER_VERSION = "sequence-checkpoint-v3-mattprob"
+_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v3-mattprob"
 _MATTHEWS_RETAINED_COUNT = 4
 _MATTHEWS_MIN_SOLVENT_FRACTION = 0.10
 _MATTHEWS_MAX_SOLVENT_FRACTION = 0.90
@@ -349,8 +349,22 @@ def _matthews_rows(
 ) -> list[dict[str, object]]:
     """Calculate the configured broad physical copy-number prior for review."""
 
+    mass_lower = group.molecular_mass_da or group.molecular_mass_lower_da
+    mass_upper = group.molecular_mass_da or group.molecular_mass_upper_da
+    if mass_lower is None or mass_upper is None:
+        raise SequenceCheckpointError(
+            f"sequence group lacks usable molecular mass: {group.sequence_group_id}"
+        )
+    copy_counts, _ = dynamic_copy_counts(
+        v_asu_a3=preflight.asu_volume_a3,
+        mass_lower_da=mass_lower,
+        mass_upper_da=mass_upper,
+        minimum_solvent_fraction=_MATTHEWS_MIN_SOLVENT_FRACTION,
+        maximum_solvent_fraction=_MATTHEWS_MAX_SOLVENT_FRACTION,
+    )
+    empirical = probability_distribution(preflight.resolution_high_a)
     rows: list[dict[str, object]] = []
-    for copy_count in range(_MATTHEWS_MIN_COPY_COUNT, _MATTHEWS_MAX_COPY_COUNT + 1):
+    for copy_count in copy_counts:
         row: dict[str, object] = {
             "crystal_id": preflight.crystal_id,
             "sequence_group_id": group.sequence_group_id,
@@ -379,8 +393,8 @@ def _matthews_rows(
                     "solvent_fraction": solvent,
                     "matthews_prior": prior_score(
                         solvent,
-                        minimum=_MATTHEWS_MIN_SOLVENT_FRACTION,
-                        maximum=_MATTHEWS_MAX_SOLVENT_FRACTION,
+                        resolution_high_a=preflight.resolution_high_a,
+                        copy_count=copy_count,
                     ),
                     "physical_status": physical_status(
                         solvent,
@@ -410,10 +424,10 @@ def _matthews_rows(
                     "matthews_coefficient_upper": coefficient_upper,
                     "solvent_fraction_lower": solvent_lower,
                     "solvent_fraction_upper": solvent_upper,
-                    "matthews_prior": prior_score(
-                        (solvent_lower + solvent_upper) / 2,
-                        minimum=_MATTHEWS_MIN_SOLVENT_FRACTION,
-                        maximum=_MATTHEWS_MAX_SOLVENT_FRACTION,
+                    "matthews_prior": empirical.single_component_interval_prior(
+                        copy_count,
+                        solvent_lower,
+                        solvent_upper,
                     ),
                     "physical_status": physical_status(
                         solvent_lower,
@@ -422,10 +436,6 @@ def _matthews_rows(
                         maximum=_MATTHEWS_MAX_SOLVENT_FRACTION,
                     ).value,
                 }
-            )
-        else:
-            raise SequenceCheckpointError(
-                f"sequence group lacks usable molecular mass: {group.sequence_group_id}"
             )
         rows.append(row)
 
@@ -1015,8 +1025,8 @@ def _publish_sequence_checkpoint(
         },
         "matthews_policy": {
             "prior_backend": PRIOR_BACKEND,
-            "min_copy_count": _MATTHEWS_MIN_COPY_COUNT,
-            "max_copy_count": _MATTHEWS_MAX_COPY_COUNT,
+            "copy_count_policy": "dynamic_by_asu_sequence_mass_and_solvent_bounds",
+            "static_copy_count_ceiling": None,
             "retained_count": _MATTHEWS_RETAINED_COUNT,
             "min_solvent_fraction": _MATTHEWS_MIN_SOLVENT_FRACTION,
             "max_solvent_fraction": _MATTHEWS_MAX_SOLVENT_FRACTION,

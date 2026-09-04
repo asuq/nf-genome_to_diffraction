@@ -31,7 +31,8 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
-from genome_to_diffraction.matthews.enumerate import physical_status, prior_score
+from genome_to_diffraction.matthews.enumerate import physical_status
+from genome_to_diffraction.matthews.probability import probability_distribution
 from genome_to_diffraction.ranking.funnel import FunnelInputError, _manifest_model_paths
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
@@ -52,7 +53,7 @@ from genome_to_diffraction.schemas.results import (
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "catalogue-partner-plan-v1"
+_ADAPTER_VERSION = "catalogue-partner-plan-v2-mattprob"
 _SELECTION_CAP = 25
 _CATALOGUE_INELIGIBLE_FLAGS = frozenset(
     {
@@ -240,6 +241,7 @@ def _combined_metrics(
     parent_copy_count: int,
     partner_copy_count: int,
     asu_volume_a3: float,
+    resolution_high_a: float,
     minimum_solvent: float,
     maximum_solvent: float,
 ) -> tuple[PhysicalStatus, float, float, float] | None:
@@ -261,10 +263,9 @@ def _combined_metrics(
         minimum=minimum_solvent,
         maximum=maximum_solvent,
     )
-    prior = prior_score(
-        (solvent_lower + solvent_upper) / 2,
-        minimum=minimum_solvent,
-        maximum=maximum_solvent,
+    prior = probability_distribution(resolution_high_a).score_interval(
+        solvent_lower,
+        solvent_upper,
     )
     return status, solvent_lower, solvent_upper, prior
 
@@ -401,6 +402,7 @@ def _load_inputs(
             parent_copy_count=request.parent_copy_count,
             partner_copy_count=request.partner_copy_count,
             asu_volume_a3=preflight.asu_volume_a3,
+            resolution_high_a=preflight.resolution_high_a,
             minimum_solvent=config.matthews.min_solvent_fraction,
             maximum_solvent=config.matthews.max_solvent_fraction,
         )

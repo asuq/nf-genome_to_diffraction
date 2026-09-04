@@ -198,18 +198,21 @@ def test_reference_qualification_reports_method_only_and_cli_success(
     result = qualify_matthews_reference(request)
     report = json.loads(result.json_path.read_text(encoding="utf-8"))
 
-    assert result.status == "passed"
+    assert result.status == "passed_with_review"
     assert report["scope"] == "method_reference_only"
     assert report["positive_control_status"] == "not_established"
     assert report["checks"] == {
         "mass_models_within_compatibility_bound": True,
-        "phenix_best_guess_in_configured_copy_range": True,
+        "phenix_best_guess_in_dynamic_copy_range": True,
         "pipeline_formula_consistent": True,
         "plausible_copy_sets_match": True,
-        "probability_prior_order_matches": True,
+        "probability_prior_order_matches": False,
         "reference_formula_consistent_with_printed_rounding": True,
     }
     assert report["pipeline_plausible_copy_counts"] == [1, 2, 3]
+    assert report["review_reasons"] == [
+        "resolution_copy_weighted_prior_order_differs_from_phenix_overall_prior"
+    ]
     assert "not asserted" in report["selection_note"]
     assert result.phenix_log_path.read_text(encoding="utf-8") == REFERENCE_TEXT
 

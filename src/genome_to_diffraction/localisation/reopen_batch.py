@@ -29,7 +29,10 @@ from genome_to_diffraction.localisation.batch import (
 )
 from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.base import NonEmptyString, Sha256Hex
-from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
+from genome_to_diffraction.schemas.mr_resources import (
+    MR_RESOURCE_ADAPTER_VERSION,
+    MrResourcePlan,
+)
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
@@ -182,7 +185,7 @@ def plan_batch_localisation_reopen(
     if (
         not isinstance(manifest, dict)
         or manifest.get("adapter_version")
-        != "multi-source-first-copy-funnel-v6-single-copy"
+        != "multi-source-first-copy-funnel-v7-dynamic-matthews"
         or manifest.get("localisation_policy_id") != policy.policy_id
     ):
         raise BatchLocalisationReopenError(
@@ -261,8 +264,7 @@ def plan_batch_localisation_reopen(
     if (
         set(resource_plans) != complete_hypothesis_ids
         or manifest.get("mr_resource_plan_count") != len(resource_plans)
-        or manifest.get("mr_resource_plan_adapter")
-        != "phase3-mr-resource-allocation-v1"
+        or manifest.get("mr_resource_plan_adapter") != MR_RESOURCE_ADAPTER_VERSION
         or manifest.get("mr_resource_plans_sha256") != sha256_file(resource_plan_path)
     ):
         raise BatchLocalisationReopenError(
@@ -447,7 +449,7 @@ def plan_batch_localisation_reopen(
             "funnel_id": content_id("funnel_", funnel_identity),
             "adapter_version": _ADAPTER_VERSION,
             "selected_hypothesis_count": len(reopened),
-            "mr_resource_plan_adapter": "phase3-mr-resource-allocation-v1",
+            "mr_resource_plan_adapter": MR_RESOURCE_ADAPTER_VERSION,
             "mr_resource_plan_count": len(reopened_resource_rows),
             "mr_resource_plans_sha256": sha256_file(reopened_resource_plans),
             "hypotheses": [{"hypothesis_id": item.hypothesis_id} for item in reopened],

@@ -323,16 +323,14 @@ def _comparison_document(
         raise MatthewsReferenceInputError(
             "reference qualification requires one exact sequence-derived mass"
         )
-    minimum = config.matthews.min_copy_count
-    maximum = config.matthews.max_copy_count
+    pipeline_by_copy = {row.copy_count: row for row in pipeline_rows}
     reference_rows = tuple(
-        row for row in parsed.rows if minimum <= row.copy_count <= maximum
+        row for row in parsed.rows if row.copy_count in pipeline_by_copy
     )
     if not reference_rows:
         raise MatthewsReferenceInputError(
-            "Phenix emitted no copy counts inside the configured pipeline range"
+            "Phenix emitted no copy counts inside the dynamic pipeline range"
         )
-    pipeline_by_copy = {row.copy_count: row for row in pipeline_rows}
     matched_pipeline = tuple(pipeline_by_copy[row.copy_count] for row in reference_rows)
     comparisons: list[dict[str, object]] = []
     mass_model_compatible = True
@@ -415,14 +413,16 @@ def _comparison_document(
     )
     pipeline_order = _pipeline_order(matched_plausible_pipeline)
     ordering_matches = reference_order == pipeline_order
-    best_guess_in_configured_range = minimum <= parsed.best_guess_copy_count <= maximum
+    best_guess_in_dynamic_range = parsed.best_guess_copy_count in pipeline_by_copy
     review_reasons: list[str] = []
-    if not best_guess_in_configured_range:
-        review_reasons.append("phenix_best_guess_outside_configured_copy_range")
+    if not best_guess_in_dynamic_range:
+        review_reasons.append("phenix_best_guess_outside_dynamic_copy_range")
     if not copy_sets_match:
         review_reasons.append("plausible_copy_sets_differ")
     if not ordering_matches:
-        review_reasons.append("uncalibrated_prior_order_differs_from_phenix")
+        review_reasons.append(
+            "resolution_copy_weighted_prior_order_differs_from_phenix_overall_prior"
+        )
     if not mass_model_compatible:
         review_reasons.append("mass_models_exceed_fixed_compatibility_bound")
     status: Literal["passed", "passed_with_review", "failed"]
@@ -497,7 +497,10 @@ def _comparison_document(
             "phenix_manifest_sha256": manifest_sha256,
             "mass_input_model": "n_residues_average_residue_mass",
             "best_guess_copy_count": parsed.best_guess_copy_count,
-            "configured_copy_range": [minimum, maximum],
+            "dynamic_copy_range": [
+                min(pipeline_by_copy),
+                max(pipeline_by_copy),
+            ],
             "configured_solvent_fraction_range": [
                 config.matthews.min_solvent_fraction,
                 config.matthews.max_solvent_fraction,
@@ -515,11 +518,12 @@ def _comparison_document(
             ),
             "plausible_pipeline_statuses": ["plausible", "review"],
             "reference_copy_filter": (
-                "same configured solvent-fraction bounds as the pipeline"
+                "same dynamic solvent-overlap copy range as the pipeline"
             ),
             "ordering_interpretation": (
-                "reported for review; disagreement does not calibrate or invalidate "
-                "the explicitly uncalibrated pipeline prior"
+                "reported for review; the pipeline conditions its empirical "
+                "density on resolution and applies the explicit empirical P(n) "
+                "weight while this Phenix reference uses its overall prior"
             ),
         },
         "comparisons": comparisons,
@@ -531,9 +535,7 @@ def _comparison_document(
         "checks": {
             "reference_formula_consistent_with_printed_rounding": True,
             "pipeline_formula_consistent": pipeline_formula_consistent,
-            "phenix_best_guess_in_configured_copy_range": (
-                best_guess_in_configured_range
-            ),
+            "phenix_best_guess_in_dynamic_copy_range": best_guess_in_dynamic_range,
             "plausible_copy_sets_match": copy_sets_match,
             "probability_prior_order_matches": ordering_matches,
             "mass_models_within_compatibility_bound": mass_model_compatible,
@@ -550,8 +552,9 @@ def _comparison_document(
             ),
             "This result cannot close the M0 positive-control gate.",
             (
-                "Ordering disagreement is retained for review and is not tuned "
-                "away because the pipeline prior is explicitly uncalibrated."
+                "Ordering disagreement is retained because the pipeline uses a "
+                "resolution-conditioned empirical density plus the approved P(n) "
+                "copy weight and this reference does not."
             ),
         ],
     }
@@ -593,8 +596,8 @@ def _markdown(document: dict[str, object]) -> str:
             f"`{checks['pipeline_formula_consistent']}`"
         ),
         (
-            "- Phenix best guess is inside the configured copy range: "
-            f"`{checks['phenix_best_guess_in_configured_copy_range']}`"
+            "- Phenix best guess is inside the dynamic copy range: "
+            f"`{checks['phenix_best_guess_in_dynamic_copy_range']}`"
         ),
         f"- Plausible copy sets match: `{checks['plausible_copy_sets_match']}`",
         (

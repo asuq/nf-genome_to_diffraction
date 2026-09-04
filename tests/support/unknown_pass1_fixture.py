@@ -564,11 +564,11 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_first_copy_funnel",
-                        "multi-source-first-copy-funnel-v6-single-copy",
+                        "multi-source-first-copy-funnel-v7-dynamic-matthews",
                     ),
                     (
                         "phase3_mr_resources",
-                        "phase3-mr-resource-allocation-v1",
+                        "phase3-mr-resource-allocation-v2-overprovisioned",
                     ),
                     (
                         "phase3_localisation_batch",
