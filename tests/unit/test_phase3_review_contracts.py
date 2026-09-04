@@ -196,7 +196,7 @@ def test_conflicting_duplicate_target_decisions_fail() -> None:
     (
         (
             PhaseIIIReviewCheckpoint.A_SEED,
-            (PhaseIIIReviewDecisionValue.APPROVE,) * 4,
+            (PhaseIIIReviewDecisionValue.APPROVE,) * 6,
             "approved A states",
         ),
         (
@@ -211,7 +211,7 @@ def test_conflicting_duplicate_target_decisions_fail() -> None:
         ),
     ),
 )
-def test_per_crystal_retained_state_limit_is_three(
+def test_checkpoint_specific_per_crystal_retained_state_limits(
     checkpoint: PhaseIIIReviewCheckpoint,
     values: tuple[PhaseIIIReviewDecisionValue, ...],
     message: str,
@@ -232,7 +232,18 @@ def test_per_crystal_retained_state_limit_is_three(
         )
         for index, value in enumerate(values, start=1)
     )
-    assert len(_decision_file(checkpoint, split_crystals).decisions) == 4
+    assert len(_decision_file(checkpoint, split_crystals).decisions) == len(values)
+
+
+def test_a_seed_checkpoint_accepts_five_approved_states() -> None:
+    decisions = tuple(
+        _decision(f"state_{index}", PhaseIIIReviewDecisionValue.APPROVE)
+        for index in range(1, 6)
+    )
+
+    record = _decision_file(PhaseIIIReviewCheckpoint.A_SEED, decisions)
+
+    assert len(record.decisions) == 5
 
 
 def test_operator_tsv_derives_the_canonical_file_identity(tmp_path: Path) -> None:

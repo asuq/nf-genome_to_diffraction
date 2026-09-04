@@ -63,6 +63,9 @@ PhaseIIIReviewPackageIdentifier = Annotated[
     Field(pattern=r"^phase3reviewpkg_[a-f0-9]{64}$"),
 ]
 
+_MAX_APPROVED_A_STATES_PER_CRYSTAL = 5
+_MAX_COMPOSITION_FINALISTS_PER_CRYSTAL = 3
+
 
 class PhaseIIIReviewCheckpoint(StrEnum):
     """Human checkpoints required by the approved unknown workflow."""
@@ -351,9 +354,11 @@ class PhaseIIIReviewDecisionFile(_ContentAddressedContract):
 
         retained_values: frozenset[PhaseIIIReviewDecisionValue]
         limit_label: str
+        retained_limit: int
         if self.checkpoint is PhaseIIIReviewCheckpoint.A_SEED:
             retained_values = frozenset({PhaseIIIReviewDecisionValue.APPROVE})
             limit_label = "approved A states"
+            retained_limit = _MAX_APPROVED_A_STATES_PER_CRYSTAL
         elif self.checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION:
             retained_values = frozenset(
                 {
@@ -362,14 +367,16 @@ class PhaseIIIReviewDecisionFile(_ContentAddressedContract):
                 }
             )
             limit_label = "combined composition finalists"
+            retained_limit = _MAX_COMPOSITION_FINALISTS_PER_CRYSTAL
         else:
             return self
 
         for crystal_id, items in decisions_by_crystal.items():
             retained_count = sum(item.decision in retained_values for item in items)
-            if retained_count > 3:
+            if retained_count > retained_limit:
                 raise ValueError(
-                    f"{limit_label} exceed the per-crystal limit of three: {crystal_id}"
+                    f"{limit_label} exceed the per-crystal limit of "
+                    f"{retained_limit}: {crystal_id}"
                 )
         return self
 

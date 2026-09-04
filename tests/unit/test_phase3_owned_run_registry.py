@@ -498,20 +498,20 @@ def test_a_seed_staging_refuses_an_owned_non_screen_parent_profile(
     assert not destination.exists()
 
 
-def test_a_seed_staging_refuses_four_approved_states_before_publication(
+def test_a_seed_staging_accepts_five_approved_states(
     tmp_path: Path,
 ) -> None:
     execution_path, identity = _write_execution_identity(tmp_path)
-    target_ids = tuple(f"seed_{index}" for index in range(4))
+    target_ids = tuple(f"seed_{index}" for index in range(5))
     package = _build_package(
         tmp_path,
-        name="four-a-seeds",
+        name="five-a-seeds",
         identity=identity,
         crystal_id=CRYSTAL_A,
         checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
         target_item_ids=target_ids,
     )
-    registry = tmp_path / "four-seed-registry"
+    registry = tmp_path / "five-seed-registry"
     registry.mkdir()
     register_phase3_owned_run(
         parent=_parent(),
@@ -531,9 +531,56 @@ def test_a_seed_staging_refuses_four_approved_states_before_publication(
         registry,
         rows=tuple((CRYSTAL_A, item_id, "approve") for item_id in target_ids),
     )
-    destination = tmp_path / "must-not-publish-four"
+    destination = tmp_path / "publish-five"
 
-    with pytest.raises(UnknownPass1ScreenError, match="limit of three"):
+    output = stage_unknown_pass1_selected_a_seeds(
+        owned_run_registry=registry,
+        owned_run_id=RUN_ID,
+        decisions=decisions,
+        confirmed_decisions_sha256=checksum,
+        output_directory=destination,
+    )
+
+    assert output.decision_count == 5
+    assert output.canonical_decision.is_file()
+
+
+def test_a_seed_staging_refuses_six_approved_states_before_publication(
+    tmp_path: Path,
+) -> None:
+    execution_path, identity = _write_execution_identity(tmp_path)
+    target_ids = tuple(f"seed_{index}" for index in range(6))
+    package = _build_package(
+        tmp_path,
+        name="six-a-seeds",
+        identity=identity,
+        crystal_id=CRYSTAL_A,
+        checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+        target_item_ids=target_ids,
+    )
+    registry = tmp_path / "six-seed-registry"
+    registry.mkdir()
+    register_phase3_owned_run(
+        parent=_parent(),
+        completed_at=RUN_COMPLETED_AT,
+        execution_identity=execution_path,
+        packages=(
+            OwnedPhaseIIIReviewPackageSource(
+                crystal_id=CRYSTAL_A,
+                checkpoint=PhaseIIIReviewCheckpoint.A_SEED,
+                package_directory=package,
+            ),
+        ),
+        output_directory=registry,
+    )
+    decisions, checksum = _a_seed_tsv(
+        tmp_path,
+        registry,
+        rows=tuple((CRYSTAL_A, item_id, "approve") for item_id in target_ids),
+    )
+    destination = tmp_path / "must-not-publish-six"
+
+    with pytest.raises(UnknownPass1ScreenError, match="limit of 5"):
         stage_unknown_pass1_selected_a_seeds(
             owned_run_registry=registry,
             owned_run_id=RUN_ID,

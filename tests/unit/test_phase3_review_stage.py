@@ -523,8 +523,8 @@ def test_decision_file_change_during_validation_fails_closed(
             "duplicate or conflict",
         ),
         (
-            tuple((f"state_{index}", "approve") for index in range(1, 5)),
-            tuple(("unknown_1", f"state_{index}") for index in range(1, 5)),
+            tuple((f"state_{index}", "approve") for index in range(1, 7)),
+            tuple(("unknown_1", f"state_{index}") for index in range(1, 7)),
             "approved A states",
         ),
     ),

@@ -159,7 +159,7 @@ Its review package is resolved only through the checksum-closed owned-run
 registry. An arbitrary package path cannot bypass ownership validation.
 
 The existing review stager retains `approve`, `reject`, and `defer` outcomes,
-rejects more than three approved A states per crystal, and publishes only its
+rejects more than five approved A states per crystal, and publishes only its
 canonical decision JSON plus stage manifest. Wrong parent/profile/checkpoint,
 mutated package evidence, and mismatched independent checksums fail before
 publication. The local CLI is `review stage-owned-a-seeds`.
@@ -222,7 +222,7 @@ real licensed execution are still pending.
 | `checkpoint` | Allowed `decision` values | Retained-state rule |
 | --- | --- | --- |
 | `crystallographic` | `proceed`, `hold` | No retained-state cap |
-| `a_seed` | `approve`, `reject`, `defer` | At most three `approve` rows per crystal |
+| `a_seed` | `approve`, `reject`, `defer` | At most five `approve` rows per crystal |
 | `composition` | `approve`, `reject`, `defer`, `retain_partial` | At most three combined `approve` and `retain_partial` rows per crystal |
 | `sequence` | `approve`, `retain_alternative`, `no_assignment` | No additional finalist cap is introduced by this contract |
 

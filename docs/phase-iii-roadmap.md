@@ -347,7 +347,7 @@ Phenix execution remains a separate control-qualified gate. Exact-source CI
 `32904417863` passed on `b55348a`.
 
 Search each initial A hypothesis as one copy. After review approval of at most
-three A states, add same-component copies sequentially toward the retained
+five A states, add same-component copies sequentially toward the retained
 Matthews expectation, preserving every intermediate state, before expanding
 through B-F. At each depth, exclude represented sequence groups, consider physically
 possible copy counts `1..4`, rank by localisation wave, SDS/native-PAGE,
@@ -817,7 +817,8 @@ single-batch application modes remain unchanged. Real full-catalogue provider
 and fixed-HPC execution remain pending.
 
 `unknown-stage-selected` accepts only an owned parent run, review TSV, and
-confirmation SHA. Approve at most three A states per crystal.
+confirmation SHA. Approve at most five A states per crystal. This A-only limit
+does not change the three-parent composition beam.
 `unknown-single-component` performs same-component placement, refinement, maps,
 complete-catalogue sequence narrowing, and Coot review while retaining mixed
 terminal outcomes.

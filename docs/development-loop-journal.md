@@ -15254,3 +15254,27 @@ with a collapsed combined parent or a guessed command.
   disposition and approve, defer, or reject the package-bound A targets. Do not
   start sequential-copy placement, refinement, sequence analysis, pass 2, or
   composition work before those decisions.
+
+## 2026-09-04 - Five-state A-only successor approved and implemented locally
+
+- The user approved testing the corrected review-priority top five per crystal
+  and explicitly accepted Phaser's coupled two-copy AD4 tNCS states for this
+  round. This approval does not turn the coupled placements into strict
+  one-copy evidence or establish identity.
+- The clean break changes only the `a_seed` retained-state limit from three to
+  five. Composition retains its three-parent beam and all 25-attempt,
+  100-partner, and six-component bounds. The typed validator now accepts five
+  and rejects six A approvals per crystal while still rejecting a fourth
+  combined approved/partial composition finalist.
+- Focused schema, TSV, owned-stage, deterministic private-archive, and complete
+  unknown-single-component handoff regressions pass: five A decisions survive
+  the checksum-owned handoff unchanged, and six fail before publication. The
+  expanded neighbouring review/continuation suite passed 146 tests; the final
+  focused set passed 97 tests. Formatting, lint, type, schema, and documentation
+  checks pass after the one mechanical formatting correction.
+- Finding `PH3-P1-84` records the policy transition. The prior successful
+  screen remains immutable evidence but cannot supply five-state package
+  authority under its old source. Next finalise the deterministic atlas, run
+  the complete locked local gate, commit and push `main`, require exact-source
+  CI, deploy only that source, then stage one fresh discovery and one
+  parent-bound screen. No predecessor cache or package decision is reusable.

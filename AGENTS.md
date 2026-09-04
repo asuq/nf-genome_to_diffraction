@@ -48,6 +48,15 @@ three frozen crystals now precedes the remaining M6, closure, pass-2, atlas,
 package, and v0.3.0 release programme. The canonical execution order is
 `docs/v0.3-roadmap.md`.
 
+On 2026-09-04 the user increased only the A-seed continuation limit from three
+to five corrected-review-priority states per crystal for the next qualified
+round. The three-parent composition beam, 25-attempt depth budget, and
+100-additional-component budget are unchanged. This policy change requires a
+new exact-source discovery/screen chain before the five-state decisions can be
+consumed. For this round the user explicitly accepts Phaser's coupled two-copy
+tNCS states for AD4; this does not convert them into strict one-copy evidence or
+an identity claim.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

@@ -42,12 +42,18 @@ def _decision(
     parent: str = PARENT,
     review_package_id: str = f"reviewpkg_{'1' * 64}",
     review_package_manifest_sha256: str = "2" * 64,
+    item_ids: tuple[str, ...] = ("solution_1",),
 ) -> None:
+    rows = [HEADER]
+    for item_id in item_ids:
+        rows.append(
+            f"a_seed\t{parent}\t{review_package_id}\t"
+            f"{review_package_manifest_sha256}\t"
+            f"{crystal_id}\t{item_id}\tapprove\treviewer\t"
+            "2026-08-25T00:00:00Z\tmap inspected\n"
+        )
     path.write_text(
-        HEADER + f"a_seed\t{parent}\t{review_package_id}\t"
-        f"{review_package_manifest_sha256}\t"
-        f"{crystal_id}\tsolution_1\tapprove\treviewer\t"
-        "2026-08-25T00:00:00Z\tmap inspected\n",
+        "".join(rows),
         encoding="ascii",
     )
 
@@ -77,6 +83,7 @@ def _real_handoff_fixture(
     tmp_path: Path,
     *,
     completion_field: str,
+    target_item_ids: tuple[str, ...] = ("solution_1",),
 ) -> tuple[Path, Path, Path, str]:
     public_root = tmp_path / "public"
     public_root.mkdir()
@@ -109,7 +116,7 @@ def _real_handoff_fixture(
             parent_phase="phase3-pass1",
             execution_identity_id=str(execution["execution_identity_id"]),
             crystal_id=crystal_id,
-            target_item_ids=("solution_1",),
+            target_item_ids=target_item_ids,
             created_at=datetime(2026, 8, 25, tzinfo=UTC),
             input_root=evidence_root,
             evidence_sources=(
@@ -151,6 +158,7 @@ def _real_handoff_fixture(
         crystal_id,
         review_package_id=package.review_package_id,
         review_package_manifest_sha256=sha256_file(package.manifest, progress=False),
+        item_ids=target_item_ids,
     )
     _spec(tmp_path, ((crystal_id, decision),))
     bundle = build_unknown_single_component_input_bundle(
@@ -317,6 +325,33 @@ def test_handoff_accepts_wrapper_completed_at_and_creates_registry(
             "review_stage": f"a_seed_stages/{PUBLIC_STUB_CRYSTAL_IDS[0]}",
         }
     ]
+
+
+def test_handoff_retains_five_approved_a_states(tmp_path: Path) -> None:
+    target_item_ids = tuple(f"solution_{index}" for index in range(1, 6))
+    parent, child, extracted, input_id = _real_handoff_fixture(
+        tmp_path,
+        completion_field="completed_at",
+        target_item_ids=target_item_ids,
+    )
+
+    output = stage_unknown_single_component_handoff(
+        parent_run_root=parent,
+        child_run_root=child,
+        input_root=extracted,
+        child_run_id=child.name,
+        expected_input_id=input_id,
+    )
+
+    decision = json.loads(
+        (
+            output
+            / "a_seed_stages"
+            / PUBLIC_STUB_CRYSTAL_IDS[0]
+            / "phase3_review_decision.json"
+        ).read_text(encoding="ascii")
+    )
+    assert [item["item_id"] for item in decision["decisions"]] == list(target_item_ids)
 
 
 def test_handoff_rejects_noncanonical_finished_at_alias(tmp_path: Path) -> None:
