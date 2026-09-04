@@ -55,16 +55,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p0_configure = actions.add_parser(
         "p0-configure",
-        help="install one absent validated P0 site-path configuration",
+        help="install or checksum-gated rotate one P0 site-path configuration",
     )
     p0_configure.add_argument("--paths-file", type=Path, required=True)
     p0_configure.add_argument("--confirm-sha256", required=True)
+    p0_configure.add_argument("--replace-current-sha256")
 
     p0_inputs_stage = actions.add_parser(
         "p0-inputs-stage",
         help="stage the fixed checksum-frozen three-crystal P0 input bundle",
     )
     p0_inputs_stage.add_argument("--confirm-spec-sha256", required=True)
+    p0_inputs_stage.add_argument("--replace-current-paths-sha256")
 
     actions.add_parser(
         "database-readiness",
@@ -268,9 +270,16 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
     if args.operation == "readiness":
         return controller.readiness(args.profile)
     if args.operation == "p0-configure":
-        return controller.p0_configure(args.paths_file, args.confirm_sha256)
+        return controller.p0_configure(
+            args.paths_file,
+            args.confirm_sha256,
+            replace_current_sha256=args.replace_current_sha256,
+        )
     if args.operation == "p0-inputs-stage":
-        return controller.p0_inputs_stage(args.confirm_spec_sha256)
+        return controller.p0_inputs_stage(
+            args.confirm_spec_sha256,
+            replace_current_paths_sha256=args.replace_current_paths_sha256,
+        )
     if args.operation == "database-readiness":
         return controller.database_readiness()
     if args.operation == "database-runtime-configure":

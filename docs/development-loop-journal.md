@@ -15204,3 +15204,27 @@ with a collapsed combined parent or a guessed command.
   lane green, deploy only that source, build a fresh execution authority, and
   stage exactly one discovery then one parent-bound screen. Do not use raw SSH
   or reuse predecessor candidate/cache evidence.
+
+## 2026-09-04 - Exact accelerated gate passes; stale P0 configuration is isolated
+
+- Commit `5fd96e5` passed the complete locked local gate and all six GitHub CI
+  lanes in 6 minutes 50 seconds. It was deployed with dispatcher SHA-256
+  `7828cf56…`; a fresh source-bound execution authority then authenticated the
+  new funnel/resource adapters and locked environment.
+- Fresh discovery job `641480` failed before provider discovery. Its staged P0
+  pipeline configuration still contained clean-break fields removed from the
+  current schema. Strict Phenix verification passed, but no provider search,
+  model preparation, MR, or scientific cache was produced. The non-reusable
+  failure signature is `6fd77d9a…`.
+- The private pipeline configuration now validates under the exact source, and
+  a new content-addressed P0 bundle is staged. Finding `PH3-P1-83` records the
+  missing safe rotation path: the wrapper now accepts a replacement only with
+  exact old and new checksums, blocks while the predecessor is referenced by a
+  nonterminal run, retains old local and remote bytes, and supports idempotent
+  retries without raw SSH.
+- Focused CLI/client tests, the real dispatcher rotation regression, shell
+  syntax, the regenerated 397-file atlas, and the complete locked gate pass,
+  including 1,435 unit, 152 contract, and 98 integration tests. Next commit and
+  push this review point, require exact-source CI, deploy the reviewed wrapper,
+  rotate P0, require readiness, then stage one fresh discovery. Job `641480`
+  and all other failed or cancelled scientific caches remain forbidden.

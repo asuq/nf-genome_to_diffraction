@@ -127,30 +127,29 @@ files does not remove them. Use owned wrapper status/collection first, then an
 explicitly reviewed remote retirement procedure; never infer authority to erase
 remote shared resources from this local rollback.
 
-The create-only `p0-configure` operation adds `_config/p0.paths` below the
-configured Marmic run root. Record the locally reviewed file and its SHA-256 in
-the ignored qualification dossier. To disable P0 without losing the setting,
-first confirm that no P0 job is staged or active, then move that single file to
-a dated sibling such as `p0.paths.disabled-YYYYMMDD`; do not delete the whole
-remote `_config` directory. This manual remote change intentionally remains
-outside the routine wrapper approvals. To restore it, move the same file back to
-`p0.paths`, set mode `0600`, verify its recorded SHA-256, and require
-`nf-gtd-hpc-test readiness p0` to report `ready=true` before staging. A changed
-seven-line payload is a new reviewed setting: preserve the prior file, install
-the replacement deliberately, and record both checksums.
+The `p0-configure` operation creates an absent `_config/p0.paths` below the
+configured Marmic run root. A reviewed replacement additionally requires the
+exact current checksum through `--replace-current-sha256`. Rotation is refused
+while any run that records the current checksum is nonterminal, retains the
+old payload as `p0.paths.retired-<SHA256>`, and verifies the replacement after
+its atomic publication. Record both checksums in the ignored qualification
+dossier. No raw SSH or direct remote file edit is part of configuration
+rotation. Require `nf-gtd-hpc-test readiness p0` to report `ready=true` before
+staging another run.
 
 Before configuration, the separately approved `p0-inputs-stage` operation adds
 one content-addressed, read-only directory below the dispatcher root's fixed
 `_p0_inputs/` directory. It also uses the local private files
 `.untracked/m0-qualification/p0-inputs.json` (operator-prepared specification)
 and `.untracked/m0-qualification/hpc-p0.paths` (generated seven-line candidate).
-The wrapper accepts no destination path and will not overwrite a different
-content identity or local candidate.
+The wrapper accepts no destination path. Replacing a different local candidate
+requires its exact checksum through `--replace-current-paths-sha256`; the prior
+mode-`0600` file is retained as `hpc-p0.paths.retired-<SHA256>`.
 
 To undo the local settings, remove only those two exact files after saving any
 desired checksum record. They are ignored by Git, so this does not alter the
-repository. To undo the remote setting, first ensure no P0 job is active, then
-use the manual exact-file disable/restore procedure above for `_config/p0.paths`.
+repository. Restore a retained P0 configuration only through the same
+checksum-gated rotation operation; the nonterminal-run guard still applies.
 The immutable `_p0_inputs/p0i_<SHA256>` directory may be retained for
 reproducibility; removing it is a separate destructive cleanup requiring an
 exact resolved target, ownership checks, explicit approval, and confirmation

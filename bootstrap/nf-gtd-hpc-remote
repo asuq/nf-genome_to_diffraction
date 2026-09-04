@@ -291,18 +291,26 @@ readiness_p0() {
 }
 
 p0_configure() {
-    [[ "$#" -eq 2 ]] || \
-        fail wrapper_failure "p0-configure expects a checksum and encoded paths"
+    [[ "$#" -eq 2 || "$#" -eq 3 ]] || \
+        fail wrapper_failure \
+            "p0-configure expects a checksum, encoded paths, and optional current checksum"
     local expected_checksum="$1"
     local encoded="$2"
+    local replace_current_checksum="${3:-}"
     local config_directory resolved temporary actual_checksum status size
+    local current_checksum retired run_candidate run_phase run_checksum
     [[ "$expected_checksum" =~ $CHECKSUM_RE ]] || \
         fail wrapper_failure "P0 configuration checksum is invalid"
+    if [[ -n "$replace_current_checksum" ]]; then
+        [[ "$replace_current_checksum" =~ $CHECKSUM_RE ]] || \
+            fail wrapper_failure "current P0 configuration checksum is invalid"
+        [[ "$replace_current_checksum" != "$expected_checksum" ]] || \
+            fail wrapper_failure \
+                "replacement P0 configuration must differ from the current checksum"
+    fi
     [[ -n "$encoded" && "${#encoded}" -le 5464 && \
         "$encoded" =~ ^[A-Za-z0-9+/=]+$ ]] || \
         fail wrapper_failure "encoded P0 configuration is invalid"
-    [[ ! -e "$P0_CONFIG" && ! -L "$P0_CONFIG" ]] || \
-        fail wrapper_failure "P0 configuration already exists"
     config_directory="$(dirname "$P0_CONFIG")"
     if [[ ! -e "$config_directory" && ! -L "$config_directory" ]]; then
         mkdir -p "$config_directory" || \
@@ -335,13 +343,118 @@ p0_configure() {
         rm -f -- "$temporary"
         fail environment_failure "P0 configuration is not ready: $status"
     fi
-    if ! ln "$temporary" "$P0_CONFIG"; then
+
+    mkdir -p -- "$LOCKS"
+    [[ -d "$LOCKS" && ! -L "$LOCKS" && -O "$LOCKS" ]] || {
         rm -f -- "$temporary"
-        fail filesystem_failure "P0 configuration could not be created atomically"
+        fail filesystem_failure "P0 configuration lock directory is unsafe"
+    }
+    exec 8>"$LOCKS/p0-configure.lock"
+    flock -x 8
+    exec 9>"$LOCKS/stage.lock"
+    flock -x 9
+
+    if [[ ! -e "$P0_CONFIG" && ! -L "$P0_CONFIG" ]]; then
+        if [[ -n "$replace_current_checksum" ]]; then
+            rm -f -- "$temporary"
+            fail wrapper_failure "P0 configuration to replace is absent"
+        fi
+        if ! ln "$temporary" "$P0_CONFIG"; then
+            rm -f -- "$temporary"
+            fail filesystem_failure "P0 configuration could not be created atomically"
+        fi
+        rm -f -- "$temporary"
+        emit operation p0-configure
+        emit configured true
+        emit p0_config_sha256 "$expected_checksum"
+        emit p0_config_status ready
+        return 0
     fi
-    rm -f -- "$temporary"
+
+    if [[ -z "$replace_current_checksum" ]]; then
+        rm -f -- "$temporary"
+        fail wrapper_failure "P0 configuration already exists"
+    fi
+    if ! p0_config_readiness "$P0_CONFIG"; then
+        status="$P0_CONFIG_STATUS"
+        rm -f -- "$temporary"
+        fail environment_failure "current P0 configuration is not ready: $status"
+    fi
+    current_checksum="$P0_CONFIG_SHA256"
+    retired="${P0_CONFIG}.retired-${replace_current_checksum}"
+
+    if [[ "$current_checksum" == "$expected_checksum" ]]; then
+        [[ -f "$retired" && ! -L "$retired" && -O "$retired" && \
+           "$(sha256sum "$retired" | awk '{print $1}')" == \
+             "$replace_current_checksum" ]] || {
+            rm -f -- "$temporary"
+            fail filesystem_failure \
+                "idempotent P0 rotation lacks its checksum-retained predecessor"
+        }
+        rm -f -- "$temporary"
+        emit operation p0-configure
+        emit configured false
+        emit rotated true
+        emit previous_p0_config_sha256 "$replace_current_checksum"
+        emit p0_config_sha256 "$expected_checksum"
+        emit p0_config_status ready
+        return 0
+    fi
+    if [[ "$current_checksum" != "$replace_current_checksum" ]]; then
+        rm -f -- "$temporary"
+        fail wrapper_failure "current P0 configuration checksum differs"
+    fi
+
+    for run_candidate in "$RUNS"/gtd-*; do
+        [[ -d "$run_candidate" ]] || continue
+        [[ ! -L "$run_candidate" && -O "$run_candidate" ]] || {
+            rm -f -- "$temporary"
+            fail filesystem_failure "P0 rotation encountered an unsafe run directory"
+        }
+        [[ -e "$run_candidate/state/p0-config-sha256" ]] || continue
+        [[ -f "$run_candidate/state/p0-config-sha256" && \
+           ! -L "$run_candidate/state/p0-config-sha256" && \
+           -f "$run_candidate/state/phase" && \
+           ! -L "$run_candidate/state/phase" ]] || {
+            rm -f -- "$temporary"
+            fail filesystem_failure "P0 rotation encountered unsafe run state"
+        }
+        run_checksum="$(<"$run_candidate/state/p0-config-sha256")"
+        [[ "$run_checksum" == "$current_checksum" ]] || continue
+        run_phase="$(<"$run_candidate/state/phase")"
+        case "$run_phase" in
+            completed|stage_failed) ;;
+            *)
+                rm -f -- "$temporary"
+                fail wrapper_failure \
+                    "P0 configuration is referenced by a nonterminal run"
+                ;;
+        esac
+    done
+
+    if [[ -e "$retired" || -L "$retired" ]]; then
+        [[ -f "$retired" && ! -L "$retired" && -O "$retired" && \
+           "$(sha256sum "$retired" | awk '{print $1}')" == \
+             "$replace_current_checksum" ]] || {
+            rm -f -- "$temporary"
+            fail filesystem_failure "retired P0 configuration identity differs"
+        }
+    elif ! ln "$P0_CONFIG" "$retired"; then
+        rm -f -- "$temporary"
+        fail filesystem_failure "current P0 configuration could not be retained"
+    fi
+    if ! mv -f -- "$temporary" "$P0_CONFIG"; then
+        rm -f -- "$temporary"
+        fail filesystem_failure "P0 configuration could not be replaced atomically"
+    fi
+    if ! p0_config_readiness "$P0_CONFIG" || \
+       [[ "$P0_CONFIG_SHA256" != "$expected_checksum" ]]; then
+        fail filesystem_failure "replacement P0 configuration failed verification"
+    fi
     emit operation p0-configure
     emit configured true
+    emit rotated true
+    emit previous_p0_config_sha256 "$replace_current_checksum"
     emit p0_config_sha256 "$expected_checksum"
     emit p0_config_status ready
 }

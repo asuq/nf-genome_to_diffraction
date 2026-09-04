@@ -46,6 +46,8 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
             "p0.paths",
             "--confirm-sha256",
             "0" * 64,
+            "--replace-current-sha256",
+            "1" * 64,
         ]
     )
     database_runtime_configured = parser.parse_args(
@@ -58,7 +60,13 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
         ]
     )
     input_stage = parser.parse_args(
-        ["p0-inputs-stage", "--confirm-spec-sha256", "0" * 64]
+        [
+            "p0-inputs-stage",
+            "--confirm-spec-sha256",
+            "0" * 64,
+            "--replace-current-paths-sha256",
+            "2" * 64,
+        ]
     )
 
     assert staged.operation == "database-stage"
@@ -66,8 +74,10 @@ def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
     assert readiness.operation == "database-readiness"
     assert archived.operation == "database-archive-failed"
     assert configured.operation == "p0-configure"
+    assert configured.replace_current_sha256 == "1" * 64
     assert database_runtime_configured.operation == "database-runtime-configure"
     assert input_stage.operation == "p0-inputs-stage"
+    assert input_stage.replace_current_paths_sha256 == "2" * 64
     with pytest.raises(SystemExit):
         parser.parse_args(["stage", "database", "--revision", "HEAD"])
     with pytest.raises(SystemExit):

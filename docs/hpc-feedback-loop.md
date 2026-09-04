@@ -493,11 +493,13 @@ Success creates the private local candidate
 LF-terminated lines: owner-controlled site root, rewritten catalogue manifest,
 rewritten crystal manifest, pipeline configuration, database root, frozen
 database manifest, and Phenix manifest. This file contains real site paths and
-must never be committed. The operation refuses to overwrite a different local
-candidate.
+must never be committed. A changed candidate is refused unless
+`p0-inputs-stage` receives `--replace-current-paths-sha256` with the exact
+checksum of the existing mode-`0600` candidate. An authenticated replacement
+retains the prior bytes as `hpc-p0.paths.retired-<SHA256>`.
 
 Compute the candidate checksum separately, review the seven paths, and install
-it through the create-only configuration boundary:
+an initial configuration:
 
 ```bash
 shasum -a 256 .untracked/m0-qualification/hpc-p0.paths
@@ -507,15 +509,33 @@ nf-gtd-hpc-test p0-configure \
 nf-gtd-hpc-test readiness p0
 ```
 
+For a reviewed schema or input rotation, first stage the new content-addressed
+P0 bundle while naming the exact current local-path checksum, then rotate the
+remote pointer while naming the exact current remote checksum:
+
+```bash
+nf-gtd-hpc-test p0-inputs-stage \
+  --confirm-spec-sha256 SPEC_SHA256 \
+  --replace-current-paths-sha256 CURRENT_SHA256
+nf-gtd-hpc-test p0-configure \
+  --paths-file .untracked/m0-qualification/hpc-p0.paths \
+  --confirm-sha256 REPLACEMENT_SHA256 \
+  --replace-current-sha256 CURRENT_SHA256
+nf-gtd-hpc-test readiness p0
+```
+
 The local controller requires an owned mode-`0600` regular file and rejects
 symlinks, non-ASCII or non-canonical text, unsafe path characters, and a
 confirmation that differs from the exact payload checksum. The dispatcher
 decodes at most 4 KiB into an owner-controlled
 temporary file, independently verifies its checksum, mode, line count, path
 containment, and live inputs, then atomically creates `_config/p0.paths` with
-mode `0600`. It refuses to overwrite an existing configuration and returns no
-configured paths. This operation is a one-time external setting change and is
-not suitable for persistent command approval.
+mode `0600`. A replacement is allowed only when the supplied current checksum
+matches, no run that records it is nonterminal, and the prior bytes can be
+retained as `p0.paths.retired-<SHA256>`. Idempotent retries require that retained
+predecessor. The dispatcher returns only checksums and status, never configured
+paths. This operation changes external site state and is not suitable for a
+broad approval rule.
 
 `p0-inputs-stage` is likewise a separately approved data-transfer operation,
 not a routine persistent approval. It cannot read arbitrary local files: the

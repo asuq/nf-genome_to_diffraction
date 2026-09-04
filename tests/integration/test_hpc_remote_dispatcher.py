@@ -4706,6 +4706,73 @@ def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
         "P0 configuration already exists"
     )
 
+    replacement_input = Path(lines[3]).with_name("config-v2.yaml")
+    replacement_input.write_text('schema_version: "1.0"\n', encoding="ascii")
+    replacement_lines = list(lines)
+    replacement_lines[3] = str(replacement_input)
+    replacement_payload = ("\n".join(replacement_lines) + "\n").encode("ascii")
+    replacement_checksum = hashlib.sha256(replacement_payload).hexdigest()
+    active_run = remote_root / "runs" / RUN_ID
+    (active_run / "state").mkdir(parents=True)
+    (active_run / "state" / "p0-config-sha256").write_text(
+        checksum + "\n", encoding="ascii"
+    )
+    (active_run / "state" / "phase").write_text("staged\n", encoding="ascii")
+
+    blocked = _run(
+        [
+            str(dispatcher),
+            "p0-configure",
+            replacement_checksum,
+            base64.b64encode(replacement_payload).decode("ascii"),
+            checksum,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(blocked.stdout)["message"] == (
+        "P0 configuration is referenced by a nonterminal run"
+    )
+
+    (active_run / "state" / "phase").write_text("completed\n", encoding="ascii")
+    rotated = _run(
+        [
+            str(dispatcher),
+            "p0-configure",
+            replacement_checksum,
+            base64.b64encode(replacement_payload).decode("ascii"),
+            checksum,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(rotated.stdout) == {
+        "operation": "p0-configure",
+        "configured": "true",
+        "rotated": "true",
+        "previous_p0_config_sha256": checksum,
+        "p0_config_sha256": replacement_checksum,
+        "p0_config_status": "ready",
+    }
+    assert p0_config.read_bytes() == replacement_payload
+    retired = p0_config.with_name(f"p0.paths.retired-{checksum}")
+    assert retired.read_bytes() == payload
+    assert retired.stat().st_mode & 0o777 == 0o600
+
+    idempotent = _run(
+        [
+            str(dispatcher),
+            "p0-configure",
+            replacement_checksum,
+            base64.b64encode(replacement_payload).decode("ascii"),
+            checksum,
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(idempotent.stdout)["configured"] == "false"
+
 
 def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(
     tmp_path: Path,

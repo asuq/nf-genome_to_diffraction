@@ -2548,6 +2548,33 @@ def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(
     assert arguments[0] == checksum
     assert base64.b64decode(arguments[1]).decode("ascii") == payload
 
+    previous_checksum = "1" * 64
+    rotated = controller.p0_configure(
+        paths_file,
+        checksum,
+        replace_current_sha256=previous_checksum,
+    )
+    assert rotated["operation"] == "p0-configure"
+    operation, arguments = transport.calls[-1]
+    assert operation == "p0-configure"
+    assert arguments == (
+        checksum,
+        base64.b64encode(payload.encode("ascii")).decode("ascii"),
+        previous_checksum,
+    )
+    with pytest.raises(ValidationError, match="must be a SHA-256"):
+        controller.p0_configure(
+            paths_file,
+            checksum,
+            replace_current_sha256="invalid",
+        )
+    with pytest.raises(ValidationError, match="must differ"):
+        controller.p0_configure(
+            paths_file,
+            checksum,
+            replace_current_sha256=checksum,
+        )
+
     paths_file.write_text(
         payload.replace("path-3", "path-3;touch-bad"), encoding="ascii"
     )
@@ -2600,6 +2627,11 @@ def test_p0_input_staging_is_frozen_rewritten_and_checksum_gated(
 
     with pytest.raises(ValidationError, match="exactly equal"):
         controller.p0_inputs_stage("0" * 64)
+    with pytest.raises(ValidationError, match="must be a SHA-256"):
+        controller.p0_inputs_stage(
+            confirmation,
+            replace_current_paths_sha256="invalid",
+        )
     result = controller.p0_inputs_stage(confirmation)
 
     assert result["operation"] == "p0-inputs-stage"
@@ -2641,8 +2673,38 @@ def test_p0_input_staging_is_frozen_rewritten_and_checksum_gated(
     assert repeated["p0_input_id"] == result["p0_input_id"]
     assert repeated["archive_sha256"] == result["archive_sha256"]
 
-    paths_file.chmod(0o644)
+    previous_paths_payload = paths_file.read_bytes()
+    previous_paths_sha256 = hashlib.sha256(previous_paths_payload).hexdigest()
+    pipeline_config = (
+        repository / ".untracked" / "m0-qualification" / "manifests" / "config.yaml"
+    )
+    pipeline_config.write_text(
+        pipeline_config.read_text(encoding="ascii").replace(
+            "max_hypotheses_per_candidate: 4",
+            "max_hypotheses_per_candidate: 3",
+        ),
+        encoding="ascii",
+    )
     with pytest.raises(ValidationError, match="unsafe identity"):
+        controller.p0_inputs_stage(confirmation)
+    rotated = controller.p0_inputs_stage(
+        confirmation,
+        replace_current_paths_sha256=previous_paths_sha256,
+    )
+    assert rotated["local_paths_rotated"] is True
+    assert rotated["previous_local_paths_sha256"] == previous_paths_sha256
+    assert paths_file.read_bytes() != previous_paths_payload
+    retired = paths_file.with_name(f"{paths_file.name}.retired-{previous_paths_sha256}")
+    assert retired.read_bytes() == previous_paths_payload
+    idempotent = controller.p0_inputs_stage(
+        confirmation,
+        replace_current_paths_sha256=previous_paths_sha256,
+    )
+    assert idempotent["local_paths_rotated"] is False
+    assert idempotent["previous_local_paths_sha256"] == previous_paths_sha256
+
+    paths_file.chmod(0o644)
+    with pytest.raises(ValidationError, match="mode-0600"):
         controller.p0_inputs_stage(confirmation)
     paths_file.chmod(0o600)
 

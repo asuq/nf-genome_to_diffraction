@@ -2852,8 +2852,14 @@ class HpcController:
             "profile": profile,
         }
 
-    def p0_configure(self, paths_file: Path, confirmation: str) -> dict[str, object]:
-        """Install one absent, validated seven-line P0 site configuration."""
+    def p0_configure(
+        self,
+        paths_file: Path,
+        confirmation: str,
+        *,
+        replace_current_sha256: str | None = None,
+    ) -> dict[str, object]:
+        """Install or checksum-gated rotate one seven-line P0 site configuration."""
 
         payload = _validated_p0_paths_payload(paths_file)
         checksum = hashlib.sha256(payload).hexdigest()
@@ -2861,21 +2867,48 @@ class HpcController:
             raise ValidationError(
                 "P0 configuration confirmation must exactly equal its SHA-256"
             )
+        if replace_current_sha256 is not None:
+            if re.fullmatch(r"[a-f0-9]{64}", replace_current_sha256) is None:
+                raise ValidationError(
+                    "current P0 configuration confirmation must be a SHA-256"
+                )
+            if replace_current_sha256 == checksum:
+                raise ValidationError(
+                    "replacement P0 configuration must differ from the current checksum"
+                )
         encoded = base64.b64encode(payload).decode("ascii")
         self.logger.warning(
             "installing validated fixed P0 site configuration",
-            extra={"p0_config_sha256": checksum},
+            extra={
+                "p0_config_sha256": checksum,
+                "replace_current_sha256": replace_current_sha256,
+            },
         )
+        arguments = [checksum, encoded]
+        if replace_current_sha256 is not None:
+            arguments.append(replace_current_sha256)
         return {
-            **self.transport.run("p0-configure", [checksum, encoded]),
+            **self.transport.run("p0-configure", arguments),
             "operation": "p0-configure",
             "p0_config_sha256": checksum,
         }
 
-    def p0_inputs_stage(self, spec_confirmation: str) -> dict[str, object]:
-        """Stage the fixed frozen pilot bundle and write its private path candidate."""
+    def p0_inputs_stage(
+        self,
+        spec_confirmation: str,
+        *,
+        replace_current_paths_sha256: str | None = None,
+    ) -> dict[str, object]:
+        """Stage the frozen pilot bundle and publish its private path candidate."""
 
         self.git.ensure_clean()
+        if (
+            replace_current_paths_sha256 is not None
+            and re.fullmatch(r"[a-f0-9]{64}", replace_current_paths_sha256) is None
+        ):
+            raise ValidationError(
+                "current local P0 paths confirmation must be a SHA-256"
+            )
         remote_root = PurePosixPath(self.config.remote_dispatcher).parent.parent
         qualification_root = self.config.repository / ".untracked" / "m0-qualification"
         paths_output = qualification_root / P0_PATHS_FILENAME
@@ -2944,18 +2977,56 @@ class HpcController:
             _validated_p0_paths_payload(temporary_paths)
         finally:
             temporary_paths.unlink(missing_ok=True)
+        rotated = False
+        previous_paths_sha256: str | None = None
         if paths_output.exists() or paths_output.is_symlink():
-            if (
-                paths_output.is_symlink()
-                or not paths_output.is_file()
-                or paths_output.stat().st_uid != os.getuid()
-                or paths_output.stat().st_mode & 0o777 != 0o600
-                or paths_output.read_bytes() != paths_payload
-            ):
-                raise ValidationError(
-                    "private P0 paths candidate already exists with unsafe identity"
+            current_payload = _validated_p0_paths_payload(paths_output)
+            current_checksum = hashlib.sha256(current_payload).hexdigest()
+            if current_payload != paths_payload:
+                if replace_current_paths_sha256 != current_checksum:
+                    raise ValidationError(
+                        "private P0 paths candidate already exists with unsafe identity"
+                    )
+                retired = paths_output.with_name(
+                    f"{P0_PATHS_FILENAME}.retired-{current_checksum}"
                 )
+                if retired.exists() or retired.is_symlink():
+                    if _validated_p0_paths_payload(retired) != current_payload:
+                        raise ValidationError(
+                            "retired private P0 paths candidate identity differs"
+                        )
+                else:
+                    atomic_write_text(
+                        retired,
+                        current_payload.decode("ascii"),
+                        encoding="ascii",
+                    )
+                    retired.chmod(0o600)
+                atomic_write_text(
+                    paths_output,
+                    paths_payload.decode("ascii"),
+                    encoding="ascii",
+                )
+                paths_output.chmod(0o600)
+                rotated = True
+                previous_paths_sha256 = current_checksum
+            elif replace_current_paths_sha256 is not None:
+                retired = paths_output.with_name(
+                    f"{P0_PATHS_FILENAME}.retired-{replace_current_paths_sha256}"
+                )
+                if (
+                    not retired.exists()
+                    or retired.is_symlink()
+                    or hashlib.sha256(_validated_p0_paths_payload(retired)).hexdigest()
+                    != replace_current_paths_sha256
+                ):
+                    raise ValidationError(
+                        "idempotent local P0 rotation lacks its retained predecessor"
+                    )
+                previous_paths_sha256 = replace_current_paths_sha256
         else:
+            if replace_current_paths_sha256 is not None:
+                raise ValidationError("local P0 paths candidate to replace is absent")
             atomic_write_text(
                 paths_output, paths_payload.decode("ascii"), encoding="ascii"
             )
@@ -2969,6 +3040,8 @@ class HpcController:
             "scientific_input_count": bundle.scientific_input_count,
             "p0_config_sha256": candidate_checksum,
             "local_paths_file": str(paths_output),
+            "local_paths_rotated": rotated,
+            "previous_local_paths_sha256": previous_paths_sha256,
         }
 
     def database_readiness(self) -> dict[str, object]:
