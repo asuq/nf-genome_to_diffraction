@@ -911,77 +911,87 @@
       "token": "M6"
     },
     {
-      "line": 3765,
+      "line": 3755,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3758,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3761,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3763,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "P0"
+    },
+    {
+      "line": 3778,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "M6"
     },
     {
-      "line": 3828,
+      "line": 3841,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "RG7"
     },
     {
-      "line": 5117,
+      "line": 5130,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5122,
+      "line": 5135,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5127,
+      "line": 5140,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5131,
+      "line": 5144,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P6"
     },
     {
-      "line": 5861,
+      "line": 5874,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "P2"
     },
     {
-      "line": 6019,
+      "line": 6032,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6025,
+      "line": 6038,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6082,
+      "line": 6095,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6086,
+      "line": 6099,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6090,
+      "line": 6103,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6098,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6110,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6113,
+      "line": 6111,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
@@ -991,22 +1001,27 @@
       "token": "T12"
     },
     {
-      "line": 6125,
+      "line": 6126,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6127,
+      "line": 6136,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6147,
+      "line": 6138,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6162,
+      "line": 6140,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6160,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
@@ -1016,47 +1031,42 @@
       "token": "T12"
     },
     {
-      "line": 6178,
+      "line": 6188,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6193,
+      "line": 6191,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6197,
+      "line": 6206,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6209,
+      "line": 6210,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6218,
+      "line": 6222,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6221,
+      "line": 6231,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6223,
+      "line": 6234,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
     {
-      "line": 6229,
-      "path": "bootstrap/nf-gtd-hpc-remote",
-      "token": "T12"
-    },
-    {
-      "line": 6237,
+      "line": 6236,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
@@ -1066,7 +1076,17 @@
       "token": "T12"
     },
     {
-      "line": 6246,
+      "line": 6250,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6255,
+      "path": "bootstrap/nf-gtd-hpc-remote",
+      "token": "T12"
+    },
+    {
+      "line": 6259,
       "path": "bootstrap/nf-gtd-hpc-remote",
       "token": "T12"
     },
@@ -5628,7 +5648,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_9cb9bf49c93a56addf61856cd345a8286f2436bc4d99bdbcd0027e4dc29f4c11",
+  "inventory_id": "atlasinv_44d27b4033e435d782a0b450509fef9d7409c2ba627600c62b75b6d009be57dc",
   "nextflow_files": [
     {
       "declarations": [],
@@ -56274,60 +56294,60 @@
           "name": "submit_run"
         },
         {
-          "line": 3935,
+          "line": 3948,
           "name": "database_submit_run"
         },
         {
-          "line": 3988,
+          "line": 4001,
           "name": "status_run"
         },
         {
-          "line": 4055,
+          "line": 4068,
           "name": "database_diagnostic_log"
         },
         {
-          "line": 4079,
+          "line": 4092,
           "name": "nextflow_failure_workdir"
         },
         {
-          "line": 4126,
+          "line": 4139,
           "name": "require_database_retained_staging"
         },
         {
-          "line": 4193,
+          "line": 4206,
           "name": "logs_run"
         },
         {
-          "line": 4303,
+          "line": 4316,
           "name": "cancel_run"
         },
         {
-          "line": 4326,
+          "line": 4339,
           "name": "database_archive_failed_run"
         },
         {
-          "line": 4429,
+          "line": 4442,
           "name": "collect_run"
         },
         {
-          "line": 5735,
+          "line": 5748,
           "name": "review_collect_run"
         },
         {
-          "line": 6001,
+          "line": 6014,
           "name": "t12_review_collect_run"
         },
         {
-          "line": 6250,
+          "line": 6263,
           "name": "clean_run"
         },
         {
-          "line": 6274,
+          "line": 6287,
           "name": "main"
         }
       ],
       "path": "bootstrap/nf-gtd-hpc-remote",
-      "sha256": "c2c776e2ab68123e30ad62d5e0c6cc250f2400c21036782b8e09b69d0a46f5e0",
+      "sha256": "d8fed5020207bdf91c0f855dfe0bd9a4dcd5d801aafc27046c737ed85b6f0923",
       "subsystem": "execution_hpc"
     },
     {
@@ -58163,7 +58183,7 @@
         "tests.support.unknown_pass1_fixture"
       ],
       "path": "tests/integration/test_hpc_remote_dispatcher.py",
-      "sha256": "91ec5508d16f973b2040be76d85c2d05a2dde5d80dcab3e57c63c64b891207df",
+      "sha256": "e2b593242d567bb5b613b46d3dc94d857c8227a609e599cfd831891cc117c090",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -59855,7 +59875,7 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4835,
+          "end_line": 4845,
           "kind": "function",
           "line": 4777,
           "name": "test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes",
@@ -59879,9 +59899,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4866,
+          "end_line": 4876,
           "kind": "function",
-          "line": 4838,
+          "line": 4848,
           "name": "test_p0_stage_fails_when_login_environment_install_fails",
           "public": true,
           "qualname": "test_p0_stage_fails_when_login_environment_install_fails",
@@ -59894,9 +59914,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 4923,
+          "end_line": 4933,
           "kind": "function",
-          "line": 4869,
+          "line": 4879,
           "name": "_install_fake_p0_runtime",
           "public": false,
           "qualname": "_install_fake_p0_runtime",
@@ -59925,9 +59945,9 @@
             "pytest.mark.parametrize(('all_cached', 'success', 'failure_class'), [(True, True, 'success'), (False, False, 'test_failure')])"
           ],
           "doc": "",
-          "end_line": 5020,
+          "end_line": 5030,
           "kind": "function",
-          "line": 4930,
+          "line": 4940,
           "name": "test_p0_job_enforces_the_cached_resume_gate",
           "public": true,
           "qualname": "test_p0_job_enforces_the_cached_resume_gate",
@@ -59940,9 +59960,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5332,
+          "end_line": 5342,
           "kind": "function",
-          "line": 5023,
+          "line": 5033,
           "name": "_install_fake_p1_runtime",
           "public": false,
           "qualname": "_install_fake_p1_runtime",
@@ -59969,9 +59989,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5465,
+          "end_line": 5475,
           "kind": "function",
-          "line": 5335,
+          "line": 5345,
           "name": "test_p1_job_uses_fixed_real_search_profile_and_collects_qualification",
           "public": true,
           "qualname": "test_p1_job_uses_fixed_real_search_profile_and_collects_qualification",
@@ -59992,9 +60012,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5493,
+          "end_line": 5503,
           "kind": "function",
-          "line": 5468,
+          "line": 5478,
           "name": "test_p1_stage_refuses_missing_reviewed_provider_plan",
           "public": true,
           "qualname": "test_p1_stage_refuses_missing_reviewed_provider_plan",
@@ -60014,9 +60034,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5525,
+          "end_line": 5535,
           "kind": "function",
-          "line": 5496,
+          "line": 5506,
           "name": "test_p1_stage_classifies_login_node_afdb_transfer_failure",
           "public": true,
           "qualname": "test_p1_stage_classifies_login_node_afdb_transfer_failure",
@@ -60036,9 +60056,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5580,
+          "end_line": 5590,
           "kind": "function",
-          "line": 5528,
+          "line": 5538,
           "name": "test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch",
           "public": true,
           "qualname": "test_p2_stage_and_submit_are_fixed_and_reuse_verified_prefetch",
@@ -60062,9 +60082,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5660,
+          "end_line": 5670,
           "kind": "function",
-          "line": 5583,
+          "line": 5593,
           "name": "test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result",
           "public": true,
           "qualname": "test_p2_job_runs_fixed_cd6_first_copy_and_collects_normalised_result",
@@ -60085,9 +60105,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5711,
+          "end_line": 5721,
           "kind": "function",
-          "line": 5663,
+          "line": 5673,
           "name": "test_p2_job_rejects_adapter_failure_as_test_failure",
           "public": true,
           "qualname": "test_p2_job_rejects_adapter_failure_as_test_failure",
@@ -60113,9 +60133,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5796,
+          "end_line": 5806,
           "kind": "function",
-          "line": 5714,
+          "line": 5724,
           "name": "test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile",
           "public": true,
           "qualname": "test_p2_control_stages_fixed_public_inputs_and_submits_closed_profile",
@@ -60138,9 +60158,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5849,
+          "end_line": 5859,
           "kind": "function",
-          "line": 5799,
+          "line": 5809,
           "name": "test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe",
           "public": true,
           "qualname": "test_phase3_phenix_runtime_migration_is_create_only_and_rebinds_probe",
@@ -60163,9 +60183,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5908,
+          "end_line": 5918,
           "kind": "function",
-          "line": 5852,
+          "line": 5862,
           "name": "test_staged_phase3_phenix_probe_logs_expose_migration_failure",
           "public": true,
           "qualname": "test_staged_phase3_phenix_probe_logs_expose_migration_failure",
@@ -60185,9 +60205,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5935,
+          "end_line": 5945,
           "kind": "function",
-          "line": 5911,
+          "line": 5921,
           "name": "test_unknown_screen_stage_failure_exposes_login_acquisition_log",
           "public": true,
           "qualname": "test_unknown_screen_stage_failure_exposes_login_acquisition_log",
@@ -60210,9 +60230,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 5989,
+          "end_line": 5999,
           "kind": "function",
-          "line": 5938,
+          "line": 5948,
           "name": "test_phase3_phenix_migration_retains_exact_command_failure",
           "public": true,
           "qualname": "test_phase3_phenix_migration_retains_exact_command_failure",
@@ -60244,9 +60264,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6064,
+          "end_line": 6074,
           "kind": "function",
-          "line": 5992,
+          "line": 6002,
           "name": "test_phase3_phenix_probe_is_fixed_and_collectable",
           "public": true,
           "qualname": "test_phase3_phenix_probe_is_fixed_and_collectable",
@@ -60268,9 +60288,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6124,
+          "end_line": 6134,
           "kind": "function",
-          "line": 6067,
+          "line": 6077,
           "name": "test_phase3_network_probe_stages_only_the_tracked_marmic_policy",
           "public": true,
           "qualname": "test_phase3_network_probe_stages_only_the_tracked_marmic_policy",
@@ -60284,9 +60304,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6139,
+          "end_line": 6149,
           "kind": "function",
-          "line": 6127,
+          "line": 6137,
           "name": "test_phase3_network_probe_uses_the_canonical_qualification_root",
           "public": true,
           "qualname": "test_phase3_network_probe_uses_the_canonical_qualification_root",
@@ -60300,9 +60320,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6159,
+          "end_line": 6169,
           "kind": "function",
-          "line": 6142,
+          "line": 6152,
           "name": "test_heteromer_multicopy_partner_preserves_parent_model_uncertainty",
           "public": true,
           "qualname": "test_heteromer_multicopy_partner_preserves_parent_model_uncertainty",
@@ -60316,9 +60336,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6179,
+          "end_line": 6189,
           "kind": "function",
-          "line": 6162,
+          "line": 6172,
           "name": "test_heteromer_wrong_partner_preserves_parent_model_uncertainty",
           "public": true,
           "qualname": "test_heteromer_wrong_partner_preserves_parent_model_uncertainty",
@@ -60332,9 +60352,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6201,
+          "end_line": 6211,
           "kind": "function",
-          "line": 6182,
+          "line": 6192,
           "name": "test_9ecn_wrong_c_uses_the_frozen_distinct_control_model",
           "public": true,
           "qualname": "test_9ecn_wrong_c_uses_the_frozen_distinct_control_model",
@@ -60375,9 +60395,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6589,
+          "end_line": 6599,
           "kind": "function",
-          "line": 6204,
+          "line": 6214,
           "name": "test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain",
           "public": true,
           "qualname": "test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain",
@@ -60390,9 +60410,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6602,
+          "end_line": 6612,
           "kind": "function",
-          "line": 6592,
+          "line": 6602,
           "name": "test_heteromer_collection_allowlist_has_no_duplicate_p6_report",
           "public": true,
           "qualname": "test_heteromer_collection_allowlist_has_no_duplicate_p6_report",
@@ -60422,9 +60442,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6649,
+          "end_line": 6659,
           "kind": "function",
-          "line": 6605,
+          "line": 6615,
           "name": "test_heteromer_collection_accepts_large_3u7q_mtz_evidence",
           "public": true,
           "qualname": "test_heteromer_collection_accepts_large_3u7q_mtz_evidence",
@@ -60453,9 +60473,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6712,
+          "end_line": 6722,
           "kind": "function",
-          "line": 6652,
+          "line": 6662,
           "name": "test_heteromer_collection_retains_partial_9ecn_parent_evidence",
           "public": true,
           "qualname": "test_heteromer_collection_retains_partial_9ecn_parent_evidence",
@@ -60486,9 +60506,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6788,
+          "end_line": 6798,
           "kind": "function",
-          "line": 6715,
+          "line": 6725,
           "name": "test_heteromer_p6_no_hit_omits_only_conditional_solution_assets",
           "public": true,
           "qualname": "test_heteromer_p6_no_hit_omits_only_conditional_solution_assets",
@@ -60513,9 +60533,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6821,
+          "end_line": 6831,
           "kind": "function",
-          "line": 6791,
+          "line": 6801,
           "name": "test_heteromer_stage_rejects_unbound_p6_protocol_provenance",
           "public": true,
           "qualname": "test_heteromer_stage_rejects_unbound_p6_protocol_provenance",
@@ -60543,9 +60563,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 6949,
+          "end_line": 6959,
           "kind": "function",
-          "line": 6824,
+          "line": 6834,
           "name": "test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package",
           "public": true,
           "qualname": "test_p2_diverse_runs_bounded_offline_fanout_and_collects_review_package",
@@ -60573,9 +60593,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7066,
+          "end_line": 7076,
           "kind": "function",
-          "line": 6952,
+          "line": 6962,
           "name": "_install_review_asset_fixture",
           "public": false,
           "qualname": "_install_review_asset_fixture",
@@ -60601,9 +60621,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7114,
+          "end_line": 7124,
           "kind": "function",
-          "line": 7069,
+          "line": 7079,
           "name": "test_review_collect_streams_all_manifest_inspectable_checksum_assets",
           "public": true,
           "qualname": "test_review_collect_streams_all_manifest_inspectable_checksum_assets",
@@ -60624,9 +60644,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7172,
+          "end_line": 7182,
           "kind": "function",
-          "line": 7117,
+          "line": 7127,
           "name": "test_review_collect_rejects_manifest_checksum_and_asset_tampering",
           "public": true,
           "qualname": "test_review_collect_rejects_manifest_checksum_and_asset_tampering",
@@ -60657,9 +60677,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7301,
+          "end_line": 7311,
           "kind": "function",
-          "line": 7175,
+          "line": 7185,
           "name": "_install_t12_review_asset_fixture",
           "public": false,
           "qualname": "_install_t12_review_asset_fixture",
@@ -60680,9 +60700,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7345,
+          "end_line": 7355,
           "kind": "function",
-          "line": 7304,
+          "line": 7314,
           "name": "test_t12_review_collect_streams_only_typed_checksum_assets",
           "public": true,
           "qualname": "test_t12_review_collect_streams_only_typed_checksum_assets",
@@ -60702,9 +60722,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7377,
+          "end_line": 7387,
           "kind": "function",
-          "line": 7348,
+          "line": 7358,
           "name": "test_p2_diverse_stage_classifies_coordinate_registration_failure",
           "public": true,
           "qualname": "test_p2_diverse_stage_classifies_coordinate_registration_failure",
@@ -60721,9 +60741,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7465,
+          "end_line": 7475,
           "kind": "function",
-          "line": 7380,
+          "line": 7390,
           "name": "test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit",
           "public": true,
           "qualname": "test_remote_dispatcher_allows_scheduler_concurrency_and_rejects_duplicate_submit",
@@ -60742,9 +60762,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7523,
+          "end_line": 7533,
           "kind": "function",
-          "line": 7468,
+          "line": 7478,
           "name": "test_remote_dispatcher_classifies_node_failure_and_oversized_collection",
           "public": true,
           "qualname": "test_remote_dispatcher_classifies_node_failure_and_oversized_collection",
@@ -60765,9 +60785,9 @@
             "pytest.mark.parametrize(('environment_key', 'expected_class'), [('FAKE_PIXI_INSTALL_FAIL', 'environment_failure'), ('FAKE_PIXI_RUN_FAIL', 'test_failure')])"
           ],
           "doc": "",
-          "end_line": 7564,
+          "end_line": 7574,
           "kind": "function",
-          "line": 7533,
+          "line": 7543,
           "name": "test_smoke_job_distinguishes_environment_and_test_failures",
           "public": true,
           "qualname": "test_smoke_job_distinguishes_environment_and_test_failures",
@@ -60787,9 +60807,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 7602,
+          "end_line": 7612,
           "kind": "function",
-          "line": 7567,
+          "line": 7577,
           "name": "test_smoke_job_records_term_signal_as_cancellation",
           "public": true,
           "qualname": "test_smoke_job_records_term_signal_as_cancellation",

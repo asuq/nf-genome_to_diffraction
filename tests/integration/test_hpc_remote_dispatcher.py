@@ -4717,7 +4717,7 @@ def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
     (active_run / "state" / "p0-config-sha256").write_text(
         checksum + "\n", encoding="ascii"
     )
-    (active_run / "state" / "phase").write_text("staged\n", encoding="ascii")
+    (active_run / "state" / "phase").write_text("submitted\n", encoding="ascii")
 
     blocked = _run(
         [
@@ -4732,10 +4732,10 @@ def test_p0_configuration_is_create_only_checksum_gated_and_allows_owned_home(
         success=False,
     )
     assert _decode_protocol(blocked.stdout)["message"] == (
-        "P0 configuration is referenced by a nonterminal run"
+        "P0 configuration is referenced by an active run"
     )
 
-    (active_run / "state" / "phase").write_text("completed\n", encoding="ascii")
+    (active_run / "state" / "phase").write_text("staged\n", encoding="ascii")
     rotated = _run(
         [
             str(dispatcher),
@@ -4816,6 +4816,16 @@ def test_p0_stage_fingerprints_fixed_config_and_rejects_post_stage_changes(
             "crystals.json", "crystals.json;touch-bad"
         ),
         encoding="utf-8",
+    )
+
+    rejected_submit = _run(
+        [str(dispatcher), "submit", P0_RUN_ID, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert _decode_protocol(rejected_submit.stdout)["message"] == (
+        "fixed P0 configuration is absent or unsafe before submission"
     )
 
     job_environment = dict(environment)

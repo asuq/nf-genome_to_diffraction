@@ -423,11 +423,11 @@ p0_configure() {
         [[ "$run_checksum" == "$current_checksum" ]] || continue
         run_phase="$(<"$run_candidate/state/phase")"
         case "$run_phase" in
-            completed|stage_failed) ;;
+            completed|stage_failed|staged|submission_failed) ;;
             *)
                 rm -f -- "$temporary"
                 fail wrapper_failure \
-                    "P0 configuration is referenced by a nonterminal run"
+                    "P0 configuration is referenced by an active run"
                 ;;
         esac
     done
@@ -3736,7 +3736,7 @@ submit_run() {
     local run_id="$1"
     local owner_id="$2"
     local run submission job_id profile walltime
-    local cpus memory actual_authority_count
+    local cpus memory actual_authority_count expected_p0_config_sha256
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
@@ -3749,6 +3749,19 @@ submit_run() {
         fail wrapper_failure "database profile requires database-submit"
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "recorded profile does not match the run ID"
+    if [[ -e "$run/state/p0-config-sha256" ]]; then
+        [[ -f "$run/state/p0-config-sha256" && \
+           ! -L "$run/state/p0-config-sha256" ]] || \
+            fail filesystem_failure "recorded P0 configuration identity is unsafe"
+        expected_p0_config_sha256="$(<"$run/state/p0-config-sha256")"
+        [[ "$expected_p0_config_sha256" =~ $CHECKSUM_RE ]] || \
+            fail wrapper_failure "recorded P0 configuration checksum is invalid"
+        p0_config_readiness || \
+            fail environment_failure \
+                "fixed P0 configuration is absent or unsafe before submission"
+        [[ "$P0_CONFIG_SHA256" == "$expected_p0_config_sha256" ]] || \
+            fail wrapper_failure "P0 configuration changed after staging"
+    fi
     if [[ "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
         validate_m6_smoke_site_state "$run"

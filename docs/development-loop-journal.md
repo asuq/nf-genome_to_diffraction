@@ -15219,9 +15219,9 @@ with a collapsed combined parent or a guessed command.
 - The private pipeline configuration now validates under the exact source, and
   a new content-addressed P0 bundle is staged. Finding `PH3-P1-83` records the
   missing safe rotation path: the wrapper now accepts a replacement only with
-  exact old and new checksums, blocks while the predecessor is referenced by a
-  nonterminal run, retains old local and remote bytes, and supports idempotent
-  retries without raw SSH.
+  exact old and new checksums, blocks submitted/running predecessor jobs,
+  makes staged-only predecessors unsubmitable after rotation, retains old local
+  and remote bytes, and supports idempotent retries without raw SSH.
 - Focused CLI/client tests, the real dispatcher rotation regression, shell
   syntax, the regenerated 397-file atlas, and the complete locked gate pass,
   including 1,435 unit, 152 contract, and 98 integration tests. Next commit and

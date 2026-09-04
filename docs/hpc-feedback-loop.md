@@ -531,11 +531,13 @@ decodes at most 4 KiB into an owner-controlled
 temporary file, independently verifies its checksum, mode, line count, path
 containment, and live inputs, then atomically creates `_config/p0.paths` with
 mode `0600`. A replacement is allowed only when the supplied current checksum
-matches, no run that records it is nonterminal, and the prior bytes can be
-retained as `p0.paths.retired-<SHA256>`. Idempotent retries require that retained
-predecessor. The dispatcher returns only checksums and status, never configured
-paths. This operation changes external site state and is not suitable for a
-broad approval rule.
+matches, no submitted or running job records it, and the prior bytes can be
+retained as `p0.paths.retired-<SHA256>`. A staged-only predecessor is safe to
+retain because submission independently rechecks its recorded P0 checksum and
+refuses it after rotation. Idempotent retries require the retained predecessor.
+The dispatcher returns only checksums and status, never configured paths. This
+operation changes external site state and is not suitable for a broad approval
+rule.
 
 `p0-inputs-stage` is likewise a separately approved data-transfer operation,
 not a routine persistent approval. It cannot read arbitrary local files: the

@@ -130,12 +130,13 @@ remote shared resources from this local rollback.
 The `p0-configure` operation creates an absent `_config/p0.paths` below the
 configured Marmic run root. A reviewed replacement additionally requires the
 exact current checksum through `--replace-current-sha256`. Rotation is refused
-while any run that records the current checksum is nonterminal, retains the
-old payload as `p0.paths.retired-<SHA256>`, and verifies the replacement after
-its atomic publication. Record both checksums in the ignored qualification
-dossier. No raw SSH or direct remote file edit is part of configuration
-rotation. Require `nf-gtd-hpc-test readiness p0` to report `ready=true` before
-staging another run.
+while a submitted or running job records the current checksum, retains the old
+payload as `p0.paths.retired-<SHA256>`, and verifies the replacement after its
+atomic publication. An older staged-only run becomes unsubmitable because
+submission rechecks the recorded configuration checksum. Record both checksums
+in the ignored qualification dossier. No raw SSH or direct remote file edit is
+part of configuration rotation. Require `nf-gtd-hpc-test readiness p0` to
+report `ready=true` before staging another run.
 
 Before configuration, the separately approved `p0-inputs-stage` operation adds
 one content-addressed, read-only directory below the dispatcher root's fixed
@@ -149,7 +150,7 @@ mode-`0600` file is retained as `hpc-p0.paths.retired-<SHA256>`.
 To undo the local settings, remove only those two exact files after saving any
 desired checksum record. They are ignored by Git, so this does not alter the
 repository. Restore a retained P0 configuration only through the same
-checksum-gated rotation operation; the nonterminal-run guard still applies.
+checksum-gated rotation operation; the active-job guard still applies.
 The immutable `_p0_inputs/p0i_<SHA256>` directory may be retained for
 reproducibility; removing it is a separate destructive cleanup requiring an
 exact resolved target, ownership checks, explicit approval, and confirmation
