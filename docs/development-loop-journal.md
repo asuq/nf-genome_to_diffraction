@@ -15334,3 +15334,20 @@ with a collapsed combined parent or a guessed command.
 - The existing private two-crystal exploratory batch remains active. Next
   monitor it without duplicate launches while awaiting the user's strategy
   direction; do not restart the failed sequential continuation automatically.
+
+## 2026-09-05 - Targeted exploratory batch completed without identification
+
+- The independent two-crystal batch completed ten MR and ten preparation tasks,
+  all with zero process exit status and without retries or cached replay. Its
+  four weak retained placements and six native-confirmed no-solutions do not
+  establish identity or biologically exclude the tested proteins.
+- The private terminal assessment retains all inputs, commands, native logs,
+  assets, task traces, and key-file checksums. Asset-associated scores remain
+  distinct from earlier parser peaks; independently inspected polymer-chain
+  counts correct a read-back metadata limitation without rewriting raw records.
+- All current jobs are terminal. The previously failed continuation remains
+  diagnostic only and non-reusable. The already-asked copy-search strategy
+  question is still awaiting confirmation; no method change, replacement run,
+  extra-copy/refinement approval, or identity decision is inferred.
+- Next wait for the user's strategy direction. Do not poll or relaunch completed
+  controllers. Candidate assessments and v0.3.0 remain incomplete.
