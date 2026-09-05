@@ -15297,3 +15297,40 @@ with a collapsed combined parent or a guessed command.
 - Next obtain the revised A decisions before continuation. Do not poll completed
   controllers, duplicate these tests, or restart the deferred method redesign.
   Private handoffs contain concrete candidate targets and the unresolved cases.
+
+## 2026-09-05 - Approved single-seed continuation and parallel identification
+
+- The user explicitly approved the immediately proposed single-candidate
+  sequential-copy follow-up and separately requested further identification
+  work for the other two crystals. Exactly one package-bound A approval was
+  recorded; other candidates remain undecided and no identity was accepted.
+- The existing reviewed wrapper staged and submitted one continuation against
+  the successful screen's exact pushed scientific source. The intervening
+  documentation-only commit did not require repeating discovery or screening.
+- A separate private local Nextflow batch schedules five new mass-compatible
+  proteins for each remaining crystal. All ten source-chain preparations pass;
+  one initial MR task per crystal entered real Phaser rotation search. Original
+  diffraction inputs and complete candidate-specific Matthews priors are
+  retained. The general hypothesis-generator redesign remains deferred.
+- Next monitor the exact integrated continuation and named local batch. Stop
+  for the required final sequence/composition decisions or a new exploratory
+  seed review. Do not duplicate earlier tests or infer identities from ranks.
+
+## 2026-09-05 - Continuation stopped before MR; copy-search strategy queried
+
+- The owned continuation completed Phenix verification and three setup tasks,
+  then all three crystal-dispatch tasks exited nonzero. No additional-copy MR,
+  refinement, sequence task, retry, or replay ran. Bounded logs, command/exit
+  evidence, canonical approval and authority inventories are retained; the
+  failed child's cache is non-reusable.
+- `PH3-P1-85` records the demonstrated routing defect: continuation dispatch
+  reads the P0 manifest without the explicit Free-R test value already present
+  in the successful parent screen's resolved scope. Preserve that selected
+  value and original flags rather than inferring or regenerating them.
+- The user expected MR to search the Matthews-predicted copy count directly.
+  The distinction from the implemented incremental strategy was explained;
+  changing to one invocation searching the expected count awaits confirmation.
+  No replacement, strategy change, or cancellation has been performed.
+- The existing private two-crystal exploratory batch remains active. Next
+  monitor it without duplicate launches while awaiting the user's strategy
+  direction; do not restart the failed sequential continuation automatically.
