@@ -15278,3 +15278,22 @@ with a collapsed combined parent or a guessed command.
   the complete locked local gate, commit and push `main`, require exact-source
   CI, deploy only that source, then stage one fresh discovery and one
   parent-bound screen. No predecessor cache or package decision is reusable.
+
+## 2026-09-05 - Five-state screen collected; identification review takes priority
+
+- The five-state policy at `184c9aaea9de` passed the full locked local gate,
+  all six CI lanes, reviewed deployment, and a fresh discovery/screen chain.
+  All 75 independent MR tasks completed on their first attempt; all 98 workflow
+  tasks replayed cached with matching identities and unchanged output manifests.
+- The owned A packages, complete candidate tables, and task/resource evidence
+  are retained privately. New experimental information is assessed separately
+  from the immutable mass-blind screen. The integrated pointer is `needs_user`;
+  the old top-five plan does not substitute for new package-bound decisions.
+- The user deferred the general hypothesis-generation redesign until after
+  v0.3 and authorised parallel case-specific exploration without an additional
+  release-qualification cycle. Five exploratory one-copy tasks completed; weak
+  placements, no-solutions, and one parser failure with negative native evidence
+  remain distinct. No identity, additional-copy state, or refinement was accepted.
+- Next obtain the revised A decisions before continuation. Do not poll completed
+  controllers, duplicate these tests, or restart the deferred method redesign.
+  Private handoffs contain concrete candidate targets and the unresolved cases.
