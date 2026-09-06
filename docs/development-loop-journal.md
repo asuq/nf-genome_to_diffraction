@@ -15351,3 +15351,28 @@ with a collapsed combined parent or a guessed command.
   extra-copy/refinement approval, or identity decision is inferred.
 - Next wait for the user's strategy direction. Do not poll or relaunch completed
   controllers. Candidate assessments and v0.3.0 remain incomplete.
+
+## 2026-09-06 - Extended distinct-candidate exploration launched
+
+- The user authorised continued candidate exploration. This supersedes the
+  stop against further tests, but does not confirm the separate proposed
+  full-expected-copy search. Existing scientific semantics and human review
+  boundaries remain unchanged; no identity is promised or inferred.
+- A new private 35-candidate batch excludes sequence groups from the accepted
+  screen and both completed exploratory batches. It retains original
+  diffraction data, catalogue mapping, full Matthews priors and public-template
+  coordinates. Independent candidates remain separate Nextflow tasks.
+- Seven focused checks pass, including native-chain preparation, the unusual
+  multi-character chain case, command preservation, failure classification,
+  frozen final-asset metrics and inventory counts. Ruff passes; Nextflow syntax
+  passes with known private project-path warnings. Two native tasks entered
+  rotation-likelihood rescoring. No new remote job, tracked scientific change,
+  failed cache reuse, or full release/CI gate was needed.
+- Private state records exact ownership, launch files, commands and the local
+  resource budget. The existing heartbeat now follows the new batch and may
+  continue distinct bounded candidates if necessary. The failed integrated
+  continuation remains diagnostic only; its routing defect is still open.
+- Next classify native outcomes and every task before selecting another
+  distinct batch or requesting review of a convincing seed. Keep weak
+  placements, no-solutions, failures and unsubmitted work distinct. Complete
+  candidate assessments before returning to the remaining v0.3 programme.
