@@ -17,7 +17,13 @@ from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.matthews.enumerate import enumerate_group
-from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
+from genome_to_diffraction.matthews.probability import (
+    MINIMUM_REFERENCE_RECORDS,
+    PRIOR_BACKEND,
+    REFERENCE_RESOURCE_SHA256,
+    homooligomer_copy_probability,
+    probability_distribution,
+)
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
     PhaseIIISeedStageRequest,
@@ -107,7 +113,7 @@ def _hypothesis(
             "matthews_hypothesis_id": "matthews_stub",
             "matthews_prior_backend": PRIOR_BACKEND,
             "matthews_copy_range_policy": (
-                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+                "dynamic_by_asu_sequence_mass_nonnegative_solvent"
             ),
             "matthews_copy_range_complete": True,
             "structural_source_class": "predicted",
@@ -119,6 +125,10 @@ def _hypothesis(
 
 
 def _matthews(*, crystal_id: str = "test_crystal_01") -> MatthewsHypothesis:
+    distribution = probability_distribution(2.0)
+    solvent = 1.0 - 1.23 / 2.4
+    density = distribution.score(solvent)
+    factor = homooligomer_copy_probability(1)
     return MatthewsHypothesis(
         schema_version="1.0",
         hypothesis_id="matthews_stub",
@@ -127,10 +137,17 @@ def _matthews(*, crystal_id: str = "test_crystal_01") -> MatthewsHypothesis:
         copy_count=1,
         sequence_mass_da=436.4375,
         total_mass_da=436.4375,
-        v_asu_a3=250_000,
+        v_asu_a3=436.4375 * 2.4,
         matthews_coefficient=2.4,
-        solvent_fraction=0.49,
-        matthews_prior=0.75,
+        solvent_fraction=solvent,
+        matthews_prior=density * factor,
+        solvent_density=density,
+        copy_frequency_factor=factor,
+        prior_reference_record_count=distribution.reference_record_count,
+        prior_minimum_reference_records=MINIMUM_REFERENCE_RECORDS,
+        prior_reference_resource_sha256=REFERENCE_RESOURCE_SHA256,
+        configured_solvent_fraction_min=0.1,
+        configured_solvent_fraction_max=0.9,
         prior_backend=PRIOR_BACKEND,
         rank_within_candidate=1,
         retained=True,
@@ -553,6 +570,13 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert rows[0]["inspectable_solution"] == "True"
     assert rows[0]["llg"] == "111.0"
     assert rows[0]["tfz"] == "11.0"
+    assert float(rows[0]["matthews_prior"]) == pytest.approx(
+        float(rows[0]["solvent_density"]) * float(rows[0]["copy_frequency_factor"])
+    )
+    assert rows[0]["prior_reference_resource_sha256"] == REFERENCE_RESOURCE_SHA256
+    assert rows[0]["prior_minimum_reference_records"] == "200"
+    assert rows[0]["configured_solvent_fraction_min"] == "0.1"
+    assert rows[0]["configured_solvent_fraction_max"] == "0.9"
     assert rows[0]["review_priority_rank"] == "1"
     assert rows[0]["mr_rank"] == "1"
     assert rows[0]["matthews_rank"] == "1"
@@ -582,6 +606,66 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     )
     assert isinstance(template, ReviewDecisionManifest)
     assert template.decisions == ()
+
+
+def test_review_binds_complete_acquired_inventory_and_its_source_funnel(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    inventory = request.funnel_manifest.parent / "complete_acquired_hypotheses.jsonl"
+    inventory.write_bytes(request.hypotheses_jsonl.read_bytes())
+    funnel = json.loads(request.funnel_manifest.read_text())
+    funnel.update(
+        complete_acquired_hypotheses_sha256=sha256_file(inventory),
+        complete_acquired_hypothesis_count=1,
+    )
+    request.funnel_manifest.write_text(json.dumps(funnel))
+    output = build_mr_seed_review(request)
+    document = json.loads(output.manifest_json.read_text())
+    outputs = document["outputs"]
+    for role, source in (
+        ("complete_acquired_hypotheses", inventory),
+        ("source_funnel_manifest", request.funnel_manifest),
+    ):
+        retained = output.manifest_json.parent / outputs[role]["path"]
+        assert retained.read_bytes() == source.read_bytes()
+        assert outputs[role]["sha256"] == sha256_file(source)
+    validate_mr_seed_review_evidence(
+        package_manifest=output.manifest_json,
+        hypotheses_jsonl=request.hypotheses_jsonl,
+        crystal_id="test_crystal_01",
+    )
+    del document["outputs"]["complete_acquired_hypotheses"]
+    output.manifest_json.write_text(json.dumps(document))
+    with pytest.raises(MrSeedReviewError, match="bound alternative evidence"):
+        validate_mr_seed_review_evidence(
+            package_manifest=output.manifest_json,
+            hypotheses_jsonl=request.hypotheses_jsonl,
+            crystal_id="test_crystal_01",
+        )
+
+
+@pytest.mark.parametrize("mutation", ("checksum", "count", "selected_record"))
+def test_review_rejects_inconsistent_complete_acquired_inventory(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    request = _request(tmp_path)
+    inventory = request.funnel_manifest.parent / "complete_acquired_hypotheses.jsonl"
+    record = _hypothesis()
+    if mutation == "selected_record":
+        record = record.model_copy(update={"copy_count_expected": 2})
+    inventory.write_text(canonical_json_text(record) + "\n")
+    funnel = json.loads(request.funnel_manifest.read_text())
+    funnel.update(
+        complete_acquired_hypotheses_sha256=(
+            "0" * 64 if mutation == "checksum" else sha256_file(inventory)
+        ),
+        complete_acquired_hypothesis_count=2 if mutation == "count" else 1,
+    )
+    request.funnel_manifest.write_text(json.dumps(funnel))
+    with pytest.raises(MrSeedReviewError, match="inventory"):
+        build_mr_seed_review(request)
 
 
 def test_review_priority_uses_physical_equal_solvent_mr_counterexample(

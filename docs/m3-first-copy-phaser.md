@@ -331,6 +331,15 @@ The operation publishes:
   hypothesis, normalised result, funnel, command, log, and result-asset
   checksums.
 
+The TSV and HTML expose Matthews solvent density, empirical copy-frequency
+factor and their product, the reference resource checksum and support count,
+the configured solvent preference window, and review reasons. Numeric zero
+remains zero. A source funnel's advertised complete acquired-hypothesis
+inventory and source manifest are copied into `evidence/` and bound to the
+package inputs and outputs. Missing, changed or mismatched inventory records
+fail validation. These inventory entries preserve alternatives for an explicit
+reviewed reopening; tested hypotheses supply the MR evidence rows.
+
 Review first separates inconsistent declared compositions, then orders
 Coot-inspectable execution evidence by selected packing, interpreted copy
 state, the strict raw `LLG > 50` or `TFZ > 5` screen, raw LLG and TFZ, the

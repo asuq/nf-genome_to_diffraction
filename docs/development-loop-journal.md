@@ -15609,3 +15609,19 @@ with a collapsed combined parent or a guessed command.
 - Next bound native Phaser-log parsing, integrate complete alternative
   inventories and Matthews factor exports, and finish copy-completeness
   reporting before the integrated release gate.
+
+## 2026-09-07 - Matthews factors and complete alternatives in A review
+
+- The corrected A review exports the successful estimator's solvent density,
+  copy-frequency factor, product, reference/support metadata, configured
+  solvent window and review reasons. Expected, requested and placed counts
+  remain separate. The shared review fixture now derives its prior from the
+  actual reference distribution.
+- Advertised complete acquired inventories and source funnel manifests are
+  retained as checksum-bound package evidence. Validation rejects changed
+  counts/bytes/selected records and missing alternative-evidence outputs.
+  Minimal known-control and reopened packages retain their existing explicit
+  inventory capability; no second reopening is implied.
+- Focused review-factor, emitted ranking and inventory-integrity regressions,
+  Ruff and type checks pass. Native-log bounding, copy-completeness reporting
+  and integrated qualification remain the next work.

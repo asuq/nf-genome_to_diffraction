@@ -84,11 +84,20 @@ _TSV_COLUMNS = (
     "exact_sequence_mapping",
     "candidate_source_sequence_identity",
     "copy_count_expected",
+    "copy_number_to_search",
     "placed_copy_count",
     "copy_state_interpretation",
     "matthews_coefficient",
     "solvent_fraction",
     "matthews_prior",
+    "solvent_density",
+    "copy_frequency_factor",
+    "prior_reference_record_count",
+    "prior_minimum_reference_records",
+    "prior_reference_resource_sha256",
+    "configured_solvent_fraction_min",
+    "configured_solvent_fraction_max",
+    "review_reasons",
     "matthews_prior_backend",
     "matthews_copy_range_complete",
     "matthews_physical_status",
@@ -454,13 +463,13 @@ def _join_candidates(
         request.funnel_manifest, label="funnel manifest"
     )
     if funnel_document.get("adapter_version") == (
-        "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        "multi-source-first-copy-funnel-v8-reviewed-alternatives"
     ) and (
         funnel_document.get("matthews_prior_backend") != PRIOR_BACKEND
         or funnel_document.get("matthews_copy_range_backend") != COPY_RANGE_BACKEND
         or funnel_document.get("matthews_copy_range_complete") is not True
         or funnel_document.get("matthews_copy_range_validation")
-        != "rederived_from_preflight_sequence_mass_and_solvent_bounds"
+        != "rederived_from_preflight_sequence_mass_nonnegative_solvent"
     ):
         raise MrSeedReviewError("funnel Matthews range authority is incomplete")
     funnel_id, entries = _funnel_entries(funnel_document, hypotheses)
@@ -473,6 +482,49 @@ def _join_candidates(
         "matthews_hypotheses": request.matthews_hypotheses_jsonl,
         "pipeline_config": request.pipeline_config,
     }
+    inventory_sha = funnel_document.get("complete_acquired_hypotheses_sha256")
+    inventory_count = funnel_document.get("complete_acquired_hypothesis_count")
+    if inventory_sha is not None or inventory_count is not None:
+        if (
+            not isinstance(inventory_sha, str)
+            or re.fullmatch(r"[a-f0-9]{64}", inventory_sha) is None
+            or not isinstance(inventory_count, int)
+            or isinstance(inventory_count, bool)
+            or inventory_count < 0
+        ):
+            raise MrSeedReviewError("complete acquired hypothesis inventory is invalid")
+        inventory = (
+            request.funnel_manifest.parent / "complete_acquired_hypotheses.jsonl"
+        )
+        inventory_records = _read_jsonl(
+            inventory,
+            MrHypothesis,
+            label="complete acquired hypotheses",
+            progress=request.progress,
+            allow_empty=True,
+        )
+        inventory_index = _unique_index(
+            inventory_records,
+            lambda item: item.hypothesis_id,
+            label="complete acquired hypothesis ID",
+        )
+        if (
+            len(inventory_records) != inventory_count
+            or sha256_file(inventory) != inventory_sha
+        ):
+            raise MrSeedReviewError("complete acquired hypothesis inventory differs")
+        if any(
+            inventory_index.get(key) != row for key, row in hypothesis_index.items()
+        ):
+            raise MrSeedReviewError(
+                "selected hypotheses differ from the complete inventory"
+            )
+        input_paths["complete_acquired_hypotheses"] = inventory
+    elif funnel_document.get("adapter_version") in {
+        "multi-source-first-copy-funnel-v8-reviewed-alternatives",
+        "multi-source-first-copy-funnel-v2-complete-inventory",
+    }:
+        raise MrSeedReviewError("current funnel lacks its complete acquired inventory")
     input_sha256 = {
         name: sha256_file(path.resolve(strict=True), progress=False)
         for name, path in input_paths.items()
@@ -650,14 +702,14 @@ def mr_seed_copy_state(hypothesis: MrHypothesis, result: NormalisedMrResult) -> 
 def _mr_evidence_sort_key(
     *, hypothesis: MrHypothesis, result: NormalisedMrResult, inspectable: bool
 ) -> tuple[object, ...]:
-    status_rank = {
-        ExecutionStatus.COMPLETED_HIT: 0,
-        ExecutionStatus.COMPLETED_NO_HIT: 1,
-    }.get(result.execution_status, 2)
+    completed = result.execution_status in {
+        ExecutionStatus.COMPLETED_HIT,
+        ExecutionStatus.COMPLETED_NO_HIT,
+    }
     copy_state = mr_seed_copy_state(hypothesis, result)
     return (
-        0 if inspectable else 1,
-        status_rank,
+        0 if inspectable and completed else 1,
+        0 if completed else 1,
         0 if _boolean_feature(result, "top_solution_packed") else 1,
         0 if copy_state in {"requested_copies_observed", "coupled_tncs"} else 1,
         0 if _score_gate(result) else 1,
@@ -815,6 +867,7 @@ def _row(
             "candidate_source_sequence_identity", ""
         ),
         "copy_count_expected": candidate.hypothesis.copy_count_expected,
+        "copy_number_to_search": candidate.hypothesis.copy_number_to_search,
         "placed_copy_count": candidate.result.placed_copy_count,
         "copy_state_interpretation": mr_seed_copy_state(
             candidate.hypothesis, candidate.result
@@ -828,6 +881,14 @@ def _row(
             matthews.solvent_fraction if matthews.solvent_fraction is not None else ""
         ),
         "matthews_prior": matthews.matthews_prior,
+        "solvent_density": matthews.solvent_density,
+        "copy_frequency_factor": matthews.copy_frequency_factor,
+        "prior_reference_record_count": matthews.prior_reference_record_count,
+        "prior_minimum_reference_records": matthews.prior_minimum_reference_records,
+        "prior_reference_resource_sha256": matthews.prior_reference_resource_sha256,
+        "configured_solvent_fraction_min": matthews.configured_solvent_fraction_min,
+        "configured_solvent_fraction_max": matthews.configured_solvent_fraction_max,
+        "review_reasons": ";".join(matthews.review_reasons),
         "matthews_prior_backend": matthews.prior_backend,
         "matthews_copy_range_complete": features.get(
             "matthews_copy_range_complete", False
@@ -934,11 +995,20 @@ def _html_report(
         "model_source",
         "model_target",
         "copy_count_expected",
+        "copy_number_to_search",
         "placed_copy_count",
         "copy_state_interpretation",
         "matthews_coefficient",
         "solvent_fraction",
         "matthews_prior",
+        "solvent_density",
+        "copy_frequency_factor",
+        "prior_reference_record_count",
+        "prior_minimum_reference_records",
+        "prior_reference_resource_sha256",
+        "configured_solvent_fraction_min",
+        "configured_solvent_fraction_max",
+        "review_reasons",
         "matthews_prior_backend",
         "matthews_physical_status",
         "llg",
@@ -1143,6 +1213,25 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
         "approval_candidates_tsv": approval_candidates,
         "approval_template_tsv": approval_template,
     }
+    if "complete_acquired_hypotheses" in input_sha256:
+        for role, source, expected_sha in (
+            (
+                "complete_acquired_hypotheses",
+                request.funnel_manifest.parent / "complete_acquired_hypotheses.jsonl",
+                input_sha256["complete_acquired_hypotheses"],
+            ),
+            (
+                "source_funnel_manifest",
+                request.funnel_manifest,
+                input_sha256["funnel_manifest"],
+            ),
+        ):
+            suffix = ".jsonl" if role == "complete_acquired_hypotheses" else ".json"
+            target = output / "evidence" / f"{role}{suffix}"
+            atomic_write_bytes(target, source.read_bytes())
+            if sha256_file(target) != expected_sha:
+                raise MrSeedReviewError(f"review source changed while copying: {role}")
+            generated_paths[role] = target
     manifest = output / "mr_seed_review_manifest.json"
     atomic_write_json(
         manifest,
@@ -1246,6 +1335,19 @@ def _validate_package_manifest(
     outputs = document.get("outputs")
     if not isinstance(outputs, dict):
         raise MrSeedReviewError("MR review manifest has no output inventory")
+    inputs = package_identity.get("input_sha256")
+    if isinstance(inputs, dict) and "complete_acquired_hypotheses" in inputs:
+        for role, input_name in (
+            ("complete_acquired_hypotheses", "complete_acquired_hypotheses"),
+            ("source_funnel_manifest", "funnel_manifest"),
+        ):
+            record = outputs.get(role)
+            if not isinstance(record, dict) or record.get("sha256") != inputs.get(
+                input_name
+            ):
+                raise MrSeedReviewError(
+                    f"review lacks bound alternative evidence: {role}"
+                )
     root = path.resolve(strict=True).parent
     for name, raw_record in outputs.items():
         if not isinstance(name, str) or not isinstance(raw_record, dict):
@@ -1320,12 +1422,19 @@ def validate_mr_seed_review_evidence(
         allow_empty=True,
     )
     outputs = manifest.get("outputs")
-    if not isinstance(outputs, dict) or set(outputs) != {
+    expected_outputs = {
         "review_tsv",
         "review_html",
         "approval_candidates_tsv",
         "approval_template_tsv",
-    }:
+    }
+    identity = manifest.get("package_identity")
+    inputs = identity.get("input_sha256") if isinstance(identity, dict) else None
+    if isinstance(inputs, dict) and "complete_acquired_hypotheses" in inputs:
+        expected_outputs.update(
+            {"complete_acquired_hypotheses", "source_funnel_manifest"}
+        )
+    if not isinstance(outputs, dict) or set(outputs) != expected_outputs:
         raise MrSeedReviewError("MR review output inventory is incomplete")
 
     package_identity = manifest.get("package_identity")
