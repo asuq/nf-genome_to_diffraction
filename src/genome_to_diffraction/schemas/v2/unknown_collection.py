@@ -73,7 +73,7 @@ class UnknownPass1CrystalChecksumManifest(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "unknownpass1crystalmanifest_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["unknown-pass1-local-collector-v2"]
+    adapter_version: Literal["unknown-pass1-local-collector-v3-reviewed-residual"]
     crystal_manifest_id: UnknownPass1CrystalManifestIdentifier
     owned_parent_run_id: OperatorIdentifier
     execution_identity_id: ExecutionIdentityIdentifier
@@ -118,7 +118,7 @@ class UnknownPass1CrossChecksumManifest(_ContentAddressedContract):
     _identity_prefix: ClassVar[str] = "unknownpass1crossmanifest_"
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["unknown-pass1-local-collector-v2"]
+    adapter_version: Literal["unknown-pass1-local-collector-v3-reviewed-residual"]
     cross_manifest_id: UnknownPass1CrossManifestIdentifier
     owned_parent_run_id: OperatorIdentifier
     execution_identity_id: ExecutionIdentityIdentifier

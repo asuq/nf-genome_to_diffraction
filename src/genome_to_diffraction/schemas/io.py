@@ -246,6 +246,7 @@ _PHASE3_REVIEW_TSV_COLUMNS = frozenset(
         "reviewed_at",
         "reason",
         "comment",
+        "residual_content_state",
     }
 )
 
@@ -285,6 +286,9 @@ def _phase3_review_tsv(
                     "reviewed_at": _optional(row["reviewed_at"]),
                     "reason": _optional(row["reason"]),
                     "comment": _optional(row.get("comment", "")),
+                    "residual_content_state": _optional(
+                        row.get("residual_content_state", "")
+                    ),
                 }
             )
         )

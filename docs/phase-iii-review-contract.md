@@ -187,6 +187,21 @@ evidence remain independently checksum-covered. The fixed
 preserves the explicit `approve`, `retain_partial`, `reject`, and `defer`
 outcomes. A sequence decision cannot substitute for composition approval.
 
+Composition review records an independent residual-content observation through
+`residual_content_state`, either in JSON or as an optional TSV column. Its
+values are `none_detected`, `suspected`, `unresolved` and `not_assessed`.
+Omitting it leaves residual content unassessed. Neither `approve` nor reaching
+the expected copy count supplies an absence observation. Other checkpoints
+cannot declare this composition-specific observation.
+
+The current pass-1 assessor is
+`unknown-pass1-terminal-assessment-v4-reviewed-residual`. It preserves the
+owned decision and maps `suspected`/`unresolved` to the existing report category
+`present_or_suspected`; omitted or `not_assessed` maps to `unassessed`. Collection
+independently checks the observation against that exact decision. Previously
+generated scientific assessments require fresh derivation under the changed
+source; historical files retain their original identities.
+
 The production same-component stage accepts these decisions through explicit
 `--phase3-review-stage` and `--phase3-review-package-manifest` options. It first
 revalidates the stage's exact two-file allow-list, canonical decision checksum,

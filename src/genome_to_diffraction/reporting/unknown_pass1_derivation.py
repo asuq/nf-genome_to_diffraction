@@ -49,10 +49,12 @@ from genome_to_diffraction.schemas.v2 import (
     UnknownPass1CrossChecksumManifest,
     UnknownPass1CrystalAssessment,
     UnknownPass1FinalMetricsEvidence,
-    UnknownPass1ResidualContentState,
     UnknownPass1ReviewEvidence,
     UnknownPass1SolutionEvidence,
     UnknownPass1TerminalEvidence,
+)
+from genome_to_diffraction.schemas.v2.unknown_assessment import (
+    reviewed_residual_content_state,
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
@@ -635,11 +637,13 @@ def derive_unknown_pass1_assessment(
             crystal_id=request.crystal_id,
             checkpoint=PhaseIIIReviewCheckpoint.SEQUENCE,
         )
-        composition_resolved, _, composition_reviews = _resolved_review(
-            single_component_registry,
-            composition_decision,
-            crystal_id=request.crystal_id,
-            checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+        composition_resolved, composition_decisions, composition_reviews = (
+            _resolved_review(
+                single_component_registry,
+                composition_decision,
+                crystal_id=request.crystal_id,
+                checkpoint=PhaseIIIReviewCheckpoint.COMPOSITION,
+            )
         )
         if (
             len(a_reviews) != 1
@@ -744,10 +748,8 @@ def derive_unknown_pass1_assessment(
             raise UnknownPass1DerivationError(
                 "scientific records do not support the reviewed state"
             )
-        residual = (
-            UnknownPass1ResidualContentState.NONE_DETECTED
-            if composition_review.decision is PhaseIIIReviewDecisionValue.APPROVE
-            else UnknownPass1ResidualContentState.PRESENT_OR_SUSPECTED
+        residual = reviewed_residual_content_state(
+            composition_decisions.decisions[0].residual_content_state
         )
         final_metrics = UnknownPass1FinalMetricsEvidence(
             schema_version="2.0",

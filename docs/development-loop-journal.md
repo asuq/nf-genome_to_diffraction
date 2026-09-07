@@ -15707,3 +15707,22 @@ with a collapsed combined parent or a guessed command.
 - Integrate the independently committed MR review inventory/export changes,
   then run the complete locked gate on the combined fix branch. These local
   checks establish no Phenix, Raven, unknown-composition or release acceptance.
+
+## 2026-09-07 - Independent residual observations in terminal assessment
+
+- Removed the inference that a generic composition approval means no residual
+  content was detected. Composition JSON and an optional TSV column can now
+  record an explicit observation; omission remains unassessed. Other review
+  checkpoints reject this field, and independent collection verifies the exact
+  owned composition decision before accepting an absence claim.
+- The current terminal-assessment and collection adapter identities changed
+  with these semantics. The synthetic reopening JSON example was regenerated
+  for the current decision contract. Existing historical files remain unchanged
+  and do not qualify as newly derived evidence under the changed source.
+- Validation: 52 focused decision, derivation and collection checks passed,
+  including missing observations, explicit absence/presence and a forged
+  absence claim. Ruff, focused type checks and documentation links passed.
+- Next finish copy-count/refinement reporting and the frozen M6 comparison
+  harness, reconcile the integrated release surface, and run the complete
+  locked gate. Native Raven qualification and prerequisite evidence remain
+  outstanding; this entry makes no scientific or release acceptance claim.

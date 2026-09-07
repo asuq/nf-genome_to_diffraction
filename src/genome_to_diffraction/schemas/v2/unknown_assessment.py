@@ -22,6 +22,7 @@ from genome_to_diffraction.schemas.base import (
     Sha256Hex,
 )
 from genome_to_diffraction.schemas.v2.composition import (
+    ResidualContentState,
     SequenceGroupIdentifier,
     _ContentAddressedContract,
 )
@@ -62,6 +63,20 @@ class UnknownPass1ResidualContentState(StrEnum):
     NONE_DETECTED = "none_detected"
     PRESENT_OR_SUSPECTED = "present_or_suspected"
     UNASSESSED = "unassessed"
+
+
+def reviewed_residual_content_state(
+    value: ResidualContentState | None,
+) -> UnknownPass1ResidualContentState:
+    """Interpret an explicit owned observation without inferring one from approval."""
+
+    if value is ResidualContentState.NONE_DETECTED:
+        return UnknownPass1ResidualContentState.NONE_DETECTED
+    if value in {ResidualContentState.SUSPECTED, ResidualContentState.UNRESOLVED}:
+        return UnknownPass1ResidualContentState.PRESENT_OR_SUSPECTED
+    if value is None or value is ResidualContentState.NOT_ASSESSED:
+        return UnknownPass1ResidualContentState.UNASSESSED
+    raise ValueError("review residual-content state is invalid")
 
 
 class UnknownPass1TerminalEvidence(ContractModel):
@@ -330,7 +345,7 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
     schema_version: Literal["2.0"]
     adapter_version: Literal[
         "unknown-pass1-terminal-assessment-v2",
-        "unknown-pass1-terminal-assessment-v3",
+        "unknown-pass1-terminal-assessment-v4-reviewed-residual",
     ]
     assessment_id: UnknownPass1AssessmentIdentifier
     owned_parent_run_id: OperatorIdentifier
@@ -350,8 +365,8 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
         *,
         adapter_version: Literal[
             "unknown-pass1-terminal-assessment-v2",
-            "unknown-pass1-terminal-assessment-v3",
-        ] = "unknown-pass1-terminal-assessment-v3",
+            "unknown-pass1-terminal-assessment-v4-reviewed-residual",
+        ] = "unknown-pass1-terminal-assessment-v4-reviewed-residual",
         owned_parent_run_id: str,
         execution_identity_id: str,
         crystal_id: str,
@@ -413,7 +428,8 @@ class UnknownPass1CrystalAssessment(_ContentAddressedContract):
         if self.scientific_status is not expected:
             raise ValueError("scientific status disagrees with crystal-bound evidence")
         if (
-            self.adapter_version == "unknown-pass1-terminal-assessment-v3"
+            self.adapter_version
+            == "unknown-pass1-terminal-assessment-v4-reviewed-residual"
             and self.solution_evidence is not None
             and self.solution_evidence.search_sequence_group_id is None
         ):

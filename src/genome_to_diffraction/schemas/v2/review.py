@@ -51,7 +51,10 @@ from genome_to_diffraction.schemas.base import (
     Sha256Hex,
     UtcTimestamp,
 )
-from genome_to_diffraction.schemas.v2.composition import _ContentAddressedContract
+from genome_to_diffraction.schemas.v2.composition import (
+    ResidualContentState,
+    _ContentAddressedContract,
+)
 from genome_to_diffraction.schemas.v2.execution import ExecutionIdentityIdentifier
 
 PhaseIIIReviewDecisionFileIdentifier = Annotated[
@@ -307,6 +310,7 @@ class PhaseIIIReviewDecision(ContractModel):
     reviewed_at: UtcTimestamp
     reason: NonEmptyString
     comment: NonEmptyString | None = None
+    residual_content_state: ResidualContentState | None = None
 
     @model_validator(mode="after")
     def _reject_blank_human_text(self) -> Self:
@@ -371,6 +375,13 @@ class PhaseIIIReviewDecisionFile(_ContentAddressedContract):
         target_keys: set[tuple[str, str]] = set()
         decisions_by_crystal: dict[str, list[PhaseIIIReviewDecision]] = {}
         for decision in self.decisions:
+            if (
+                decision.residual_content_state is not None
+                and self.checkpoint is not PhaseIIIReviewCheckpoint.COMPOSITION
+            ):
+                raise ValueError(
+                    "residual-content observations belong to composition review"
+                )
             if decision.decision not in allowed:
                 raise ValueError(
                     f"decision {decision.decision.value!r} is invalid for "

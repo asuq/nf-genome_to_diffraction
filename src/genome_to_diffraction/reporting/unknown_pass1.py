@@ -41,9 +41,12 @@ from genome_to_diffraction.schemas.v2 import (
     UnknownPass1TerminalEvidence,
 )
 from genome_to_diffraction.schemas.v2.review import validate_phase3_review_relative_path
+from genome_to_diffraction.schemas.v2.unknown_assessment import (
+    reviewed_residual_content_state,
+)
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER = "unknown-pass1-local-collector-v2"
+_ADAPTER = "unknown-pass1-local-collector-v3-reviewed-residual"
 _ASSESSMENTS = "unknown-pass1-assessments.jsonl"
 _PANEL = "unknown-pass1-panel-summary.json"
 _REPORT = "unknown-pass1-report.html"
@@ -332,6 +335,17 @@ def _validate_review_sources(
                 "review package target differs from its independent human decision"
             )
 
+        if (
+            package.checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+            and assessment.solution_evidence is not None
+            and assessment.solution_evidence.state_id == evidence.package_item_id
+            and assessment.solution_evidence.residual_content_state
+            is not reviewed_residual_content_state(decisions[0].residual_content_state)
+        ):
+            raise UnknownPass1CollectionError(
+                "residual content state is not declared by the owned composition review"
+            )
+
         for artifact in (*package.evidence_inventory, *package.review_tables):
             if package_path.parent / artifact.relative_path not in declared_paths:
                 raise UnknownPass1CollectionError(
@@ -421,7 +435,10 @@ def _validate_terminal_authority(
                 "current assessment uses historical terminal evidence"
             )
         return
-    if assessment.adapter_version != "unknown-pass1-terminal-assessment-v3":
+    if (
+        assessment.adapter_version
+        != "unknown-pass1-terminal-assessment-v4-reviewed-residual"
+    ):
         raise UnknownPass1CollectionError(
             "historical assessment uses current terminal evidence"
         )

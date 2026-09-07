@@ -1,6 +1,6 @@
 {
   "schema_version": "2.0",
-  "decision_file_id": "phase3review_5acdb39f6fa8c37853b45e93296e34ca14a03f5320ff2a7670dcfe88fd16abd6",
+  "decision_file_id": "phase3review_8f8d3d508bfb4bf4f5855db57ee3eed011051176dc37b52f2523332abd64b8bb",
   "checkpoint": "a_seed",
   "owned_parent_run_id": "example-completed-screen",
   "review_package_id": "phase3reviewpkg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -13,7 +13,8 @@
       "reviewer": "example_reviewer",
       "reviewed_at": "2026-09-07T00:00:00Z",
       "reason": "Example only: this A placement was rejected after inspection.",
-      "comment": null
+      "comment": null,
+      "residual_content_state": null
     }
   ],
   "reopen_request": {

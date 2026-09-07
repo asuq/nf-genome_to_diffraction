@@ -15,6 +15,7 @@ from genome_to_diffraction.schemas.v2 import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
+    ResidualContentState,
 )
 
 HASHES = tuple(f"{index:x}" * 64 for index in range(1, 8))
@@ -80,6 +81,33 @@ def test_reopen_request_is_json_bound_and_rejects_over_budget_or_approved_a(
         PhaseIIIReopenRequest(
             selected_hypothesis_ids=("a", "a"), maximum_reopened_attempts=2
         )
+
+
+def test_residual_observation_is_explicit_and_composition_only(tmp_path: Path) -> None:
+    original = _decision("state_a", PhaseIIIReviewDecisionValue.APPROVE)
+    observed = original.model_copy(
+        update={"residual_content_state": ResidualContentState.NONE_DETECTED}
+    )
+    implicit = _decision_file(PhaseIIIReviewCheckpoint.COMPOSITION, (original,))
+    explicit = _decision_file(PhaseIIIReviewCheckpoint.COMPOSITION, (observed,))
+    assert implicit.decision_file_id != explicit.decision_file_id
+    with pytest.raises(ValidationError, match="belong to composition"):
+        _decision_file(PhaseIIIReviewCheckpoint.A_SEED, (observed,))
+    tsv = tmp_path / "composition.tsv"
+    values = {
+        "checkpoint": "composition",
+        "owned_parent_run_id": explicit.owned_parent_run_id,
+        "review_package_id": explicit.review_package_id,
+        "review_package_manifest_sha256": explicit.review_package_manifest_sha256,
+        **observed.model_dump(mode="json"),
+    }
+    tsv.write_text(
+        "\t".join(values)
+        + "\n"
+        + "\t".join(str(value) for value in values.values())
+        + "\n"
+    )
+    assert load_contract(tsv, "phase3-review-decisions", progress=False) == explicit
 
 
 @pytest.mark.parametrize(

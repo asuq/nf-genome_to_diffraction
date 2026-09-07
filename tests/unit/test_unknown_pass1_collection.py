@@ -266,6 +266,11 @@ def _review(
                 reviewer="independent-reviewer",
                 reviewed_at=datetime(2026, 8, 25, 1, tzinfo=UTC),
                 reason="synthetic public-fixture review evidence inspected",
+                residual_content_state=(
+                    "none_detected"
+                    if checkpoint is PhaseIIIReviewCheckpoint.COMPOSITION
+                    else None
+                ),
             ),
         ),
     )

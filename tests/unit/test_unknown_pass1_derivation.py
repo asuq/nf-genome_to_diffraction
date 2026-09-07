@@ -13,6 +13,7 @@ from genome_to_diffraction.reporting import (
     derive_unknown_pass1_assessment,
 )
 from genome_to_diffraction.reporting.unknown_pass1 import (
+    UnknownPass1CollectionError,
     UnknownPass1EvidenceSource,
     _validate_review_sources,
     _validate_scientific_sources,
@@ -36,6 +37,7 @@ from genome_to_diffraction.schemas.v2 import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
     PhaseIIIReviewDecisionValue,
+    ResidualContentState,
     UnknownPass1CollectedFileKind,
     UnknownPass1CrystalAssessment,
 )
@@ -226,6 +228,7 @@ def _decision_file(
     crystal_id: str,
     item_id: str,
     decision: PhaseIIIReviewDecisionValue,
+    residual_content_state: ResidualContentState | None = None,
 ) -> Path:
     record = PhaseIIIReviewDecisionFile.from_content(
         checkpoint=checkpoint,
@@ -240,6 +243,7 @@ def _decision_file(
                 reviewer="reviewer",
                 reviewed_at=datetime.now(UTC),
                 reason="owned evidence inspected",
+                residual_content_state=residual_content_state,
             ),
         ),
     )
@@ -299,9 +303,29 @@ def _generic_package(
     )
 
 
-def test_credible_solution_is_derived_from_owned_scientific_records(
+@pytest.mark.parametrize(
+    ("residual", "composition_value", "expected_status"),
+    (
+        (None, PhaseIIIReviewDecisionValue.APPROVE, "insufficient_evidence"),
+        (None, PhaseIIIReviewDecisionValue.RETAIN_PARTIAL, "insufficient_evidence"),
+        (
+            ResidualContentState.NONE_DETECTED,
+            PhaseIIIReviewDecisionValue.APPROVE,
+            "credible_single_component_solution",
+        ),
+        (
+            ResidualContentState.SUSPECTED,
+            PhaseIIIReviewDecisionValue.RETAIN_PARTIAL,
+            "credible_partial_or_residual",
+        ),
+    ),
+)
+def test_credible_solution_requires_independent_residual_review(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    residual: ResidualContentState | None,
+    composition_value: PhaseIIIReviewDecisionValue,
+    expected_status: str,
 ) -> None:
     checkpoint_request = _phase3_live_request(tmp_path)
     checkpoint = build_live_sequence_checkpoint(checkpoint_request)
@@ -485,7 +509,8 @@ def test_credible_solution_is_derived_from_owned_scientific_records(
         parent_run=single_run,
         crystal_id=crystal_id,
         item_id=state_id,
-        decision=PhaseIIIReviewDecisionValue.APPROVE,
+        decision=composition_value,
+        residual_content_state=residual,
     )
 
     job_result = tmp_path / "single-job-result.json"
@@ -534,7 +559,7 @@ def test_credible_solution_is_derived_from_owned_scientific_records(
     assessment = UnknownPass1CrystalAssessment.model_validate_json(
         output.assessment.read_bytes()
     )
-    assert assessment.scientific_status.value == "credible_single_component_solution"
+    assert assessment.scientific_status.value == expected_status
     assert assessment.solution_evidence is not None
     derivation = json.loads(output.evidence_manifest.read_text(encoding="utf-8"))
     sources = [
@@ -552,6 +577,13 @@ def test_credible_solution_is_derived_from_owned_scientific_records(
         for item in derivation["evidence"]
     ]
     package_digests = _validate_review_sources(assessment, sources)
+    if residual is None and composition_value is PhaseIIIReviewDecisionValue.APPROVE:
+        claimed = assessment.model_dump(mode="python", exclude={"assessment_id"})
+        claimed["solution_evidence"]["residual_content_state"] = "none_detected"
+        claimed["scientific_status"] = "credible_single_component_solution"
+        forged = UnknownPass1CrystalAssessment.from_content(**claimed)
+        with pytest.raises(UnknownPass1CollectionError, match="not declared"):
+            _validate_review_sources(forged, sources)
     solution = assessment.solution_evidence
     assert solution is not None
     packaged = set().union(*package_digests.values())
