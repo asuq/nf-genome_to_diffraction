@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.execution.finding_closure import (
@@ -16,6 +17,7 @@ from genome_to_diffraction.execution.finding_closure import (
 
 COMMIT = "1" * 40
 TREE = "2" * 40
+RELEASE_GATES = ("FS-G1", "RF-G1", "RF-G2", "RF-G3", "RF-G4")
 
 
 def _write_ledger(path: Path, *, first_status: str = "Fixed") -> None:
@@ -24,7 +26,11 @@ def _write_ledger(path: Path, *, first_status: str = "Fixed") -> None:
         "| Finding | Disposition | Evidence |\n"
         "| --- | --- | --- |\n"
         f"| `FCB-P0-01` Packing | {first_status} | retained |\n"
-        "| `PIPE-P1-01` | Deleted | removed |\n",
+        "| `PIPE-P1-01` | Deleted | removed |\n"
+        + "".join(
+            f"| `{gate}` | Fixed | qualified gate evidence |\n"
+            for gate in RELEASE_GATES
+        ),
         encoding="utf-8",
     )
 
@@ -35,19 +41,33 @@ def _record(
     *,
     entries: tuple[PhaseIIIFindingClosureEntry, ...] | None = None,
 ) -> PhaseIIIFindingClosureRecord:
-    selected = entries or (
-        PhaseIIIFindingClosureEntry(
-            finding_id="FCB-P0-01",
-            disposition=FindingDisposition.FIXED,
-            regression_ids=("tests/unit/test_packing.py",),
-            evidence_ids=("control-6rtz",),
-        ),
-        PhaseIIIFindingClosureEntry(
-            finding_id="PIPE-P1-01",
-            disposition=FindingDisposition.DELETED,
-            regression_ids=("tests/contract/test_policy.py",),
-            evidence_ids=("commit-clean-break",),
-        ),
+    selected = entries or tuple(
+        sorted(
+            (
+                PhaseIIIFindingClosureEntry(
+                    finding_id="FCB-P0-01",
+                    disposition=FindingDisposition.FIXED,
+                    regression_ids=("tests/unit/test_packing.py",),
+                    evidence_ids=("control-6rtz",),
+                ),
+                PhaseIIIFindingClosureEntry(
+                    finding_id="PIPE-P1-01",
+                    disposition=FindingDisposition.DELETED,
+                    regression_ids=("tests/contract/test_policy.py",),
+                    evidence_ids=("commit-clean-break",),
+                ),
+                *(
+                    PhaseIIIFindingClosureEntry(
+                        finding_id=gate,
+                        disposition=FindingDisposition.FIXED,
+                        regression_ids=(f"regression-{gate}",),
+                        evidence_ids=(f"qualified-{gate}",),
+                    )
+                    for gate in RELEASE_GATES
+                ),
+            ),
+            key=lambda entry: entry.finding_id,
+        )
     )
     return PhaseIIIFindingClosureRecord.from_content(
         source_commit=COMMIT,
@@ -135,7 +155,13 @@ def test_incomplete_finding_inventory_fails(tmp_path: Path) -> None:
     _write_ledger(ledger)
     evidence = _evidence_files(tmp_path)
     complete = _record(ledger, evidence)
-    incomplete = _record(ledger, evidence, entries=(complete.entries[0],))
+    incomplete = _record(
+        ledger,
+        evidence,
+        entries=tuple(
+            entry for entry in complete.entries if entry.finding_id != "PIPE-P1-01"
+        ),
+    )
     _write_record(closure, incomplete)
 
     with pytest.raises(PhaseIIIFindingClosureError, match="inventory differs"):
@@ -236,3 +262,54 @@ def test_duplicate_json_key_fails(tmp_path: Path) -> None:
             expected_source_tree=TREE,
             evidence_files=evidence,
         )
+
+
+@pytest.mark.parametrize("gate", RELEASE_GATES)
+def test_gate_omitted_from_ledger_and_closure_is_rejected(
+    tmp_path: Path, gate: str
+) -> None:
+    ledger = tmp_path / "ledger.md"
+    _write_ledger(ledger)
+    evidence = _evidence_files(tmp_path)
+    complete = _record(ledger, evidence)
+    ledger.write_text(
+        "".join(
+            line
+            for line in ledger.read_text().splitlines(keepends=True)
+            if f"`{gate}`" not in line
+        )
+    )
+    with pytest.raises(ValidationError, match="mandatory release gates"):
+        _record(
+            ledger,
+            evidence,
+            entries=tuple(e for e in complete.entries if e.finding_id != gate),
+        )
+    closure = tmp_path / "closure.json"
+    _write_record(closure, _record(ledger, evidence))
+    with pytest.raises(PhaseIIIFindingClosureError, match="mandatory release gates"):
+        validate_phase3_finding_closure(
+            closure,
+            ledger,
+            expected_source_commit=COMMIT,
+            expected_source_tree=TREE,
+            evidence_files=evidence,
+        )
+
+
+@pytest.mark.parametrize("disposition", ["deleted", "superseded"])
+def test_mandatory_gate_cannot_be_disposed_without_passing(
+    tmp_path: Path, disposition: str
+) -> None:
+    ledger = tmp_path / "ledger.md"
+    _write_ledger(ledger)
+    evidence = _evidence_files(tmp_path)
+    complete = _record(ledger, evidence)
+    entries = tuple(
+        e.model_copy(update={"disposition": FindingDisposition(disposition)})
+        if e.finding_id == "FS-G1"
+        else e
+        for e in complete.entries
+    )
+    with pytest.raises(ValidationError, match="must be fixed"):
+        _record(ledger, evidence, entries=entries)

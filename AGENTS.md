@@ -76,6 +76,32 @@ already compliant three-case smoke, or lift the cap without explicit direction.
 This overrides the no-concurrency-cap policy only for this identification run
 programme; scientific task budgets and other workflow defaults are unchanged.
 
+On 2026-09-07 the user separately approved implementation of the v0.3 fixes
+on `release/v0.3-fixes`, based on `122f85f6`, with isolated topic worktrees.
+This overrides the earlier main-only development instruction: main and its
+ongoing Raven identification migration/run are protected from this work.
+Local fixes and qualification preparation may proceed in parallel with that
+owned programme. Incorporate only its completed migration commits into the
+release branch; never import its unfinished changes or alter live ownership.
+
+The approved release scope includes RF-G1--RF-G4, FS-G1 reconciliation,
+Free-R continuation, complete failure/parent accounting, selected-solution
+evidence, bounded Phenix output/cleanup, and exact release qualification.
+Matthews solvent preferences must not truncate the declared mathematical
+copy inventory; the zero-solvent model boundary is reviewable. Reviewed
+reopening preserves one-copy requests and at most 175 additional hypotheses
+per crystal, with no approved A and explicit reject/defer decisions. Unknown
+reopening remains behind RG7; known controls qualify it earlier.
+
+Release qualification targets Raven after the owned migration is complete.
+Keep project-managed tools, inputs, work, results, temporary files and caches
+under `/ptmp`, enforce 24-hour per-job limits, and record actual allocations.
+Use Raven's site/scheduler limits without importing Marmic's temporary cap.
+The approved four-arm comparison uses the 12 cases in the release plan, at
+most 600 initial hypotheses and 240 continuation chains; the complete frozen
+63-case M6 acceptance criteria remain unchanged. Main merges, tags and
+publication require separate authorisation.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

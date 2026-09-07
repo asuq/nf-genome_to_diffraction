@@ -9,6 +9,7 @@ import pytest
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.execution.finding_closure import (
+    REQUIRED_RELEASE_GATES,
     FindingDisposition,
     PhaseIIIFindingClosureEntry,
     PhaseIIIFindingClosureRecord,
@@ -59,7 +60,11 @@ def _closure(root: Path, identity: PhaseIIIExecutionIdentity) -> dict[str, str]:
         root / "finding_ledger.md",
         "| Finding | Disposition | Evidence |\n"
         "| --- | --- | --- |\n"
-        "| `FCB-P0-01` | Fixed | test |\n",
+        "| `FCB-P0-01` | Fixed | test |\n"
+        + "".join(
+            f"| `{gate}` | Fixed | qualified test gate |\n"
+            for gate in sorted(REQUIRED_RELEASE_GATES)
+        ),
     )
     evidence = {}
     for name in (
@@ -100,6 +105,15 @@ def _closure(root: Path, identity: PhaseIIIExecutionIdentity) -> dict[str, str]:
                 disposition=FindingDisposition.FIXED,
                 regression_ids=("tests/unit/test_unknown_pass2_inputs.py",),
                 evidence_ids=("synthetic-complete-gate",),
+            ),
+            *(
+                PhaseIIIFindingClosureEntry(
+                    finding_id=gate,
+                    disposition=FindingDisposition.FIXED,
+                    regression_ids=("tests/unit/test_unknown_pass2_inputs.py",),
+                    evidence_ids=("synthetic-complete-gate",),
+                )
+                for gate in sorted(REQUIRED_RELEASE_GATES)
             ),
         ),
     )

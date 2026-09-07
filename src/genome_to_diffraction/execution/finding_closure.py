@@ -21,9 +21,12 @@ from genome_to_diffraction.schemas.io import ContractLoadError, load_json_docume
 from genome_to_diffraction.schemas.v2.composition import _ContentAddressedContract
 from genome_to_diffraction.status import InputContractError
 
+REQUIRED_RELEASE_GATES = frozenset({"FS-G1", "RF-G1", "RF-G2", "RF-G3", "RF-G4"})
+_FINDING_PATTERN = r"(?:(?:PIPE|DEV|PH3|FCB)-P[0-3]-[0-9]{2}|FS-G1|RF-G[1-4])"
+
 FindingIdentifier = Annotated[
     str,
-    Field(pattern=r"^(PIPE|DEV|PH3|FCB)-P[0-3]-[0-9]{2}$"),
+    Field(pattern=rf"^{_FINDING_PATTERN}$"),
 ]
 GitObjectHex = Annotated[str, Field(pattern=r"^[a-f0-9]{40}$")]
 ClosureIdentifier = Annotated[
@@ -32,7 +35,7 @@ ClosureIdentifier = Annotated[
 ]
 
 _LEDGER_ROW = re.compile(
-    r"^\|\s*`(?P<finding>(?:PIPE|DEV|PH3|FCB)-P[0-3]-[0-9]{2})`"
+    rf"^\|\s*`(?P<finding>{_FINDING_PATTERN})`"
     r"[^|]*\|\s*(?P<status>[^|]+?)\s*\|"
 )
 _FINAL_LEDGER_STATUS = frozenset({"Fixed", "Superseded", "Deleted"})
@@ -98,6 +101,20 @@ class PhaseIIIFindingClosureRecord(_ContentAddressedContract):
             raise ValueError("finding closure entries must be sorted")
         if len(finding_ids) != len(set(finding_ids)):
             raise ValueError("finding closure entries must be unique")
+        missing_gates = REQUIRED_RELEASE_GATES - set(finding_ids)
+        if missing_gates:
+            raise ValueError(
+                "finding closure lacks mandatory release gates: "
+                + ", ".join(sorted(missing_gates))
+            )
+        for entry in self.entries:
+            if (
+                entry.finding_id in REQUIRED_RELEASE_GATES
+                and entry.disposition is not FindingDisposition.FIXED
+            ):
+                raise ValueError(
+                    f"mandatory release gate {entry.finding_id} must be fixed"
+                )
         return self
 
 
@@ -144,18 +161,22 @@ def _ledger_dispositions(ledger: Path) -> dict[str, FindingDisposition]:
         ) from error
 
     dispositions: dict[str, FindingDisposition] = {}
+    seen: set[str] = set()
     non_final: list[str] = []
     for line in text.splitlines():
         match = _LEDGER_ROW.match(line)
         if match is None:
             continue
         finding_id = match.group("finding")
-        if finding_id in dispositions:
+        if finding_id in seen:
             raise PhaseIIIFindingClosureError(
                 f"Phase III finding ledger repeats {finding_id}"
             )
+        seen.add(finding_id)
         status = match.group("status")
-        if status not in _FINAL_LEDGER_STATUS:
+        if status not in _FINAL_LEDGER_STATUS or (
+            finding_id in REQUIRED_RELEASE_GATES and status != "Fixed"
+        ):
             non_final.append(f"{finding_id}={status}")
             continue
         dispositions[finding_id] = FindingDisposition(status.lower())
@@ -168,6 +189,12 @@ def _ledger_dispositions(ledger: Path) -> dict[str, FindingDisposition]:
     if not dispositions:
         raise PhaseIIIFindingClosureError(
             "Phase III finding ledger contains no final finding rows"
+        )
+    missing_gates = REQUIRED_RELEASE_GATES - set(dispositions)
+    if missing_gates:
+        raise PhaseIIIFindingClosureError(
+            "Phase III finding ledger lacks mandatory release gates: "
+            + ", ".join(sorted(missing_gates))
         )
     return dispositions
 
@@ -290,6 +317,7 @@ def validate_phase3_finding_closure(
 
 
 __all__ = [
+    "REQUIRED_RELEASE_GATES",
     "FindingDisposition",
     "PhaseIIIExactSourceCIEvidence",
     "PhaseIIIFindingClosureEntry",

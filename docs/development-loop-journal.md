@@ -15495,3 +15495,22 @@ with a collapsed combined parent or a guessed command.
   state changes are part of the plan commit. Next assign one gate or work
   package, reconcile current code and the owned execution evidence, and use the
   existing runbooks before any operational action.
+
+## 2026-09-07 - Isolated v0.3 fixes and mandatory release-gate closure
+
+- The user approved the complete fix/qualification plan on an isolated
+  `release/v0.3-fixes` worktree from `122f85f6`, with separate Matthews/reopen,
+  MR review/runtime and M6 implementation branches. Main and its owned Raven
+  migration/run remain protected. No private inputs or run ownership were
+  copied into the release worktree.
+- The closure contract now recognises and requires FS-G1 and RF-G1--RF-G4 in
+  both the ledger and record, including the case where both omit a gate.
+  Mandatory gates cannot be waived through `Deleted` or `Superseded`; their
+  current ledger dispositions remain pending qualified evidence.
+- Validation: 21 focused closure and unknown-pass-2 input tests passed,
+  including all five omission cases and non-passing gate dispositions.
+  This is local contract evidence, not scientific or release qualification.
+- Next fix reviewed Free-R propagation, composition outcome/parent accounting
+  and copy-completeness semantics while the independent streams implement
+  their assigned gates. Integrate coherent source changes and run the named
+  complete gate before any new remote qualification.

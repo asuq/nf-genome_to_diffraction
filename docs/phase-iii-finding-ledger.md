@@ -185,6 +185,20 @@ ordered `RG0`-`RG7` milestones and both scientific stop gates.
 | `FCB-P2-01` Competing root Nextflow application entry points | Fixed locally and exact-source CI-qualified; fixed-HPC qualification pending | RG5; nine public stage wrappers are replaced by one typed `qualification.nf` owner with an explicit operation. The reviewed HPC wrapper, public examples, stage documentation, syntax/stub matrix, and focused fake-dispatcher tests all use that owner. Unknown or incomplete operations fail before scheduling. Root policy now permits only archival `main.nf`, current `phase3_application.nf`, database preparation, M6, and qualification; the nine superseded roots are deleted after all replacement operations passed the complete Nextflow stub gate. Exact-source CI `32910230567` passed on `de2f4c4` under Pixi 0.76.2. |
 | `FCB-P2-02` Permanently retired CLI execution aliases | Fixed locally; exact-source CI and integration qualification pending | RG5; all three retired direct control/M6 benchmark commands, parser branches, dispatch paths, fail-only functions, legacy request types, compatibility diagnostics, and their obsolete positive test are removed. The CLI rejects every former command during parsing; retained preparation/classification helpers, truthful historical evidence readers, M6 task boundaries, and fixed Nextflow controls remain available. |
 
+## Mandatory v0.3 release gates
+
+These five identifiers are required in both the ledger and the exact-source
+closure record. Each must reach `Fixed` with its qualified evidence; omission,
+`Superseded` or `Deleted` cannot waive a release gate.
+
+| Finding | Disposition | Evidence and remaining work |
+| --- | --- | --- |
+| `FS-G1` Complete identification coverage | Pending owned-run evidence and terminal pass-1 assessment | Conserve ready, reserved and model-unavailable cases; resolve reservations and applicable pass-1 reviews. Future pass-2 results remain a separate pre-tag requirement. |
+| `RF-G1` Selected MR evidence leads review | Pending implementation and qualification | Bind selected-solution packing/copy/score/asset evidence and use MR-led review with Matthews as a later tie-breaker. |
+| `RF-G2` Reviewed physical alternatives are executable | Pending implementation and qualification | Authenticate explicit model-backed alternative selection after rejection/deferment without an approved A, within the existing additional-attempt budget. Known controls qualify the route before RG7. |
+| `RF-G3` Solvent preferences do not define physical exclusion | Pending implementation and qualification | Enumerate the complete declared physical range and retain out-of-window states for explicit review and execution. |
+| `RF-G4` M6 validates production admission and advancement | Pending implementation and qualification | Use shared production decisions, actual scheduled/advanced metrics, the frozen full M6 criteria and the approved comparison panel. |
+
 ## Closure rule
 
 Before the second unknown-dataset pass, every original and new row in this
