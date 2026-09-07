@@ -15458,6 +15458,24 @@ with a collapsed combined parent or a guessed command.
   is authorised. Scientific source and the temporary five-job ceiling remain
   unchanged. Proceed to the explicitly authorised fresh stage and one submit.
 
+## 2026-09-07 - Full identification screen started under the temporary cap
+
+- Client timeout change `20582d195eb5` passed CI `34146800594`. The explicitly
+  authorised fresh staging attempt succeeded using the unchanged qualified
+  scientific source `3d142b396272`; the failed pre-submission attempt remains
+  retained, without overwriting inputs or reusing scientific caches.
+- One full-screen controller was submitted and is running. Its exact source,
+  run, profile, site and job identity agree with the local ownership record.
+  All seven strict Phenix probes passed; Nextflow launched the full graph and
+  began submitting model preparations and the first MR tasks. The native log
+  confirms one controller plus four shared child slots. Do not confuse startup
+  with accepted MR results.
+- Private state retains the full input identity, reservations/model gaps and
+  bounded startup evidence. Next monitor only this owned run, classify every
+  candidate/task at completion and stop for explicit review of convincing
+  seeds. Keep the temporary cap until the user explicitly lifts it. No identity
+  or v0.3 completion claim is made.
+
 ## 2026-09-07 - Consolidated release and development plan
 
 - Recorded the [v0.3/v0.4 development plan](v0.3-v0.4-development-plan.md):
