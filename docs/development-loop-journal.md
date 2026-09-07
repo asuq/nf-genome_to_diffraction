@@ -15457,3 +15457,23 @@ with a collapsed combined parent or a guessed command.
   attempt is preserved; no input cleanup, overwrite or scientific cache reuse
   is authorised. Scientific source and the temporary five-job ceiling remain
   unchanged. Proceed to the explicitly authorised fresh stage and one submit.
+
+## 2026-09-07 - Consolidated release and development plan
+
+- Recorded the [v0.3/v0.4 development plan](v0.3-v0.4-development-plan.md):
+  five pre-tag gates and all 52 adverse-review, mass-blind, ranking-fitness,
+  and expanded-screen requirements retain their dependencies and acceptance
+  criteria. Planned work remains distinct from qualified evidence.
+- Validation: the locked documentation-link check passed. No scientific test
+  or HPC run was needed for this documentation change.
+- The tracked version replaces machine-specific and private conversation links
+  with portable repository references. Private biological inputs, candidate
+  results, live run ownership and transient case counts remain outside Git.
+- Direct fixes, removal of superseded behaviour, reuse of sufficient existing
+  checks, and avoidance of unnecessary regressions or compatibility layers are
+  explicit. Simplifying duplicate scientific paths and repeated data handling
+  is required in the successor programme.
+- This is documentation work only; no scientific source, runtime or scheduler
+  state changes are part of the plan commit. Next assign one gate or work
+  package, reconcile current code and the owned execution evidence, and use the
+  existing runbooks before any operational action.
