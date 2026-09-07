@@ -44,8 +44,9 @@ from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import (
     PhaserInputError,
     PhaserParseError,
-    parse_phaser_log,
+    parse_completed_phaser_outputs,
     read_phaser_evidence_text,
+    read_phaser_solution_metrics,
 )
 from genome_to_diffraction.mr_resources import (
     MrResourcePlanError,
@@ -75,8 +76,8 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
-_ADAPTER_VERSION = "phenix-add-copy-mr-v6"
-_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v8-resource-plan"
+_ADAPTER_VERSION = "phenix-add-copy-mr-v7-selected-solution"
+_PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v9-selected-solution"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -748,9 +749,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_additional_solution"
             else:
-                parsed = parse_phaser_log(raw_log_text)
-                llg, tfz = parsed.llg, parsed.tfz
-                packed = parsed.packed_solution_count > 0
+                parsed = parse_completed_phaser_outputs(raw_log_text, output)
                 warnings.extend(parsed.parser_warnings)
                 if parsed.solution_count == 0:
                     status = ExecutionStatus.COMPLETED_NO_HIT
@@ -762,6 +761,12 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                         raise PhaserParseError(
                             "additional-copy solution lacks PDB or MTZ"
                         )
+                    llg, tfz, _, pak = read_phaser_solution_metrics(parsed, coordinate)
+                    if llg is None or tfz is None or pak is None:
+                        raise PhaserParseError(
+                            "additional-copy solution lacks selected metrics or packing"
+                        )
+                    packed = pak == 0.0
                     coordinate_text = read_phaser_evidence_text(coordinate)
                     placements = _phaser_placement_count(
                         coordinate_text, parent_copy_count=resolved.parent_copy_count

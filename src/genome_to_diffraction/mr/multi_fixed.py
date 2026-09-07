@@ -65,7 +65,7 @@ from genome_to_diffraction.schemas.v2.diffraction import (
 from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
-_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v2-diffraction"
+_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v3-selected-solution"
 _INPUT_VERSION = "multi-fixed-component-search-input-v2"
 _ROOT = "PHASER"
 _LABELS = ("A", "B", "C", "D", "E", "F")
@@ -163,7 +163,7 @@ class MultiFixedSearchResult(ContractModel):
     """Terminal evidence for one multi-fixed search without a scientific claim."""
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phenix-multi-fixed-joint-component-v2-diffraction"]
+    adapter_version: Literal["phenix-multi-fixed-joint-component-v3-selected-solution"]
     result_id: NonEmptyString
     search_id: NonEmptyString
     crystal_id: NonEmptyString
@@ -557,12 +557,14 @@ def run_multi_fixed_search(
                     result_mtz = output / f"{_ROOT}.1.mtz"
                     if not coordinate.is_file() or not result_mtz.is_file():
                         raise PhaserParseError("multi-fixed hit lacks combined assets")
-                    combined_llg, candidate_tfz, _, _ = read_phaser_solution_metrics(
+                    combined_llg, candidate_tfz, _, pak = read_phaser_solution_metrics(
                         parsed,
                         coordinate,
                     )
                     if combined_llg is None or candidate_tfz is None:
                         raise PhaserParseError("multi-fixed hit lacks final metrics")
+                    if pak is None:
+                        raise PhaserParseError("multi-fixed hit lacks selected packing")
                     coordinate_text = read_phaser_evidence_text(coordinate)
                     fixed_observed = all(
                         re.search(
@@ -586,7 +588,7 @@ def run_multi_fixed_search(
                     )
                     incremental_llg = combined_llg - manifest.parent_combined_llg
                     solution_count = parsed.solution_count
-                    packed = parsed.packed_solution_count > 0
+                    packed = pak == 0.0
                     cohort = _score_cohort(incremental_llg, candidate_tfz)
                     coordinate_path = coordinate.name
                     coordinate_sha = sha256_file(coordinate, progress=False)
@@ -606,6 +608,11 @@ def run_multi_fixed_search(
         except PhaserParseError as error:
             status = ExecutionStatus.FAILED_PARSE
             rejection = str(error)
+            combined_llg = incremental_llg = candidate_tfz = None
+            solution_count = candidate_count = 0
+            packed = fixed_observed = candidate_observed = False
+            cohort = None
+            coordinate_path = coordinate_sha = result_mtz_path = result_mtz_sha = None
     result_content = {
         "adapter_version": _ADAPTER_VERSION,
         "search_id": search_id,

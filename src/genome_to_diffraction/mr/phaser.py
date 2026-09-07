@@ -96,8 +96,8 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v8"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v12-resource-plan"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v9-selected-solution"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v13-selected-solution"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -126,6 +126,7 @@ _PDB_LLG = re.compile(
 _PDB_TFZ = re.compile(r"\bTFZ==(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PAK = re.compile(r"\bPAK=(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
+_PDB_TNCS = re.compile(r"^REMARK[^\n]*\+TNCS(?:\s|$)", re.M)
 
 
 class PhaserInputError(InputContractError):
@@ -852,15 +853,27 @@ def read_phaser_solution_metrics(
     parsed: ParsedPhaserLog,
     coordinate_path: Path,
 ) -> tuple[float | None, float | None, int, float | None]:
+    """Read final selected-coordinate metrics; run-wide maxima are not evidence.
+
+    Phenix 2.1-6048 writes the precise selected LLG in one dedicated PDB remark
+    and appends final TFZ/PAK values to its history remark. Earlier history
+    entries and other solutions can have larger metrics. Missing selected
+    values remain missing so callers fail explicitly without borrowing them.
+    ``parsed`` supplies run-level context only; its maxima are never selected.
+    """
+
     if not coordinate_path.is_file():
-        return parsed.llg, parsed.tfz, 0, None
+        return None, None, 0, None
     text = read_phaser_evidence_text(coordinate_path)
-    pdb_llg = _last_match_float(_PDB_LLG, text)
-    llg = pdb_llg if pdb_llg is not None else parsed.llg
-    tfz_values = [float(value) for value in _PDB_TFZ.findall(text)]
-    tfz = tfz_values[-1] if tfz_values else parsed.tfz
+    llg_values = _PDB_LLG.findall(text)
+    if len(llg_values) > 1:
+        raise PhaserParseError("selected Phaser coordinate has ambiguous final LLG")
+    llg = float(llg_values[0]) if llg_values else None
+    remarks = "\n".join(line for line in text.splitlines() if line.startswith("REMARK"))
+    tfz_values = [float(value) for value in _PDB_TFZ.findall(remarks)]
+    tfz = tfz_values[-1] if tfz_values else None
     placed_count = len(_PDB_PLACEMENT.findall(text))
-    pak_values = [float(value) for value in _PDB_PAK.findall(text)]
+    pak_values = [float(value) for value in _PDB_PAK.findall(remarks)]
     pak = pak_values[-1] if pak_values else None
     return llg, tfz, placed_count, pak
 
@@ -905,9 +918,25 @@ def _normalised_success(
     llg, tfz, placed_count, pak = read_phaser_solution_metrics(parsed, coordinate)
     if llg is None or tfz is None or placed_count < 1:
         raise PhaserParseError("Phaser solution files lack final placement metrics")
+    if pak is None:
+        raise PhaserParseError("Phaser solution lacks final packing evidence")
     score_gate = passes_provisional_score_gate(llg=llg, tfz=tfz)
-    top_packed = parsed.packed_solution_count > 0
+    top_packed = pak == 0.0
     placed_expected = placed_count == resolved.hypothesis.copy_number_to_search
+    native_tncs = _PDB_TNCS.search(read_phaser_evidence_text(coordinate)) is not None
+    requested_copies = resolved.hypothesis.copy_number_to_search
+    coupled_tncs = (
+        native_tncs
+        and placed_count > requested_copies
+        and placed_count % requested_copies == 0
+    )
+    copy_interpretation = (
+        "requested_copies_observed"
+        if placed_expected
+        else "coupled_tncs"
+        if coupled_tncs
+        else "unexplained_copy_mismatch"
+    )
     advisories: list[str] = []
     if not score_gate:
         advisories.append("provisional_llg_or_tfz_screen_not_met")
@@ -915,6 +944,8 @@ def _normalised_success(
         advisories.append("final_packing_not_accepted")
     if not placed_expected:
         advisories.append("placed_copy_count_mismatch")
+        if coupled_tncs:
+            advisories.append("native_coupled_tncs_requires_explicit_review")
     coordinate_sha256 = sha256_file(coordinate)
     output_mtz_sha256 = sha256_file(output_mtz)
     return NormalisedMrResult(
@@ -923,7 +954,7 @@ def _normalised_success(
         tool_version=tool_version,
         execution_status=ExecutionStatus.COMPLETED_HIT,
         llg=llg,
-        llgi=parsed.llgi,
+        llgi=None,
         tfz=tfz,
         placed_copy_count=placed_count,
         packing_summary={
@@ -932,6 +963,14 @@ def _normalised_success(
             "packed_solution_count": parsed.packed_solution_count,
             "top_solution_packed": top_packed,
             "top_solution_pak": pak,
+            "selected_solution_index": 1,
+            "selected_metrics_source": coordinate.name,
+            "copy_state_interpretation": copy_interpretation,
+            "native_tncs_annotation": native_tncs,
+            "requested_copy_count": requested_copies,
+            "run_peak_llg": parsed.llg,
+            "run_peak_tfz": parsed.tfz,
+            "run_last_llgi": parsed.llgi,
             "score_gate_llg_strictly_greater_than": SCORE_GATE_LLG,
             "score_gate_tfz_strictly_greater_than": SCORE_GATE_TFZ,
             "score_gate_operator": SCORE_GATE_OPERATOR,

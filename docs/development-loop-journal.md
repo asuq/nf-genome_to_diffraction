@@ -15530,3 +15530,22 @@ with a collapsed combined parent or a guessed command.
   native qualification remains required. Next integrate completed MR/M6
   slices and correct composition completeness, failure accounting and parent
   preservation while independent gate implementation continues.
+
+## 2026-09-07 - Isolated v0.3 selected MR evidence and review correction
+
+- The authorised fix branch changes A review to selected packing, interpreted
+  copies and MR evidence before Matthews tie-breaking. Production and M6 can
+  call the same public ordering and copy-interpretation functions; raw and
+  independent ranks remain visible and no ordering grants approval.
+- All four Phaser adapters now take final scores and packing from the selected
+  coordinate, paired with its MTZ and checksums. Missing selected evidence is
+  a parse failure, and an unrelated packed solution cannot supply packing.
+  A minimal, checksum-verified public 3U7Q PDB-remark excerpt documents the
+  supported output convention. Historical v0.2 results remain unchanged.
+- Focused adapter tests passed (100), as did the review package tests (44)
+  and focused formatting, lint and type checks. The equal-solvent counterexample
+  uses the real enumerator and verifies the emitted table. Native positive
+  tNCS and fresh Phenix execution still require release qualification.
+- Next finish streamed Phenix execution/timeout retention and integrate the
+  Matthews-factor and reviewed-inventory contracts, then run the integrated
+  locked release gate. No main checkout, active run or remote state was changed.

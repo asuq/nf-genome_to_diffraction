@@ -230,7 +230,7 @@ def test_fixed_a_one_b_command_and_primary_result(
 
     result = output.result
     command = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v7-command-bound"
+    assert command["adapter_version"] == "phenix-fixed-a-joint-b-v9-selected-solution"
     assert result.execution_status == "completed_hit"
     assert result.partner_tfz == pytest.approx(49.7)
     assert result.combined_llg == pytest.approx(1622.91)
@@ -277,7 +277,7 @@ def test_phase3_partner_command_binds_reviewed_diffraction_selection(
 
     command = json.loads(output.command_json.read_text(encoding="utf-8"))
     assert command["adapter_version"] == (
-        "phenix-fixed-a-joint-b-v8-phase3-diffraction"
+        "phenix-fixed-a-joint-b-v10-selected-solution"
     )
     assert command["diffraction_selection_id"] == (selection.diffraction_selection_id)
     assert "crystal_symmetry {" in parameters[0]

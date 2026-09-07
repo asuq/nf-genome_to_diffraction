@@ -70,8 +70,8 @@ from genome_to_diffraction.status import ExecutionStatus
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.partner")
-_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v7-command-bound"
-_PHASE3_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v8-phase3-diffraction"
+_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v9-selected-solution"
+_PHASE3_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v10-selected-solution"
 _ROOT = "PHASER"
 _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
@@ -606,12 +606,16 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
                         raise PhaserParseError(
                             "partner solution lacks combined PDB or MTZ"
                         )
-                    combined_llg, partner_tfz, _, _ = read_phaser_solution_metrics(
+                    combined_llg, partner_tfz, _, pak = read_phaser_solution_metrics(
                         parsed, coordinate
                     )
                     if combined_llg is None or partner_tfz is None:
                         raise PhaserParseError(
                             "partner solution lacks final LLG or TFZ"
+                        )
+                    if pak is None:
+                        raise PhaserParseError(
+                            "partner solution lacks selected packing"
                         )
                     coordinate_text = read_phaser_evidence_text(coordinate)
                     fixed_parent_observed = (
@@ -625,7 +629,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
                     )
                     incremental_llg = combined_llg - request.parent_llg
                     solution_count = parsed.solution_count
-                    top_solution_packed = parsed.packed_solution_count > 0
+                    top_solution_packed = pak == 0.0
                     score_cohort = _score_cohort(incremental_llg, partner_tfz)
                     coordinate_path = coordinate.name
                     coordinate_sha256 = sha256_file(coordinate)
@@ -651,6 +655,14 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         except PhaserParseError as error:
             status = ExecutionStatus.FAILED_PARSE
             rejection_reason = str(error)
+            combined_llg = incremental_llg = partner_tfz = None
+            solution_count = partner_placement_count = 0
+            top_solution_packed = fixed_parent_observed = partner_observed = False
+            score_cohort = None
+            combined_solution_id = None
+            coordinate_path = coordinate_sha256 = output_mtz_path = (
+                output_mtz_sha256
+            ) = None
 
     result = PartnerSearchResult(
         schema_version="1.0",

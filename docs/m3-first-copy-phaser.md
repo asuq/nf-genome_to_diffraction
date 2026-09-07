@@ -121,10 +121,13 @@ scheduled execution.
 
 ## Parser and scientific status
 
-The parser uses final packing evidence, not an early advisory. This matters
-because the qualified positive log first reported that the top FTF solution did
-not pack, then later accepted and packed the refined solutions. That advisory
-is retained as a warning without overriding the final table.
+For a parsed solution the adapters bind final LLG, TFZ, placement remarks and
+the final PAK value to `PHASER.1.pdb`, alongside its paired `PHASER.1.mtz` and
+both checksums. Only selected PAK zero is packing support. A run-wide packed
+count or a larger score from another solution cannot supply selected evidence.
+Missing selected metrics or packing fail parsing. Earlier log maxima and
+advisories remain raw diagnostics. The native public-control remark fixture
+and its provenance are retained under `tests/fixtures/phaser/`.
 
 Phaser 2.8.4 can express a successful no-solution result either with an explicit
 zero-solution count or with a final packing table followed by `Sorry - No
@@ -313,10 +316,13 @@ The operation publishes:
   hypothesis, normalised result, funnel, command, log, and result-asset
   checksums.
 
-Ranking is deterministic and inspectable: Coot-inspectable asset availability,
-completed-hit/no-hit/failure class, the strict raw `LLG > 50` or `TFZ > 5`
-screen, packing, searched-copy agreement, raw LLG, raw TFZ, and immutable funnel
-order. Primary and extended labels apply to the first 10 and 25 distinct
+Review first separates inconsistent declared compositions, then orders
+Coot-inspectable execution evidence by selected packing, interpreted copy
+state, the strict raw `LLG > 50` or `TFZ > 5` screen, raw LLG and TFZ, the
+Matthews prior and immutable funnel order. Independent MR and Matthews ranks
+remain visible. A selected native `+TNCS` annotation can explain an expanded
+coupled placement, which remains explicitly labelled and requires review;
+count mismatch alone cannot establish tNCS. Primary and extended labels apply to the first 10 and 25 distinct
 sequence-equivalence groups from the resolved configuration. They allocate
 review attention; they are not posterior probabilities or automatic biological
 assignments. Every parsed solution's PDB, MTZ, command, normalised result, and

@@ -46,6 +46,7 @@ from genome_to_diffraction.schemas.results import (
     ProcessedModelRecord,
     SequenceGroupRecord,
 )
+from genome_to_diffraction.status import ExecutionStatus
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 STUBS = REPOSITORY / "tests/fixtures/stubs"
@@ -318,6 +319,7 @@ def _fake_runtime(
     corrupt_evidence: str | None = None,
     capture_bytes: bytes = b"capture\n",
     write_native_log: bool = True,
+    native_tncs: bool = False,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
 
@@ -343,10 +345,11 @@ def _fake_runtime(
                 for _ in range(placement_count)
             )
             packing = "" if pdb_pak is None else f"PAK={pdb_pak:g} "
+            tncs = "+TNCS " if native_tncs else ""
             (working_directory / "PHASER.1.pdb").write_text(
                 "REMARK Log-Likelihood Gain: "
                 f"{pdb_llg}\n"
-                f"REMARK {packing}LLG={pdb_llg} TFZ=={pdb_tfz}\n"
+                f"REMARK {tncs}{packing}LLG={pdb_llg} TFZ=={pdb_tfz}\n"
                 f"{placements}"
                 "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  "
                 "1.00 20.00           C\n",
@@ -444,6 +447,75 @@ def test_solution_pdb_rejects_non_utf8_scientific_evidence(tmp_path: Path) -> No
 
     with pytest.raises(PhaserParseError, match="not valid UTF-8"):
         read_phaser_solution_metrics(parse_phaser_log(POSITIVE_LOG), coordinate)
+
+
+def test_selected_metrics_use_frozen_native_history_and_never_log_maxima() -> None:
+    parsed = parse_phaser_log(POSITIVE_LOG)
+    llg, tfz, placed_count, pak = read_phaser_solution_metrics(
+        parsed, PHASER_FIXTURES / "phenix_2_1_3u7q_selected.pdb"
+    )
+    assert (llg, tfz, placed_count, pak) == (17887.289, 127.4, 2, 0.0)
+    assert llg != parsed.llg
+    assert tfz != parsed.tfz
+
+
+@pytest.mark.parametrize("missing", ("Log-Likelihood Gain", "TFZ=="))
+def test_selected_metrics_never_fill_missing_values_from_other_solutions(
+    tmp_path: Path, missing: str
+) -> None:
+    coordinate = tmp_path / "PHASER.1.pdb"
+    coordinate.write_text(
+        "\n".join(
+            line
+            for line in (PHASER_FIXTURES / "phenix_2_1_3u7q_selected.pdb")
+            .read_text()
+            .splitlines()
+            if missing not in line
+        )
+    )
+    llg, tfz, _, _ = read_phaser_solution_metrics(
+        parse_phaser_log(POSITIVE_LOG), coordinate
+    )
+    assert (llg if missing == "Log-Likelihood Gain" else tfz) is None
+
+
+def test_selected_packing_is_not_inferred_from_another_packed_solution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        pdb_llg=20.0,
+        pdb_tfz=3.0,
+        pdb_pak=12.0,
+    )
+    result = run_first_copy_phaser(request).result
+    assert result.execution_status is ExecutionStatus.COMPLETED_HIT
+    assert (result.llg, result.tfz) == (20.0, 3.0)
+    assert result.packing_summary["packed_solution_count"] == 2
+    assert result.packing_summary["top_solution_packed"] is False
+    assert result.packing_summary["run_peak_llg"] == 1622.91
+
+
+@pytest.mark.parametrize("native_tncs", (False, True))
+def test_copy_mismatch_requires_selected_native_tncs_annotation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native_tncs: bool
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        placement_count=2,
+        native_tncs=native_tncs,
+    )
+    result = run_first_copy_phaser(request).result
+    assert result.placed_copy_count == 2
+    assert result.packing_summary["copy_state_interpretation"] == (
+        "coupled_tncs" if native_tncs else "unexplained_copy_mismatch"
+    )
 
 
 @pytest.mark.parametrize(
@@ -544,7 +616,7 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.general.jobs=4" in command
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert record["adapter_version"] == "phenix-first-copy-mr-v8"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v9-selected-solution"
     assert record["model_uncertainty_source"].startswith("phenix.process")
 
 
@@ -561,7 +633,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     binding = record["diffraction_command_binding"]
     selection = record["diffraction_selection"]
     assert record["schema_version"] == "2.0"
-    assert record["adapter_version"] == "phenix-first-copy-mr-v12-resource-plan"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v13-selected-solution"
     assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
     assert record["phase3_command_id"].startswith("phasercmd_")
     command_identity = {

@@ -1,6 +1,7 @@
 """Tests for the file-based first-copy MR checkpoint."""
 
 import csv
+import hashlib
 import json
 import os
 import subprocess
@@ -15,6 +16,7 @@ import pytest
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.matthews.enumerate import enumerate_group
 from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
@@ -42,20 +44,22 @@ from genome_to_diffraction.review import (
     validate_phase3_review_package,
 )
 from genome_to_diffraction.review.mr_seed import (
-    _Bundle,
-    _Candidate,
-    _candidate_sort_key,
-    _matthews_sort_key,
-    _mr_sort_key,
+    mr_seed_copy_state,
+    mr_seed_review_sort_key,
     validate_mr_seed_review_evidence,
 )
 from genome_to_diffraction.schemas.io import load_contract
-from genome_to_diffraction.schemas.manifests import PrototypeProfile
+from genome_to_diffraction.schemas.manifests import (
+    CrystalEntry,
+    PipelineConfig,
+    PrototypeProfile,
+)
 from genome_to_diffraction.schemas.results import (
     MatthewsHypothesis,
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    MtzPreflightRecord,
     NormalisedMrResult,
     PhysicalStatus,
     ReviewDecisionManifest,
@@ -580,63 +584,166 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert template.decisions == ()
 
 
-def test_review_priority_does_not_let_mr_only_rank_override_matthews() -> None:
-    group = SequenceGroupRecord.model_validate_json(
-        (STUBS / "sequence_groups.jsonl").read_text(encoding="utf-8").splitlines()[0]
+def test_review_priority_uses_physical_equal_solvent_mr_counterexample(
+    tmp_path: Path,
+) -> None:
+    request = _request(tmp_path)
+    config = load_contract(request.pipeline_config, "pipeline-config", progress=False)
+    assert isinstance(config, PipelineConfig)
+    crystal = CrystalEntry(
+        crystal_id="test_crystal_01",
+        mtz="fixture.mtz",
+        catalogue_id="example_archaeon_refseq",
+        allow_remote_sequence_submission=False,
     )
-    source = SourceProteinRecord.model_validate_json(
-        (STUBS / "source_records.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    preflight = MtzPreflightRecord.model_validate_json(
+        (STUBS / "mtz_preflight.jsonl").read_text()
+    ).model_copy(update={"asu_volume_a3": 250_000.0, "resolution_high_a": 2.0})
+    original_group = SequenceGroupRecord.model_validate_json(
+        request.sequence_groups_jsonl.read_text().splitlines()[0]
     )
-    bundle = _Bundle(
-        directory_name="synthetic",
-        file_paths={
-            "solution_coordinate": Path("solution.pdb"),
-            "output_mtz": Path("solution.mtz"),
-        },
-        file_sha256={},
+    original_source = SourceProteinRecord.model_validate_json(
+        request.source_records_jsonl.read_text().splitlines()[0]
     )
-    mr_only = _Candidate(
-        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "1" * 64),
-        result=_result(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
-            update={"llg": 120.0, "tfz": 12.0}
-        ),
-        sequence_group=group,
-        sources=(source,),
-        matthews=_matthews().model_copy(
+    groups, sources, hypotheses, results, matthews_rows = [], [], [], [], []
+    for digit, mass, copies, llg, tfz, packed in (
+        ("1", 50_000.0, 2, 20.0, 3.0, False),
+        ("2", 5_000.0, 20, 120.0, 12.0, True),
+    ):
+        sequence = "M" + "A" * (499 if digit == "1" else 49)
+        digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+        group = original_group.model_copy(
             update={
-                "matthews_prior": 0.01,
-                "physical_status": PhysicalStatus.REVIEW,
+                "sequence_group_id": "seq_" + digest,
+                "sha256": digest,
+                "sequence": sequence,
+                "length_aa": len(sequence),
+                "molecular_mass_da": mass,
+                "mass_method": "synthetic_counterexample",
             }
-        ),
-        funnel_entry={},
-        funnel_order=1,
-        bundle=bundle,
-        solution_id="sol_" + "1" * 64,
-        solution_identity={},
-    )
-    asu_supported = _Candidate(
-        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "2" * 64),
-        result=_result(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
-            update={"llg": 60.0, "tfz": 7.0}
-        ),
-        sequence_group=group,
-        sources=(source,),
-        matthews=_matthews().model_copy(
+        )
+        source = original_source.model_copy(
             update={
-                "matthews_prior": 0.95,
-                "physical_status": PhysicalStatus.PLAUSIBLE,
+                "source_record_id": "source_" + digit,
+                "sequence_group_id": group.sequence_group_id,
             }
-        ),
-        funnel_entry={},
-        funnel_order=2,
-        bundle=bundle,
-        solution_id="sol_" + "2" * 64,
-        solution_identity={},
+        )
+        matthews = next(
+            row
+            for row in enumerate_group(group, crystal, preflight, config)
+            if row.copy_count == copies
+        )
+        assert matthews.solvent_fraction == pytest.approx(0.508)
+        assert matthews.matthews_coefficient == pytest.approx(2.5)
+        hypothesis = _hypothesis(hypothesis_id="mrhyp_" + digit * 64).model_copy(
+            update={
+                "sequence_group_id": group.sequence_group_id,
+                "copy_count_expected": copies,
+                "priority_features": {
+                    **_hypothesis().priority_features,
+                    "matthews_hypothesis_id": matthews.hypothesis_id,
+                },
+            }
+        )
+        result = _result(hypothesis_id=hypothesis.hypothesis_id).model_copy(
+            update={
+                "llg": llg,
+                "tfz": tfz,
+                "packing_summary": {"top_solution_packed": packed},
+            }
+        )
+        bundle = request.result_root / f"first_copy_phaser_{hypothesis.hypothesis_id}"
+        bundle.mkdir()
+        for filename, data in (
+            ("PHASER.1.pdb", b"MODEL        1\nEND\n"),
+            ("PHASER.1.mtz", b"MTZ test bytes"),
+            ("PHASER.log", b"synthetic counterexample\n"),
+            ("phaser_command.json", b'{"arguments":["phenix.phaser"]}\n'),
+        ):
+            (bundle / filename).write_bytes(data)
+        result = result.model_copy(
+            update={
+                "solution_coordinate_sha256": sha256_file(bundle / "PHASER.1.pdb"),
+                "output_mtz_sha256": sha256_file(bundle / "PHASER.1.mtz"),
+            }
+        )
+        (bundle / "normalised_mr_result.jsonl").write_text(
+            canonical_json_text(result) + "\n"
+        )
+        groups.append(group)
+        sources.append(source)
+        hypotheses.append(hypothesis)
+        results.append(result)
+        matthews_rows.append(matthews)
+    assert matthews_rows[0].matthews_prior > matthews_rows[1].matthews_prior
+    group_path, source_path = tmp_path / "groups.jsonl", tmp_path / "sources.jsonl"
+    for path, records in (
+        (group_path, groups),
+        (source_path, sources),
+        (request.hypotheses_jsonl, hypotheses),
+        (request.results_jsonl, results),
+        (request.matthews_hypotheses_jsonl, matthews_rows),
+    ):
+        path.write_text("".join(canonical_json_text(row) + "\n" for row in records))
+    request.funnel_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "funnel_id": "funnel_counterexample",
+                "selected_hypothesis_count": 2,
+                "execution_status": "completed_success",
+                "hypotheses": [
+                    {"hypothesis_id": row.hypothesis_id, "model_id": row.model_id}
+                    for row in hypotheses
+                ],
+            }
+        )
     )
+    package = build_mr_seed_review(
+        replace(
+            request,
+            sequence_groups_jsonl=group_path,
+            source_records_jsonl=source_path,
+        )
+    )
+    rows = list(csv.DictReader(package.review_tsv.open(), delimiter="\t"))
+    assert rows[0]["hypothesis_id"] == hypotheses[1].hypothesis_id
+    assert rows[0]["mr_rank"] == "1"
+    assert rows[0]["matthews_rank"] == "2"
+    keys = [
+        mr_seed_review_sort_key(
+            hypothesis=hypothesis,
+            result=result,
+            matthews=matthews,
+            inspectable=True,
+            canonical_order=index,
+        )
+        for index, (hypothesis, result, matthews) in enumerate(
+            zip(hypotheses, results, matthews_rows, strict=True)
+        )
+    ]
+    assert sorted(range(2), key=keys.__getitem__) == [1, 0]
 
-    assert sorted((mr_only, asu_supported), key=_mr_sort_key)[0] is mr_only
-    assert sorted((mr_only, asu_supported), key=_matthews_sort_key)[0] is asu_supported
-    assert sorted((mr_only, asu_supported), key=_candidate_sort_key)[0] is asu_supported
+
+@pytest.mark.parametrize("native_tncs", (False, True))
+def test_review_interprets_coupled_tncs_without_hiding_copy_mismatch(
+    native_tncs: bool,
+) -> None:
+    hypothesis = _hypothesis()
+    result = _result().model_copy(
+        update={
+            "placed_copy_count": 2,
+            "packing_summary": {
+                "top_solution_packed": True,
+                "copy_state_interpretation": "coupled_tncs",
+                "native_tncs_annotation": native_tncs,
+            },
+        }
+    )
+    assert mr_seed_copy_state(hypothesis, result) == (
+        "coupled_tncs" if native_tncs else "unexplained_copy_mismatch"
+    )
+    assert result.placed_copy_count != hypothesis.copy_number_to_search
 
 
 def test_no_model_funnel_emits_an_honest_empty_mr_seed_review(

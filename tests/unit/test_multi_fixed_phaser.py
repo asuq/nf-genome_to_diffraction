@@ -288,7 +288,7 @@ def test_multi_fixed_a_b_searches_two_c_without_claim(
         (tmp_path / "output/phaser_command.json").read_text(encoding="utf-8")
     )
     assert command["adapter_version"] == (
-        "phenix-multi-fixed-joint-component-v2-diffraction"
+        "phenix-multi-fixed-joint-component-v3-selected-solution"
     )
     assert command["diffraction_selection_id"].startswith("diffsel_")
     assert command["parameters_sha256"]

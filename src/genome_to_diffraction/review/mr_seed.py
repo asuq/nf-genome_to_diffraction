@@ -61,7 +61,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v4-matthews-dual-rank"
+_ADAPTER_VERSION = "mr-seed-review-v5-selected-mr-evidence"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
@@ -85,6 +85,7 @@ _TSV_COLUMNS = (
     "candidate_source_sequence_identity",
     "copy_count_expected",
     "placed_copy_count",
+    "copy_state_interpretation",
     "matthews_coefficient",
     "solvent_fraction",
     "matthews_prior",
@@ -624,22 +625,54 @@ def _descending(value: float | None) -> float:
     return float("inf") if value is None else -value
 
 
-def _mr_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+def mr_seed_copy_state(hypothesis: MrHypothesis, result: NormalisedMrResult) -> str:
+    """Interpret requested/observed copies without assuming a tNCS expansion.
+
+    Only an explicit native tNCS interpretation from the selected solution
+    explains an expanded placement. A matching count is literal requested-copy
+    evidence; an unexplained mismatch remains visible and lower priority.
+    """
+
+    if result.placed_copy_count == 0:
+        return "no_placement"
+    if result.placed_copy_count == hypothesis.copy_number_to_search:
+        return "requested_copies_observed"
+    if (
+        result.packing_summary.get("copy_state_interpretation") == "coupled_tncs"
+        and result.packing_summary.get("native_tncs_annotation") is True
+        and result.placed_copy_count > hypothesis.copy_number_to_search
+        and result.placed_copy_count % hypothesis.copy_number_to_search == 0
+    ):
+        return "coupled_tncs"
+    return "unexplained_copy_mismatch"
+
+
+def _mr_evidence_sort_key(
+    *, hypothesis: MrHypothesis, result: NormalisedMrResult, inspectable: bool
+) -> tuple[object, ...]:
     status_rank = {
         ExecutionStatus.COMPLETED_HIT: 0,
         ExecutionStatus.COMPLETED_NO_HIT: 1,
-    }.get(candidate.result.execution_status, 2)
+    }.get(result.execution_status, 2)
+    copy_state = mr_seed_copy_state(hypothesis, result)
     return (
-        0 if _inspectable_solution(candidate) else 1,
+        0 if inspectable else 1,
         status_rank,
-        0 if _score_gate(candidate.result) else 1,
-        0 if _boolean_feature(candidate.result, "top_solution_packed") else 1,
-        0
-        if candidate.result.placed_copy_count
-        == candidate.hypothesis.copy_number_to_search
-        else 1,
-        _descending(candidate.result.llg),
-        _descending(candidate.result.tfz),
+        0 if _boolean_feature(result, "top_solution_packed") else 1,
+        0 if copy_state in {"requested_copies_observed", "coupled_tncs"} else 1,
+        0 if _score_gate(result) else 1,
+        _descending(result.llg),
+        _descending(result.tfz),
+    )
+
+
+def _mr_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+    return (
+        *_mr_evidence_sort_key(
+            hypothesis=candidate.hypothesis,
+            result=candidate.result,
+            inspectable=_inspectable_solution(candidate),
+        ),
         candidate.funnel_order,
     )
 
@@ -658,14 +691,41 @@ def _matthews_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     )
 
 
-def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
-    """Order review priority by physical ASU support before MR tie-breakers."""
+def mr_seed_review_sort_key(
+    *,
+    hypothesis: MrHypothesis,
+    result: NormalisedMrResult,
+    matthews: MatthewsHypothesis,
+    inspectable: bool,
+    canonical_order: int,
+) -> tuple[object, ...]:
+    """Return the production A-review ordering for validated joined evidence.
+
+    The production package and leakage-filtered benchmark use this same key.
+    Packing and interpreted placement evidence precede raw MR evidence, with
+    the empirical Matthews prior used only for later tie-breaking. Impossible
+    declared compositions are a separate validity class, never rescued by a
+    large MR score. No part of this ordering grants advancement authority.
+    """
 
     return (
-        *_mr_sort_key(candidate)[:2],
-        *_matthews_sort_key(candidate)[:-1],
-        *_mr_sort_key(candidate)[2:-1],
-        candidate.funnel_order,
+        1 if matthews.physical_status.value == "impossible" else 0,
+        *_mr_evidence_sort_key(
+            hypothesis=hypothesis, result=result, inspectable=inspectable
+        ),
+        -matthews.matthews_prior,
+        matthews.rank_within_candidate,
+        canonical_order,
+    )
+
+
+def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
+    return mr_seed_review_sort_key(
+        hypothesis=candidate.hypothesis,
+        result=candidate.result,
+        matthews=candidate.matthews,
+        inspectable=_inspectable_solution(candidate),
+        canonical_order=candidate.funnel_order,
     )
 
 
@@ -756,8 +816,17 @@ def _row(
         ),
         "copy_count_expected": candidate.hypothesis.copy_count_expected,
         "placed_copy_count": candidate.result.placed_copy_count,
-        "matthews_coefficient": matthews.matthews_coefficient or "",
-        "solvent_fraction": matthews.solvent_fraction or "",
+        "copy_state_interpretation": mr_seed_copy_state(
+            candidate.hypothesis, candidate.result
+        ),
+        "matthews_coefficient": (
+            matthews.matthews_coefficient
+            if matthews.matthews_coefficient is not None
+            else ""
+        ),
+        "solvent_fraction": (
+            matthews.solvent_fraction if matthews.solvent_fraction is not None else ""
+        ),
         "matthews_prior": matthews.matthews_prior,
         "matthews_prior_backend": matthews.prior_backend,
         "matthews_copy_range_complete": features.get(
@@ -865,6 +934,8 @@ def _html_report(
         "model_source",
         "model_target",
         "copy_count_expected",
+        "placed_copy_count",
+        "copy_state_interpretation",
         "matthews_coefficient",
         "solvent_fraction",
         "matthews_prior",
@@ -917,9 +988,11 @@ code{overflow-wrap:anywhere}.note{max-width:75rem}
 <p><strong>Package:</strong> <code>PACKAGE_ID</code></p>
 <p class="note">Every tested hypothesis is retained. Every parsed solution with
 coordinate and MTZ assets is available for Coot inspection. Review priority
-orders inspectable execution evidence, physical ASU status, and the
-resolution/copy-weighted empirical Matthews prior before using the provisional
-LLG/TFZ screen, packing, copy agreement, raw LLG, and raw TFZ as tie-breakers.
+orders valid inspectable execution evidence by selected-solution packing,
+interpreted copy state, the provisional LLG/TFZ screen, raw LLG, and raw TFZ,
+then uses the resolution/copy-weighted empirical Matthews prior as a tie-breaker.
+Coupled tNCS states require explicit native evidence and remain labelled as such;
+an unexplained requested/observed copy mismatch is not treated as tNCS.
 Independent Matthews and MR ranks plus their absolute discordance are shown.
 The screen does not exclude candidates or grant approval.
 This ranking is not a calibrated probability of identity; human map and packing
@@ -1082,23 +1155,23 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
             "created_at": created_at,
             "checkpoint": "mr_seed",
             "ordering_policy": [
+                "declared_composition_validity",
                 "inspectable_solution",
                 "execution_status",
-                "matthews_physical_status",
+                "selected_solution_packing",
+                "interpreted_copy_state",
+                "mr_score_gate",
+                "mr_llg_descending",
+                "mr_tfz_descending",
                 "resolution_copy_weighted_matthews_prior_descending",
                 "matthews_rank_within_candidate",
-                "mr_score_gate_tiebreaker",
-                "mr_packing_tiebreaker",
-                "mr_placed_copy_match_tiebreaker",
-                "mr_llg_tiebreaker",
-                "mr_tfz_tiebreaker",
                 "immutable_funnel_order",
             ],
             "independent_rankings": {
                 "matthews_rank": (
                     "physical_status_then_resolution_copy_weighted_prior"
                 ),
-                "mr_rank": ("score_gate_packing_copy_match_llg_tfz"),
+                "mr_rank": ("selected_packing_interpreted_copy_score_gate_llg_tfz"),
                 "rank_discordance": "absolute_position_difference",
             },
             "matthews_prior_backend": PRIOR_BACKEND,
