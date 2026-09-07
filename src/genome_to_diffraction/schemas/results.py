@@ -567,6 +567,57 @@ class MrHypothesis(ContractModel):
     status: MrHypothesisStatus
 
 
+class PhaserExecutionFailure(ContractModel):
+    """Observed native failure and the existing explicit one-retry eligibility."""
+
+    kind: Literal["timeout", "tool_exit"]
+    native_exit_code: int | None
+    retryable: bool
+
+    def validate_status(self, status: ExecutionStatus) -> None:
+        """Refuse native failure evidence on a completed scientific result."""
+
+        if status not in {
+            ExecutionStatus.FAILED_TOOL_EXECUTION,
+            ExecutionStatus.FAILED_INFRASTRUCTURE,
+        }:
+            raise ValueError("native Phaser failure requires a failed execution status")
+
+    @classmethod
+    def from_native(cls, *, returncode: int, timed_out: bool) -> Self | None:
+        """Classify only observed timeout/exit evidence, never error-message text."""
+
+        if returncode == 0 and not timed_out:
+            return None
+        shell_exit = returncode if returncode >= 0 else 128 - returncode
+        return cls(
+            kind="timeout" if timed_out else "tool_exit",
+            native_exit_code=returncode,
+            retryable=timed_out
+            or shell_exit in {75, 104, *range(130, 146), *range(175, 178)},
+        )
+
+    @model_validator(mode="after")
+    def _validate_observed_failure(self) -> Self:
+        if self.kind == "timeout":
+            if not self.retryable:
+                raise ValueError("an explicit Phaser timeout is retryable")
+            return self
+        if self.native_exit_code is None or self.native_exit_code == 0:
+            raise ValueError("tool_exit requires an observed nonzero native exit")
+        shell_exit = (
+            self.native_exit_code
+            if self.native_exit_code >= 0
+            else 128 - self.native_exit_code
+        )
+        expected = shell_exit in {75, 104, *range(130, 146), *range(175, 178)}
+        if self.retryable != expected:
+            raise ValueError(
+                "Phaser retryability differs from the explicit exit policy"
+            )
+        return self
+
+
 class NormalisedMrResult(ContractModel):
     """Normalised MR result that does not conflate no-hit with failure."""
 
@@ -574,6 +625,7 @@ class NormalisedMrResult(ContractModel):
     hypothesis_id: NonEmptyString
     tool_version: NonEmptyString
     execution_status: ExecutionStatus
+    execution_failure: PhaserExecutionFailure | None = None
     llg: float | None = None
     llgi: float | None = None
     tfz: float | None = None
@@ -589,6 +641,12 @@ class NormalisedMrResult(ContractModel):
     raw_log_pointer: NonEmptyString
     preliminary_credibility_class: str | None = None
     rejection_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_execution_evidence(self) -> Self:
+        if self.execution_failure is not None:
+            self.execution_failure.validate_status(self.execution_status)
+        return self
 
 
 class AdditionalCopyResult(ContractModel):
@@ -606,6 +664,7 @@ class AdditionalCopyResult(ContractModel):
     attempted_copy_number: PositiveInt
     expected_copy_count: PositiveInt
     execution_status: ExecutionStatus
+    execution_failure: PhaserExecutionFailure | None = None
     llg: float | None = None
     llg_delta_from_parent: float | None = None
     tfz: float | None = None
@@ -626,6 +685,8 @@ class AdditionalCopyResult(ContractModel):
 
     @model_validator(mode="after")
     def _validate_copy_transition(self) -> Self:
+        if self.execution_failure is not None:
+            self.execution_failure.validate_status(self.execution_status)
         if self.attempted_copy_number != self.parent_copy_count + 1:
             raise ValueError("attempted copy number must follow the parent count")
         if self.best_supported_copy_count not in {
@@ -676,6 +737,7 @@ class PartnerSearchResult(ContractModel):
     selection_plan_sha256: Sha256Hex | None = None
     partner_candidate_id: NonEmptyString | None = None
     execution_status: ExecutionStatus
+    execution_failure: PhaserExecutionFailure | None = None
     parent_llg: float
     parent_model_identity_fraction: float | None = Field(default=None, gt=0, le=1)
     parent_model_uncertainty_source: NonEmptyString | None = None
@@ -706,6 +768,8 @@ class PartnerSearchResult(ContractModel):
 
     @model_validator(mode="after")
     def _validate_partner_transition(self) -> Self:
+        if self.execution_failure is not None:
+            self.execution_failure.validate_status(self.execution_status)
         if (self.parent_model_identity_fraction is None) != (
             self.parent_model_uncertainty_source is None
         ):

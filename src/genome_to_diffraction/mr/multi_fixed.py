@@ -22,14 +22,12 @@ from __future__ import annotations
 import json
 import math
 import re
-import subprocess
 from pathlib import Path
 from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -43,7 +41,7 @@ from genome_to_diffraction.mr.phaser import (
     read_phaser_solution_metrics,
 )
 from genome_to_diffraction.phenix.runtime import (
-    capture_from_manifest,
+    stream_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.base import (
@@ -54,6 +52,7 @@ from genome_to_diffraction.schemas.base import (
 )
 from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
+    PhaserExecutionFailure,
     PreflightDecision,
     SequenceGroupRecord,
 )
@@ -173,6 +172,7 @@ class MultiFixedSearchResult(ContractModel):
     candidate_component_label: ComponentLabel
     requested_candidate_copy_count: PositiveInt
     execution_status: ExecutionStatus
+    execution_failure: PhaserExecutionFailure | None = None
     parent_combined_llg: float
     combined_llg: float | None = None
     incremental_llg: float | None = None
@@ -199,6 +199,8 @@ class MultiFixedSearchResult(ContractModel):
 
     @model_validator(mode="after")
     def _validate_result(self) -> Self:
+        if self.execution_failure is not None:
+            self.execution_failure.validate_status(self.execution_status)
         metrics = (self.combined_llg, self.incremental_llg, self.candidate_tfz)
         if any(value is None for value in metrics) != all(
             value is None for value in metrics
@@ -503,17 +505,14 @@ def run_multi_fixed_search(
             **identity,
         },
     )
-    try:
-        completed = capture_from_manifest(
-            phenix_manifest,
-            arguments,
-            working_directory=output,
-            timeout_seconds=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired:
-        completed = subprocess.CompletedProcess(arguments, 124, b"", b"timed out")
     capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
+    completed = stream_from_manifest(
+        phenix_manifest,
+        arguments,
+        working_directory=output,
+        timeout_seconds=timeout_seconds,
+        log_path=capture_log,
+    )
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     status = ExecutionStatus.FAILED_TOOL_EXECUTION
@@ -525,10 +524,13 @@ def run_multi_fixed_search(
     warnings: list[str] = []
     rejection: str | None = None
     tool_version = runtime.phenix_version
-    if completed.returncode != 0:
+    failure = PhaserExecutionFailure.from_native(
+        returncode=completed.returncode, timed_out=completed.timed_out
+    )
+    if failure is not None:
         rejection = (
             "phenix.phaser_timeout"
-            if completed.returncode == 124
+            if completed.timed_out
             else f"phenix.phaser_exit_{completed.returncode}"
         )
     else:
@@ -638,6 +640,7 @@ def run_multi_fixed_search(
         candidate_component_label=manifest.candidate.label,
         requested_candidate_copy_count=manifest.candidate.requested_copy_count,
         execution_status=status,
+        execution_failure=failure,
         parent_combined_llg=manifest.parent_combined_llg,
         combined_llg=combined_llg,
         incremental_llg=incremental_llg,

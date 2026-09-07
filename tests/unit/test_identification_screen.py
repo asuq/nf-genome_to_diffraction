@@ -3,7 +3,6 @@
 import io
 import json
 import shutil
-import subprocess
 import tarfile
 from pathlib import Path
 
@@ -20,6 +19,7 @@ from genome_to_diffraction.hpc.identification_inputs import (
     validate_plan,
 )
 from genome_to_diffraction.mr_resources import MrResourcePlanError
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from tests.support.identification_fixture import materialise_identification_fixture
 
 REPOSITORY = Path(__file__).resolve().parents[2]
@@ -163,7 +163,7 @@ def test_native_execution_outcomes_stay_separate(
     prepared = tmp_path / "prepared"
     identification_run.prepare_case(root, case.case_id, prepared)
 
-    def capture(manifest, command, *, working_directory, timeout_seconds):
+    def capture(manifest, command, *, working_directory, timeout_seconds, log_path):
         assert timeout_seconds is None
         log = (
             (
@@ -173,11 +173,10 @@ def test_native_execution_outcomes_stay_separate(
             else "incomplete output"
         )
         (working_directory / "PHASER.log").write_text(log)
-        return subprocess.CompletedProcess(
-            command, 137 if kind == "resource_failure" else 0, b"native output", b""
-        )
+        log_path.write_bytes(b"native output")
+        return PhenixExecutionResult(137 if kind == "resource_failure" else 0, log_path)
 
-    monkeypatch.setattr(identification_run, "capture_from_manifest", capture)
+    monkeypatch.setattr(identification_run, "stream_from_manifest", capture)
     out = tmp_path / "run"
     code = identification_run.run_case(
         root, case.case_id, prepared, tmp_path / "mock_manifest", 8, 1, out

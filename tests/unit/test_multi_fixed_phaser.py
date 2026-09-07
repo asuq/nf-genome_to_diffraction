@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -16,6 +15,7 @@ from genome_to_diffraction.mr import (
     PhaserInputError,
     run_multi_fixed_search,
 )
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
 from genome_to_diffraction.schemas.results import (
@@ -181,6 +181,7 @@ def _fake_runtime(
     *,
     log_text: str,
     returncode: int = 0,
+    timed_out: bool = False,
     write_solution: bool = False,
     include_fixed_b: bool = True,
 ) -> list[str]:
@@ -196,7 +197,8 @@ def _fake_runtime(
         *,
         working_directory: Path,
         timeout_seconds: float | None,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, timeout_seconds
         parameters.append(Path(arguments[1]).read_text(encoding="utf-8"))
         (working_directory / "PHASER.log").write_text(log_text, encoding="utf-8")
@@ -217,14 +219,15 @@ def _fake_runtime(
                 encoding="utf-8",
             )
             (working_directory / "PHASER.1.mtz").write_bytes(b"combined MTZ")
-        return subprocess.CompletedProcess(arguments, returncode, b"capture\n", b"")
+        log_path.write_bytes(b"capture\n")
+        return PhenixExecutionResult(returncode, log_path, timed_out)
 
     monkeypatch.setattr(
         "genome_to_diffraction.mr.multi_fixed.validate_manifest_environment",
         fake_validate,
     )
     monkeypatch.setattr(
-        "genome_to_diffraction.mr.multi_fixed.capture_from_manifest",
+        "genome_to_diffraction.mr.multi_fixed.stream_from_manifest",
         fake_capture,
     )
     return parameters
@@ -261,6 +264,34 @@ def test_multi_fixed_manifest_rejects_unqualified_one_fixed_a_route(
                 ),
             ),
         )
+
+
+@pytest.mark.parametrize("timed_out", (False, True))
+def test_multi_fixed_preserves_explicit_retryable_failure_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, timed_out: bool
+) -> None:
+    manifest, groups, preflight, mtz = _inputs(tmp_path)
+    code = -15 if timed_out else 75
+    _fake_runtime(
+        monkeypatch,
+        log_text="partial log\n",
+        returncode=code,
+        timed_out=timed_out,
+    )
+    result = run_multi_fixed_search(
+        manifest_path=manifest,
+        sequence_groups_jsonl=groups,
+        preflight_jsonl=preflight,
+        mtz_path=mtz,
+        phenix_manifest=STUBS / "phenix_install_manifest.json",
+        output_directory=tmp_path / "output",
+        threads=8,
+    )
+    assert result.execution_failure is not None
+    assert result.execution_failure.native_exit_code == code
+    assert result.execution_failure.retryable is True
+    assert result.execution_failure.kind == ("timeout" if timed_out else "tool_exit")
+    assert result.candidate_placement_observed is False
 
 
 def test_multi_fixed_a_b_searches_two_c_without_claim(

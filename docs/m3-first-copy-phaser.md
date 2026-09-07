@@ -119,6 +119,21 @@ resources, status, scores, and rejection reason; `tqdm` reports the bounded
 single-job progress interactively and is disabled by `--no-progress` in
 scheduled execution.
 
+Scientific Phenix commands stream stdout and stderr into a binary log from
+process start. They use an isolated process group, with five-second TERM and
+bounded KILL cleanup on timeout, including workers whose leader exits first.
+Partial output is retained alongside the timeout marker and observed native
+exit. Only diagnostic tails are memory-bounded excerpts; they never replace
+scientific parser evidence. Short help/interface probes retain their separate
+capture boundary.
+
+All four MR adapters emit `execution_failure` for an observed timeout or tool
+exit, with `kind`, `native_exit_code` and `retryable`. Retryability follows the
+existing explicit exit policy (75, 104, 130-145, 175-177), including native
+signal exits, or an observed timeout. Error-message words never confer retry
+authority, and exit 124 alone is not a timeout. The scheduler owns the single
+retry; deterministic and exhausted failures remain terminal candidate records.
+
 ## Parser and scientific status
 
 For a parsed solution the adapters bind final LLG, TFZ, placement remarks and

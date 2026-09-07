@@ -15570,6 +15570,7 @@ with a collapsed combined parent or a guessed command.
   C02's inner-failure-to-retry propagation, then integrate reviewed reopening,
   M6 parity and independent copy-completeness semantics. Main's Raven migration
   remains uncommitted and protected; no live run or remote state was changed.
+
 ## 2026-09-07 - v0.3 physical Matthews range and complete acquired inventory
 
 - The isolated release-fix worktree now separates the configured solvent
@@ -15590,3 +15591,21 @@ with a collapsed combined parent or a guessed command.
   targeted type checks passed. Reviewed-reopening integration, exact-source
   release qualification and Raven work remain pending; main and active runs
   were not modified.
+
+## 2026-09-07 - Streamed scientific Phenix execution and failure evidence
+
+- Scientific Phenix commands now stream complete merged byte output directly
+  to retained files. Timeout cleanup targets the complete isolated process
+  group, including a worker that ignores TERM after its leader exits. The
+  bounded cleanup retains partial diagnostics and the actual native exit.
+- All four MR adapters emit typed timeout/tool-exit evidence and explicit
+  eligibility for the existing single retry. A literal exit 124 is no longer
+  fabricated timeout evidence; words in an error message confer no retry.
+  Native no-hit and parse-failure meanings remain distinct.
+- The focused runtime, MR, model preparation, refinement, diffraction and
+  identification suite passed 206 tests, including real subprocess streaming
+  and descendant cleanup in a verified synthetic runtime. No real Phenix
+  scientific execution or HPC qualification is claimed.
+- Next bound native Phaser-log parsing, integrate complete alternative
+  inventories and Matthews factor exports, and finish copy-completeness
+  reporting before the integrated release gate.

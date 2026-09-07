@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -23,6 +22,7 @@ from genome_to_diffraction.mr import (
 from genome_to_diffraction.mr.add_copy import _phaser_placement_count
 from genome_to_diffraction.mr.stage_add_copy import PhaseIIISeedStageEvidence
 from genome_to_diffraction.mr_resources import build_mr_resource_plan
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -232,6 +232,8 @@ def _fake_runtime(
     pdb_pak: float = 0.0,
     pdb_llg: float = 1622.91,
     pdb_tfz: float = 49.7,
+    returncode: int = 0,
+    timed_out: bool = False,
 ) -> None:
     placement_counts = iter(
         (placement_count,) if isinstance(placement_count, int) else placement_count
@@ -247,7 +249,8 @@ def _fake_runtime(
         *,
         working_directory: Path,
         timeout_seconds: float | None,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, timeout_seconds
         assert arguments[0] == "phenix.phaser"
         parameters = Path(arguments[1]).read_text(encoding="utf-8")
@@ -275,14 +278,15 @@ def _fake_runtime(
         if corrupt_evidence is not None:
             evidence = working_directory / corrupt_evidence
             evidence.write_bytes(evidence.read_bytes() + b"\xff")
-        return subprocess.CompletedProcess(arguments, 0, b"capture\n", b"")
+        log_path.write_bytes(b"capture\n")
+        return PhenixExecutionResult(returncode, log_path, timed_out)
 
     monkeypatch.setattr(
         "genome_to_diffraction.mr.add_copy.validate_manifest_environment",
         fake_validate,
     )
     monkeypatch.setattr(
-        "genome_to_diffraction.mr.add_copy.capture_from_manifest", fake_capture
+        "genome_to_diffraction.mr.add_copy.stream_from_manifest", fake_capture
     )
 
 
@@ -432,7 +436,7 @@ def test_phase3_additional_copy_rejects_stale_diffraction_before_runtime(
         called = True
 
     monkeypatch.setattr(
-        "genome_to_diffraction.mr.add_copy.capture_from_manifest", unexpected
+        "genome_to_diffraction.mr.add_copy.stream_from_manifest", unexpected
     )
     with pytest.raises(DiffractionSelectionError, match="preflight record digest"):
         run_additional_copy_phaser(request)
@@ -809,20 +813,39 @@ def test_changed_search_model_fails_before_runtime(
     request.search_model.write_text("changed\n", encoding="utf-8")
     called = False
 
-    def unexpected(
-        *args: object, **kwargs: object
-    ) -> subprocess.CompletedProcess[bytes]:
+    def unexpected(*args: object, **kwargs: object) -> PhenixExecutionResult:
         nonlocal called
         del args, kwargs
         called = True
         raise AssertionError("runtime must not be called")
 
     monkeypatch.setattr(
-        "genome_to_diffraction.mr.add_copy.capture_from_manifest", unexpected
+        "genome_to_diffraction.mr.add_copy.stream_from_manifest", unexpected
     )
     with pytest.raises(PhaserInputError, match="search model checksum differs"):
         run_additional_copy_phaser(request)
     assert called is False
+
+
+@pytest.mark.parametrize("timed_out", (False, True))
+def test_additional_copy_preserves_explicit_retryable_failure_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, timed_out: bool
+) -> None:
+    request = _request(tmp_path)
+    code = -15 if timed_out else 75
+    _fake_runtime(
+        monkeypatch,
+        log_text="partial log\n",
+        write_solution=False,
+        returncode=code,
+        timed_out=timed_out,
+    )
+    result = run_additional_copy_phaser(request).result
+    assert result.execution_failure is not None
+    assert result.execution_failure.native_exit_code == code
+    assert result.execution_failure.retryable is True
+    assert result.execution_failure.kind == ("timeout" if timed_out else "tool_exit")
+    assert result.additional_copy_supported is False
 
 
 def test_changed_parent_result_fails_before_runtime(tmp_path: Path) -> None:

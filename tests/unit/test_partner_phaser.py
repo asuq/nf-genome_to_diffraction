@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import subprocess
 from dataclasses import replace
 from pathlib import Path
 
@@ -18,6 +17,7 @@ from genome_to_diffraction.mr import (
     run_partner_search,
 )
 from genome_to_diffraction.mr.partner import _score_cohort
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
 from genome_to_diffraction.schemas.results import (
@@ -164,6 +164,7 @@ def _fake_runtime(
     *,
     log_text: str,
     returncode: int = 0,
+    timed_out: bool = False,
     write_solution: bool = False,
     include_component_markers: bool = True,
     partner_marker_count: int = 1,
@@ -183,7 +184,8 @@ def _fake_runtime(
         *,
         working_directory: Path,
         timeout_seconds: float | None,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, timeout_seconds
         assert arguments[0] == "phenix.phaser"
         parameters = Path(arguments[1]).read_text(encoding="utf-8")
@@ -208,14 +210,15 @@ def _fake_runtime(
         if corrupt_evidence is not None:
             evidence = working_directory / corrupt_evidence
             evidence.write_bytes(evidence.read_bytes() + b"\xff")
-        return subprocess.CompletedProcess(arguments, returncode, b"capture\n", b"")
+        log_path.write_bytes(b"capture\n")
+        return PhenixExecutionResult(returncode, log_path, timed_out)
 
     monkeypatch.setattr(
         "genome_to_diffraction.mr.partner.validate_manifest_environment",
         fake_validate,
     )
     monkeypatch.setattr(
-        "genome_to_diffraction.mr.partner.capture_from_manifest", fake_capture
+        "genome_to_diffraction.mr.partner.stream_from_manifest", fake_capture
     )
     return captured_parameters
 
@@ -433,6 +436,26 @@ def test_partner_result_rejects_incorrect_incremental_llg(
 
     with pytest.raises(ValidationError, match="incremental LLG"):
         PartnerSearchResult.model_validate(document)
+
+
+@pytest.mark.parametrize("timed_out", (False, True))
+def test_partner_preserves_explicit_retryable_failure_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, timed_out: bool
+) -> None:
+    request = _request(tmp_path)
+    code = -15 if timed_out else 75
+    _fake_runtime(
+        monkeypatch,
+        log_text="partial log\n",
+        returncode=code,
+        timed_out=timed_out,
+    )
+    result = run_partner_search(request).result
+    assert result.execution_failure is not None
+    assert result.execution_failure.native_exit_code == code
+    assert result.execution_failure.retryable is True
+    assert result.execution_failure.kind == ("timeout" if timed_out else "tool_exit")
+    assert result.partner_placement_observed is False
 
 
 def test_partner_result_requires_paired_parent_uncertainty(

@@ -30,7 +30,6 @@ dataset-qualified label parameter.
 
 import logging
 import re
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -40,7 +39,6 @@ from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -67,7 +65,7 @@ from genome_to_diffraction.mr_resources import (
     verify_mr_thread_allocation,
 )
 from genome_to_diffraction.phenix.runtime import (
-    capture_from_manifest,
+    stream_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
@@ -78,6 +76,7 @@ from genome_to_diffraction.schemas.results import (
     MrSearchStage,
     MtzPreflightRecord,
     NormalisedMrResult,
+    PhaserExecutionFailure,
     PreflightDecision,
     ProcessedModelRecord,
     SequenceGroupRecord,
@@ -831,12 +830,14 @@ def _failure_result(
     raw_log: Path,
     reason: str,
     warnings: tuple[str, ...] = (),
+    execution_failure: PhaserExecutionFailure | None = None,
 ) -> NormalisedMrResult:
     return NormalisedMrResult(
         schema_version="1.0",
         hypothesis_id=hypothesis.hypothesis_id,
         tool_version=tool_version,
         execution_status=status,
+        execution_failure=execution_failure,
         llg=None,
         llgi=None,
         tfz=None,
@@ -1092,43 +1093,42 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
             "output_directory": str(output),
         },
     )
+    capture_log = output / "phenix.phaser.capture.log"
     with tqdm(
         total=1,
         desc="Run first-copy Phaser",
         unit="hypothesis",
         disable=not request.progress,
     ) as progress_bar:
-        try:
-            completed = capture_from_manifest(
-                request.phenix_manifest,
-                arguments,
-                working_directory=output,
-                timeout_seconds=request.timeout_seconds,
-            )
-        except subprocess.TimeoutExpired:
-            capture_log = output / "phenix.phaser.capture.log"
-            atomic_write_text(capture_log, "phenix.phaser timed out\n")
-            result = _failure_result(
-                hypothesis=resolved.hypothesis,
-                tool_version=phenix_manifest.phenix_version,
-                status=ExecutionStatus.FAILED_INFRASTRUCTURE,
-                raw_log=capture_log,
-                reason="phenix.phaser_timeout",
-            )
-            progress_bar.update(1)
-            return _write_result(output, result, command_json)
+        completed = stream_from_manifest(
+            request.phenix_manifest,
+            arguments,
+            working_directory=output,
+            timeout_seconds=request.timeout_seconds,
+            log_path=capture_log,
+        )
         progress_bar.update(1)
-    capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
-    if completed.returncode != 0:
+    failure = PhaserExecutionFailure.from_native(
+        returncode=completed.returncode, timed_out=completed.timed_out
+    )
+    if failure is not None:
         result = _failure_result(
             hypothesis=resolved.hypothesis,
             tool_version=phenix_manifest.phenix_version,
-            status=ExecutionStatus.FAILED_TOOL_EXECUTION,
+            status=(
+                ExecutionStatus.FAILED_INFRASTRUCTURE
+                if completed.timed_out
+                else ExecutionStatus.FAILED_TOOL_EXECUTION
+            ),
             raw_log=raw_log,
-            reason=f"phenix.phaser_exit_{completed.returncode}",
+            reason=(
+                "phenix.phaser_timeout"
+                if completed.timed_out
+                else f"phenix.phaser_exit_{completed.returncode}"
+            ),
+            execution_failure=failure,
         )
         _LOGGER.warning(
             "first-copy Phaser tool execution failed",

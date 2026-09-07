@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import subprocess
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +18,7 @@ from genome_to_diffraction.model_registry import (
     prepare_predicted_models,
 )
 from genome_to_diffraction.model_registry import predicted as predicted_module
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.schemas.results import (
     CoordinateSourceRecord,
     SearchScientificStatus,
@@ -117,7 +117,8 @@ def _fake_runtime(
         *,
         working_directory: Path,
         timeout_seconds: float,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, working_directory, timeout_seconds
         captured_arguments.extend(arguments)
         if returncode == 0:
@@ -131,9 +132,11 @@ def _fake_runtime(
             prefix.with_name(f"{prefix.name}_A_1.pdb").write_bytes(
                 _pdb("ACDEFGHI", positions=(2, 3, 5, 6, 7, 8))
             )
-        return subprocess.CompletedProcess(arguments, returncode, stdout, b"")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_bytes(stdout)
+        return PhenixExecutionResult(returncode, log_path)
 
-    monkeypatch.setattr(predicted_module, "capture_from_manifest", fake_capture)
+    monkeypatch.setattr(predicted_module, "stream_from_manifest", fake_capture)
     return captured_arguments
 
 

@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -28,6 +27,7 @@ from genome_to_diffraction.diffraction.preflight import (
 )
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.matthews import assess_sds, enumerate_group
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -455,7 +455,8 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
         *,
         working_directory: Path,
         timeout_seconds: float,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, working_directory, timeout_seconds
         assert arguments[0] == "phenix.xtriage"
         assert any("obs_labels=I,SIGI" in item for item in arguments)
@@ -479,9 +480,10 @@ def test_preflight_runs_xtriage_through_captured_phenix_boundary(
             b"----------Statistics independent of twin laws----------\n"
             b"Multivariate Z score L-test: 0.750\n"
         )
-        return subprocess.CompletedProcess(arguments, 0, report, b"")
+        log_path.write_bytes(report)
+        return PhenixExecutionResult(0, log_path)
 
-    monkeypatch.setattr(preflight_module, "capture_from_manifest", fake_capture)
+    monkeypatch.setattr(preflight_module, "stream_from_manifest", fake_capture)
     record = inspect_crystal(
         _crystal(mtz_path),
         manifest_path=tmp_path / "crystals.json",
@@ -710,7 +712,8 @@ def test_free_r_generation_is_separate_deterministic_and_preserves_source(
         *,
         working_directory: Path,
         timeout_seconds: float,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, working_directory, timeout_seconds
         captured_arguments.extend(arguments)
         destination = Path(
@@ -726,11 +729,10 @@ def test_free_r_generation_is_separate_deterministic_and_preserves_source(
         )
         mtz.set_data(np.hstack((old_data, flags)).astype(np.float32))
         mtz.write_to_file(str(destination))
-        return subprocess.CompletedProcess(
-            arguments, 0, b"generated Free-R flags\n", b""
-        )
+        log_path.write_bytes(b"generated Free-R flags\n")
+        return PhenixExecutionResult(0, log_path)
 
-    monkeypatch.setattr(free_r_module, "capture_from_manifest", fake_capture)
+    monkeypatch.setattr(free_r_module, "stream_from_manifest", fake_capture)
     output = tmp_path / "derived/free-r.mtz"
     record = generate_free_r(
         FreeRGenerationRequest(

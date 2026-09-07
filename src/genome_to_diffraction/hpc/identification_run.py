@@ -38,7 +38,7 @@ from genome_to_diffraction.mr_resources import (
     count_polymer_atoms,
     verify_mr_thread_allocation,
 )
-from genome_to_diffraction.phenix.runtime import capture_from_manifest
+from genome_to_diffraction.phenix.runtime import stream_from_manifest
 from genome_to_diffraction.schemas.io import load_json_document
 from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
 from genome_to_diffraction.structure_search.pdb_coordinates import (
@@ -251,10 +251,13 @@ def run_case(
     }
     atomic_write_json(outdir / "run.json", record)
     # Slurm/Nextflow owns the reviewed task deadline and resource retries.
-    result = capture_from_manifest(
-        manifest, command, working_directory=outdir.resolve(), timeout_seconds=None
+    result = stream_from_manifest(
+        manifest,
+        command,
+        working_directory=outdir.resolve(),
+        timeout_seconds=None,
+        log_path=outdir / "phenix.capture.log",
     )
-    (outdir / "phenix.capture.log").write_bytes(result.stdout + result.stderr)
     record.update(completed_at=timestamp(), exit_code=result.returncode)
     if result.returncode:
         record["status"] = "execution_failed"

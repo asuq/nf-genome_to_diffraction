@@ -3,7 +3,6 @@
 import hashlib
 import json
 import shutil
-import subprocess
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,6 +29,7 @@ from genome_to_diffraction.mr import (
     run_first_copy_phaser,
 )
 from genome_to_diffraction.mr_resources import build_mr_resource_plan
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -320,6 +320,7 @@ def _fake_runtime(
     capture_bytes: bytes = b"capture\n",
     write_native_log: bool = True,
     native_tncs: bool = False,
+    timed_out: bool = False,
 ) -> list[list[str]]:
     commands: list[list[str]] = []
 
@@ -333,7 +334,8 @@ def _fake_runtime(
         *,
         working_directory: Path,
         timeout_seconds: float | None,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, timeout_seconds
         commands.append(arguments)
         working_directory.mkdir(parents=True, exist_ok=True)
@@ -359,14 +361,15 @@ def _fake_runtime(
         if corrupt_evidence is not None:
             evidence = working_directory / corrupt_evidence
             evidence.write_bytes(evidence.read_bytes() + b"\xff")
-        return subprocess.CompletedProcess(arguments, returncode, capture_bytes, b"")
+        log_path.write_bytes(capture_bytes)
+        return PhenixExecutionResult(returncode, log_path, timed_out)
 
     monkeypatch.setattr(
         "genome_to_diffraction.mr.phaser.validate_manifest_environment",
         fake_validate,
     )
     monkeypatch.setattr(
-        "genome_to_diffraction.mr.phaser.capture_from_manifest", fake_capture
+        "genome_to_diffraction.mr.phaser.stream_from_manifest", fake_capture
     )
     return commands
 
@@ -1116,6 +1119,7 @@ def test_adapter_records_scientific_no_solution_without_failure(
     result = run_first_copy_phaser(request).result
 
     assert result.execution_status == "completed_no_hit"
+    assert result.execution_failure is None
     assert result.preliminary_credibility_class == "no_solution"
     assert result.rejection_reason == "phaser_reported_no_solution"
 
@@ -1127,6 +1131,12 @@ def test_adapter_records_tool_and_parse_failures_separately(
     _fake_runtime(monkeypatch, log_text="native failure\n", returncode=7)
     tool_result = run_first_copy_phaser(tool_request).result
     assert tool_result.execution_status == "failed_tool_execution"
+    assert tool_result.execution_failure is not None
+    assert tool_result.execution_failure.model_dump() == {
+        "kind": "tool_exit",
+        "native_exit_code": 7,
+        "retryable": False,
+    }
     assert tool_result.rejection_reason == "phenix.phaser_exit_7"
 
     parse_request = _inputs(tmp_path / "parse")
@@ -1134,6 +1144,42 @@ def test_adapter_records_tool_and_parse_failures_separately(
     parse_result = run_first_copy_phaser(parse_request).result
     assert parse_result.execution_status == "failed_parse"
     assert "solution count" in (parse_result.rejection_reason or "")
+
+
+@pytest.mark.parametrize(
+    ("returncode", "timed_out", "retryable"),
+    (
+        (75, False, True),
+        (104, False, True),
+        (-9, False, True),
+        (124, False, False),
+        (1, False, False),
+        (-15, True, True),
+    ),
+)
+def test_first_copy_failure_metadata_uses_native_evidence_not_error_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    timed_out: bool,
+    retryable: bool,
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text="timeout, transient, try again\n",
+        returncode=returncode,
+        timed_out=timed_out,
+        capture_bytes=b"retained partial diagnostic\n",
+    )
+    result = run_first_copy_phaser(request).result
+    assert result.execution_failure is not None
+    assert result.execution_failure.native_exit_code == returncode
+    assert result.execution_failure.retryable is retryable
+    assert result.execution_failure.kind == ("timeout" if timed_out else "tool_exit")
+    assert (request.output_directory / "phenix.phaser.capture.log").read_bytes() == (
+        b"retained partial diagnostic\n"
+    )
 
 
 def test_adapter_rejects_changed_mtz_before_runtime(

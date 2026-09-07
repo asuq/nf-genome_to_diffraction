@@ -29,7 +29,6 @@ import hashlib
 import logging
 import math
 import re
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,7 +55,8 @@ from genome_to_diffraction.diffraction.selection import (
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.phenix.runtime import (
-    capture_from_manifest,
+    PhenixExecutionResult,
+    stream_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.results import (
@@ -77,8 +77,8 @@ from genome_to_diffraction.schemas.v2.diffraction import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
-_PROTOCOL_VERSION = "phenix-t12-brief-v6"
-_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v10-phase3-source-observations"
+_PROTOCOL_VERSION = "phenix-t12-brief-v7-streamed"
+_PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v11-streamed"
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -482,10 +482,6 @@ def _phase3_refinement_selection_arguments(
         "data_manager.fmodel.xray_data.high_resolution="
         f"{selection.resolution_high_a:.12g}",
     )
-
-
-def _combined_log(completed: subprocess.CompletedProcess[bytes]) -> str:
-    return (completed.stdout + completed.stderr).decode("utf-8", errors="replace")
 
 
 def _refinement_metrics(text: str) -> tuple[float | None, ...]:
@@ -910,15 +906,15 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             "seed_solution_id": request.seed_solution_id,
         },
     )
-    completed = capture_from_manifest(
+    refine_log = outdir / "phenix.refine.log"
+    completed = stream_from_manifest(
         manifest_path,
         refine_args,
         working_directory=outdir,
         timeout_seconds=request.timeout_seconds,
+        log_path=refine_log,
     )
-    refine_log = outdir / "phenix.refine.log"
-    refine_text = _combined_log(completed)
-    atomic_write_text(refine_log, refine_text)
+    refine_text = refine_log.read_text(encoding="utf-8")
     initial_rw, initial_rf, final_rw, final_rf, rms_bonds, rms_angles = (
         _refinement_metrics(refine_text)
     )
@@ -926,6 +922,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     required_assets_present = all(path.is_file() for path in required_assets)
     coefficients_valid = (
         completed.returncode == 0
+        and not completed.timed_out
         and required_assets_present
         and _has_required_map_coefficients(refined_mtz)
     )
@@ -937,6 +934,9 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         final_r_free=final_rf,
     )
     refinement_warnings = list(completion_warnings)
+    if completed.timed_out:
+        refinement_success = False
+        refinement_warnings.append("phenix.refine_timeout")
     free_r_comparison: FreeRMembershipComparison | None = None
     free_r_comparison_json: Path | None = None
     free_r_comparison_jsonl: Path | None = None
@@ -1007,7 +1007,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
             else ExecutionStatus.COMPLETED_SUCCESS
             if refinement_success
             else ExecutionStatus.FAILED_TOOL_EXECUTION
-            if completed.returncode != 0
+            if completed.returncode != 0 or completed.timed_out
             else ExecutionStatus.FAILED_PARSE
         ),
         initial_r_work=initial_rw,
@@ -1039,7 +1039,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     sequence_log = outdir / "phenix.sequence_from_map.log"
     sequence_output_model = outdir / "sequence_from_map.pdb"
     sequence_args: list[str] = []
-    sequence_completed: subprocess.CompletedProcess[bytes] | None = None
+    sequence_completed: PhenixExecutionResult | None = None
     if refinement_success:
         sequence_args = [
             "phenix.sequence_from_map",
@@ -1067,13 +1067,13 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
                 "catalogue_group_count": len(groups),
             },
         )
-        sequence_completed = capture_from_manifest(
+        sequence_completed = stream_from_manifest(
             manifest_path,
             sequence_args,
             working_directory=outdir,
             timeout_seconds=request.timeout_seconds,
+            log_path=sequence_log,
         )
-        atomic_write_text(sequence_log, _combined_log(sequence_completed))
     else:
         atomic_write_text(
             sequence_log, "sequence-from-map skipped: refinement failed\n"
@@ -1084,8 +1084,10 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
     sequence_warnings: list[str] = []
     sequence_status = ExecutionStatus.SKIPPED_INELIGIBLE
     if sequence_completed is not None:
-        if sequence_completed.returncode != 0:
+        if sequence_completed.returncode != 0 or sequence_completed.timed_out:
             sequence_status = ExecutionStatus.FAILED_TOOL_EXECUTION
+            if sequence_completed.timed_out:
+                sequence_warnings.append("phenix.sequence_from_map_timeout")
         else:
             (
                 sequence_status,

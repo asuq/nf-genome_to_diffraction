@@ -3,7 +3,11 @@
 import hashlib
 import json
 import os
+import signal
 import subprocess
+import sys
+import time
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -25,6 +29,8 @@ from genome_to_diffraction.phenix.runtime import (
     capture_from_manifest,
     capture_matthews_reference_from_manifest,
     execute_from_manifest,
+    read_phenix_log_tail,
+    stream_from_manifest,
     validate_manifest_environment,
     verified_runtime_identity_sha256,
     verify_manifest,
@@ -108,6 +114,10 @@ fi
 if [[ "${{1-}}" == "--exit-23" ]]; then
   exit 23
 fi
+if [[ "${{1-}}" == "--test-script" ]]; then
+  shift
+  exec "$@"
+fi
 printf '%s\n' "$@"
 COMMAND
   chmod 755 "$prefix/bin/$command"
@@ -168,6 +178,87 @@ def test_installer_checksum_mismatch_fails_before_install(tmp_path: Path) -> Non
         install_phenix(request)
     assert digest != request.installer_sha256
     assert not request.installation_prefix.exists()
+
+
+def test_streamed_scientific_output_uses_files_and_a_bounded_tail(
+    tmp_path: Path,
+) -> None:
+    installer = tmp_path / "installer.sh"
+    request = _request(tmp_path, installer, _write_installer(installer))
+    install_phenix(request)
+    log = tmp_path / "run/phenix.phaser.capture.log"
+    result = stream_from_manifest(
+        request.manifest_path,
+        [
+            "phenix.phaser",
+            "--test-script",
+            sys.executable,
+            "-c",
+            "import os; "
+            "[os.write(1, b'A'*4096) for _ in range(1024)]; "
+            "os.write(2, b'\\nstderr preserved\\n')",
+        ],
+        working_directory=log.parent,
+        timeout_seconds=10,
+        log_path=log,
+    )
+    assert result.returncode == 0
+    assert result.timed_out is False
+    assert log.stat().st_size == 4_194_304 + len(b"\nstderr preserved\n")
+    tail = read_phenix_log_tail(log, maximum_bytes=128)
+    assert len(tail.encode()) == 128
+    assert tail.endswith("\nstderr preserved\n")
+
+
+def test_streamed_timeout_retains_output_and_kills_descendant_after_leader_exit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    installer = tmp_path / "installer.sh"
+    request = _request(tmp_path, installer, _write_installer(installer))
+    install_phenix(request)
+    monkeypatch.setattr(
+        "genome_to_diffraction.phenix.runtime._TERMINATION_GRACE_SECONDS", 0.2
+    )
+    log = tmp_path / "run/phenix.phaser.capture.log"
+    code = (
+        "import pathlib, subprocess, sys, time; "
+        "child = subprocess.Popen([sys.executable, '-c', "
+        "'import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        'print("worker diagnostic", flush=True); time.sleep(30)' + "']); "
+        "pathlib.Path('worker.pid').write_text(str(child.pid)); "
+        "print('parent diagnostic', flush=True); time.sleep(30)"
+    )
+    result = stream_from_manifest(
+        request.manifest_path,
+        ["phenix.phaser", "--test-script", sys.executable, "-c", code],
+        working_directory=log.parent,
+        timeout_seconds=0.7,
+        log_path=log,
+    )
+    child_pid = int((log.parent / "worker.pid").read_text())
+    try:
+        assert result.timed_out is True
+        assert result.returncode == -signal.SIGTERM
+        text = log.read_text()
+        assert "parent diagnostic" in text
+        assert "worker diagnostic" in text
+        assert "timed out after" in text
+        deadline = time.monotonic() + 2
+        state = ""
+        while time.monotonic() < deadline:
+            state = subprocess.run(
+                ["ps", "-o", "stat=", "-p", str(child_pid)],
+                check=False,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            if not state or state.startswith("Z"):
+                break
+            time.sleep(0.05)
+        assert not state or state.startswith("Z"), "Phenix descendant remained alive"
+    finally:
+        with suppress(ProcessLookupError):
+            os.kill(child_pid, signal.SIGKILL)
 
 
 def test_unsafe_destination_is_rejected(tmp_path: Path) -> None:

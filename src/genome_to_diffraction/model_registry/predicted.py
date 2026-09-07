@@ -20,7 +20,6 @@ import hashlib
 import logging
 import math
 import re
-import subprocess
 import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -39,7 +38,8 @@ from genome_to_diffraction.checksums import (
 )
 from genome_to_diffraction.ids import canonical_json_text, content_id, sequence_digest
 from genome_to_diffraction.phenix.runtime import (
-    capture_from_manifest,
+    read_phenix_log_tail,
+    stream_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.base import ContractModel
@@ -58,7 +58,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.model_registry.predicted")
-_ADAPTER_VERSION = "phenix-predicted-model-v1"
+_ADAPTER_VERSION = "phenix-predicted-model-v2-streamed"
 _VARIANT_TYPE = "predicted_confidence_pruned_full"
 _SAFE_COORDINATE_ID = re.compile(r"^coord_[a-f0-9]{64}$")
 _PREDICTED_PROVIDERS = frozenset({"afdb", "esm_atlas"})
@@ -424,31 +424,19 @@ def _prepare_one(
                 "phenix_version": phenix_version,
             },
         )
-        try:
-            completed = capture_from_manifest(
-                phenix_manifest,
-                arguments,
-                working_directory=work,
-                timeout_seconds=timeout_seconds,
-            )
-        except subprocess.TimeoutExpired as error:
-            atomic_write_text(
-                command_log,
-                "phenix.process_predicted_model timed out after "
-                f"{timeout_seconds} seconds\n",
-            )
+        completed = stream_from_manifest(
+            phenix_manifest,
+            arguments,
+            working_directory=work,
+            timeout_seconds=timeout_seconds,
+            log_path=command_log,
+        )
+        if completed.timed_out:
             raise PredictedModelToolError(
                 f"phenix.process_predicted_model timed out; see {command_log.resolve()}"
-            ) from error
-        command_output = (completed.stdout + completed.stderr).decode(
-            "utf-8", errors="replace"
-        )
-        atomic_write_text(
-            command_log,
-            command_output if command_output.endswith("\n") else f"{command_output}\n",
-        )
+            )
         if completed.returncode != 0:
-            tail = _bounded_log_tail(command_output)
+            tail = _bounded_log_tail(read_phenix_log_tail(command_log))
             raise PredictedModelToolError(
                 "phenix.process_predicted_model failed with exit status "
                 f"{completed.returncode}; see {command_log.resolve()}"

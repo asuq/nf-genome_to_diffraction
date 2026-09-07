@@ -2,9 +2,11 @@
 
 Inputs are a versioned installation prefix or a schema-valid installation
 manifest. Outputs are command-resolution records and optional verification logs.
-Failures are infrastructure errors; scientific no-hit states are not produced
-here. The verified runtime identity binds ``phenix_env.sh`` and every recorded
-command executable by SHA-256 for later cache/provenance use.
+Verification failures are infrastructure errors; streamed execution preserves
+native exits and explicit timeouts for adapter classification. Scientific no-hit
+states are not produced here. The verified runtime identity binds
+``phenix_env.sh`` and every recorded command executable by SHA-256 for later
+cache/provenance use.
 """
 
 import json
@@ -13,8 +15,11 @@ import os
 import platform
 import re
 import shutil
+import signal
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +41,17 @@ from genome_to_diffraction.schemas.manifests import (
 )
 
 _LOGGER = logging.getLogger("genome_to_diffraction.phenix")
+_TERMINATION_GRACE_SECONDS = 5.0
+
+
+@dataclass(frozen=True)
+class PhenixExecutionResult:
+    """Observed command exit and retained merged bytes, without output buffering."""
+
+    returncode: int
+    log_path: Path
+    timed_out: bool = False
+
 
 REQUIRED_COMMANDS = (
     "phenix.xtriage",
@@ -258,6 +274,23 @@ def _bash() -> str:
     return executable
 
 
+def _child_shell_arguments(
+    environment_file: Path, arguments: Sequence[str]
+) -> list[str]:
+    """Source the manifest environment and exec its verified argument array."""
+
+    return [
+        _bash(),
+        "--noprofile",
+        "--norc",
+        "-c",
+        'set -eo pipefail\nsource "$1"\nshift\nexec "$@"',
+        "genome-to-diffraction-phenix-child",
+        str(environment_file),
+        *arguments,
+    ]
+
+
 def _child_shell(
     environment_file: Path,
     arguments: Sequence[str],
@@ -268,24 +301,49 @@ def _child_shell(
 ) -> subprocess.CompletedProcess[bytes]:
     """Source exactly one environment file and execute one argument array."""
 
-    script = 'set -eo pipefail\nsource "$1"\nshift\nexec "$@"'
     return subprocess.run(
-        [
-            _bash(),
-            "--noprofile",
-            "--norc",
-            "-c",
-            script,
-            "genome-to-diffraction-phenix-child",
-            str(environment_file),
-            *arguments,
-        ],
+        _child_shell_arguments(environment_file, arguments),
         check=False,
         capture_output=capture_output,
         cwd=working_directory,
         env=_clean_child_environment(),
         timeout=timeout_seconds,
     )
+
+
+def _terminate_streamed_process_group(process: subprocess.Popen[bytes]) -> int:
+    """Bound cleanup of descendants even when their original leader exits first."""
+
+    try:
+        os.killpg(process.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return process.wait(timeout=_TERMINATION_GRACE_SECONDS)
+    deadline = time.monotonic() + _TERMINATION_GRACE_SECONDS
+    while time.monotonic() < deadline:
+        process.poll()
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return process.wait(timeout=_TERMINATION_GRACE_SECONDS)
+        time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+    # The leader may already have exited after SIGTERM while a worker ignored
+    # it. Killing only when process.poll() is None would leak that worker.
+    with suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGKILL)
+    return process.wait(timeout=_TERMINATION_GRACE_SECONDS)
+
+
+def read_phenix_log_tail(path: Path, *, maximum_bytes: int = 65_536) -> str:
+    """Read a bounded diagnostic tail; scientific parsers must decode strictly."""
+
+    if maximum_bytes < 1:
+        raise ValueError("maximum diagnostic bytes must be positive")
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        start = max(0, handle.tell() - maximum_bytes)
+        handle.seek(start)
+        data = handle.read(maximum_bytes)
+    return data.decode("utf-8", errors="replace")
 
 
 def _read_environment(
@@ -797,6 +855,74 @@ def execute_from_manifest(
     return completed.returncode
 
 
+def stream_from_manifest(
+    manifest_path: Path,
+    arguments: Sequence[str],
+    *,
+    working_directory: Path,
+    timeout_seconds: float | None,
+    log_path: Path,
+) -> PhenixExecutionResult:
+    """Run one verified scientific command with file-backed merged diagnostics.
+
+    Stdout and stderr share one binary file from process start. A timeout keeps
+    every byte already written, terminates the isolated process group with a
+    bounded TERM/KILL sequence, and returns the observed native exit separately
+    from the explicit timeout classification. Scientific failures remain the
+    caller's responsibility; runtime verification errors still fail early.
+    """
+
+    if not arguments:
+        raise ValueError("a Phenix command and optional arguments are required")
+    if timeout_seconds is not None and timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be positive when supplied")
+    manifest = validate_manifest_environment(manifest_path)
+    executable = _verified_command_executable(manifest, arguments[0])
+    working_directory.mkdir(parents=True, exist_ok=True)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    _LOGGER.info(
+        "executing streamed Phenix command",
+        extra={"command": arguments[0], "log_path": str(log_path)},
+    )
+    timed_out = False
+    with log_path.open("xb") as log:
+        process = subprocess.Popen(
+            _child_shell_arguments(
+                Path(manifest.phenix_env_sh).resolve(strict=True),
+                [str(executable), *arguments[1:]],
+            ),
+            cwd=working_directory,
+            env=_clean_child_environment(),
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        try:
+            returncode = process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            log.write(
+                f"\n{arguments[0]} timed out after {timeout_seconds} seconds; "
+                "terminating its process group\n".encode()
+            )
+            log.flush()
+            returncode = _terminate_streamed_process_group(process)
+            log.write(f"native exit status {returncode}\n".encode())
+        except BaseException:
+            _terminate_streamed_process_group(process)
+            raise
+    _LOGGER.info(
+        "streamed Phenix command finished",
+        extra={
+            "command": arguments[0],
+            "exit_status": returncode,
+            "timed_out": timed_out,
+        },
+    )
+    return PhenixExecutionResult(returncode, log_path, timed_out)
+
+
 def capture_from_manifest(
     manifest_path: Path,
     arguments: Sequence[str],
@@ -804,11 +930,12 @@ def capture_from_manifest(
     working_directory: Path,
     timeout_seconds: float | None,
 ) -> subprocess.CompletedProcess[bytes]:
-    """Run a verified recorded Phenix command and capture its byte streams.
+    """Capture the bounded output of a verified Phenix interface/help probe.
 
     The executable is replaced with the absolute, previously verified path from
     the manifest. This boundary is used by parsers that must preserve and inspect
-    external-tool logs without modifying the parent Pixi environment. ``None``
+    probe logs without modifying the parent Pixi environment. Scientific commands
+    must use ``stream_from_manifest``. ``None``
     leaves the child command without a per-command deadline for NFS-sensitive
     HPC execution.
     """

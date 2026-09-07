@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
 from genome_to_diffraction.ids import canonical_json_text, content_id
-from genome_to_diffraction.phenix.runtime import capture_from_manifest
+from genome_to_diffraction.phenix.runtime import stream_from_manifest
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
     CrystalEntry,
@@ -736,20 +736,19 @@ def _run_xtriage(
     with tempfile.TemporaryDirectory(
         prefix=f".{entry.crystal_id}.xtriage-", dir=log_path.parent
     ) as temporary:
-        completed = capture_from_manifest(
+        completed = stream_from_manifest(
             phenix_manifest,
             arguments,
             working_directory=Path(temporary),
             timeout_seconds=timeout_seconds,
+            log_path=log_path,
         )
-    output = (completed.stdout + completed.stderr).decode("utf-8", errors="replace")
-    atomic_write_text(log_path, output)
-    if completed.returncode != 0:
+    if completed.returncode != 0 or completed.timed_out:
         raise XtriageExecutionError(
             f"phenix.xtriage failed for {entry.crystal_id} with exit status "
             f"{completed.returncode}; see {log_path}"
         )
-    assessment = parse_xtriage_output(output)
+    assessment = parse_xtriage_output(log_path.read_text(encoding="utf-8"))
     if assessment.version is not None and not (
         assessment.version == manifest_model.phenix_version
         or assessment.version.startswith(f"{manifest_model.phenix_version}-")

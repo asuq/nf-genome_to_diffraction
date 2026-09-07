@@ -2,7 +2,6 @@
 
 import hashlib
 import json
-import subprocess
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -19,6 +18,7 @@ from genome_to_diffraction.diffraction.selection import (
     load_diffraction_selection,
 )
 from genome_to_diffraction.ids import canonical_json_text, sequence_digest
+from genome_to_diffraction.phenix.runtime import PhenixExecutionResult
 from genome_to_diffraction.refinement.brief import (
     T12InputError,
     T12RunRequest,
@@ -426,7 +426,8 @@ def _install_phase3_runtime(
         *,
         working_directory: Path,
         timeout_seconds: float | None,
-    ) -> subprocess.CompletedProcess[bytes]:
+        log_path: Path,
+    ) -> PhenixExecutionResult:
         del manifest_path, timeout_seconds
         commands.append(arguments)
         if arguments[0] == "phenix.refine":
@@ -449,14 +450,15 @@ def _install_phase3_runtime(
             )
         else:
             output = b"Overall best Z-score: 0.0  Mean and SD of scores: 0.0 +/- 1.0\n"
-        return subprocess.CompletedProcess(arguments, 0, output, b"")
+        log_path.write_bytes(output)
+        return PhenixExecutionResult(0, log_path)
 
     monkeypatch.setattr(
         brief_module,
         "validate_manifest_environment",
         lambda _path: manifest,
     )
-    monkeypatch.setattr(brief_module, "capture_from_manifest", fake_capture)
+    monkeypatch.setattr(brief_module, "stream_from_manifest", fake_capture)
     return commands
 
 
@@ -480,7 +482,7 @@ def test_version_1_refinement_path_does_not_require_free_r_identity(
     assert output.refinement.execution_status is ExecutionStatus.COMPLETED_SUCCESS
     assert output.free_r_comparison is None
     assert record["schema_version"] == "1.0"
-    assert record["protocol_version"] == "phenix-t12-brief-v6"
+    assert record["protocol_version"] == "phenix-t12-brief-v7-streamed"
     assert "free_r_identity" not in record
 
 

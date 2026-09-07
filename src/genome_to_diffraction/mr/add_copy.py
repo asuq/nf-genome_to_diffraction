@@ -20,7 +20,6 @@ required before this operation may be called integrated.
 import json
 import logging
 import re
-import subprocess
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
@@ -29,7 +28,6 @@ from pydantic import ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -53,7 +51,7 @@ from genome_to_diffraction.mr_resources import (
     verify_mr_thread_allocation,
 )
 from genome_to_diffraction.phenix.runtime import (
-    capture_from_manifest,
+    stream_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
@@ -63,6 +61,7 @@ from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MtzPreflightRecord,
     NormalisedMrResult,
+    PhaserExecutionFailure,
     PreflightDecision,
     SequenceGroupRecord,
 )
@@ -708,24 +707,21 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
             "threads": request.threads,
         },
     )
+    capture_log = output / "phenix.phaser.capture.log"
     with tqdm(
         total=1,
         desc="Run additional-copy Phaser",
         unit="seed",
         disable=not request.progress,
     ) as bar:
-        try:
-            completed = capture_from_manifest(
-                request.phenix_manifest,
-                arguments,
-                working_directory=output,
-                timeout_seconds=request.timeout_seconds,
-            )
-        except subprocess.TimeoutExpired:
-            completed = subprocess.CompletedProcess(arguments, 124, b"", b"timed out")
+        completed = stream_from_manifest(
+            request.phenix_manifest,
+            arguments,
+            working_directory=output,
+            timeout_seconds=request.timeout_seconds,
+            log_path=capture_log,
+        )
         bar.update(1)
-    capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     status = ExecutionStatus.FAILED_TOOL_EXECUTION
@@ -736,10 +732,13 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     coordinate_sha = mtz_sha = child_id = None
     warnings: list[str] = []
     rejection_reason: str | None = None
-    if completed.returncode != 0:
+    failure = PhaserExecutionFailure.from_native(
+        returncode=completed.returncode, timed_out=completed.timed_out
+    )
+    if failure is not None:
         rejection_reason = (
             "phenix.phaser_timeout"
-            if completed.returncode == 124
+            if completed.timed_out
             else f"phenix.phaser_exit_{completed.returncode}"
         )
     else:
@@ -814,6 +813,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         attempted_copy_number=resolved.parent_copy_count + 1,
         expected_copy_count=resolved.hypothesis.copy_count_expected,
         execution_status=status,
+        execution_failure=failure,
         llg=llg,
         llg_delta_from_parent=(
             llg - resolved.parent_llg

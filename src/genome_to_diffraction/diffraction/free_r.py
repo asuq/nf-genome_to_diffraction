@@ -11,11 +11,10 @@ from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
     atomic_write_json,
-    atomic_write_text,
     sha256_file,
 )
 from genome_to_diffraction.ids import content_id
-from genome_to_diffraction.phenix.runtime import capture_from_manifest
+from genome_to_diffraction.phenix.runtime import stream_from_manifest
 from genome_to_diffraction.schemas.results import FreeRGenerationRecord
 from genome_to_diffraction.status import InputContractError, ToolExecutionError
 from genome_to_diffraction.time import utc_now
@@ -97,18 +96,15 @@ def generate_free_r(request: FreeRGenerationRequest) -> FreeRGenerationRecord:
             unit="command",
             disable=not request.progress,
         ) as progress_bar:
-            completed = capture_from_manifest(
+            completed = stream_from_manifest(
                 phenix_manifest,
                 arguments,
                 working_directory=Path(temporary),
                 timeout_seconds=request.timeout_seconds,
+                log_path=request.command_log,
             )
             progress_bar.update(1)
-        command_output = (completed.stdout + completed.stderr).decode(
-            "utf-8", errors="replace"
-        )
-        atomic_write_text(request.command_log, command_output)
-        if completed.returncode != 0:
+        if completed.returncode != 0 or completed.timed_out:
             raise FreeRToolError(
                 "phenix.reflection_file_converter failed with exit status "
                 f"{completed.returncode}; see {request.command_log}"

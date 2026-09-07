@@ -29,7 +29,6 @@ import json
 import logging
 import math
 import re
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,7 +38,6 @@ from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
 from genome_to_diffraction.checksums import (
-    atomic_write_bytes,
     atomic_write_json,
     atomic_write_text,
     sha256_file,
@@ -53,12 +51,13 @@ from genome_to_diffraction.mr.phaser import (
     read_phaser_solution_metrics,
 )
 from genome_to_diffraction.phenix.runtime import (
-    capture_from_manifest,
+    stream_from_manifest,
     validate_manifest_environment,
 )
 from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     PartnerSearchResult,
+    PhaserExecutionFailure,
     PreflightDecision,
     SequenceGroupRecord,
 )
@@ -544,25 +543,22 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
             "threads": request.threads,
         },
     )
+    capture_log = output / "phenix.phaser.capture.log"
     with tqdm(
         total=1,
         desc="Run fixed-A/joint-B Phaser",
         unit="composition",
         disable=not request.progress,
     ) as progress_bar:
-        try:
-            completed = capture_from_manifest(
-                request.phenix_manifest,
-                arguments,
-                working_directory=output,
-                timeout_seconds=request.timeout_seconds,
-            )
-        except subprocess.TimeoutExpired:
-            completed = subprocess.CompletedProcess(arguments, 124, b"", b"timed out")
+        completed = stream_from_manifest(
+            request.phenix_manifest,
+            arguments,
+            working_directory=output,
+            timeout_seconds=request.timeout_seconds,
+            log_path=capture_log,
+        )
         progress_bar.update(1)
 
-    capture_log = output / "phenix.phaser.capture.log"
-    atomic_write_bytes(capture_log, completed.stdout + completed.stderr)
     native_log = output / f"{_ROOT}.log"
     raw_log = native_log if native_log.is_file() else capture_log
     tool_version = phenix_manifest.phenix_version
@@ -576,10 +572,13 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
     warnings: list[str] = []
     rejection_reason: str | None = None
 
-    if completed.returncode != 0:
+    failure = PhaserExecutionFailure.from_native(
+        returncode=completed.returncode, timed_out=completed.timed_out
+    )
+    if failure is not None:
         rejection_reason = (
             "phenix.phaser_timeout"
-            if completed.returncode == 124
+            if completed.timed_out
             else f"phenix.phaser_exit_{completed.returncode}"
         )
     else:
@@ -678,6 +677,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         selection_plan_sha256=request.selection_plan_sha256,
         partner_candidate_id=request.partner_candidate_id,
         execution_status=status,
+        execution_failure=failure,
         parent_llg=request.parent_llg,
         parent_model_identity_fraction=request.parent_model_identity_fraction,
         parent_model_uncertainty_source=request.parent_model_uncertainty_source,
