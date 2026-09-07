@@ -280,13 +280,14 @@ def _afdb_map(path: Path) -> bytes:
     return payload
 
 
-def _phase3_crystal_manifest(
+def validate_phase3_crystal_manifest(
     path: Path,
     *,
     crystal_ids: tuple[str, ...],
     execution: PhaseIIIExecutionIdentity,
     allowed_mtz_root: Path | None = None,
 ) -> CrystalManifest:
+    """Validate the exact reviewed crystal panel and explicit Free-R authority."""
     try:
         document = CrystalManifest.model_validate_json(path.read_bytes())
     except (ContractLoadError, OSError, ValidationError, ValueError) as error:
@@ -435,7 +436,7 @@ def build_unknown_discovery_input_bundle(
         raise UnknownDiscoveryInputError(
             "unknown discovery requires exactly three reviewed crystals"
         )
-    _phase3_crystal_manifest(
+    validate_phase3_crystal_manifest(
         crystals_path,
         crystal_ids=crystal_ids,
         execution=execution,
@@ -692,7 +693,7 @@ def validate_unknown_discovery_input_tree(
             "extracted execution identity differs from the staged source"
         )
     _afdb_map(root / _AFDB_MAP_NAME)
-    _phase3_crystal_manifest(
+    validate_phase3_crystal_manifest(
         root / _CRYSTALS_NAME,
         crystal_ids=tuple(item.crystal_id for item in review_index.review_bindings),
         execution=execution,
@@ -738,6 +739,7 @@ __all__ = [
     "UnknownDiscoveryInputBundle",
     "UnknownDiscoveryInputError",
     "build_unknown_discovery_input_bundle",
+    "validate_phase3_crystal_manifest",
     "validate_unknown_discovery_input_tree",
 ]
 

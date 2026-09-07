@@ -15514,3 +15514,19 @@ with a collapsed combined parent or a guessed command.
   and copy-completeness semantics while the independent streams implement
   their assigned gates. Integrate coherent source changes and run the named
   complete gate before any new remote qualification.
+
+## 2026-09-07 - Preserve reviewed diffraction in single-component continuation
+
+- Corrected PH3-P1-85 on the isolated release branch. The handoff authenticates
+  the exact crystal bytes consumed by the parent screen, including explicit
+  Free-R values, against its retained input checksum inventory. The child
+  stores those bytes and their digest; its wrapper selects them after P0
+  configuration and revalidates them before first execution and resume.
+- Validation: 21 focused unknown-input/handoff tests and two fake-scheduler
+  discovery/screen/continuation lifecycle cases passed. Ruff, targeted type
+  checking and wrapper syntax passed. The mutation test was corrected to
+  modify parsed JSON rather than depend on whitespace in serialised output.
+- No native continuation or scientific-cache reuse was attempted. Exact-source
+  native qualification remains required. Next integrate completed MR/M6
+  slices and correct composition completeness, failure accounting and parent
+  preservation while independent gate implementation continues.

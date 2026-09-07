@@ -9,10 +9,14 @@ import tarfile
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.execution import stage_unknown_pass1_selected_a_seeds
+from genome_to_diffraction.hpc.unknown_inputs import (
+    UnknownDiscoveryInputError,
+    validate_phase3_crystal_manifest,
+)
 from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.review.owned_run import (
     OwnedPhaseIIIReviewPackageSource,
@@ -29,6 +33,7 @@ from genome_to_diffraction.schemas.io import (
     load_json_document,
 )
 from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIExecutionIdentity,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecisionFile,
 )
@@ -361,6 +366,85 @@ def validate_unknown_single_component_input_tree(
     return tuple(crystal_ids)
 
 
+def _screen_crystal_authority(parent: Path, execution_path: Path) -> Path:
+    """Authenticate the exact crystal bytes actually consumed by the screen."""
+
+    inputs = parent / "artifacts/unknown-screen/inputs"
+    source = inputs / "phase3_crystals.json"
+    scope = parent / "artifacts/unknown-screen/results/scope/crystal_manifest.json"
+    inventory = parent / "state/unknown-screen-input-checksums.sha256"
+    for path in (source, scope, inventory, execution_path):
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or any(
+                ancestor.is_symlink()
+                for ancestor in path.parents
+                if ancestor.is_relative_to(parent)
+            )
+        ):
+            raise UnknownSingleComponentInputError(
+                "screen crystal authority is absent or unsafe"
+            )
+    try:
+        records = inventory.read_text(encoding="ascii").splitlines()
+    except (OSError, UnicodeError) as error:
+        raise UnknownSingleComponentInputError(
+            "screen input checksum inventory is unreadable"
+        ) from error
+    checksums: dict[str, str] = {}
+    for row in records:
+        fields = row.split("  ", maxsplit=1)
+        if len(fields) != 2:
+            raise UnknownSingleComponentInputError(
+                "screen input checksum row is invalid"
+            )
+        digest, name = fields
+        relative = PurePosixPath(name)
+        if (
+            _CHECKSUM.fullmatch(digest) is None
+            or not name
+            or relative.is_absolute()
+            or ".." in relative.parts
+            or name in checksums
+        ):
+            raise UnknownSingleComponentInputError(
+                "screen input checksum row is unsafe"
+            )
+        checksums[name] = digest
+    for path in (source, execution_path):
+        if checksums.get(path.relative_to(inputs).as_posix()) != sha256_file(
+            path, progress=False
+        ):
+            raise UnknownSingleComponentInputError(
+                "screen crystal input authority changed"
+            )
+    if sha256_file(scope, progress=False) != checksums[source.name]:
+        raise UnknownSingleComponentInputError(
+            "screen resolved crystals differ from the authenticated input"
+        )
+    try:
+        execution = PhaseIIIExecutionIdentity.model_validate(
+            load_json_document(execution_path)
+        )
+        validate_phase3_crystal_manifest(
+            scope,
+            crystal_ids=tuple(
+                sorted(
+                    item.owner_id
+                    for item in execution.crystal_artifacts
+                    if item.role == "mtz"
+                )
+            ),
+            execution=execution,
+        )
+    except (ContractError, ValueError, UnknownDiscoveryInputError) as error:
+        raise UnknownSingleComponentInputError(
+            "screen crystals lack their reviewed diffraction/Free-R authority"
+        ) from error
+    return scope
+
+
 def stage_unknown_single_component_handoff(
     *,
     parent_run_root: Path,
@@ -408,6 +492,7 @@ def stage_unknown_single_component_handoff(
     execution_identity = (
         parent / "artifacts/unknown-screen/inputs/phase3_execution_identity.json"
     )
+    selected_crystals = _screen_crystal_authority(parent, execution_identity)
     package_root = parent / "artifacts/unknown-screen/results"
     sources: list[OwnedPhaseIIIReviewPackageSource] = []
     for package in sorted(package_root.glob("phase3_owned_a_review_*")):
@@ -435,6 +520,8 @@ def stage_unknown_single_component_handoff(
             "unknown-single-component handoff output already exists"
         )
     output.mkdir(parents=True)
+    crystals = output / "phase3_crystals.json"
+    shutil.copy2(selected_crystals, crystals)
     registry = output / "owned_run_registry"
     registry.mkdir()
     registered = register_phase3_owned_run(
@@ -503,13 +590,14 @@ def stage_unknown_single_component_handoff(
         output / "unknown_single_component_stage_manifest.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "unknown-single-component-stage-v1",
+            "adapter_version": "unknown-single-component-stage-v2-reviewed-crystals",
             "child_run_id": child_run_id,
             "parent_run_id": parent_run_id,
             "input_id": expected_input_id,
             "owned_run_registry_id": registered.owned_run_registry_id,
             "execution_identity_id": registered.execution_identity_id,
             "crystal_ids": list(crystal_ids),
+            "phase3_crystals_sha256": sha256_file(crystals, progress=False),
             "stages": stage_records,
             "reviewed_crystals_sha256": sha256_file(
                 reviewed_manifest,
@@ -518,6 +606,50 @@ def stage_unknown_single_component_handoff(
         },
     )
     return output
+
+
+def validate_unknown_single_component_handoff(
+    *, parent_run_root: Path, child_run_root: Path
+) -> None:
+    """Recheck staged crystal authority before first execution and resume."""
+
+    parent = parent_run_root.resolve(strict=True)
+    child = child_run_root.resolve(strict=True)
+    source = _screen_crystal_authority(
+        parent,
+        parent / "artifacts/unknown-screen/inputs/phase3_execution_identity.json",
+    )
+    output = child / "artifacts/unknown-single-component"
+    staged = output / "phase3_crystals.json"
+    manifest_path = output / "unknown_single_component_stage_manifest.json"
+    if any(
+        path.is_symlink()
+        or not path.is_file()
+        or any(
+            ancestor.is_symlink()
+            for ancestor in path.parents
+            if ancestor.is_relative_to(child)
+        )
+        for path in (staged, manifest_path)
+    ):
+        raise UnknownSingleComponentInputError(
+            "staged crystal authority is absent or unsafe"
+        )
+    manifest = load_json_document(manifest_path)
+    digest = sha256_file(staged, progress=False)
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version") != "1.0"
+        or manifest.get("adapter_version")
+        != "unknown-single-component-stage-v2-reviewed-crystals"
+        or manifest.get("child_run_id") != child.name
+        or manifest.get("parent_run_id") != parent.name
+        or manifest.get("phase3_crystals_sha256") != digest
+        or sha256_file(source, progress=False) != digest
+    ):
+        raise UnknownSingleComponentInputError(
+            "staged crystals differ from the reviewed screen"
+        )
 
 
 def main() -> int:
@@ -535,12 +667,19 @@ def main() -> int:
     stage.add_argument("--input-root", type=Path, required=True)
     stage.add_argument("--child-run-id", required=True)
     stage.add_argument("--expected-input-id", required=True)
+    validate_handoff = actions.add_parser("validate-handoff")
+    validate_handoff.add_argument("--parent-run-root", type=Path, required=True)
+    validate_handoff.add_argument("--child-run-root", type=Path, required=True)
     args = parser.parse_args()
     if args.action == "validate":
         validate_unknown_single_component_input_tree(
             args.input_root,
             expected_input_id=args.expected_input_id,
             expected_parent_run_id=args.expected_parent_run_id,
+        )
+    elif args.action == "validate-handoff":
+        validate_unknown_single_component_handoff(
+            parent_run_root=args.parent_run_root, child_run_root=args.child_run_root
         )
     else:
         stage_unknown_single_component_handoff(
@@ -560,6 +699,7 @@ __all__ = [
     "UnknownSingleComponentInputError",
     "build_unknown_single_component_input_bundle",
     "stage_unknown_single_component_handoff",
+    "validate_unknown_single_component_handoff",
     "validate_unknown_single_component_input_tree",
 ]
 

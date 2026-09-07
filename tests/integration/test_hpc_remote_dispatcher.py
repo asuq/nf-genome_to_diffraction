@@ -4670,6 +4670,7 @@ def test_unknown_discovery_private_inputs_are_owned_and_submit_is_fixed(
         '"$output/owned_run_registry/phase3_execution_identity.json"\n'
         '    printf \'{"schema_version":"1.0","crystals":[]}\\n\' > '
         '"$output/reviewed_crystals.json"\n'
+        '    cp -- "$output/reviewed_crystals.json" "$output/phase3_crystals.json"\n'
         '    printf \'{"schema_version":"1.0"}\\n\' > '
         '"$output/unknown_single_component_stage_manifest.json"\n'
         "    ;;\n"

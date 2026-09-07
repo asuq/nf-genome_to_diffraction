@@ -2400,6 +2400,9 @@ run_unknown_screen() {
 run_unknown_single_component_nextflow() {
     local label="$1"
     shift
+    "$PYTHON" -m genome_to_diffraction.hpc.unknown_single_inputs validate-handoff \
+        --parent-run-root "${RUN%/*}/$UNKNOWN_SCREEN_PARENT_RUN_ID" \
+        --child-run-root "$RUN"
     "$NEXTFLOW" \
         -log "$RUN/logs/unknown-single-component-nextflow-${label}.log" \
         run "$RUN/source/phase3_application.nf" \
@@ -2437,10 +2440,14 @@ run_unknown_single_component() {
         "$RUN/execution"
     load_p0_config
     PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    CRYSTALS="$root/phase3_crystals.json"
     [[ "$UNKNOWN_SCREEN_PARENT_RUN_ID" =~ $RUN_ID_RE && \
+       -f "$CRYSTALS" && ! -L "$CRYSTALS" && \
        -d "$UNKNOWN_SINGLE_REGISTRY" && ! -L "$UNKNOWN_SINGLE_REGISTRY" && \
        -f "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" && \
        ! -L "$UNKNOWN_SINGLE_REVIEWED_CRYSTALS" ]] || return 2
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$PYTHON" ]] || return 2
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
     JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"

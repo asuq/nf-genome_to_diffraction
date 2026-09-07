@@ -14,6 +14,7 @@ from genome_to_diffraction.hpc.unknown_single_inputs import (
     UnknownSingleComponentInputError,
     build_unknown_single_component_input_bundle,
     stage_unknown_single_component_handoff,
+    validate_unknown_single_component_handoff,
     validate_unknown_single_component_input_tree,
 )
 from genome_to_diffraction.review.phase3_package import (
@@ -99,6 +100,32 @@ def _real_handoff_fixture(
     results.mkdir(parents=True)
     child.mkdir()
     shutil.copy2(public.execution_identity, inputs / "phase3_execution_identity.json")
+    selected_crystals = inputs / "phase3_crystals.json"
+    atomic_write_json(
+        selected_crystals,
+        {
+            "schema_version": "1.0",
+            "crystals": [
+                {
+                    "crystal_id": item.crystal_id,
+                    "catalogue_id": "public_catalogue",
+                    "mtz": str(item.mtz),
+                    "free_r_test_value": 0,
+                    "allow_remote_sequence_submission": False,
+                }
+                for item in sorted(public.crystals, key=lambda item: item.crystal_id)
+            ],
+        },
+    )
+    (results / "scope").mkdir()
+    shutil.copy2(selected_crystals, results / "scope/crystal_manifest.json")
+    (parent / "state/unknown-screen-input-checksums.sha256").write_text(
+        "".join(
+            f"{sha256_file(path, progress=False)}  {path.name}\n"
+            for path in (selected_crystals, inputs / "phase3_execution_identity.json")
+        ),
+        encoding="ascii",
+    )
 
     evidence_root = tmp_path / "a-review-evidence"
     evidence_root.mkdir()
@@ -317,6 +344,33 @@ def test_handoff_accepts_wrapper_completed_at_and_creates_registry(
     )
 
     assert (output / "owned_run_registry/phase3_owned_run_registry.json").is_file()
+    copied_crystals = output / "phase3_crystals.json"
+    assert (
+        copied_crystals.read_bytes()
+        == (
+            parent / "artifacts/unknown-screen/results/scope/crystal_manifest.json"
+        ).read_bytes()
+    )
+    assert all(
+        item["free_r_test_value"] == 0
+        for item in json.loads(copied_crystals.read_text())["crystals"]
+    )
+    manifest = json.loads(
+        (output / "unknown_single_component_stage_manifest.json").read_text()
+    )
+    assert manifest["phase3_crystals_sha256"] == sha256_file(copied_crystals)
+    validate_unknown_single_component_handoff(
+        parent_run_root=parent, child_run_root=child
+    )
+    changed = json.loads(copied_crystals.read_text())
+    changed["crystals"][0]["free_r_test_value"] = 1
+    atomic_write_json(copied_crystals, changed)
+    with pytest.raises(
+        UnknownSingleComponentInputError, match="staged crystals differ"
+    ):
+        validate_unknown_single_component_handoff(
+            parent_run_root=parent, child_run_root=child
+        )
     assert (output / "a_seed_stages" / PUBLIC_STUB_CRYSTAL_IDS[0]).is_dir()
     assert json.loads((output / "reviewed_crystals.json").read_text())["crystals"] == [
         {
@@ -352,6 +406,52 @@ def test_handoff_retains_five_approved_a_states(tmp_path: Path) -> None:
         ).read_text(encoding="ascii")
     )
     assert [item["item_id"] for item in decision["decisions"]] == list(target_item_ids)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["scope_value", "input_value", "missing_test_value"]
+)
+def test_handoff_rejects_changed_or_unresolved_crystal_authority(
+    tmp_path: Path, mutation: str
+) -> None:
+    parent, child, extracted, input_id = _real_handoff_fixture(
+        tmp_path, completion_field="completed_at"
+    )
+    inputs = parent / "artifacts/unknown-screen/inputs"
+    source = inputs / "phase3_crystals.json"
+    scope = parent / "artifacts/unknown-screen/results/scope/crystal_manifest.json"
+    document = json.loads(source.read_text())
+    document["crystals"][0]["free_r_test_value"] = (
+        None if mutation == "missing_test_value" else 1
+    )
+    atomic_write_json(scope if mutation == "scope_value" else source, document)
+    if mutation == "missing_test_value":
+        shutil.copy2(source, scope)
+        (parent / "state/unknown-screen-input-checksums.sha256").write_text(
+            "".join(
+                f"{sha256_file(path)}  {path.name}\n"
+                for path in (source, inputs / "phase3_execution_identity.json")
+            ),
+            encoding="ascii",
+        )
+    with pytest.raises(UnknownSingleComponentInputError, match="screen"):
+        stage_unknown_single_component_handoff(
+            parent_run_root=parent,
+            child_run_root=child,
+            input_root=extracted,
+            child_run_id=child.name,
+            expected_input_id=input_id,
+        )
+    assert not (child / "artifacts/unknown-single-component").exists()
+
+
+def test_continuation_wrapper_uses_staged_reviewed_crystals() -> None:
+    script = (Path(__file__).parents[2] / "bootstrap/nf-gtd-hpc-smoke-job").read_text()
+    body = script.split("run_unknown_single_component() {", 1)[1].split("\nrun_", 1)[0]
+    assert body.index("load_p0_config") < body.index(
+        'CRYSTALS="$root/phase3_crystals.json"'
+    )
+    assert '-f "$CRYSTALS" && ! -L "$CRYSTALS"' in body
 
 
 def test_handoff_rejects_noncanonical_finished_at_alias(tmp_path: Path) -> None:
