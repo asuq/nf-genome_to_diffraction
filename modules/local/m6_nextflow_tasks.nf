@@ -264,7 +264,7 @@ process M6_FIRST_COPY {
         mr first-copy \
         --hypotheses '${item[3]}' \
         --hypothesis-id '${item[3].baseName}' \
-        --sequence-groups '${item[2]}/selected-candidates/sequence_groups.jsonl' \
+        --sequence-groups '${item[2]}/eligible-candidates/sequence_groups.jsonl' \
         --processed-models '${item[2]}/first-copy-funnel/model_registry/processed_models.jsonl' \
         --all-model-registry '${item[2]}/first-copy-funnel/model_registry/all_model_registry.json' \
         --preflight '${item[2]}/preflight_bundle/preflight/mtz_preflight.jsonl' \
