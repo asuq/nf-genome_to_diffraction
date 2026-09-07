@@ -54,6 +54,7 @@ from genome_to_diffraction.benchmarks.m6_model_policy import (
     M6ModelPolicyRequest,
     apply_m6_model_policy,
 )
+from genome_to_diffraction.benchmarks.m6_registration import register_m6_models
 from genome_to_diffraction.benchmarks.m6_scientific import (
     M6ScientificTrack,
     m6_track_case_ids,
@@ -117,10 +118,8 @@ from genome_to_diffraction.schemas.results import (
     StructuralSearchResult,
 )
 from genome_to_diffraction.structure_search import (
-    PdbCoordinateRegistrationRequest,
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
-    register_pdb_coordinates,
     search_pdb_sequences,
     search_prostt5_foldseek,
 )
@@ -135,8 +134,8 @@ _PDB_ADAPTER = "m6-nextflow-pdb-search-v2"
 _FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v2"
 _MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
-_COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v1"
-_CASE_ADAPTER = "m6-nextflow-case-v2"
+_COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v2-complete-models"
+_CASE_ADAPTER = "m6-nextflow-case-v3-production-admission"
 _SEED_ADAPTER = "m6-nextflow-seeds-v2"
 _CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
 _M6_SEED_CAP = 5
@@ -234,7 +233,7 @@ class M6HypothesisGroupTask(ContractModel):
     """One case-local dynamically sized hypothesis group for Nextflow."""
 
     schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-nextflow-case-v2"]
+    adapter_version: Literal["m6-nextflow-case-v3-production-admission"]
     case_id: str
     catalogue_key: Sha256Hex
     early_outcome: str | None = None
@@ -1486,44 +1485,37 @@ def _jsonl[T](path: Path, model: type[T]) -> tuple[T, ...]:
     )
 
 
-def _write_selected_inputs(
+def _write_eligible_inputs(
     catalogue: Path,
     policy: Path,
     output: Path,
 ) -> tuple[Path, Path, Path]:
-    ranking = _jsonl_dicts(policy / "policy/candidate_ranking.jsonl", required=True)
-    selected_ids = {cast(str, row["sequence_group_id"]) for row in ranking[:25]}
     groups = _jsonl(catalogue / "catalogue/sequence_groups.jsonl", SequenceGroupRecord)
     sources = _jsonl(catalogue / "catalogue/source_records.jsonl", SourceProteinRecord)
     hits = _jsonl(policy / "policy/accepted_structural_hits.jsonl", StructuralSearchHit)
-    selected = output / "selected-candidates"
+    group_ids = {group.sequence_group_id for group in groups}
+    if len(group_ids) != len(groups) or any(
+        hit.sequence_group_id not in group_ids for hit in hits
+    ):
+        raise PublicControlError(
+            "M6 accepted model inventory has invalid catalogue ownership"
+        )
+    selected = output / "eligible-candidates"
     selected.mkdir()
     groups_path = selected / "sequence_groups.jsonl"
     sources_path = selected / "source_records.jsonl"
     hits_path = selected / "accepted_structural_hits.jsonl"
     atomic_write_text(
         groups_path,
-        "".join(
-            f"{canonical_json_text(item)}\n"
-            for item in groups
-            if item.sequence_group_id in selected_ids
-        ),
+        "".join(f"{canonical_json_text(item)}\n" for item in groups),
     )
     atomic_write_text(
         sources_path,
-        "".join(
-            f"{canonical_json_text(item)}\n"
-            for item in sources
-            if item.sequence_group_id in selected_ids
-        ),
+        "".join(f"{canonical_json_text(item)}\n" for item in sources),
     )
     atomic_write_text(
         hits_path,
-        "".join(
-            f"{canonical_json_text(item)}\n"
-            for item in hits
-            if item.sequence_group_id in selected_ids
-        ),
+        "".join(f"{canonical_json_text(item)}\n" for item in hits),
     )
     return groups_path, sources_path, hits_path
 
@@ -1556,7 +1548,7 @@ def run_m6_coordinate_stage_task(
     database = database_manifest.resolve(strict=True)
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    groups, sources, hits = _write_selected_inputs(catalogue, policy, output)
+    groups, sources, hits = _write_eligible_inputs(catalogue, policy, output)
     registration_root = output / "registration"
     stimulus = edge_stimulus(_fault(case_root, task))
     stage_outcome = _coordinate_stage_outcome(stimulus, hits)
@@ -1569,18 +1561,11 @@ def run_m6_coordinate_stage_task(
             {"schema_version": "1.0", "status": "completed_no_model"},
         )
     else:
-        register_pdb_coordinates(
-            PdbCoordinateRegistrationRequest(
-                structural_hits_jsonl=hits,
-                sequence_groups_jsonl=groups,
-                database_manifest=database,
-                output_directory=registration_root,
-                maximum_hits_per_sequence_group=3,
-                maximum_mappings=25,
-                materialise_coordinate_objects=True,
-                allow_network_acquisition=False,
-                progress=False,
-            )
+        register_m6_models(
+            hits=_jsonl(hits, StructuralSearchHit),
+            sequence_groups=groups,
+            database_manifest=database,
+            output_directory=registration_root,
         )
     _write_bundle_manifest(
         output,
@@ -1678,7 +1663,7 @@ def run_m6_prepare_case_task(
     if policy_bundle is None:
         raise PublicControlError("active M6 case lacks a trusted policy bundle")
     policy = policy_bundle.resolve(strict=True)
-    groups_path, sources_path, hits_path = _write_selected_inputs(
+    groups_path, sources_path, hits_path = _write_eligible_inputs(
         catalogue, policy, output
     )
     fault = _fault(case_root, task)
@@ -2172,7 +2157,7 @@ def run_m6_add_copy_task(
                 seed_solution_id=seed_solution_id,
                 hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
                 sequence_groups_jsonl=case
-                / "selected-candidates/sequence_groups.jsonl",
+                / "eligible-candidates/sequence_groups.jsonl",
                 preflight_jsonl=case / "preflight_bundle/preflight/mtz_preflight.jsonl",
                 mtz=case / "reflections.mtz",
                 search_model=review / "assets/solution.pdb",

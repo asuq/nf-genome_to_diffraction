@@ -347,7 +347,7 @@ def test_matthews_evidence_is_reduced_per_sequence_group_and_truthless(
 
 def test_missing_model_requires_checksum_verified_empty_route(tmp_path: Path) -> None:
     case = tmp_path / "case"
-    selected = case / "selected-candidates"
+    selected = case / "eligible-candidates"
     selected.mkdir(parents=True)
     hits = selected / "accepted_structural_hits.jsonl"
     hits.write_text('{"hit":"stimulus input"}\n', encoding="utf-8")
