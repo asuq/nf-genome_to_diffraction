@@ -17,6 +17,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, model_validator
 
+from genome_to_diffraction.benchmarks.m6_decisions import M6StageMetrics
 from genome_to_diffraction.benchmarks.m6_edge import (
     M6EdgeObservation,
     verify_edge_observations,
@@ -49,7 +50,7 @@ class M6FamilyModelEvidence(ContractModel):
     hypothesis_id: NonEmptyString
     model_id: NonEmptyString
     pdb_id: NonEmptyString
-    pdb_entity_id: PositiveInt
+    pdb_entity_id: Annotated[str, Field(pattern=r"^[1-9][0-9]*$")]
     classification: Literal[
         "verified_family",
         "excluded_close_family",
@@ -107,6 +108,7 @@ class M6CaseAssessment(ContractModel):
     retained_candidate_count: NonNegativeInt
     all_candidates_retained: bool
     target_sequence_rank: PositiveInt | None = None
+    stage_metrics: M6StageMetrics
     correct_family_model_retained: bool | None = None
     credible_seed_recovered: bool | None = None
     supported_copy_count: PositiveInt | None = None
@@ -118,6 +120,22 @@ class M6CaseAssessment(ContractModel):
 
     @model_validator(mode="after")
     def _validate_counts_and_failure(self) -> Self:
+        if (
+            self.target_sequence_rank is not None
+            and self.target_sequence_rank
+            > self.stage_metrics.scheduled_hypothesis_count
+        ):
+            raise ValueError(
+                "M6 target rank is outside the actually scheduled hypotheses"
+            )
+        if (
+            self.credible_seed_recovered is not None
+            and self.credible_seed_recovered
+            != (self.stage_metrics.target_advanced_seed_rank is not None)
+        ):
+            raise ValueError(
+                "M6 credible-seed recovery lacks actual target advancement"
+            )
         if self.retained_candidate_count > self.candidate_count:
             raise ValueError("retained candidate count exceeds the candidate count")
         if self.all_candidates_retained != (
@@ -163,7 +181,7 @@ class M6CaseAssessment(ContractModel):
 class M6CollectedEvidence(ContractModel):
     """Complete separately collected evidence for all 63 frozen cases."""
 
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.2"]
     protocol_id: OperatorIdentifier
     protocol_sha256: Sha256Hex
     private_truth_map_sha256: Sha256Hex
@@ -500,6 +518,14 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
         "leakage_close_family_attempts": leakage_close_attempts,
         "operational_metrics": operational_metrics,
         "leakage_controlled_metrics": leakage_metrics,
+        "decision_scope_policy": "m6_production_scheduled25_advanced5_v1",
+        "stage_metrics_by_case": {
+            case_id: {
+                **assessment.stage_metrics.model_dump(mode="json"),
+                "target_scheduled_hypothesis_rank": assessment.target_sequence_rank,
+            }
+            for case_id, assessment in sorted(assessments.items())
+        },
         "gates": gates,
         "failed_gates": list(failed_gates),
         "provenance": evidence.provenance.model_dump(mode="json"),

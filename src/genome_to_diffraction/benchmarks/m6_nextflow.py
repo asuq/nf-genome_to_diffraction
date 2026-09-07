@@ -30,10 +30,17 @@ from typing import Annotated, Literal, Self, cast
 
 from pydantic import Field, model_validator
 
-from genome_to_diffraction.benchmarks.control_matrix_run import (
-    _supported_first_copy_count,
+from genome_to_diffraction.benchmarks.m6_advancement import (
+    m6_review_seed_selection,
+    validate_m6_advancement_authority,
+    write_m6_advancement_authority,
 )
-from genome_to_diffraction.benchmarks.control_slice_run import _review_seed
+from genome_to_diffraction.benchmarks.m6_decisions import (
+    M6_DECISION_POLICY,
+    M6DecisionTrace,
+    M6ObservedAdvancement,
+    M6SeedRecommendation,
+)
 from genome_to_diffraction.benchmarks.m6_edge import (
     M6EdgeObservation,
     edge_stimulus,
@@ -95,6 +102,10 @@ from genome_to_diffraction.ranking import (
     build_diverse_first_copy_funnel,
 )
 from genome_to_diffraction.refinement.brief import T12RunRequest, run_t12_candidate
+from genome_to_diffraction.review.mr_seed import (
+    MrSeedReviewRequest,
+    build_mr_seed_review,
+)
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     PositiveInt,
@@ -136,10 +147,10 @@ _MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
 _COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v2-complete-models"
 _CASE_ADAPTER = "m6-nextflow-case-v3-production-admission"
-_SEED_ADAPTER = "m6-nextflow-seeds-v2"
-_CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
+_SEED_ADAPTER = "m6-nextflow-seeds-v3-production-review"
+_CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v3-production-decisions"
 _M6_SEED_CAP = 5
-_RUN_ADAPTER = "m6-nextflow-run-v2"
+_RUN_ADAPTER = "m6-nextflow-run-v3"
 _MATERIALISED_SUFFIX = {
     "application/json": ".json",
     "application/x-mtz": ".mtz",
@@ -213,6 +224,8 @@ class M6SeedTask(ContractModel):
     expected_copy_count: int
     first_copy_placed_count: int
     search_model_sha256: Sha256Hex
+    search_model_path: str
+    advancement_authority_sha256: Sha256Hex
 
 
 class M6FinalistTask(ContractModel):
@@ -237,13 +250,15 @@ class M6HypothesisGroupTask(ContractModel):
     case_id: str
     catalogue_key: Sha256Hex
     early_outcome: str | None = None
-    hypothesis_count: NonNegativeInt
+    hypothesis_count: Annotated[int, Field(ge=0, le=25)]
     hypothesis_ids: tuple[str, ...]
 
     @model_validator(mode="after")
     def _validate_hypothesis_group(self) -> Self:
         if self.hypothesis_count != len(self.hypothesis_ids):
             raise ValueError("M6 hypothesis-group count changed")
+        if len(self.hypothesis_ids) != len(set(self.hypothesis_ids)):
+            raise ValueError("M6 scheduled hypothesis IDs are duplicated")
         if self.hypothesis_count and self.early_outcome is not None:
             raise ValueError("runnable M6 hypothesis group has an early outcome")
         if not self.hypothesis_count and self.early_outcome is None:
@@ -254,8 +269,8 @@ class M6HypothesisGroupTask(ContractModel):
 class M6CaseEvidence(ContractModel):
     """One complete retain-all case record assembled from child tasks."""
 
-    schema_version: Literal["2.0"]
-    adapter_version: Literal["m6-nextflow-case-evidence-v2"]
+    schema_version: Literal["3.0"]
+    adapter_version: Literal["m6-nextflow-case-evidence-v3-production-decisions"]
     case_id: str
     execution_status: Literal["completed", "failed"]
     scientific_status: str
@@ -277,9 +292,32 @@ class M6CaseEvidence(ContractModel):
     additional_copy_results: tuple[dict[str, object], ...]
     refinement_results: tuple[dict[str, object], ...]
     sequence_summaries: tuple[dict[str, object], ...]
+    decision_trace: M6DecisionTrace
 
     @model_validator(mode="after")
     def _validate_retention_and_counts(self) -> Self:
+        if self.decision_trace.case_id != self.case_id:
+            raise ValueError("M6 decision trace belongs to another case")
+        scheduled = {
+            row.hypothesis_id for row in self.decision_trace.scheduled_hypotheses
+        }
+        attempted = [
+            cast(dict[str, object], row["hypothesis"])["hypothesis_id"]
+            for row in self.first_copy_results
+        ]
+        if set(attempted) != scheduled or len(attempted) != len(scheduled):
+            raise ValueError("M6 scheduled and observed first-copy inventories differ")
+        advanced = {row.solution_id for row in self.decision_trace.observed_advancement}
+        selected = [row["seed_solution_id"] for row in self.selected_seed_results]
+        if set(selected) != advanced or len(selected) != len(advanced):
+            raise ValueError("M6 selected seed metrics lack observed advancement")
+        recommended = {
+            row.solution_id
+            for row in self.decision_trace.recommendations
+            if row.advancement_disposition == "recommended"
+        }
+        if self.execution_status == "completed" and advanced != recommended:
+            raise ValueError("completed M6 case lacks a recommended advancement result")
         if self.identity_decision.case_id != self.case_id:
             raise ValueError("M6 identity decision belongs to another case")
         verify_m6_identity_decision_evidence(
@@ -1855,76 +1893,40 @@ def _case_plan(case_bundle: Path) -> M6HypothesisGroupTask:
     )
 
 
-def _first_rank(
-    attempt: PhaserRunOutput,
-    hypothesis: MrHypothesis,
-    candidate_rank: Mapping[str, int],
-) -> tuple[object, ...]:
-    result = attempt.result
-    return (
-        -(result.llg if result.llg is not None else float("-inf")),
-        -(result.tfz if result.tfz is not None else float("-inf")),
-        candidate_rank.get(hypothesis.sequence_group_id, 10**9),
-        hypothesis.hypothesis_id,
-    )
-
-
 def _m6_seed_advancement_rows(
     case_id: str,
-    eligible: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
-    selected_hypothesis_ids: set[str],
-    candidate_rank: Mapping[str, int],
+    review_items: tuple[dict[str, object], ...],
+    eligible_solution_ids: tuple[str, ...],
 ) -> tuple[dict[str, object], ...]:
-    """Retain the disposition and ranking evidence for every eligible seed."""
+    """Keep recommendations distinct from subsequent observed advancement."""
 
     return tuple(
         {
             "schema_version": "1.0",
             "case_id": case_id,
-            "hypothesis_id": hypothesis.hypothesis_id,
-            "sequence_group_id": hypothesis.sequence_group_id,
-            "model_id": hypothesis.model_id,
-            "expected_copy_count": hypothesis.copy_count_expected,
-            "llg": attempt.result.llg,
-            "tfz": attempt.result.tfz,
-            "candidate_rank": candidate_rank.get(hypothesis.sequence_group_id),
-            "advancement_rank": rank,
-            "advancement_disposition": (
-                "selected"
-                if hypothesis.hypothesis_id in selected_hypothesis_ids
-                else "deferred_seed_cap"
+            "hypothesis_id": item["hypothesis_id"],
+            "solution_id": item["solution_id"],
+            "sequence_group_id": item["sequence_group_id"],
+            "production_review_rank": item["review_priority_rank"],
+            "independent_mr_rank": item["mr_rank"],
+            "independent_matthews_rank": item["matthews_rank"],
+            "recommendation_rank": (
+                eligible_solution_ids.index(cast(str, item["solution_id"])) + 1
+                if item["solution_id"] in eligible_solution_ids
+                else None
             ),
-            "eligible_hypothesis_retained": True,
+            "advancement_disposition": (
+                "recommended"
+                if item["solution_id"] in eligible_solution_ids[:_M6_SEED_CAP]
+                else "deferred_seed_cap"
+                if item["solution_id"] in eligible_solution_ids
+                else "not_eligible_for_benchmark_advancement"
+            ),
+            "advancement_observed": False,
+            "human_approval": False,
         }
-        for rank, (attempt, hypothesis) in enumerate(eligible, start=1)
+        for item in review_items
     )
-
-
-def _rank_m6_seed_candidates(
-    packed: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
-    candidate_rank: Mapping[str, int],
-) -> tuple[tuple[PhaserRunOutput, MrHypothesis], ...]:
-    """Order every eligible copy hypothesis without a copy-count preference."""
-
-    return tuple(
-        sorted(
-            packed,
-            key=lambda item: _first_rank(item[0], item[1], candidate_rank),
-        )
-    )
-
-
-def _select_m6_seed_candidates(
-    packed: tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
-    candidate_rank: Mapping[str, int],
-) -> tuple[
-    tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
-    tuple[tuple[PhaserRunOutput, MrHypothesis], ...],
-]:
-    """Return every eligible hypothesis and the unchanged five-seed slice."""
-
-    eligible = _rank_m6_seed_candidates(packed, candidate_rank)
-    return eligible, eligible[:_M6_SEED_CAP]
 
 
 def run_m6_select_seeds_task(
@@ -1950,26 +1952,15 @@ def run_m6_select_seeds_task(
             f"{len(attempts)} != {expected}"
         )
     hypotheses = _hypotheses(case)
-    ranking_path = case / "policy_bundle/policy/candidate_ranking.jsonl"
-    candidate_rank = (
-        {}
-        if not ranking_path.is_file()
-        else {
-            cast(str, row["sequence_group_id"]): _json_integer(
-                row, "rank", "candidate ranking", minimum=1
-            )
-            for row in _jsonl_dicts(ranking_path, required=True)
-        }
-    )
-    packed: list[tuple[PhaserRunOutput, MrHypothesis]] = []
-    for attempt in attempts:
-        hypothesis = hypotheses[attempt.result.hypothesis_id]
-        if _supported_first_copy_count(
-            attempt, expected_copy_count=hypothesis.copy_count_expected
-        ):
-            packed.append((attempt, hypothesis))
-    eligible, selected = _select_m6_seed_candidates(tuple(packed), candidate_rank)
-    selected_hypothesis_ids = {hypothesis.hypothesis_id for _, hypothesis in selected}
+    attempt_by_id = {attempt.result.hypothesis_id: attempt for attempt in attempts}
+    if (
+        len(attempt_by_id) != len(attempts)
+        or set(attempt_by_id) != set(plan.hypothesis_ids)
+        or set(hypotheses) != set(plan.hypothesis_ids)
+    ):
+        raise PublicControlError(
+            "M6 first-copy result identities differ from scheduled hypotheses"
+        )
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
     all_results = output / "first-copy-results"
@@ -1977,16 +1968,65 @@ def run_m6_select_seeds_task(
     for attempt in attempts:
         shutil.copytree(
             attempt.result_json.parent,
-            all_results / attempt.result.hypothesis_id,
+            all_results / f"first_copy_phaser_{attempt.result.hypothesis_id}",
         )
+    aggregate_results = output / "first_copy_results.jsonl"
+    atomic_write_text(
+        aggregate_results,
+        "".join(f"{canonical_json_text(attempt.result)}\n" for attempt in attempts),
+    )
+    for name in ("case_task.json", "case_plan.json"):
+        shutil.copy2(case / name, output / name)
+    scheduled_hypotheses = output / "scheduled_hypotheses.jsonl"
+    shutil.copy2(case / "first-copy-funnel/mr_hypotheses.jsonl", scheduled_hypotheses)
+    review = build_mr_seed_review(
+        MrSeedReviewRequest(
+            hypotheses_jsonl=scheduled_hypotheses,
+            results_jsonl=aggregate_results,
+            result_root=all_results,
+            funnel_manifest=case / "first-copy-funnel/funnel_manifest.json",
+            sequence_groups_jsonl=case / "all_sequence_groups.jsonl",
+            source_records_jsonl=case / "all_source_records.jsonl",
+            matthews_hypotheses_jsonl=case / "matthews/matthews_hypotheses.jsonl",
+            pipeline_config=case / "analysis_config.json",
+            output_directory=output / "production_review",
+            progress=False,
+        )
+    )
+    eligible, copy_budgets = m6_review_seed_selection(
+        package_manifest=review.manifest_json,
+        hypotheses_jsonl=scheduled_hypotheses,
+        case_id=case_id,
+    )
+    selected = eligible[:_M6_SEED_CAP]
+    authority_path = output / "benchmark_advancement_manifest.json"
+    if selected:
+        write_m6_advancement_authority(
+            case_id=case_id,
+            dependencies={
+                "case_task": output / "case_task.json",
+                "case_plan": output / "case_plan.json",
+                "hypotheses": scheduled_hypotheses,
+                "review_package": review.manifest_json,
+            },
+            output=authority_path,
+        )
+    funnel = _json_object(case / "first-copy-funnel/funnel_manifest.json", "funnel")
+    model_entries = {
+        cast(str, item["hypothesis_id"]): item
+        for item in cast(list[dict[str, object]], funnel["hypotheses"])
+    }
     rows: list[dict[str, object]] = []
-    for attempt, hypothesis in selected:
-        solution_id, validation, review_manifest, coordinate = _review_seed(
-            output, attempt
-        )
-        placed = _supported_first_copy_count(
-            attempt, expected_copy_count=hypothesis.copy_count_expected
-        )
+    for item in selected:
+        hypothesis = hypotheses[cast(str, item["hypothesis_id"])]
+        attempt = attempt_by_id[hypothesis.hypothesis_id]
+        solution_id = cast(str, item["solution_id"])
+        task_root = output / "seed_tasks" / solution_id
+        task_root.mkdir(parents=True)
+        model = model_entries[hypothesis.hypothesis_id]
+        source_model = case / "first-copy-funnel" / cast(str, model["model_path"])
+        search_model = task_root / "search_model.pdb"
+        _copy_verified(source_model, search_model, cast(str, model["model_sha256"]))
         task = M6SeedTask(
             schema_version="1.0",
             case_id=case_id,
@@ -1995,18 +2035,18 @@ def run_m6_select_seeds_task(
             sequence_group_id=hypothesis.sequence_group_id,
             model_id=hypothesis.model_id,
             expected_copy_count=hypothesis.copy_count_expected,
-            first_copy_placed_count=placed,
-            search_model_sha256=sha256_file(coordinate),
+            first_copy_placed_count=attempt.result.placed_copy_count,
+            search_model_sha256=sha256_file(search_model),
+            search_model_path=str(search_model.relative_to(output)),
+            advancement_authority_sha256=sha256_file(authority_path),
         )
-        task_root = output / "seed_tasks" / solution_id
-        task_root.mkdir(parents=True)
         atomic_write_json(task_root / "task.json", task.model_dump(mode="json"))
         rows.append(
             {
                 **task.model_dump(mode="json"),
-                "validation": str(validation.relative_to(output)),
-                "review_manifest": str(review_manifest.relative_to(output)),
-                "search_model": str(coordinate.relative_to(output)),
+                "benchmark_authority": str(authority_path.relative_to(output)),
+                "review_manifest": str(review.manifest_json.relative_to(output)),
+                "search_model": str(search_model.relative_to(output)),
             }
         )
     seeds_jsonl = output / "seed_tasks.jsonl"
@@ -2017,9 +2057,13 @@ def run_m6_select_seeds_task(
     advancement_path = output / "seed_advancement.jsonl"
     advancement_rows = _m6_seed_advancement_rows(
         case_id,
-        eligible,
-        selected_hypothesis_ids,
-        candidate_rank,
+        tuple(
+            cast(
+                list[dict[str, object]],
+                _json_object(review.manifest_json, "production review")["items"],
+            )
+        ),
+        tuple(cast(str, item["solution_id"]) for item in eligible),
     )
     atomic_write_text(
         advancement_path,
@@ -2035,6 +2079,13 @@ def run_m6_select_seeds_task(
             "advancement_eligible_count": len(eligible),
             "advancement_deferred_count": len(eligible) - len(selected),
             "selected_seed_count": len(selected),
+            "recommended_seed_count": len(selected),
+            "actually_advanced_seed_count": 0,
+            "advancement_authority_kind": "benchmark_policy",
+            "resolved_additional_copy_attempt_budget": sum(
+                copy_budgets[cast(str, item["solution_id"])] for item in selected
+            ),
+            "production_review_package_sha256": sha256_file(review.manifest_json),
             "typed_outcome": (None if selected else "completed_no_credible_seed"),
             "all_first_copy_attempts_retained": True,
             "all_advancement_eligible_hypotheses_retained": True,
@@ -2057,6 +2108,8 @@ def run_m6_select_seeds_task(
             "seed_plan": output / "seed_plan.json",
             "seed_tasks": seeds_jsonl,
             "seed_advancement": advancement_path,
+            "production_review": review.manifest_json,
+            **({"benchmark_authority": authority_path} if selected else {}),
         },
     )
     return output
@@ -2122,13 +2175,56 @@ def run_m6_add_copy_task(
     output_directory: Path,
     *,
     threads: int,
+    resource_attempt: int = 1,
 ) -> Path:
     """Run one scientifically sequential copy chain for one independent seed."""
 
     case = case_bundle.resolve(strict=True)
     seeds = seed_bundle.resolve(strict=True)
     task = _seed_task(seeds, seed_solution_id)
-    review = seeds / "review" / seed_solution_id
+    authority_path = seeds / "benchmark_advancement_manifest.json"
+    if sha256_file(authority_path) != task.advancement_authority_sha256:
+        raise PublicControlError("M6 seed advancement authority changed")
+    authority, review_manifest = validate_m6_advancement_authority(
+        authority_path,
+        hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
+    )
+    if (
+        authority.case_id != task.case_id
+        or seed_solution_id not in authority.selected_solution_ids
+    ):
+        raise PublicControlError("M6 continuation has another selected seed authority")
+    review = _json_object(review_manifest, "production seed review")
+    item = next(
+        item
+        for item in cast(list[dict[str, object]], review["items"])
+        if item["solution_id"] == seed_solution_id
+    )
+    hypothesis = _hypotheses(case)[cast(str, item["hypothesis_id"])]
+    result_path = (
+        review_manifest.parent
+        / cast(dict[str, str], item["copied_assets"])["normalised_result"]
+    )
+    result = NormalisedMrResult.model_validate_json(
+        result_path.read_text(encoding="utf-8").strip()
+    )
+    if (
+        task.hypothesis_id != hypothesis.hypothesis_id
+        or task.sequence_group_id != hypothesis.sequence_group_id
+        or task.model_id != hypothesis.model_id
+        or task.expected_copy_count != hypothesis.copy_count_expected
+        or task.first_copy_placed_count != result.placed_copy_count
+    ):
+        raise PublicControlError(
+            "M6 seed task differs from its selected scientific evidence"
+        )
+    root_parent = (
+        review_manifest.parent
+        / cast(dict[str, str], item["copied_assets"])["solution_coordinate"]
+    )
+    search_model = seeds / task.search_model_path
+    if sha256_file(search_model) != task.search_model_sha256:
+        raise PublicControlError("M6 original moving model changed")
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
     best_parent = output / "best_parent.pdb"
@@ -2143,28 +2239,36 @@ def run_m6_add_copy_task(
                 "expected_copy_count": task.expected_copy_count,
                 "attempt_count": 0,
                 "best_supported_copy_count": best_copy_count,
-                "reached_expected_copy_count": True,
-                "stop_reason": "first_copy_already_reached_expected_count",
+                "reached_expected_copy_count": task.first_copy_placed_count
+                == task.expected_copy_count,
+                "stop_reason": (
+                    "first_copy_already_reached_expected_count"
+                    if task.first_copy_placed_count == task.expected_copy_count
+                    else "observed_copy_count_exceeds_expected_review_required"
+                ),
+                "composition_completeness": "not_assessed",
                 "parent_retained": True,
             },
         )
-        shutil.copy2(review / "assets/solution.pdb", best_parent)
+        shutil.copy2(root_parent, best_parent)
     else:
         series = run_additional_copy_series(
             AddCopyRunRequest(
-                review_validation_json=review / "mr_seed_approval.json",
-                review_package_manifest=review / "mr_seed_review_manifest.json",
+                review_validation_json=None,
+                review_package_manifest=None,
+                benchmark_advancement_manifest=authority_path,
                 seed_solution_id=seed_solution_id,
                 hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
                 sequence_groups_jsonl=case
                 / "eligible-candidates/sequence_groups.jsonl",
                 preflight_jsonl=case / "preflight_bundle/preflight/mtz_preflight.jsonl",
                 mtz=case / "reflections.mtz",
-                search_model=review / "assets/solution.pdb",
+                search_model=search_model,
                 expected_search_model_sha256=task.search_model_sha256,
                 phenix_manifest=phenix_manifest.resolve(strict=True),
                 output_directory=output / "series",
                 threads=threads,
+                resource_attempt=resource_attempt,
                 timeout_seconds=None,
                 progress=False,
             )
@@ -2175,7 +2279,7 @@ def run_m6_add_copy_task(
         shutil.copy2(
             series.summary_json, output / "additional_copy_series_summary.json"
         )
-        coordinate = review / "assets/solution.pdb"
+        coordinate = root_parent
         for attempt in series.attempts:
             if attempt.result.additional_copy_supported:
                 best_copy_count = max(
@@ -2197,10 +2301,16 @@ def run_m6_add_copy_task(
             "schema_version": "1.0",
             "case_id": task.case_id,
             "seed_solution_id": seed_solution_id,
+            "hypothesis_id": task.hypothesis_id,
             "sequence_group_id": task.sequence_group_id,
             "best_supported_copy_count": best_copy_count,
             "parent_coordinate_sha256": sha256_file(best_parent),
             "parent_retained": True,
+            "advancement_authority_kind": "benchmark_policy",
+            "advancement_authority_id": authority.authority_id,
+            "advancement_authority_sha256": sha256_file(authority_path),
+            "advancement_observed": True,
+            "human_approval": False,
         },
     )
     return output
@@ -2383,6 +2493,58 @@ def _duplicate_locus_outcome(
     return None
 
 
+def _case_decision_trace(
+    *, case: Path, seeds: Path, add_results: Path
+) -> M6DecisionTrace:
+    plan = _case_plan(case)
+    hypotheses = _hypotheses(case)
+    recommendations = _jsonl(seeds / "seed_advancement.jsonl", M6SeedRecommendation)
+    observed: list[M6ObservedAdvancement] = []
+    for recommendation in recommendations:
+        if recommendation.advancement_disposition != "recommended":
+            continue
+        terminal = add_results / recommendation.solution_id / "best_parent.json"
+        if not terminal.is_file():
+            continue
+        parent = _json_object(terminal, "benchmark advancement outcome")
+        if (
+            parent.get("case_id") != plan.case_id
+            or parent.get("seed_solution_id") != recommendation.solution_id
+            or parent.get("hypothesis_id") != recommendation.hypothesis_id
+            or parent.get("sequence_group_id") != recommendation.sequence_group_id
+            or parent.get("advancement_observed") is not True
+            or parent.get("human_approval") is not False
+        ):
+            raise PublicControlError(
+                "M6 observed advancement lacks exact recommendation ownership"
+            )
+        observed.append(
+            M6ObservedAdvancement.model_validate(
+                {
+                    "solution_id": recommendation.solution_id,
+                    "hypothesis_id": recommendation.hypothesis_id,
+                    "sequence_group_id": recommendation.sequence_group_id,
+                    "authority_kind": parent.get("advancement_authority_kind"),
+                    "authority_sha256": parent.get("advancement_authority_sha256"),
+                    "terminal_record_sha256": sha256_file(terminal),
+                    "advancement_observed": True,
+                    "human_approval": False,
+                }
+            )
+        )
+    return M6DecisionTrace(
+        schema_version="1.0",
+        policy_id=M6_DECISION_POLICY,
+        case_id=plan.case_id,
+        scheduled_hypotheses=tuple(
+            hypotheses[identifier] for identifier in plan.hypothesis_ids
+        ),
+        recommendations=recommendations,
+        observed_advancement=tuple(observed),
+        provider_ranks_are_diagnostic=True,
+    )
+
+
 def run_m6_assemble_case_task(
     case_bundle: Path,
     finalist_bundle: Path,
@@ -2415,6 +2577,9 @@ def run_m6_assemble_case_task(
     )
     hypotheses = _hypotheses(case)
     seed_bundle = finalists / "seed_bundle"
+    decision_trace = _case_decision_trace(
+        case=case, seeds=seed_bundle, add_results=finalists / "add-copy-results"
+    )
     first_rows: list[dict[str, object]] = []
     first_results: list[NormalisedMrResult] = []
     first_root = seed_bundle / "first-copy-results"
@@ -2558,7 +2723,7 @@ def run_m6_assemble_case_task(
             },
         )
     case_record = M6CaseEvidence(
-        schema_version="2.0",
+        schema_version="3.0",
         adapter_version=_CASE_EVIDENCE_ADAPTER,
         case_id=case_id,
         execution_status=execution_status,
@@ -2587,6 +2752,7 @@ def run_m6_assemble_case_task(
         ),
         refinement_results=tuple(item.model_dump(mode="json") for item in refinements),
         sequence_summaries=tuple(sequence_summaries),
+        decision_trace=decision_trace,
     )
     atomic_write_json(
         output / "identity_decision.json",
@@ -2626,7 +2792,7 @@ def run_m6_assemble_case_task(
     atomic_write_json(
         output / "case_evidence_manifest.json",
         {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "adapter_version": _CASE_EVIDENCE_ADAPTER,
             "case_id": case_id,
             "case_record_sha256": sha256_file(output / "case_record.json"),
@@ -2634,6 +2800,7 @@ def run_m6_assemble_case_task(
             "edge_observations_sha256": sha256_file(output / "edge_observations.jsonl"),
             "all_candidates_retained": True,
             "all_child_attempts_retained": True,
+            "decision_trace_sha256": canonical_digest(decision_trace),
         },
     )
     return output
@@ -2805,7 +2972,7 @@ def run_m6_aggregate_track_task(
     atomic_write_json(
         summary,
         {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "adapter_version": _RUN_ADAPTER,
             "execution_model": "nextflow_dsl2_slurm_fanout",
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
@@ -2834,6 +3001,8 @@ def run_m6_aggregate_track_task(
                 cast(int, row["sequence_assessment_count"]) for row in records
             ),
             "score_policy": "LLG/TFZ_are_ranking_annotations_only",
+            "decision_scope_policy": M6_DECISION_POLICY,
+            "provider_ranks_are_diagnostic": True,
             "generalisation_claim": False,
             "phenix_release": phenix_release,
             "case_evidence_digest": canonical_digest(records),

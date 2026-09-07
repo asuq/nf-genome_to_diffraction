@@ -23,7 +23,7 @@ from genome_to_diffraction.benchmarks.m6_identity import (
 )
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
-from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_json_document,
@@ -34,17 +34,20 @@ M6ScientificTrack = Literal["operational", "leakage"]
 _LEGACY_ADAPTER_VERSION = "m6-scientific-run-v3"
 _NEXTFLOW_V1_ADAPTER_VERSION = "m6-nextflow-run-v1"
 _NEXTFLOW_V2_ADAPTER_VERSION = "m6-nextflow-run-v2"
+_NEXTFLOW_V3_ADAPTER_VERSION = "m6-nextflow-run-v3"
 _VERIFIABLE_ADAPTER_VERSIONS = frozenset(
     {
         _LEGACY_ADAPTER_VERSION,
         _NEXTFLOW_V1_ADAPTER_VERSION,
         _NEXTFLOW_V2_ADAPTER_VERSION,
+        _NEXTFLOW_V3_ADAPTER_VERSION,
     }
 )
 _SUMMARY_SCHEMA_BY_ADAPTER = {
     _LEGACY_ADAPTER_VERSION: "1.0",
     _NEXTFLOW_V1_ADAPTER_VERSION: "1.0",
     _NEXTFLOW_V2_ADAPTER_VERSION: "2.0",
+    _NEXTFLOW_V3_ADAPTER_VERSION: "3.0",
 }
 
 _TRACK_CASES: dict[M6ScientificTrack, tuple[str, ...]] = {
@@ -155,6 +158,15 @@ def verify_m6_scientific_output(
         rankings_by_case[cast(str, row.get("case_id"))].append(row)
     for case in cases:
         case_id = cast(str, case["case_id"])
+        if adapter_version == _NEXTFLOW_V3_ADAPTER_VERSION:
+            from genome_to_diffraction.benchmarks.m6_nextflow import M6CaseEvidence
+
+            try:
+                M6CaseEvidence.model_validate_json(canonical_json_text(case))
+            except (ValidationError, ValueError) as error:
+                raise PublicControlError(
+                    f"M6 production decision evidence is invalid: {case_id}"
+                ) from error
         if adapter_version == _NEXTFLOW_V2_ADAPTER_VERSION:
             if (
                 case.get("schema_version") != "2.0"

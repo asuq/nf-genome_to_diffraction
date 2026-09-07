@@ -28,6 +28,13 @@ from genome_to_diffraction.benchmarks.m6_prepare import _fault_control
 from genome_to_diffraction.benchmarks.m6_protocol import load_m6_protocol
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text, sequence_digest
+from genome_to_diffraction.matthews.probability import (
+    MINIMUM_REFERENCE_RECORDS,
+    PRIOR_BACKEND,
+    REFERENCE_RESOURCE_SHA256,
+    homooligomer_copy_probability,
+    probability_distribution,
+)
 from genome_to_diffraction.schemas.results import (
     MatthewsHypothesis,
     MtzPreflightRecord,
@@ -88,6 +95,10 @@ def _group(sequence: str) -> SequenceGroupRecord:
 def _matthews(
     group: SequenceGroupRecord, *, copy_count: int, rank: int
 ) -> MatthewsHypothesis:
+    distribution = probability_distribution(2.0)
+    solvent = 1.0 - 1.23 * copy_count / 10.0
+    density = distribution.score(solvent)
+    frequency = homooligomer_copy_probability(copy_count)
     return MatthewsHypothesis(
         schema_version="1.0",
         hypothesis_id=f"matthews_{group.sha256}_{copy_count}",
@@ -98,9 +109,16 @@ def _matthews(
         total_mass_da=10_000.0 * copy_count,
         v_asu_a3=100_000.0,
         matthews_coefficient=10.0 / copy_count,
-        solvent_fraction=0.5,
-        matthews_prior=1.0 / rank,
-        prior_backend="test",
+        solvent_fraction=solvent,
+        matthews_prior=density * frequency,
+        solvent_density=density,
+        copy_frequency_factor=frequency,
+        prior_reference_record_count=distribution.reference_record_count,
+        prior_minimum_reference_records=MINIMUM_REFERENCE_RECORDS,
+        prior_reference_resource_sha256=REFERENCE_RESOURCE_SHA256,
+        configured_solvent_fraction_min=0.1,
+        configured_solvent_fraction_max=0.9,
+        prior_backend=PRIOR_BACKEND,
         rank_within_candidate=rank,
         retained=True,
         physical_status="plausible",

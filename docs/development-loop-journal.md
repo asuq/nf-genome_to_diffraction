@@ -15625,3 +15625,23 @@ with a collapsed combined parent or a guessed command.
 - Focused review-factor, emitted ranking and inventory-integrity regressions,
   Ruff and type checks pass. Native-log bounding, copy-completeness reporting
   and integrated qualification remain the next work.
+
+## 2026-09-07 - M6 production decision and advancement contracts
+
+- M6 now builds the production MR review package and selects its bounded seeds
+  through an explicit truth-blind benchmark authority. The shared copy adapter
+  rejects mixed authority, binds policy and selected dependencies into command
+  identity, and keeps the original moving model separate from placed parents.
+- Current case/track evidence is version 3. It records actual scheduled
+  hypotheses, recommendations and observed advancement separately, with unique
+  sequence counts. Provider rank is diagnostic; non-top-copy edge acceptance
+  requires a completed result for the selected alternative. Family collection
+  now consumes the production string entity-ID contract. Frozen case populations
+  and numerical thresholds are unchanged; old ranking evidence cannot qualify.
+- Focused M6, collection, edge and raw-loader checks passed (121), including
+  shared-adapter benchmark authority and non-top-copy execution. These use synthetic
+  contracts and frozen fixtures, not fresh Phenix qualification.
+- Next finish the approved four-arm comparison harness and retry propagation,
+  integrate the exact release source, and qualify on Raven only after the owned
+  migration and prerequisite evidence are complete. Main and live runs remain
+  untouched; RF-G4 and release acceptance remain held pending native evidence.

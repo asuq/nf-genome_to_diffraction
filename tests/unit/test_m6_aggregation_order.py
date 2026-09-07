@@ -78,6 +78,8 @@ def _write_case_bundle(root: Path) -> tuple[Path, tuple[dict[str, object], ...]]
                 "expected_copy_count": 1,
                 "first_copy_placed_count": 1,
                 "search_model_sha256": HASH,
+                "search_model_path": f"models/model_{suffix}.pdb",
+                "advancement_authority_sha256": HASH,
             }
         )
     _write_json(
@@ -149,15 +151,48 @@ def _write_finalist_bundle(
         root / "seed_bundle/seed_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v2",
+            "adapter_version": "m6-nextflow-seeds-v3-production-review",
             "case_id": "M6C001",
             "selected_seed_count": 2,
             "typed_outcome": None,
         },
     )
     (root / "add-copy-results").mkdir(parents=True)
-    for seed in seed_rows:
+    recommendations: list[object] = []
+    for rank, seed in enumerate(seed_rows, start=1):
         hypothesis_id = str(seed["hypothesis_id"])
+        recommendations.append(
+            {
+                "schema_version": "1.0",
+                "case_id": "M6C001",
+                "hypothesis_id": hypothesis_id,
+                "solution_id": seed["seed_solution_id"],
+                "sequence_group_id": seed["sequence_group_id"],
+                "production_review_rank": rank,
+                "independent_mr_rank": rank,
+                "independent_matthews_rank": rank,
+                "recommendation_rank": rank,
+                "advancement_disposition": "recommended",
+                "advancement_observed": False,
+                "human_approval": False,
+            }
+        )
+        _write_json(
+            root
+            / "add-copy-results"
+            / str(seed["seed_solution_id"])
+            / "best_parent.json",
+            {
+                "case_id": "M6C001",
+                "seed_solution_id": seed["seed_solution_id"],
+                "hypothesis_id": hypothesis_id,
+                "sequence_group_id": seed["sequence_group_id"],
+                "advancement_observed": True,
+                "human_approval": False,
+                "advancement_authority_kind": "benchmark_policy",
+                "advancement_authority_sha256": HASH,
+            },
+        )
         _write_json(
             root
             / "seed_bundle/first-copy-results"
@@ -175,6 +210,7 @@ def _write_finalist_bundle(
                 "raw_log_pointer": f"{hypothesis_id}.log",
             },
         )
+    _write_jsonl(root / "seed_bundle/seed_advancement.jsonl", recommendations)
     return root
 
 

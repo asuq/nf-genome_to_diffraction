@@ -277,6 +277,28 @@ assessment for every opaque case.
 
 ## Gates
 
+Current acceptance requires production-decision schema-3 track outputs. The
+runner builds the actual production MR review package, then applies the explicit
+truth-blind benchmark advancement policy to at most five inspectable packed
+states with interpreted copy evidence. It writes a checksum-bound benchmark
+authority, not a human approval. Additional-copy execution verifies that authority
+and uses the original one-copy moving model with the selected placed solution as
+its fixed parent. Ordinary production runs still require their human checkpoint.
+
+Every case retains a `decision_trace`: the exact scheduled hypotheses in their
+production admission order, the complete production recommendation table, and
+separately observed continuation outcomes. Top-5/10/25 mean membership in those
+actual hypothesis-task prefixes. The true sequence's first scheduled occurrence
+defines its rank; distinct sequence-group counts are reported separately from
+hypothesis, model and copy-state counts. Earlier provider ranks remain labelled
+diagnostics. Recommendation membership alone cannot count as an advanced seed.
+The non-top-Matthews edge now requires a completed MR result for the exact
+alternative expected-copy state. A retained prior row alone does not pass it.
+
+Historical track outputs remain independently verifiable, but their different
+admission/ranking cannot enter corrected release acceptance. The frozen case
+population, truth isolation and numeric criteria below are unchanged.
+
 All candidates and parent/child attempts must be retained. LLG and TFZ remain
 ranking annotations and never delete candidates. Correctness requires zero
 exact false assignments across the 20 open-set negatives, 4/4 heteromer

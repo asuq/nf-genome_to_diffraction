@@ -130,6 +130,7 @@ class AddCopyRunRequest:
     timeout_seconds: float | None = None
     progress: bool = True
     phase3_seed_stage_manifest: Path | None = None
+    benchmark_advancement_manifest: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -173,6 +174,7 @@ class _Resolved:
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_command_binding: DiffractionCommandBinding | None = None
     resource_plan: MrResourcePlan | None = None
+    benchmark_authority_identity: dict[str, object] | None = None
 
 
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
@@ -229,7 +231,53 @@ def _owned(root: Path, relative: object, *, label: str) -> Path:
 
 def _resolve(request: AddCopyRunRequest) -> _Resolved:
     phase3_source: dict[str, object] | None = None
-    if request.phase3_seed_stage_manifest is None:
+    benchmark_authority_identity: dict[str, object] | None = None
+    benchmark_case_id: str | None = None
+    if request.benchmark_advancement_manifest is not None:
+        from genome_to_diffraction.benchmarks.m6_advancement import (
+            validate_m6_advancement_authority,
+        )
+
+        if any(
+            value is not None
+            for value in (
+                request.phase3_seed_stage_manifest,
+                request.review_validation_json,
+                request.review_package_manifest,
+            )
+        ):
+            raise PhaserInputError(
+                "benchmark advancement rejects mixed human/benchmark authority"
+            )
+        try:
+            authority, manifest_path = validate_m6_advancement_authority(
+                request.benchmark_advancement_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+            )
+        except (OSError, ValueError) as error:
+            raise PhaserInputError(
+                f"invalid M6 benchmark advancement: {error}"
+            ) from error
+        if request.seed_solution_id not in authority.selected_solution_ids:
+            raise PhaserInputError("seed is not selected by the M6 benchmark policy")
+        manifest = _json_object(manifest_path, label="M6 production review evidence")
+        root = manifest_path.parent
+        review_id = authority.authority_id
+        benchmark_case_id = authority.case_id
+        benchmark_authority_identity = {
+            "authority_kind": authority.authority_kind,
+            "authority_id": authority.authority_id,
+            "policy_id": authority.policy_id,
+            "policy_sha256": authority.policy_sha256,
+            "protocol_sha256": authority.protocol_sha256,
+            "authority_manifest_sha256": sha256_file(
+                request.benchmark_advancement_manifest
+            ),
+            "selected_dependencies": {
+                name: record.sha256 for name, record in authority.dependencies.items()
+            },
+        }
+    elif request.phase3_seed_stage_manifest is None:
         if (
             request.review_validation_json is None
             or request.review_package_manifest is None
@@ -349,6 +397,8 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
     )
     hypothesis = _one(hypotheses, hypothesis_id, "hypothesis_id", "hypothesis")
+    if benchmark_case_id is not None and hypothesis.crystal_id != benchmark_case_id:
+        raise PhaserInputError("M6 benchmark advancement belongs to another crystal")
     if (request.parent_result_jsonl is None) != (request.parent_coordinate is None):
         raise PhaserInputError(
             "sequential parent result and coordinate must be supplied together"
@@ -510,6 +560,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         phase3_hypothesis=phase3_hypothesis,
         diffraction_command_binding=diffraction_binding,
         resource_plan=resource_plan,
+        benchmark_authority_identity=benchmark_authority_identity,
     )
 
 
@@ -650,6 +701,10 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         ),
         "parameters_sha256": sha256_file(parameters),
     }
+    if resolved.benchmark_authority_identity is not None:
+        attempt_identity["benchmark_advancement_authority"] = (
+            resolved.benchmark_authority_identity
+        )
     if (
         resolved.diffraction_selection is not None
         and resolved.phase3_hypothesis is not None

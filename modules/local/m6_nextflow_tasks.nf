@@ -271,6 +271,7 @@ process M6_FIRST_COPY {
         --mtz '${item[2]}/reflections.mtz' \
         --phenix-manifest '${item[4]}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir m6_first_copy_result
     """
 
