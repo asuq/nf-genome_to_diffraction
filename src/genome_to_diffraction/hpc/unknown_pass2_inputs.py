@@ -36,9 +36,14 @@ from genome_to_diffraction.localisation import (
     BatchLocalisationReopenPlan,
     BatchLocalisationReopenStatus,
 )
+from genome_to_diffraction.review.phase3_package import validate_phase3_review_package
+from genome_to_diffraction.review.phase3_stage import (
+    load_staged_phase3_reopen_decisions,
+    validate_phase3_reopen_decision,
+)
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.mr_resources import MR_RESOURCE_ADAPTER_VERSION
-from genome_to_diffraction.schemas.results import MrHypothesis
+from genome_to_diffraction.schemas.results import MrHypothesis, MrHypothesisStatus
 from genome_to_diffraction.schemas.v2 import (
     CompositionState,
     PhaseIIIExecutionIdentity,
@@ -50,7 +55,7 @@ from genome_to_diffraction.status import InputContractError
 PASS2_SPEC_RELATIVE = Path(".untracked/phase3-unknown-pass2/pass2-inputs.json")
 PASS2_SOURCE_MANIFEST = "phase3_pass2_source.json"
 PASS2_INPUT_MANIFEST = "phase3_pass2_input_manifest.json"
-_ADAPTER = "phase3-pass2-input-bundle-v2"
+_ADAPTER = "phase3-pass2-input-bundle-v3-reviewed-reopen"
 _MAX_SPEC_BYTES = 16 * 1024
 _MAX_FILE_COUNT = 50_000
 _MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
@@ -292,7 +297,7 @@ def _validate_source(
                 "phase3-composition-beam-depth-v2-complete-outcomes"
             ),
             "phase3_composition_depth": "phase3-composition-depth-input-v1",
-            "phase3_no_a_expansion": "phase3-no-a-expansion-v2",
+            "phase3_no_a_expansion": "phase3-no-a-expansion-v3-reviewed-selection",
             "phase3_pass2_a_seed": "phase3-pass2-a-seed-v1",
         }
         if any(
@@ -358,7 +363,11 @@ def _validate_source(
                     f"pass-2 no-A plan is invalid for {crystal_id}"
                 ) from error
             if (
-                plan.status is not BatchLocalisationReopenStatus.READY
+                plan.status
+                not in {
+                    BatchLocalisationReopenStatus.READY,
+                    BatchLocalisationReopenStatus.READY_REVIEWED,
+                }
                 or plan.reopened_hypothesis_count != len(hypotheses)
                 or tuple(item.hypothesis_id for item in hypotheses)
                 != plan.reopened_hypothesis_ids
@@ -367,6 +376,84 @@ def _validate_source(
                 raise UnknownPass2InputError(
                     f"pass-2 no-A inventory differs for {crystal_id}"
                 )
+            if plan.status is BatchLocalisationReopenStatus.READY_REVIEWED:
+                package_path = (
+                    plan_root / "review_package" / "phase3_review_package_manifest.json"
+                )
+                decision_path = (
+                    plan_root / "review_stage" / "phase3_review_decision.json"
+                )
+                try:
+                    package = validate_phase3_review_package(package_path.parent)
+                    decisions = load_staged_phase3_reopen_decisions(
+                        decision_path=decision_path,
+                        package_manifest=package_path,
+                    )
+                    selected = validate_phase3_reopen_decision(
+                        package_manifest=package_path,
+                        decisions=decisions,
+                        terminal_results_sha256=plan.terminal_results_sha256,
+                    )
+                except InputContractError as error:
+                    raise UnknownPass2InputError(
+                        f"invalid pass-2 reviewed authority for {crystal_id}: {error}"
+                    ) from error
+                artifacts = {item.role: item for item in package.evidence_inventory}
+                assert decisions.reopen_request is not None
+                if (
+                    package.owned_parent_run_id != expected_parent_run_id
+                    or package.execution_identity_id != identity.execution_identity_id
+                    or package.crystal_id != crystal_id
+                    or plan.review_package_id != package.review_package_id
+                    or plan.review_package_manifest_sha256 != sha256_file(package_path)
+                    or plan.review_decision_file_id != decisions.decision_file_id
+                    or plan.source_review_decisions_sha256 != sha256_file(decision_path)
+                    or plan.funnel_manifest_sha256
+                    != artifacts["source_funnel_manifest"].sha256
+                    or plan.complete_acquired_hypotheses_sha256
+                    != artifacts["complete_acquired_hypotheses"].sha256
+                    or plan.source_hypothesis_ids
+                    != decisions.reopen_request.selected_hypothesis_ids
+                    or plan.maximum_reopened_attempts
+                    != decisions.reopen_request.maximum_reopened_attempts
+                    or any(
+                        result.priority_features.get("source_hypothesis_id")
+                        != original.hypothesis_id
+                        or result.status is not MrHypothesisStatus.QUEUED
+                        or result.hypothesis_id
+                        != content_id(
+                            "mrhyp_",
+                            {
+                                "source_hypothesis_id": original.hypothesis_id,
+                                "reopen_evidence_id": plan.reopen_evidence_id,
+                            },
+                        )
+                        or result.priority_features.get(
+                            "localisation_reopen_evidence_id"
+                        )
+                        != plan.reopen_evidence_id
+                        or result.priority_features.get(
+                            "no_a_expansion_after_human_review"
+                        )
+                        is not True
+                        or any(
+                            result.priority_features.get(key) != value
+                            for key, value in original.priority_features.items()
+                        )
+                        or result.model_copy(
+                            update={
+                                "hypothesis_id": original.hypothesis_id,
+                                "priority_features": original.priority_features,
+                                "status": original.status,
+                            }
+                        )
+                        != original
+                        for result, original in zip(hypotheses, selected, strict=True)
+                    )
+                ):
+                    raise UnknownPass2InputError(
+                        f"pass-2 reviewed reopening authority differs for {crystal_id}"
+                    )
         mtz_sha256 = sha256_file(paths["mtz"])
         mtz_artifacts = tuple(
             artifact

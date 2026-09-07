@@ -41,7 +41,7 @@ from genome_to_diffraction.checksums import (
     atomic_write_json,
     sha256_file,
 )
-from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     NonEmptyString,
@@ -49,7 +49,16 @@ from genome_to_diffraction.schemas.base import (
     Sha256Hex,
     UtcTimestamp,
 )
-from genome_to_diffraction.schemas.io import ContractError, load_contract
+from genome_to_diffraction.schemas.io import (
+    ContractError,
+    load_contract,
+    load_json_document,
+)
+from genome_to_diffraction.schemas.results import (
+    MrHypothesis,
+    MrHypothesisStatus,
+    NormalisedMrResult,
+)
 from genome_to_diffraction.schemas.v2 import (
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecisionFile,
@@ -58,7 +67,7 @@ from genome_to_diffraction.schemas.v2 import (
 from genome_to_diffraction.status import InputContractError
 from genome_to_diffraction.time import utc_now
 
-_ADAPTER_VERSION = "phase3-review-stage-v1"
+_ADAPTER_VERSION = "phase3-review-stage-v2-reviewed-reopen"
 _CANONICAL_DECISION_NAME = "phase3_review_decision.json"
 _STAGE_MANIFEST_NAME = "phase3_review_stage_manifest.json"
 _OUTPUT_ALLOWLIST = (_CANONICAL_DECISION_NAME, _STAGE_MANIFEST_NAME)
@@ -115,7 +124,7 @@ class PhaseIIIReviewStageManifest(ContractModel):
     """Typed local publication record for one validated decision file."""
 
     schema_version: Literal["2.0"]
-    adapter_version: Literal["phase3-review-stage-v1"]
+    adapter_version: Literal["phase3-review-stage-v2-reviewed-reopen"]
     stage_id: PhaseIIIReviewStageIdentifier
     staged_at: UtcTimestamp
     checkpoint: PhaseIIIReviewCheckpoint
@@ -291,6 +300,220 @@ def _canonical_json_bytes(decisions: PhaseIIIReviewDecisionFile) -> bytes:
     return f"{payload}\n".encode()
 
 
+def validate_phase3_reopen_decision(
+    *,
+    package_manifest: Path,
+    decisions: PhaseIIIReviewDecisionFile,
+    source_funnel_directory: Path | None = None,
+    terminal_results_sha256: str | None = None,
+) -> tuple[MrHypothesis, ...]:
+    """Authenticate explicit alternatives against the entire reviewed A package."""
+
+    from genome_to_diffraction.review.phase3_package import (
+        PhaseIIIReviewPackageError,
+        validate_phase3_review_package,
+    )
+
+    request = decisions.reopen_request
+    if request is None:
+        raise PhaseIIIReviewStageError("decision file has no explicit reopen request")
+    try:
+        package = validate_phase3_review_package(package_manifest.parent)
+    except PhaseIIIReviewPackageError as error:
+        raise PhaseIIIReviewStageError(
+            f"reopen review package is invalid: {error}"
+        ) from error
+    if (
+        package.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+        or decisions.checkpoint is not package.checkpoint
+        or decisions.owned_parent_run_id != package.owned_parent_run_id
+        or decisions.review_package_id != package.review_package_id
+        or decisions.review_package_manifest_sha256 != sha256_file(package_manifest)
+    ):
+        raise PhaseIIIReviewStageError(
+            "reopen decision belongs to a stale parent or package"
+        )
+    if {
+        (decision.crystal_id, decision.item_id) for decision in decisions.decisions
+    } != {(target.crystal_id, target.item_id) for target in package.permitted_targets}:
+        raise PhaseIIIReviewStageError(
+            "reopening requires explicit decisions for every A target"
+        )
+    if any(
+        decision.reviewed_at < package.created_at for decision in decisions.decisions
+    ):
+        raise PhaseIIIReviewStageError("reopen decision predates the review package")
+    artifacts = {artifact.role: artifact for artifact in package.evidence_inventory}
+    required = {
+        "complete_acquired_hypotheses",
+        "source_funnel_manifest",
+        "mr_seed_review_manifest",
+    }
+    if not required <= artifacts.keys():
+        raise PhaseIIIReviewStageError(
+            "review package lacks the complete acquired-model inventory"
+        )
+    inventory = artifacts["complete_acquired_hypotheses"]
+    funnel = artifacts["source_funnel_manifest"]
+    try:
+        manifest = json.loads(
+            (package_manifest.parent / funnel.relative_path).read_text()
+        )
+        hypotheses = tuple(
+            MrHypothesis.model_validate_json(line)
+            for line in (package_manifest.parent / inventory.relative_path)
+            .read_text()
+            .splitlines()
+            if line.strip()
+        )
+    except (OSError, ValueError) as error:
+        raise PhaseIIIReviewStageError(
+            "reviewed acquired-model inventory is invalid"
+        ) from error
+    by_id = {hypothesis.hypothesis_id: hypothesis for hypothesis in hypotheses}
+    if (
+        len(by_id) != len(hypotheses)
+        or not isinstance(manifest, dict)
+        or manifest.get("adapter_version")
+        != "multi-source-first-copy-funnel-v8-reviewed-alternatives"
+        or manifest.get("complete_acquired_hypothesis_count") != len(hypotheses)
+        or manifest.get("complete_acquired_hypotheses_sha256") != inventory.sha256
+        or any(hypothesis.crystal_id != package.crystal_id for hypothesis in hypotheses)
+    ):
+        raise PhaseIIIReviewStageError(
+            "reviewed complete acquired-model inventory differs"
+        )
+    if source_funnel_directory is not None and (
+        sha256_file(source_funnel_directory / "funnel_manifest.json") != funnel.sha256
+        or sha256_file(source_funnel_directory / "complete_acquired_hypotheses.jsonl")
+        != inventory.sha256
+    ):
+        raise PhaseIIIReviewStageError(
+            "reopen source funnel differs from reviewed evidence"
+        )
+    reviewed_results: list[NormalisedMrResult] = []
+    try:
+        mr_review = load_json_document(
+            package_manifest.parent / artifacts["mr_seed_review_manifest"].relative_path
+        )
+        if not isinstance(mr_review, dict) or not isinstance(
+            mr_review.get("items"), list
+        ):
+            raise ValueError("MR review item inventory is absent")
+        permitted_paths = {item.relative_path for item in package.evidence_inventory}
+        for item in mr_review["items"]:
+            if (
+                not isinstance(item, dict)
+                or not isinstance(item.get("copied_assets"), dict)
+                or not isinstance(item.get("solution_identity"), dict)
+            ):
+                raise ValueError("MR review result binding is malformed")
+            result_relative = item["copied_assets"].get("normalised_result")
+            if (
+                not isinstance(result_relative, str)
+                or f"evidence/{result_relative}" not in permitted_paths
+            ):
+                raise ValueError(
+                    "MR review normalised result is absent from the package"
+                )
+            result = NormalisedMrResult.model_validate_json(
+                (package_manifest.parent / "evidence" / result_relative).read_bytes()
+            )
+            if result.hypothesis_id != item.get("hypothesis_id") or canonical_digest(
+                result
+            ) != item["solution_identity"].get("result_sha256"):
+                raise ValueError(
+                    "MR review normalised result differs from its identity"
+                )
+            reviewed_results.append(result)
+    except (ContractError, OSError, ValueError) as error:
+        raise PhaseIIIReviewStageError(
+            f"reviewed terminal evidence is invalid: {error}"
+        ) from error
+    active_ids = {
+        item.hypothesis_id
+        for item in hypotheses
+        if item.status is MrHypothesisStatus.QUEUED
+    }
+    if (
+        len(reviewed_results) != len(active_ids)
+        or {item.hypothesis_id for item in reviewed_results} != active_ids
+    ):
+        raise PhaseIIIReviewStageError(
+            "reviewed terminal results do not cover the first wave"
+        )
+    reviewed_digest = hashlib.sha256(
+        "".join(
+            f"{canonical_json_text(result)}\n"
+            for result in sorted(reviewed_results, key=lambda item: item.hypothesis_id)
+        ).encode("utf-8")
+    ).hexdigest()
+    if (
+        terminal_results_sha256 is not None
+        and terminal_results_sha256 != reviewed_digest
+    ):
+        raise PhaseIIIReviewStageError(
+            "native terminal results differ from the reviewed evidence"
+        )
+    if any(
+        hypothesis_id not in by_id
+        or by_id[hypothesis_id].status is not MrHypothesisStatus.SKIPPED
+        or by_id[hypothesis_id].copy_number_to_search != 1
+        or by_id[hypothesis_id].priority_features.get("matthews_physical_status")
+        not in {"plausible", "review"}
+        for hypothesis_id in request.selected_hypothesis_ids
+    ):
+        raise PhaseIIIReviewStageError(
+            "reopen selection is absent, already executed, or physically impossible"
+        )
+    return tuple(
+        by_id[hypothesis_id] for hypothesis_id in request.selected_hypothesis_ids
+    )
+
+
+def load_staged_phase3_reopen_decisions(
+    *,
+    decision_path: Path,
+    package_manifest: Path,
+) -> PhaseIIIReviewDecisionFile:
+    """Require the existing checksum-confirmed review stage before planning work."""
+
+    decision_file = _regular_file(decision_path, label="staged reopen decisions")
+    if tuple(sorted(path.name for path in decision_file.parent.iterdir())) != tuple(
+        sorted(_OUTPUT_ALLOWLIST)
+    ):
+        raise PhaseIIIReviewStageError(
+            "reopen stage differs from its two-file allow-list"
+        )
+    if decision_file.name != _CANONICAL_DECISION_NAME:
+        raise PhaseIIIReviewStageError(
+            "reopening requires the canonical staged JSON decision file"
+        )
+    try:
+        stage = PhaseIIIReviewStageManifest.model_validate_json(
+            (decision_file.parent / _STAGE_MANIFEST_NAME).read_bytes()
+        )
+        decisions = _load_decisions(decision_file)
+    except (OSError, ValueError) as error:
+        raise PhaseIIIReviewStageError(
+            "reopen review stage is missing or invalid"
+        ) from error
+    if (
+        decisions.reopen_request is None
+        or stage.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED
+        or stage.canonical_decision_sha256 != sha256_file(decision_file)
+        or stage.decision_file_id != decisions.decision_file_id
+        or stage.decision_count != len(decisions.decisions)
+        or stage.review_package_manifest_sha256 != sha256_file(package_manifest)
+        or stage.review_package_id != decisions.review_package_id
+        or stage.owned_parent_run_id != decisions.owned_parent_run_id
+    ):
+        raise PhaseIIIReviewStageError(
+            "staged reopen decisions differ from confirmed authority"
+        )
+    return decisions
+
+
 def stage_phase3_review_decisions(
     request: PhaseIIIReviewStageRequest,
 ) -> PhaseIIIReviewStageOutput:
@@ -372,6 +595,15 @@ def stage_phase3_review_decisions(
                 "decision predates the exact review package: "
                 f"{decision.crystal_id}/{decision.item_id}"
             )
+
+    if decisions.reopen_request is not None:
+        if decision_path.suffix.lower() != ".json":
+            raise PhaseIIIReviewStageError(
+                "explicit reopening requires a JSON A-decision file"
+            )
+        validate_phase3_reopen_decision(
+            package_manifest=package_path, decisions=decisions
+        )
 
     if (
         _sha256(
@@ -462,5 +694,7 @@ __all__ = [
     "PhaseIIIReviewStageManifest",
     "PhaseIIIReviewStageOutput",
     "PhaseIIIReviewStageRequest",
+    "load_staged_phase3_reopen_decisions",
     "stage_phase3_review_decisions",
+    "validate_phase3_reopen_decision",
 ]

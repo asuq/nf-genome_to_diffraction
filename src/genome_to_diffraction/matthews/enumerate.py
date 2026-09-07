@@ -562,6 +562,12 @@ def _write_outputs(
 def enumerate_matthews(request: MatthewsRequest) -> MatthewsResult:
     """Join catalogue/crystal records and publish all copy hypotheses."""
 
+    output = request.output_directory
+    if output.is_symlink() or (
+        output.exists() and (not output.is_dir() or any(output.iterdir()))
+    ):
+        raise MatthewsInputError("Matthews output must be an absent or empty directory")
+
     crystals_model = load_contract(
         request.crystal_manifest.resolve(strict=True),
         "crystal-manifest",

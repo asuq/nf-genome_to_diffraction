@@ -133,6 +133,8 @@ def _closure(root: Path, identity: PhaseIIIExecutionIdentity) -> dict[str, str]:
 
 def _materialise_authority(
     tmp_path: Path,
+    *,
+    reviewed_reopen: bool = False,
 ) -> tuple[Path, Path, Path, PhaseIIIExecutionIdentity, str]:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -238,6 +240,7 @@ def _materialise_authority(
             deferred_cap_hypotheses_sha256=f"{index + 27:064x}",
             deferred_localisation_hypotheses_sha256=f"{index + 30:064x}",
             deferred_hypotheses_sha256=f"{index + 33:064x}",
+            complete_acquired_hypotheses_sha256=f"{index + 34:064x}",
             terminal_results_sha256=f"{index + 36:064x}",
             active_hypothesis_count=25,
             terminal_result_count=25,
@@ -246,6 +249,7 @@ def _materialise_authority(
             cap_deferred_hypothesis_count=1,
             localisation_deferred_hypothesis_count=0,
             deferred_hypothesis_count=1,
+            automatic_eligible_hypothesis_count=1,
             maximum_reopened_attempts=175,
             reopened_hypothesis_count=1,
             remaining_deferred_count=0,
@@ -261,12 +265,34 @@ def _materialise_authority(
             plan_root / "reopened_hypotheses.jsonl",
             f"{hypothesis.model_dump_json()}\n",
         )
+        if reviewed_reopen and index == 1:
+            from genome_to_diffraction.localisation import (
+                plan_batch_localisation_reopen,
+            )
+            from tests.unit.test_localisation_reopen import _case, _reviewed_request
+
+            case_root = root / "reviewed_reopening"
+            case_root.mkdir()
+            request, selected_id = _case(
+                case_root,
+                status=ExecutionStatus.COMPLETED_HIT,
+                packed=True,
+                crystal_id=crystal,
+            )
+            reviewed = _reviewed_request(
+                request,
+                (selected_id,),
+                parent_run_id=PARENT_RUN,
+                parent_profile="unknown-screen",
+                execution_identity_id=identity.execution_identity_id,
+            )
+            plan_root = plan_batch_localisation_reopen(reviewed).plan_json.parent
         items.append(
             {
                 "crystal_id": crystal,
                 "mode": "no_a_expansion",
                 "pass1_assessment": assessment_path.name,
-                "no_a_expansion_plan": plan_root.name,
+                "no_a_expansion_plan": plan_root.relative_to(root).as_posix(),
                 "parent_states": "parent_states.jsonl",
                 **{name: path.name for name, path in item_files.items()},
                 "fixed_coordinate_root": fixed.name,
@@ -305,9 +331,10 @@ def _build_bundle(
     source_tree: str | None = None,
     parent_run_id: str = PARENT_RUN,
     finding_ledger_sha256: str | None = None,
+    reviewed_reopen: bool = False,
 ):
     repository, root, source_path, identity, ledger_sha256 = _materialise_authority(
-        tmp_path
+        tmp_path, reviewed_reopen=reviewed_reopen
     )
     bundle = build_unknown_pass2_input_bundle(
         repository=repository,
@@ -320,10 +347,14 @@ def _build_bundle(
     return bundle, repository, root, source_path, identity, ledger_sha256
 
 
+@pytest.mark.parametrize("reviewed_reopen", (False, True))
 def test_pass2_archive_round_trip_requires_complete_three_crystal_panel(
     tmp_path: Path,
+    reviewed_reopen: bool,
 ) -> None:
-    bundle, _, _, _, identity, ledger_sha256 = _build_bundle(tmp_path)
+    bundle, _, _, _, identity, ledger_sha256 = _build_bundle(
+        tmp_path, reviewed_reopen=reviewed_reopen
+    )
 
     extracted = tmp_path / "extracted"
     extracted.mkdir()
@@ -371,7 +402,13 @@ def test_pass2_archive_rejects_changed_staged_authority(
     message: str,
 ) -> None:
     with pytest.raises(UnknownPass2InputError, match=message):
-        _build_bundle(tmp_path, **override)
+        _build_bundle(
+            tmp_path,
+            source_commit=override.get("source_commit"),
+            source_tree=override.get("source_tree"),
+            parent_run_id=override.get("parent_run_id", PARENT_RUN),
+            finding_ledger_sha256=override.get("finding_ledger_sha256"),
+        )
 
 
 def test_pass2_archive_rejects_incomplete_crystal_subset(tmp_path: Path) -> None:

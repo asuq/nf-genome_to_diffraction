@@ -152,8 +152,8 @@ to A-seed packages; pre-completion crystallographic packages are still
 rejected.
 
 `stage_unknown_pass1_selected_a_seeds` accepts one exact owned `unknown-screen`
-parent run, an ASCII operator TSV, and the independently confirmed SHA-256 of
-that TSV. The checkpoint is fixed to `a_seed`; the single crystal is inferred
+parent run, an ASCII operator JSON or TSV, and its independently confirmed
+SHA-256. The checkpoint is fixed to `a_seed`; the single crystal is inferred
 from validated decision rows rather than accepted as a caller-selected value.
 Its review package is resolved only through the checksum-closed owned-run
 registry. An arbitrary package path cannot bypass ownership validation.
@@ -216,6 +216,63 @@ parent/profile/phase, exact content identity, registered package checksum, and
 complete original crystal-bound review evidence. Approved, rejected, and
 deferred crystals remain independent Nextflow items. Fixed remote staging and
 real licensed execution are still pending.
+
+## Reviewed A alternatives
+
+An A decision JSON can include `reopen_request` with exactly
+`selected_hypothesis_ids` and `maximum_reopened_attempts`. See the
+[valid illustrative decision](../examples/phase3_a_reopen_decision.json).
+Every existing A target must have an explicit `reject` or `defer` decision;
+there must be no approval. The ordinary decision rows supply the crystal,
+reviewer, review time and reason. TSV decisions retain their existing columns
+and cannot request reopening.
+
+Selection refers to the complete acquired-model inventory copied into the A
+package, not to the initial 25-item execution list. It can include lower- or
+zero-prior candidates and expected-copy states omitted by initial admission.
+Every selected source row must be unexecuted, mathematically admissible and
+configured to search one copy. The selection must contain unique IDs and fit
+the explicit limit of 1--175; oversized selections fail instead of being
+truncated. This preserves the 200-attempt initial-plus-reopening ceiling.
+
+The first-wave funnel and complete inventory have dedicated evidence roles,
+`source_funnel_manifest` and `complete_acquired_hypotheses`. The reviewer JSON
+must retain its canonical content identifier after edits; construct it with
+`PhaseIIIReviewDecisionFile.from_content` from the edited payload after removing
+the old `decision_file_id`. Validate it using `contract validate
+phase3-review-decisions <decision.json>`, then stage it with the existing
+`review stage-owned-a-seeds` command and independently confirmed file checksum.
+
+The existing `localisation plan-batch-reopen` command accepts the source funnel,
+all first-wave result directories and localisation bundle, plus
+`--review-package <phase3_review_package_manifest.json>` and
+`--review-decisions <stage/phase3_review_decision.json>`. Its
+`--maximum-reopened-attempts` must equal the reviewed value. It verifies the
+canonical stage and every package byte, parent/package/decision identities,
+review chronology, full A-target coverage, source-funnel checksum and exact
+selection before planning. Native terminal records must match the normalised
+result assets in that same reviewed package; a same-ID substituted result cannot
+clear a failed wave. Rejected packed placements no longer suppress this
+explicit route. Failed, missing or incomplete first-wave execution still blocks
+advancement.
+
+`phase3-no-a-expansion-v3-reviewed-selection` records either
+`ready_reopened_after_human_review` or the existing complete-zero-pack planning
+outcomes. It publishes the bounded hypotheses, their deterministic resource
+plans, and copied review package/stage authority. Automatic complete-zero-pack
+planning retains its prior admission rules; expected-copy states omitted by
+initial admission need explicit selection. New hypothesis identities bind the
+source IDs, terminal evidence, exact selection, limit and review authority.
+
+The closure-gated unknown pass-2 archive revalidates that portable authority
+against its exact source execution and parent, then sends the selected
+hypotheses through `PHASE3_NO_A_EXPANSION_WORKFLOW`. This does not bypass RG7.
+Known controls may validate the same planner and workflow before that gate.
+The reopened review does not carry a new alternative inventory, preventing
+automatic chaining beyond the single additional 175-attempt budget. Local
+tests cover zero-prior selection, failed-wave blocking, stale source/decisions,
+unlisted or previously executed IDs, duplicate IDs, budget overflow and portable
+pass-2 validation. Native Phenix and Raven qualification remain separate checks.
 
 ## Checkpoints and values
 

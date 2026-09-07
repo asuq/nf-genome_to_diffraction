@@ -640,7 +640,12 @@ def build_owned_phase3_a_seed_review_package(
             evidence_by_path.setdefault(
                 relative,
                 PhaseIIIReviewEvidenceSource(
-                    role=f"mr_seed_output_{name}",
+                    role=(
+                        name
+                        if name
+                        in {"complete_acquired_hypotheses", "source_funnel_manifest"}
+                        else f"mr_seed_output_{name}"
+                    ),
                     relative_path=relative,
                 ),
             )

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from genome_to_diffraction.schemas.io import ContractLoadError, load_contract
 from genome_to_diffraction.schemas.results import ReviewDecision, ReviewDecisionManifest
 from genome_to_diffraction.schemas.v2 import (
+    PhaseIIIReopenRequest,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
@@ -47,6 +48,38 @@ def _decision_file(
         review_package_manifest_sha256=HASHES[0],
         decisions=decisions,
     )
+
+
+def test_reopen_request_is_json_bound_and_rejects_over_budget_or_approved_a(
+    tmp_path: Path,
+) -> None:
+    original = _decision_file(
+        PhaseIIIReviewCheckpoint.A_SEED,
+        (_decision("seed_a", PhaseIIIReviewDecisionValue.REJECT),),
+    )
+    values = original.model_dump(mode="python", exclude={"decision_file_id"})
+    values["reopen_request"] = PhaseIIIReopenRequest(
+        selected_hypothesis_ids=("hypothesis_a",), maximum_reopened_attempts=1
+    )
+    reopened = PhaseIIIReviewDecisionFile.from_content(**values)
+    assert reopened.decision_file_id != original.decision_file_id
+    path = tmp_path / "review.json"
+    path.write_text(reopened.model_dump_json())
+    assert load_contract(path, "phase3-review-decisions", progress=False) == reopened
+    values["decisions"] = (_decision("seed_a", PhaseIIIReviewDecisionValue.APPROVE),)
+    with pytest.raises(ValidationError, match="no approved A"):
+        PhaseIIIReviewDecisionFile.from_content(**values)
+    with pytest.raises(ValidationError, match="at most 175"):
+        PhaseIIIReopenRequest(
+            selected_hypothesis_ids=tuple(
+                f"hypothesis_{index}" for index in range(176)
+            ),
+            maximum_reopened_attempts=175,
+        )
+    with pytest.raises(ValidationError, match="unique"):
+        PhaseIIIReopenRequest(
+            selected_hypothesis_ids=("a", "a"), maximum_reopened_attempts=2
+        )
 
 
 @pytest.mark.parametrize(

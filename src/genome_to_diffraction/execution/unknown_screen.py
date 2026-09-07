@@ -477,12 +477,18 @@ def _stage_unknown_pass1_owned_decisions(
     }[checkpoint]
 
     decision_path = _regular_file(decisions, label=f"{label} decision file")
-    if decision_path.suffix != ".tsv":
-        raise UnknownPass1ScreenError(f"{label} decisions must use an operator TSV")
+    suffixes = (
+        {".json", ".tsv"} if checkpoint is PhaseIIIReviewCheckpoint.A_SEED else {".tsv"}
+    )
+    if decision_path.suffix not in suffixes:
+        formats = "JSON or TSV" if len(suffixes) == 2 else "TSV"
+        raise UnknownPass1ScreenError(
+            f"{label} decisions must use an operator {formats} file"
+        )
     try:
         if not decision_path.read_bytes().isascii():
             raise UnknownPass1ScreenError(
-                f"{label} decision TSV must contain only ASCII"
+                f"{label} decision file must contain only ASCII"
             )
         if sha256_file(decision_path, progress=False) != confirmed_decisions_sha256:
             raise UnknownPass1ScreenError(
@@ -495,7 +501,7 @@ def _stage_unknown_pass1_owned_decisions(
         )
     except (ContractError, OSError) as error:
         raise UnknownPass1ScreenError(
-            f"{label} decision TSV violates its typed contract: {error}"
+            f"{label} decision file violates its typed contract: {error}"
         ) from error
     if not isinstance(decision_file, PhaseIIIReviewDecisionFile):
         raise UnknownPass1ScreenError(
@@ -560,7 +566,7 @@ def stage_unknown_pass1_selected_a_seeds(
     output_directory: Path,
     progress: bool = False,
 ) -> PhaseIIIReviewStageOutput:
-    """Stage one A-seed decision TSV through its independently owned package."""
+    """Stage A-seed TSV or JSON decisions through the independently owned package."""
 
     return _stage_unknown_pass1_owned_decisions(
         owned_run_registry=owned_run_registry,

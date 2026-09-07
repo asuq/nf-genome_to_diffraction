@@ -1,0 +1,25 @@
+{
+  "schema_version": "2.0",
+  "decision_file_id": "phase3review_5acdb39f6fa8c37853b45e93296e34ca14a03f5320ff2a7670dcfe88fd16abd6",
+  "checkpoint": "a_seed",
+  "owned_parent_run_id": "example-completed-screen",
+  "review_package_id": "phase3reviewpkg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "review_package_manifest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "decisions": [
+    {
+      "crystal_id": "example_crystal",
+      "item_id": "example_rejected_solution",
+      "decision": "reject",
+      "reviewer": "example_reviewer",
+      "reviewed_at": "2026-09-07T00:00:00Z",
+      "reason": "Example only: this A placement was rejected after inspection.",
+      "comment": null
+    }
+  ],
+  "reopen_request": {
+    "selected_hypothesis_ids": [
+      "mrhyp_example_alternative"
+    ],
+    "maximum_reopened_attempts": 1
+  }
+}

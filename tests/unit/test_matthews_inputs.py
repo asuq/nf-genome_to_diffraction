@@ -169,6 +169,8 @@ def test_insufficient_reference_stops_without_hypothesis_outputs(
     )
     assert diagnostic["reference_record_count"] == 117
     assert diagnostic["execution_status"] == "failed_input_contract"
+    with pytest.raises(MatthewsInputError, match="absent or empty"):
+        enumerate_matthews(request)
 
 
 @pytest.mark.parametrize("conflicting", (False, True))

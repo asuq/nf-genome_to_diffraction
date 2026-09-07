@@ -15680,3 +15680,30 @@ with a collapsed combined parent or a guessed command.
 - This is parser replay and local execution testing, not a new native Phenix
   scientific qualification. Next finish independently unassessed copy/residual
   reporting and hand off the isolated fix branch for the integrated gate.
+
+## 2026-09-07 - v0.3 reviewed alternative reopening authority
+
+- Extended the existing JSON A decision with explicit selected hypothesis IDs
+  and a 1--175 maximum; reviewer/time/reason remain on the ordinary non-empty
+  reject/defer rows. TSV capabilities and the five-approved-seed limit remain
+  unchanged. An explicit request requires all existing A targets to be decided
+  and no A approval.
+- Owned staging and the existing no-A planner now bind the entire review
+  package, source funnel, complete acquired-model inventory, native terminal
+  records and exact selection. Missing, substituted or failed execution cannot
+  clear the completeness requirement. Out-of-admission copy states can be
+  explicitly chosen after a rejected packed wave; every task still searches
+  one copy. The portable plan retains the confirmed review stage and package.
+- The existing closure-gated pass-2 validator rechecks those source/parent and
+  selection bindings before the existing Nextflow no-A graph. Known controls
+  can exercise that graph before RG7; unknown execution remains behind RG7.
+  Reopened reviews do not create another alternative inventory or extend the
+  single additional-attempt budget.
+- Validation passed: 152 focused contract, staging, source-ownership, funnel,
+  Matthews-input and portable pass-2 tests; targeted type/lint checks; valid JSON
+  example and documentation links. A real Nextflow stub consumed a staged JSON
+  rejection and reviewer-selected plan, scheduled exactly that hypothesis,
+  published its next owned A checkpoint and replayed entirely from cache.
+- Integrate the independently committed MR review inventory/export changes,
+  then run the complete locked gate on the combined fix branch. These local
+  checks establish no Phenix, Raven, unknown-composition or release acceptance.

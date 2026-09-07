@@ -318,6 +318,23 @@ class PhaseIIIReviewDecision(ContractModel):
         return self
 
 
+class PhaseIIIReopenRequest(ContractModel):
+    """Explicit bounded alternatives selected after an A checkpoint review."""
+
+    selected_hypothesis_ids: tuple[OperatorIdentifier, ...] = Field(
+        min_length=1, max_length=175
+    )
+    maximum_reopened_attempts: int = Field(ge=1, le=175)
+
+    @model_validator(mode="after")
+    def _validate_selection(self) -> Self:
+        if len(self.selected_hypothesis_ids) != len(set(self.selected_hypothesis_ids)):
+            raise ValueError("reopen hypothesis selection must be unique")
+        if len(self.selected_hypothesis_ids) > self.maximum_reopened_attempts:
+            raise ValueError("reopen selection exceeds its explicit attempt limit")
+        return self
+
+
 class PhaseIIIReviewDecisionFile(_ContentAddressedContract):
     """One checkpoint's decisions bound to an immutable parent review package."""
 
@@ -331,9 +348,25 @@ class PhaseIIIReviewDecisionFile(_ContentAddressedContract):
     review_package_id: NonEmptyString
     review_package_manifest_sha256: Sha256Hex
     decisions: tuple[PhaseIIIReviewDecision, ...] = Field(min_length=1)
+    reopen_request: PhaseIIIReopenRequest | None = None
 
     @model_validator(mode="after")
     def _validate_checkpoint_decisions(self) -> Self:
+        if self.reopen_request is not None:
+            if self.checkpoint is not PhaseIIIReviewCheckpoint.A_SEED:
+                raise ValueError(
+                    "reopen requests are valid only at the A-seed checkpoint"
+                )
+            if (
+                any(
+                    decision.decision is PhaseIIIReviewDecisionValue.APPROVE
+                    for decision in self.decisions
+                )
+                or len({decision.crystal_id for decision in self.decisions}) != 1
+            ):
+                raise ValueError(
+                    "reopening requires no approved A and one reviewed crystal"
+                )
         allowed = _ALLOWED_DECISIONS[self.checkpoint]
         target_keys: set[tuple[str, str]] = set()
         decisions_by_crystal: dict[str, list[PhaseIIIReviewDecision]] = {}
@@ -382,6 +415,7 @@ class PhaseIIIReviewDecisionFile(_ContentAddressedContract):
 
 
 __all__ = [
+    "PhaseIIIReopenRequest",
     "PhaseIIIReviewCheckpoint",
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",

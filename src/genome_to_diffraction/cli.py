@@ -1100,7 +1100,7 @@ def _build_parser() -> argparse.ArgumentParser:
     localisation_stage_batch_parser.add_argument("--outdir", type=Path, required=True)
     localisation_reopen_parser = localisation_actions.add_parser(
         "plan-batch-reopen",
-        help="reopen retained exclusions only after complete zero packing",
+        help="reopen zero-pack exclusions or explicitly reviewed A alternatives",
     )
     localisation_reopen_parser.add_argument("--funnel", type=Path, required=True)
     localisation_reopen_parser.add_argument(
@@ -1113,6 +1113,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--maximum-reopened-attempts", type=int, default=175
     )
     localisation_reopen_parser.add_argument("--outdir", type=Path, required=True)
+    localisation_reopen_parser.add_argument("--review-package", type=Path)
+    localisation_reopen_parser.add_argument("--review-decisions", type=Path)
     localisation_tasks_parser = localisation_actions.add_parser(
         "build-tasks", help="emit one offline task per exact sequence group"
     )
@@ -2554,6 +2556,8 @@ def _run_localisation(args: argparse.Namespace) -> int:
                 localisation_bundle=args.localisation_bundle,
                 maximum_reopened_attempts=args.maximum_reopened_attempts,
                 output_directory=args.outdir,
+                review_package_manifest=args.review_package,
+                review_decisions=args.review_decisions,
             )
         )
         print(f"Localisation reopen {output.plan.status.value}: {output.plan_json}")

@@ -564,7 +564,7 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_first_copy_funnel",
-                        "multi-source-first-copy-funnel-v7-dynamic-matthews",
+                        "multi-source-first-copy-funnel-v8-reviewed-alternatives",
                     ),
                     (
                         "phase3_mr_resources",
@@ -580,7 +580,7 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_no_a_expansion",
-                        "phase3-no-a-expansion-v2",
+                        "phase3-no-a-expansion-v3-reviewed-selection",
                     ),
                     (
                         "phase3_pass2_a_seed",

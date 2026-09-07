@@ -24,6 +24,7 @@ from genome_to_diffraction.review import (
     resolve_phase3_owned_review_package,
     validate_phase3_owned_run_registry,
 )
+from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.v2 import (
     ExecutionArtifactIdentity,
     ExecutionToolIdentity,
@@ -368,9 +369,11 @@ def test_registers_path_free_records_and_resolves_exact_owned_package(
 
 
 @pytest.mark.parametrize("decision", ("approve", "reject", "defer"))
+@pytest.mark.parametrize("decision_format", ("tsv", "json"))
 def test_stages_a_seed_decisions_only_through_owned_unknown_screen(
     tmp_path: Path,
     decision: str,
+    decision_format: str,
 ) -> None:
     registry, _, _ = _register(tmp_path)
     decisions, checksum = _a_seed_tsv(
@@ -378,6 +381,11 @@ def test_stages_a_seed_decisions_only_through_owned_unknown_screen(
         registry,
         rows=((CRYSTAL_A, f"{CRYSTAL_A}_target", decision),),
     )
+    if decision_format == "json":
+        record = load_contract(decisions, "phase3-review-decisions", progress=False)
+        decisions = tmp_path / "a-seed-decisions.json"
+        decisions.write_text(record.model_dump_json())
+        checksum = sha256_file(decisions)
     destination = tmp_path / "approved-a-seeds"
 
     output = stage_unknown_pass1_selected_a_seeds(

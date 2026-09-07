@@ -93,6 +93,8 @@ records, sequence groups, and source-protein records. Outputs are the complete
 Matthews JSONL, TSV, Parquet and Markdown inventories. Each hypothesis binds the
 preflight, sequence group, copy count, probability backend, and dynamic-range
 backend and configured preference window in its content identity.
+The output directory must be absent or empty so a failed request cannot expose
+successful hypothesis files left by an earlier run.
 
 Malformed reference bytes, a checksum mismatch, unsupported backend metadata,
 insufficient resolution-conditioned observations, invalid mass/volume/solvent

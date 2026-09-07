@@ -69,6 +69,7 @@ from genome_to_diffraction.schemas.v2.phaser_placements import (
     PhaserPlacementComponentGroup,
 )
 from genome_to_diffraction.schemas.v2.review import (
+    PhaseIIIReopenRequest,
     PhaseIIIReviewCheckpoint,
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
@@ -152,6 +153,7 @@ __all__ = [
     "PhaseIIIExecutionIdentity",
     "PhaseIIIOwnedReviewPackage",
     "PhaseIIIOwnedRunRegistry",
+    "PhaseIIIReopenRequest",
     "PhaseIIIReviewCheckpoint",
     "PhaseIIIReviewDecision",
     "PhaseIIIReviewDecisionFile",

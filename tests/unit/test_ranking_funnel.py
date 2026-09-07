@@ -558,7 +558,7 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
     assert all(item.status is MrHypothesisStatus.SKIPPED for item in deferred)
     assert all(
         item.priority_features["localisation_first_wave_reason"]
-        == "retained_excluded_reopen_only_after_complete_zero_pack"
+        == "retained_excluded_requires_reopening_authority"
         for item in deferred
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
@@ -746,7 +746,7 @@ def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
         item.status is MrHypothesisStatus.SKIPPED
         and item.priority_features["first_copy_execution_disposition"]
         in {
-            "deferred_initial_25_cap_reopen_only_after_complete_zero_pack",
+            "deferred_initial_25_cap_requires_reopening_authority",
             "deferred_expected_copy_state_requires_reviewed_selection",
         }
         for item in deferred

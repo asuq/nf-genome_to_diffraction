@@ -1640,7 +1640,7 @@ def build_diverse_first_copy_funnel(
                 "priority_features": {
                     **candidate.hypothesis.priority_features,
                     "localisation_first_wave_reason": (
-                        "retained_excluded_reopen_only_after_complete_zero_pack"
+                        "retained_excluded_requires_reopening_authority"
                     ),
                 },
                 "status": MrHypothesisStatus.SKIPPED,
@@ -1663,7 +1663,7 @@ def build_diverse_first_copy_funnel(
                 "priority_features": {
                     **item.hypothesis.priority_features,
                     "first_copy_execution_disposition": (
-                        "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+                        "deferred_initial_25_cap_requires_reopening_authority"
                         if item.hypothesis.priority_features[
                             "initial_admission_eligible"
                         ]

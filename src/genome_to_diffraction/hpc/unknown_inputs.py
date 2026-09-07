@@ -233,14 +233,15 @@ def _validate_localisation_authority(
     if (
         adapters.get("phase3_localisation_batch") != policy.adapter_version
         or adapters.get("phase3_first_copy_funnel")
-        != "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        != "multi-source-first-copy-funnel-v8-reviewed-alternatives"
         or adapters.get("phase3_mr_resources") != MR_RESOURCE_ADAPTER_VERSION
         or adapters.get("phase3_all_model_registry") != "all-eligible-model-registry-v3"
         or adapters.get("phase3_composition_beam")
         != "phase3-composition-beam-depth-v2-complete-outcomes"
         or adapters.get("phase3_composition_depth")
         != "phase3-composition-depth-input-v1"
-        or adapters.get("phase3_no_a_expansion") != "phase3-no-a-expansion-v2"
+        or adapters.get("phase3_no_a_expansion")
+        != "phase3-no-a-expansion-v3-reviewed-selection"
         or adapters.get("phase3_pass2_a_seed") != "phase3-pass2-a-seed-v1"
     ):
         raise UnknownDiscoveryInputError(
