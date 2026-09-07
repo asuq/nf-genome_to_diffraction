@@ -384,10 +384,10 @@ def build_composition_depth_inputs(
         "phase3_all_model_registry": "all-eligible-model-registry-v3",
         "phase3_component_coordinates": ("phaser-component-coordinate-inventory-v2"),
         "phase3_composition_attempt": (
-            "phase3-composition-attempt-execution-v2-resource-plan"
+            "phase3-composition-attempt-execution-v3-terminal-failures"
         ),
         "phase3_mr_resources": MR_RESOURCE_ADAPTER_VERSION,
-        "phase3_composition_beam": "phase3-composition-beam-depth-v1",
+        "phase3_composition_beam": "phase3-composition-beam-depth-v2-complete-outcomes",
         "phase3_composition_depth": _ADAPTER_VERSION,
     }
     if any(

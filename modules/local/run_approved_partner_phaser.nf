@@ -35,6 +35,7 @@ process RUN_APPROVED_PARTNER_PHASER {
         --mtz '${mtz}' \
         --phenix-manifest '${phenix_manifest}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir approved_partner_search
     """
 

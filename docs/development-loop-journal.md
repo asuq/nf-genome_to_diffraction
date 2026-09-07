@@ -15645,3 +15645,23 @@ with a collapsed combined parent or a guessed command.
   integrate the exact release source, and qualify on Raven only after the owned
   migration and prerequisite evidence are complete. Main and live runs remain
   untouched; RF-G4 and release acceptance remain held pending native evidence.
+
+## 2026-09-07 - Connect native failure evidence to the existing single retry
+
+- Corrected C02 on the isolated release branch. First-copy, additional-copy,
+  partner, multi-fixed and composition CLI routes now propagate only explicit
+  retryable first failures as exit 75. Deterministic and exhausted candidate
+  failures retain normal terminal records; infrastructure and contract failures
+  still fail. The existing Nextflow callers pass their resource-attempt number.
+- Composition results retain the native failure type and observed exit under
+  the same logical attempt ID across both resource attempts. Current selected-
+  solution and composition-depth adapter identities are required by their
+  staging and execution consumers. M6's copy-task CLI forwards the same retry
+  attempt to the shared additional-copy adapter.
+- Validation: 41 focused CLI/composition/M6 seed-selection checks passed at
+  the integration point, including an actual one-attempt adapter exercised at
+  both resource allocations. Focused Ruff and type checks passed. No new
+  scientific runtime, remote qualification or release completion is claimed.
+- Next integrate reviewed reopening and bounded log/copy-completeness updates,
+  reconcile remaining schema/cache/fixture versions, then run the complete
+  locked gate before exact-source CI and any authorised Raven qualification.

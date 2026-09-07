@@ -35,6 +35,7 @@ process RUN_FIRST_COPY_PHASER {
         --mtz '${mtz}' \
         --phenix-manifest '${phenix_manifest}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir 'first_copy_phaser_${hypothesis.baseName}'
     """
 

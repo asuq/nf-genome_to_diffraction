@@ -63,6 +63,7 @@ from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
 from genome_to_diffraction.schemas.mr_resources import MR_RESOURCE_ADAPTER_VERSION
 from genome_to_diffraction.schemas.results import (
     NormalisedMrResult,
+    PhaserExecutionFailure,
     SequenceGroupRecord,
 )
 from genome_to_diffraction.schemas.v2 import (
@@ -83,9 +84,9 @@ from genome_to_diffraction.schemas.v2.composition_attempts import (
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "phase3-composition-attempt-execution-v2-resource-plan"
-_PARTNER_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v8-phase3-diffraction"
-_MULTI_FIXED_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v2-diffraction"
+_ADAPTER_VERSION = "phase3-composition-attempt-execution-v3-terminal-failures"
+_PARTNER_ADAPTER_VERSION = "phenix-fixed-a-joint-b-v10-selected-solution"
+_MULTI_FIXED_ADAPTER_VERSION = "phenix-multi-fixed-joint-component-v3-selected-solution"
 _PLACEMENT_ADAPTER_VERSION = "phaser-component-coordinate-inventory-v2"
 _TERMINAL_WITHOUT_STATE = frozenset(
     {
@@ -110,7 +111,7 @@ class CompositionAttemptExecutionResult(_ContentAddressedContract):
 
     schema_version: Literal["2.0"]
     adapter_version: Literal[
-        "phase3-composition-attempt-execution-v2-resource-plan"
+        "phase3-composition-attempt-execution-v3-terminal-failures"
     ] = _ADAPTER_VERSION
     attempt_result_id: NonEmptyString
     attempt_id: CompositionAttemptIdentifier
@@ -121,6 +122,7 @@ class CompositionAttemptExecutionResult(_ContentAddressedContract):
     parent_state_id: NonEmptyString
     candidate_component_spec_id: NonEmptyString
     execution_status: ExecutionStatus
+    execution_failure: PhaserExecutionFailure | None = None
     search_result_sha256: Sha256Hex
     placement_inventory_sha256: Sha256Hex | None = None
     score_evidence_id: NonEmptyString | None = None
@@ -137,6 +139,8 @@ class CompositionAttemptExecutionResult(_ContentAddressedContract):
 
     @model_validator(mode="after")
     def _validate_terminal_evidence(self) -> Self:
+        if self.execution_failure is not None:
+            self.execution_failure.validate_status(self.execution_status)
         evidence = (
             self.placement_inventory_sha256,
             self.score_evidence_id,
@@ -792,6 +796,7 @@ def execute_composition_attempt(
             parent_state_id=parent.state_id,
             candidate_component_spec_id=candidate.component_spec_id,
             execution_status=execution_status,
+            execution_failure=native_result.execution_failure,
             search_result_sha256=search_sha256,
             warnings=warnings,
         )

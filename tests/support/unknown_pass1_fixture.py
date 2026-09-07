@@ -552,11 +552,11 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_composition_attempt",
-                        "phase3-composition-attempt-execution-v2-resource-plan",
+                        "phase3-composition-attempt-execution-v3-terminal-failures",
                     ),
                     (
                         "phase3_composition_beam",
-                        "phase3-composition-beam-depth-v1",
+                        "phase3-composition-beam-depth-v2-complete-outcomes",
                     ),
                     (
                         "phase3_composition_depth",
@@ -576,7 +576,7 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_multi_fixed_search",
-                        "phenix-multi-fixed-joint-component-v2-diffraction",
+                        "phenix-multi-fixed-joint-component-v3-selected-solution",
                     ),
                     (
                         "phase3_no_a_expansion",
@@ -588,7 +588,7 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_partner_search",
-                        "phenix-fixed-a-joint-b-v8-phase3-diffraction",
+                        "phenix-fixed-a-joint-b-v10-selected-solution",
                     ),
                     ("unknown_pass1_inventory", "unknown-pass1-screen-v1"),
                     ("unknown_pass1_stub", "unknown-pass1-nextflow-stub-v1"),

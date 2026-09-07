@@ -16,7 +16,47 @@ from genome_to_diffraction.schemas.mr_resources import (
     MrResourcePlan,
     mr_resource_tier,
 )
-from genome_to_diffraction.status import InputContractError
+from genome_to_diffraction.schemas.results import PhaserExecutionFailure
+from genome_to_diffraction.status import (
+    ExecutionStatus,
+    InfrastructureError,
+    InputContractError,
+)
+
+
+def mr_task_exit_code(
+    *,
+    execution_status: ExecutionStatus,
+    execution_failure: PhaserExecutionFailure | None,
+    resource_attempt: int,
+) -> int:
+    """Request the existing single retry only from explicit native evidence.
+
+    Deterministic and exhausted candidate failures retain their typed result
+    and complete the task normally. Environment and input-contract failures
+    remain fatal. Error-message text and missing metadata never grant a retry.
+    """
+
+    if isinstance(resource_attempt, bool) or resource_attempt not in (1, 2):
+        raise InputContractError("MR resource attempt must be one or two")
+    if execution_status is ExecutionStatus.FAILED_INFRASTRUCTURE:
+        raise InfrastructureError("MR result records an infrastructure failure")
+    if execution_status is ExecutionStatus.FAILED_INPUT_CONTRACT:
+        raise InputContractError("MR result records an input-contract failure")
+    if execution_failure is not None:
+        execution_failure.validate_status(execution_status)
+        if resource_attempt == 1 and execution_failure.retryable:
+            return 75
+    if execution_status not in {
+        ExecutionStatus.COMPLETED_HIT,
+        ExecutionStatus.COMPLETED_NO_HIT,
+        ExecutionStatus.FAILED_TOOL_EXECUTION,
+        ExecutionStatus.FAILED_PARSE,
+    }:
+        raise InputContractError(
+            "MR result does not contain a terminal candidate status"
+        )
+    return 0
 
 
 class MrResourcePlanError(InputContractError):
@@ -153,6 +193,7 @@ __all__ = [
     "MrResourcePlanError",
     "build_mr_resource_plan",
     "count_polymer_atoms",
+    "mr_task_exit_code",
     "resources_for_attempt",
     "verify_mr_thread_allocation",
 ]

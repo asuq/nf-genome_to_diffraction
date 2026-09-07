@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -15,7 +16,9 @@ from genome_to_diffraction.execution import (
     write_composition_attempt_inventory,
 )
 from genome_to_diffraction.mr import PartnerSearchRequest, PhaserPerPlacementRequest
+from genome_to_diffraction.mr_resources import mr_task_exit_code
 from genome_to_diffraction.schemas.manifests import PhenixInstallManifest
+from genome_to_diffraction.schemas.results import PhaserExecutionFailure
 from genome_to_diffraction.schemas.v2 import (
     ComponentIdentitySupport,
     ComponentPlacement,
@@ -45,6 +48,7 @@ def _request(
     monkeypatch: pytest.MonkeyPatch,
     *,
     status: ExecutionStatus,
+    execution_failure: PhaserExecutionFailure | None = None,
 ) -> tuple[CompositionAttemptExecutionRequest, CompositionAttemptInventory]:
     mtz = tmp_path / "input.mtz"
     mtz.write_bytes(b"synthetic MTZ bytes\n")
@@ -203,6 +207,7 @@ def _request(
         if status is not ExecutionStatus.COMPLETED_HIT:
             return SimpleNamespace(
                 execution_status=status,
+                execution_failure=execution_failure,
                 search_id="search_no_hit",
                 tool_version="Phaser test",
                 combined_llg=None,
@@ -341,6 +346,41 @@ def _request(
         ),
         inventory,
     )
+
+
+def test_native_retry_metadata_survives_one_logical_composition_search(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failure = PhaserExecutionFailure.from_native(returncode=137, timed_out=False)
+    request, _ = _request(
+        tmp_path,
+        monkeypatch,
+        status=ExecutionStatus.FAILED_TOOL_EXECUTION,
+        execution_failure=failure,
+    )
+    first = execute_composition_attempt(request)
+    second = execute_composition_attempt(
+        replace(
+            request,
+            resource_attempt=2,
+            threads=request.threads * 2,
+            output_directory=tmp_path / "retry",
+        )
+    )
+    assert first.result.attempt_id == second.result.attempt_id == request.attempt_id
+    assert first.result.execution_failure == second.result.execution_failure == failure
+    assert first.result.resource_attempt == 1
+    assert second.result.resource_attempt == 2
+    assert first.checksums.is_file() and second.checksums.is_file()
+    assert [
+        mr_task_exit_code(
+            execution_status=item.result.execution_status,
+            execution_failure=item.result.execution_failure,
+            resource_attempt=item.result.resource_attempt,
+        )
+        for item in (first, second)
+    ] == [75, 0]
 
 
 def test_composition_runtime_emits_packed_claim_free_child(

@@ -169,6 +169,7 @@ from genome_to_diffraction.mr.stage_add_copy import (
     prepare_live_add_copy_stage,
     prepare_phase3_seed_stage,
 )
+from genome_to_diffraction.mr_resources import mr_task_exit_code
 from genome_to_diffraction.phenix.errors import PhenixInstallCommandError
 from genome_to_diffraction.phenix.installer import InstallRequest, install_phenix
 from genome_to_diffraction.phenix.interface_probe import (
@@ -938,6 +939,7 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_copy_task.add_argument("--seed-solution-id", required=True)
     m6_copy_task.add_argument("--phenix-manifest", type=Path, required=True)
     m6_copy_task.add_argument("--threads", type=int, required=True)
+    m6_copy_task.add_argument("--resource-attempt", type=int, choices=(1, 2), default=1)
     m6_copy_task.add_argument("--outdir", type=Path, required=True)
     m6_finalist_task = benchmark_actions.add_parser(
         "select-m6-finalists", help="select retained parents for one M6 case"
@@ -1412,7 +1414,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "--execution-identity", type=Path, required=True
     )
     composition_run_parser.add_argument("--threads", type=int, default=1)
-    composition_run_parser.add_argument("--resource-attempt", type=int, default=1)
+    composition_run_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
     composition_run_parser.add_argument("--timeout-seconds", type=float)
     composition_run_parser.add_argument("--outdir", type=Path, required=True)
     composition_plan_parser = composition_actions.add_parser(
@@ -1548,7 +1552,9 @@ def _build_parser() -> argparse.ArgumentParser:
     first_copy_parser.add_argument("--resource-plan", type=Path)
     first_copy_parser.add_argument("--outdir", type=Path, required=True)
     first_copy_parser.add_argument("--threads", type=int, default=1)
-    first_copy_parser.add_argument("--resource-attempt", type=int, default=1)
+    first_copy_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
     first_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -1595,7 +1601,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="advance one supported copy at a time to expected n or first stop",
     )
     add_copy_parser.add_argument("--threads", type=int, default=1)
-    add_copy_parser.add_argument("--resource-attempt", type=int, default=1)
+    add_copy_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
     add_copy_parser.add_argument(
         "--timeout-seconds",
         type=float,
@@ -1639,6 +1647,9 @@ def _build_parser() -> argparse.ArgumentParser:
     approved_partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
     approved_partner_parser.add_argument("--outdir", type=Path, required=True)
     approved_partner_parser.add_argument("--threads", type=int, default=1)
+    approved_partner_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
     approved_partner_parser.add_argument("--timeout-seconds", type=float)
     planned_partner_parser = mr_actions.add_parser(
         "planned-partner",
@@ -1655,6 +1666,9 @@ def _build_parser() -> argparse.ArgumentParser:
     planned_partner_parser.add_argument("--phenix-manifest", type=Path, required=True)
     planned_partner_parser.add_argument("--outdir", type=Path, required=True)
     planned_partner_parser.add_argument("--threads", type=int, default=1)
+    planned_partner_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
     planned_partner_parser.add_argument("--timeout-seconds", type=float)
     partner_summary_parser = mr_actions.add_parser(
         "summarize-partners",
@@ -1671,6 +1685,9 @@ def _build_parser() -> argparse.ArgumentParser:
     partner_parser.add_argument("--outdir", type=Path, required=True)
     partner_parser.add_argument("--threads", type=int, default=1)
     partner_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
+    partner_parser.add_argument(
         "--timeout-seconds",
         type=float,
         help="optional explicit Phaser deadline; by default no deadline is imposed",
@@ -1686,6 +1703,9 @@ def _build_parser() -> argparse.ArgumentParser:
     multi_fixed_parser.add_argument("--phenix-manifest", type=Path, required=True)
     multi_fixed_parser.add_argument("--outdir", type=Path, required=True)
     multi_fixed_parser.add_argument("--threads", type=int, default=1)
+    multi_fixed_parser.add_argument(
+        "--resource-attempt", type=int, choices=(1, 2), default=1
+    )
     multi_fixed_parser.add_argument("--timeout-seconds", type=float)
     placement_parser = mr_actions.add_parser(
         "collect-per-placement",
@@ -2918,6 +2938,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             args.phenix_manifest,
             args.outdir,
             threads=args.threads,
+            resource_attempt=args.resource_attempt,
         )
         print(f"Completed M6 copy task: {result}")
         return 0
@@ -3496,7 +3517,11 @@ def _run_composition(args: argparse.Namespace) -> int:
             f"Composition attempt {output.result.attempt_id} "
             f"{output.result.execution_status.value}: {output.result_json}"
         )
-        return 0
+        return mr_task_exit_code(
+            execution_status=output.result.execution_status,
+            execution_failure=output.result.execution_failure,
+            resource_attempt=args.resource_attempt,
+        )
     if args.composition_action == "plan-depth":
         output = build_composition_depth_inputs(
             CompositionDepthInputRequest(
@@ -3671,14 +3696,22 @@ def _run_mr(args: argparse.Namespace) -> int:
                 f"Additional-copy MR series retained {len(series.attempts)} "
                 f"attempt(s): {series.summary_json}"
             )
-            return 0
+            return mr_task_exit_code(
+                execution_status=series.attempts[-1].result.execution_status,
+                execution_failure=series.attempts[-1].result.execution_failure,
+                resource_attempt=args.resource_attempt,
+            )
         add_copy_output = run_additional_copy_phaser(request)
         print(
             "Additional-copy MR "
             f"{add_copy_output.result.execution_status.value}: "
             f"{add_copy_output.result_json}"
         )
-        return 0
+        return mr_task_exit_code(
+            execution_status=add_copy_output.result.execution_status,
+            execution_failure=add_copy_output.result.execution_failure,
+            resource_attempt=args.resource_attempt,
+        )
     if args.mr_action == "collect-per-placement":
         placement_output = collect_phaser_per_placement_outputs(
             PhaserPerPlacementRequest(
@@ -3728,7 +3761,11 @@ def _run_mr(args: argparse.Namespace) -> int:
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
         )
-        return 0
+        return mr_task_exit_code(
+            execution_status=partner_output.result.execution_status,
+            execution_failure=partner_output.result.execution_failure,
+            resource_attempt=args.resource_attempt,
+        )
     if args.mr_action == "search-component":
         component_result = run_multi_fixed_search(
             manifest_path=args.manifest,
@@ -3745,7 +3782,11 @@ def _run_mr(args: argparse.Namespace) -> int:
             f"{component_result.execution_status.value}: "
             f"{args.outdir / 'component_search_result.json'}"
         )
-        return 0
+        return mr_task_exit_code(
+            execution_status=component_result.execution_status,
+            execution_failure=component_result.execution_failure,
+            resource_attempt=args.resource_attempt,
+        )
     if args.mr_action == "approved-partner":
         partner_output = run_approved_partner_search(
             ApprovedPartnerSearchRequest(
@@ -3767,7 +3808,11 @@ def _run_mr(args: argparse.Namespace) -> int:
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
         )
-        return 0
+        return mr_task_exit_code(
+            execution_status=partner_output.result.execution_status,
+            execution_failure=partner_output.result.execution_failure,
+            resource_attempt=args.resource_attempt,
+        )
     if args.mr_action == "planned-partner":
         partner_output = run_planned_partner_search(
             PlannedPartnerSearchRequest(
@@ -3791,7 +3836,11 @@ def _run_mr(args: argparse.Namespace) -> int:
             f"{partner_output.result.execution_status.value}: "
             f"{partner_output.result_json}"
         )
-        return 0
+        return mr_task_exit_code(
+            execution_status=partner_output.result.execution_status,
+            execution_failure=partner_output.result.execution_failure,
+            resource_attempt=args.resource_attempt,
+        )
     if args.mr_action == "summarize-partners":
         summary = summarize_partner_attempts(
             PartnerSummaryRequest(
@@ -3831,7 +3880,11 @@ def _run_mr(args: argparse.Namespace) -> int:
         )
     )
     print(f"First-copy MR {output.result.execution_status.value}: {output.result_json}")
-    return 0
+    return mr_task_exit_code(
+        execution_status=output.result.execution_status,
+        execution_failure=output.result.execution_failure,
+        resource_attempt=args.resource_attempt,
+    )
 
 
 def _run_review(args: argparse.Namespace) -> int:

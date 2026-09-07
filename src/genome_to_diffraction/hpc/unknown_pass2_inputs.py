@@ -285,10 +285,12 @@ def _validate_source(
                 "phaser-component-coordinate-inventory-v2"
             ),
             "phase3_composition_attempt": (
-                "phase3-composition-attempt-execution-v2-resource-plan"
+                "phase3-composition-attempt-execution-v3-terminal-failures"
             ),
             "phase3_mr_resources": MR_RESOURCE_ADAPTER_VERSION,
-            "phase3_composition_beam": "phase3-composition-beam-depth-v1",
+            "phase3_composition_beam": (
+                "phase3-composition-beam-depth-v2-complete-outcomes"
+            ),
             "phase3_composition_depth": "phase3-composition-depth-input-v1",
             "phase3_no_a_expansion": "phase3-no-a-expansion-v2",
             "phase3_pass2_a_seed": "phase3-pass2-a-seed-v1",

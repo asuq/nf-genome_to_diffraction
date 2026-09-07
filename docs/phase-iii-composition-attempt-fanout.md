@@ -119,6 +119,15 @@ Reaching a search boundary makes no residual-content or completeness claim.
 The depth adapter is `phase3-composition-beam-depth-v2-complete-outcomes`.
 Malformed, duplicated or stale evidence still fails explicitly.
 
+The native attempt adapter is
+`phase3-composition-attempt-execution-v3-terminal-failures`. It retains typed
+timeout/tool-exit metadata from the selected partner or multi-fixed adapter.
+The public CLI and M6 can use `mr_task_exit_code`: only explicitly retryable
+first failures return 75 to Nextflow. A second resource attempt, a deterministic
+tool failure or a parser failure returns normally with its failure record;
+infrastructure and input-contract failures remain fatal. The resource attempt
+is separate from the immutable logical search ID and scientific attempt budget.
+
 Nextflow groups on channel completion with one sentinel for each planned
 crystal. Exhausted recognised resource failures and missing-output tasks can
 therefore reach collection without suppressing an entire group. Contract and

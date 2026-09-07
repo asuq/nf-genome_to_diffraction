@@ -37,6 +37,7 @@ process RUN_PLANNED_PARTNER_PHASER {
         --mtz '${mtz}' \
         --phenix-manifest '${phenix_manifest}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir 'planned_partner_${candidate_id}'
     """
 

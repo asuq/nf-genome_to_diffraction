@@ -36,6 +36,7 @@ process RUN_ADDITIONAL_COPY_PHASER {
         --expected-search-model-sha256 '${seed[2]}' \
         --phenix-manifest '${phenix_manifest}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --until-expected \
         --outdir 'additional_copy_${seed[0]}'
     """

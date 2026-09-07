@@ -236,7 +236,8 @@ def _validate_localisation_authority(
         != "multi-source-first-copy-funnel-v7-dynamic-matthews"
         or adapters.get("phase3_mr_resources") != MR_RESOURCE_ADAPTER_VERSION
         or adapters.get("phase3_all_model_registry") != "all-eligible-model-registry-v3"
-        or adapters.get("phase3_composition_beam") != "phase3-composition-beam-depth-v1"
+        or adapters.get("phase3_composition_beam")
+        != "phase3-composition-beam-depth-v2-complete-outcomes"
         or adapters.get("phase3_composition_depth")
         != "phase3-composition-depth-input-v1"
         or adapters.get("phase3_no_a_expansion") != "phase3-no-a-expansion-v2"
