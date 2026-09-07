@@ -15427,3 +15427,21 @@ with a collapsed combined parent or a guessed command.
   regression reproduces it and verifies the corrected standard byte limits and
   checksum rejection. Re-deploy and re-collect the retained outputs; do not
   rerun the scientific job or infer its scientific outcome before inspection.
+
+## 2026-09-07 - Five-job cap qualified; representative evidence collected
+
+- Capped source `3d142b396272` passed all six CI lanes in run `34137159448`
+  after focused local cap and transfer-regression checks, and its exact reviewed
+  wrappers were deployed. The temporary identification ceiling is one controller
+  plus four shared preparation/MR child slots. No other jobs were modified.
+- The corrected collector retrieved the completed representative run without
+  rerunning scientific work. All collected checksums verified; native task,
+  resource, attempt, command and output records were classified. The retained
+  placements do not establish identity. Private results remain outside Git.
+- A new full inventory explicitly reserves completed representative work and
+  every previously reserved case without importing scientific caches. Model
+  gaps remain unexecuted records, not no-hits. One full-input staging operation
+  has been initiated on the exact capped, CI-qualified source.
+- Next resolve that existing staging response, record its exact ownership and
+  submit once. Do not duplicate staging or lift the five-job cap without explicit
+  user direction. Candidate assessments and the full v0.3 programme remain open.
