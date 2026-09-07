@@ -15,26 +15,17 @@ workflow PHASE3_COMPOSITION_DEPTH_WORKFLOW {
 
     main:
     planned = PLAN_PHASE3_COMPOSITION_DEPTH(depth_inputs)
-    runnable = planned.filter { crystalId, bundle, sourceItem ->
-        def record = new groovy.json.JsonSlurper().parseText(
-            bundle.resolve('composition_depth_input_manifest.json').toFile().text
-        )
-        (record.attempt_count as Integer) > 0
+    // A plan contributes a sentinel even when every task lacks an output.
+    // Wait for channel completion: expected-size grouping would drop partial
+    // and zero-output groups after exhausted scheduler failures.
+    expected = planned.map { crystalId, bundle, sourceItem ->
+        tuple(crystalId, bundle, sourceItem, null)
     }
-    empty = planned.filter { crystalId, bundle, sourceItem ->
-        def record = new groovy.json.JsonSlurper().parseText(
-            bundle.resolve('composition_depth_input_manifest.json').toFile().text
-        )
-        (record.attempt_count as Integer) == 0
-    }.map { crystalId, bundle, sourceItem ->
-        tuple(crystalId, bundle, sourceItem, [] as List<Path>)
-    }
-    attempts = runnable.flatMap { crystalId, bundle, sourceItem ->
+    attempts = planned.flatMap { crystalId, bundle, sourceItem ->
         def inventory = new groovy.json.JsonSlurper().parseText(
             bundle.resolve('composition_attempt_inventory.json').toFile().text
         )
         def rows = inventory.attempts as List
-        def key = groupKey(crystalId as String, rows.size())
         rows.collect { row ->
             tuple(
                 crystalId as String,
@@ -47,7 +38,6 @@ workflow PHASE3_COMPOSITION_DEPTH_WORKFLOW {
                 sourceItem[14] as Path,
                 sourceItem[15] as Path,
                 sourceItem[13] as Path,
-                key,
                 bundle as Path,
                 sourceItem,
                 row
@@ -55,21 +45,23 @@ workflow PHASE3_COMPOSITION_DEPTH_WORKFLOW {
         }
     }
     executed = RUN_PHASE3_BEAM_ATTEMPT(attempts)
-    grouped = executed.groupTuple().map {
-        key, crystalIds, bundles, sourceItems, results ->
-        def crystals = (crystalIds as List<String>).toSet()
+    grouped = executed.mix(expected).groupTuple().map {
+        crystalId, bundles, sourceItems, results ->
         def bundlePaths = (bundles as List<Path>).toSet()
-        if (crystals.size() != 1 || bundlePaths.size() != 1) {
+        if (bundlePaths.size() != 1) {
             error 'composition depth attempt group changed crystal or plan'
         }
         tuple(
-            key.groupTarget as String,
+            crystalId as String,
             bundles[0] as Path,
             sourceItems[0],
-            results as List<Path>
+            results.findAll { it != null } as List<Path>,
+            file("${params.outdir}/pipeline_info/trace.tsv").toString(),
+            workflow.sessionId.toString(),
+            workflow.workDir.toString()
         )
     }
-    collected = COLLECT_PHASE3_COMPOSITION_DEPTH(grouped.mix(empty))
+    collected = COLLECT_PHASE3_COMPOSITION_DEPTH(grouped)
 
     emit:
     results: Tuple = collected

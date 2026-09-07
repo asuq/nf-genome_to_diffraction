@@ -1,5 +1,6 @@
 """Focused tests for deterministic Phase III depth collection."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -13,9 +14,14 @@ from genome_to_diffraction.execution import (
     CompositionBeamCollectionRequest,
     CompositionBeamDepthStatus,
     collect_composition_beam_depth,
+    write_composition_attempt_inventory,
 )
+from genome_to_diffraction.execution.composition_beam import CompositionBeamError
 from genome_to_diffraction.execution.composition_runtime import (
     CompositionAttemptExecutionResult,
+)
+from genome_to_diffraction.execution.composition_task_evidence import (
+    CompositionTaskEvidenceError,
 )
 from genome_to_diffraction.review import build_pass2_review_packages
 from genome_to_diffraction.schemas.v2 import (
@@ -28,6 +34,7 @@ from genome_to_diffraction.schemas.v2 import (
     PhaserPlacementComponentGroup,
 )
 from genome_to_diffraction.status import ExecutionStatus
+from tests.unit import test_composition_attempt_inventory as inventory_fixture
 from tests.unit.test_composition_runtime import _request
 
 
@@ -49,9 +56,15 @@ def _write_attempt_checksums(root: Path) -> Path:
     return path
 
 
-def _packed_attempt(root: Path, inventory) -> Path:
-    task = inventory.attempts[0]
-    execution_input = inventory.execution_inputs[0]
+def _packed_attempt(
+    root: Path, inventory, *, index: int = 0, llg: float = 1150.0, tfz: float = 14.0
+) -> Path:
+    task = inventory.attempts[index]
+    execution_input = next(
+        item
+        for item in inventory.execution_inputs
+        if item.execution_input_id == task.component_execution_input_id
+    )
     parent = execution_input.parent_state
     candidate = execution_input.selected_candidate.hypothesis.component
     root.mkdir()
@@ -138,8 +151,8 @@ def _packed_attempt(root: Path, inventory) -> Path:
         execution_input=execution_input,
         placement_inventory=placement_inventory,
         score_ensemble_id=f"ensemble_{candidate.label}",
-        combined_llg=1150.0,
-        component_tfz=14.0,
+        combined_llg=llg,
+        component_tfz=tfz,
         packing_passed=True,
     )
     score_path = root / "component_score_evidence.json"
@@ -194,7 +207,13 @@ def _packed_attempt(root: Path, inventory) -> Path:
     return root
 
 
-def _no_hit_attempt(root: Path, inventory, task) -> Path:
+def _no_hit_attempt(
+    root: Path,
+    inventory,
+    task,
+    *,
+    status: ExecutionStatus = ExecutionStatus.COMPLETED_NO_HIT,
+) -> Path:
     execution_input = next(
         item
         for item in inventory.execution_inputs
@@ -202,7 +221,7 @@ def _no_hit_attempt(root: Path, inventory, task) -> Path:
     )
     root.mkdir()
     search = root / "component_search_result.json"
-    atomic_write_json(search, {"execution_status": "completed_no_hit"})
+    atomic_write_json(search, {"execution_status": status.value})
     result = CompositionAttemptExecutionResult.from_content(
         attempt_id=task.attempt_id,
         resource_plan_id=task.resource_plan.resource_plan_id,
@@ -213,7 +232,7 @@ def _no_hit_attempt(root: Path, inventory, task) -> Path:
         candidate_component_spec_id=(
             execution_input.selected_candidate.hypothesis.component.component_spec_id
         ),
-        execution_status=ExecutionStatus.COMPLETED_NO_HIT,
+        execution_status=status,
         search_result_sha256=sha256_file(search),
     )
     atomic_write_json(
@@ -243,6 +262,7 @@ def test_no_hit_depth_retains_attempt_and_stops_without_parent(
             attempt_inventory=runtime_request.attempt_inventory,
             attempt_result_directories=attempts,
             output_directory=tmp_path / "beam",
+            fixed_coordinate_root=runtime_request.fixed_coordinate_root,
         )
     )
 
@@ -292,6 +312,7 @@ def test_packed_depth_publishes_one_claim_free_next_parent(
             attempt_inventory=runtime_request.attempt_inventory,
             attempt_result_directories=attempts,
             output_directory=tmp_path / "beam",
+            fixed_coordinate_root=runtime_request.fixed_coordinate_root,
         )
     )
 
@@ -300,3 +321,281 @@ def test_packed_depth_publishes_one_claim_free_next_parent(
     assert output.result.retained_parent_count == 1
     assert output.result.global_attempts_used_after == inventory.attempt_count
     assert "composition_supported" not in output.retained_states_jsonl.read_text()
+
+
+@pytest.mark.parametrize(
+    "status", [ExecutionStatus.FAILED_TOOL_EXECUTION, ExecutionStatus.FAILED_PARSE]
+)
+def test_all_failures_are_incomplete_and_preserve_parent_assets(
+    tmp_path, monkeypatch, status
+):
+    request, inventory = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    attempts = tuple(
+        _no_hit_attempt(tmp_path / f"failure-{index}", inventory, task, status=status)
+        for index, task in enumerate(inventory.attempts)
+    )
+    output = collect_composition_beam_depth(
+        CompositionBeamCollectionRequest(
+            attempt_inventory=request.attempt_inventory,
+            attempt_result_directories=attempts,
+            output_directory=tmp_path / "beam",
+            fixed_coordinate_root=request.fixed_coordinate_root,
+        )
+    )
+    assert output.result.failed_count == inventory.attempt_count
+    assert output.result.completed_no_hit_count == 0
+    assert not output.result.depth_complete
+    assert (
+        output.result.stop_reason is CompositionStopReason.COMPOSITION_DEPTH_INCOMPLETE
+    )
+    assessment = json.loads(output.assessments_jsonl.read_text())
+    assert assessment["execution_status"] == status.value
+    assert assessment["scientific_status"] == "execution_failure"
+    parent = inventory.parent_states[0]
+    assert (
+        sha256_file(
+            output.result_json.parent
+            / "parent_evidence"
+            / parent.state_id
+            / "combined.pdb"
+        )
+        == parent.combined_coordinate_sha256
+    )
+
+
+def test_partial_native_inventory_retains_child_but_blocks_advancement(
+    tmp_path, monkeypatch
+):
+    request, inventory = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    hit = _packed_attempt(tmp_path / "hit", inventory)
+    output = collect_composition_beam_depth(
+        CompositionBeamCollectionRequest(
+            attempt_inventory=request.attempt_inventory,
+            attempt_result_directories=(hit,),
+            output_directory=tmp_path / "beam",
+            fixed_coordinate_root=request.fixed_coordinate_root,
+        )
+    )
+    assert output.result.completed_hit_count == 1
+    assert output.result.missing_output_count == inventory.attempt_count - 1
+    assert output.result.retained_parent_count == 1
+    assert output.result.status is CompositionBeamDepthStatus.TERMINAL
+    assert not output.result.depth_complete
+    states = [
+        json.loads(line)
+        for line in (output.result_json.parent / "terminal_review_states.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert len(states) == 2
+    assert {row["state_id"] for row in states} >= {inventory.parent_states[0].state_id}
+    missing = output.result.attempts[1]
+    assert missing.execution_status is None
+    assert missing.result_sha256 is None
+
+
+def test_zero_scores_rank_above_negative_scores(tmp_path, monkeypatch):
+    request, inventory = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    attempts = (
+        _packed_attempt(tmp_path / "negative", inventory, index=0, llg=-1.0, tfz=1.0),
+        _packed_attempt(tmp_path / "zero", inventory, index=1, llg=0.0, tfz=0.0),
+        *(
+            _no_hit_attempt(tmp_path / f"no-hit-{index}", inventory, task)
+            for index, task in enumerate(inventory.attempts[2:])
+        ),
+    )
+    output = collect_composition_beam_depth(
+        CompositionBeamCollectionRequest(
+            attempt_inventory=request.attempt_inventory,
+            attempt_result_directories=attempts,
+            output_directory=tmp_path / "beam",
+            fixed_coordinate_root=request.fixed_coordinate_root,
+            beam_width=1,
+        )
+    )
+    assert output.result.retained_state_ids == (
+        json.loads((attempts[1] / "composition_state.json").read_text())["state_id"],
+    )
+    assert output.result.depth_complete
+
+
+def _task_trace(tmp_path, request, task, rows):
+    work_root = tmp_path / "work"
+    work_root.mkdir()
+    trace = tmp_path / "trace.tsv"
+    lines = ["task_id\tnative_id\tprocess\ttag\tstatus\texit\tattempt\tworkdir\n"]
+    for resource_attempt, status, exit_code in rows:
+        workdir = work_root / f"attempt-{resource_attempt}"
+        workdir.mkdir()
+        (workdir / ".command.sh").write_text(
+            "genome-to-diffraction composition run-attempt "
+            f"--attempt-id '{task.attempt_id}' "
+            f"--attempt-inventory '{request.attempt_inventory}'\n"
+        )
+        (workdir / ".command.err").write_text(f"resource attempt {resource_attempt}\n")
+        lines.append(
+            f"{resource_attempt}\t{resource_attempt + 100}\t"
+            f"WF:RUN_PHASE3_BEAM_ATTEMPT\tcomposition-beam-attempt:{task.attempt_id}\t"
+            f"{status}\t{exit_code}\t{resource_attempt}\t{workdir}\n"
+        )
+    trace.write_text("".join(lines))
+    return trace, work_root
+
+
+def test_exhausted_scheduler_retries_are_one_failed_search(tmp_path, monkeypatch):
+    request, inventory = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    task = inventory.attempts[0]
+    trace, work_root = _task_trace(
+        tmp_path, request, task, ((1, "FAILED", 137), (2, "FAILED", 137))
+    )
+    output = collect_composition_beam_depth(
+        CompositionBeamCollectionRequest(
+            attempt_inventory=request.attempt_inventory,
+            attempt_result_directories=(),
+            output_directory=tmp_path / "beam",
+            fixed_coordinate_root=request.fixed_coordinate_root,
+            scheduler_trace=trace,
+            task_work_root=work_root,
+            workflow_run_id="session-test",
+        )
+    )
+    assert output.result.attempt_count == inventory.attempt_count
+    assert output.result.failed_count == 1
+    assert output.result.missing_output_count == inventory.attempt_count - 1
+    evidence = output.result.attempts[0]
+    assert evidence.execution_status is None
+    assert len(evidence.terminal_tasks) == 2
+    assert (
+        output.result_json.parent
+        / "task_diagnostics"
+        / task.attempt_id
+        / "attempt-1"
+        / ".command.err"
+    ).read_text() == "resource attempt 1\n"
+
+
+def test_stale_scheduler_inventory_is_rejected(tmp_path, monkeypatch):
+    request, inventory = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    task = inventory.attempts[0]
+    trace, work_root = _task_trace(tmp_path, request, task, ((1, "FAILED", 137),))
+    stale = tmp_path / "stale.json"
+    stale.write_text("{}\n")
+    command = work_root / "attempt-1" / ".command.sh"
+    command.write_text(
+        command.read_text().replace(str(request.attempt_inventory), str(stale))
+    )
+    with pytest.raises(CompositionTaskEvidenceError, match="evidence differs"):
+        collect_composition_beam_depth(
+            CompositionBeamCollectionRequest(
+                attempt_inventory=request.attempt_inventory,
+                attempt_result_directories=(),
+                output_directory=tmp_path / "beam",
+                fixed_coordinate_root=request.fixed_coordinate_root,
+                scheduler_trace=trace,
+                task_work_root=work_root,
+                workflow_run_id="session-test",
+            )
+        )
+
+
+def test_duplicate_native_outputs_fail_closed(tmp_path, monkeypatch):
+    request, inventory = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    result = _no_hit_attempt(tmp_path / "result", inventory, inventory.attempts[0])
+    with pytest.raises(CompositionBeamError, match="duplicated"):
+        collect_composition_beam_depth(
+            CompositionBeamCollectionRequest(
+                attempt_inventory=request.attempt_inventory,
+                attempt_result_directories=(result, result),
+                output_directory=tmp_path / "beam",
+                fixed_coordinate_root=request.fixed_coordinate_root,
+            )
+        )
+
+
+def test_each_parent_retains_its_own_extension_outcome(tmp_path, monkeypatch):
+    request, _ = _request(
+        tmp_path, monkeypatch, status=ExecutionStatus.COMPLETED_NO_HIT
+    )
+    first = inventory_fixture._parent(
+        1,
+        coordinate_sha256=sha256_file(
+            request.fixed_coordinate_root / "component_A.pdb"
+        ),
+    )
+    second_coordinate = request.fixed_coordinate_root / "second_parent.pdb"
+    second_coordinate.write_text("ATOM SECOND PARENT\n")
+    second = inventory_fixture._parent(
+        2, coordinate_sha256=sha256_file(second_coordinate)
+    )
+    _, inventory = inventory_fixture._inventory(
+        parents=(first, second),
+        candidates=tuple(
+            inventory_fixture._candidate(parent=parent, rank=1, sequence_index=2)
+            for parent in (first, second)
+        ),
+    )
+    inventory_path = write_composition_attempt_inventory(
+        inventory, tmp_path / "multiple-parents.json"
+    )
+    hit = _packed_attempt(tmp_path / "hit", inventory)
+    attempts = (
+        hit,
+        *(
+            _no_hit_attempt(
+                tmp_path / f"attempt-{index}",
+                inventory,
+                task,
+                status=ExecutionStatus.FAILED_PARSE
+                if task.parent_state_id == second.state.state_id
+                else ExecutionStatus.COMPLETED_NO_HIT,
+            )
+            for index, task in enumerate(inventory.attempts[1:])
+        ),
+    )
+    output = collect_composition_beam_depth(
+        CompositionBeamCollectionRequest(
+            attempt_inventory=inventory_path,
+            attempt_result_directories=attempts,
+            output_directory=tmp_path / "beam",
+            fixed_coordinate_root=request.fixed_coordinate_root,
+        )
+    )
+    parent_rows = {
+        row["parent_state_id"]: row
+        for line in (output.result_json.parent / "parent_extension_outcomes.jsonl")
+        .read_text()
+        .splitlines()
+        if (row := json.loads(line))
+    }
+    assert parent_rows[first.state.state_id]["extension_complete"]
+    assert parent_rows[first.state.state_id]["outcome_counts"]["completed_hit"] == 1
+    assert not parent_rows[second.state.state_id]["extension_complete"]
+    assert parent_rows[second.state.state_id]["outcome_counts"]["failed"] > 0
+    assessments = {
+        row["state_id"]: row
+        for line in output.assessments_jsonl.read_text().splitlines()
+        if (row := json.loads(line))
+    }
+    assert assessments[first.state.state_id]["execution_status"] == "completed_hit"
+    assert assessments[second.state.state_id]["execution_status"] == "failed_parse"
+    assert len(assessments) == 3
+    packages = build_pass2_review_packages(
+        beam_directory=output.result_json.parent,
+        execution_identity=request.execution_identity,
+        owned_parent_run_id="gtd-unknown-pass2-20260828T000000Z-aaaaaaaaaaaa-bbbbbbbb",
+        crystal_id=inventory.depth_plan.crystal_id,
+        output_directory=tmp_path / "packages",
+    )
+    assert packages.composition.manifest.is_file()

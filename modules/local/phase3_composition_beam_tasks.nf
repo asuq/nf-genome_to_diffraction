@@ -57,16 +57,16 @@ process PLAN_PHASE3_COMPOSITION_DEPTH {
 process RUN_PHASE3_BEAM_ATTEMPT {
     tag "composition-beam-attempt:${item[1]}"
     label 'process_mr'
-    cpus { (item[13].resource_plan.base_cpus as int) * task.attempt }
-    memory { "${(item[13].resource_plan.base_memory_gb as int) * task.attempt} GB" }
-    time { "${(item[13].resource_plan.base_time_hours as int) * task.attempt} hours" }
+    cpus { (item[12].resource_plan.base_cpus as int) * task.attempt }
+    memory { "${(item[12].resource_plan.base_memory_gb as int) * task.attempt} GB" }
+    time { "${(item[12].resource_plan.base_time_hours as int) * task.attempt} hours" }
 
     input:
     item: Tuple
 
     output:
     result: Tuple = tuple(
-        item[10], item[0], item[11], item[12],
+        item[0], item[10], item[11],
         file("composition_attempt_${item[1]}")
     )
 
@@ -121,6 +121,10 @@ process COLLECT_PHASE3_COMPOSITION_DEPTH {
     genome-to-diffraction --no-progress --log-format json \
         composition collect-depth \
         --attempt-inventory '${item[1]}/composition_attempt_inventory.json' \
+        --fixed-coordinate-root '${item[2][12]}' \
+        --scheduler-trace '${item[4]}' \
+        --workflow-run-id '${item[5]}' \
+        --task-work-root '${item[6]}' \
         ${resultArgs} \
         --beam-width 3 \
         --outdir '${outputName}'
@@ -136,7 +140,7 @@ process COLLECT_PHASE3_COMPOSITION_DEPTH {
     : > '${outputName}/retained_parent_states.jsonl'
     : > '${outputName}/attempt_evidence.jsonl'
     printf '%s\n' \
-        '{"schema_version":"2.0","adapter_version":"phase3-composition-beam-depth-v1","crystal_id":"${item[0]}","parent_depth":1,"target_depth":2,"attempt_count":0,"retained_parent_count":0,"global_attempts_used_after":${item[2][16]},"status":"terminal","stop_reason":"no_retained_packed_state","provisional_component_depth":false}' \
+        '{"schema_version":"2.0","adapter_version":"phase3-composition-beam-depth-v2-complete-outcomes","crystal_id":"${item[0]}","parent_depth":1,"target_depth":2,"attempt_count":0,"retained_parent_count":0,"global_attempts_used_after":${item[2][16]},"status":"terminal","stop_reason":"no_retained_packed_state","provisional_component_depth":false}' \
         > '${outputName}/composition_beam_depth_result.json'
     """
 }

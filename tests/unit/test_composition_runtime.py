@@ -126,7 +126,11 @@ def _request(
         "EXECUTION_IDENTITY_ID",
         identity.execution_identity_id,
     )
-    parent = inventory_fixture._parent(1)
+    fixed_root = tmp_path / "fixed"
+    fixed_root.mkdir()
+    fixed_path = fixed_root / "component_A.pdb"
+    fixed_path.write_text("ATOM FIXED A\n", encoding="ascii")
+    parent = inventory_fixture._parent(1, coordinate_sha256=_sha(fixed_path))
     _, inventory = inventory_fixture._inventory(
         parents=(parent,),
         candidates=(
@@ -141,10 +145,6 @@ def _request(
         inventory,
         tmp_path / "composition_attempt_inventory.json",
     )
-    fixed_root = tmp_path / "fixed"
-    fixed_root.mkdir()
-    fixed_path = fixed_root / "component_A.pdb"
-    fixed_path.write_text("ATOM FIXED A\n", encoding="ascii")
     model_registry = tmp_path / "models"
     model_registry.mkdir()
     parent_model = model_registry / "parent.pdb"

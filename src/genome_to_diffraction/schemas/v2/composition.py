@@ -1286,6 +1286,8 @@ class CompositionStopReason(StrEnum):
     MAXIMUM_COMPONENT_DEPTH_REACHED = "maximum_component_depth_reached"
     GLOBAL_ATTEMPT_BUDGET_REACHED = "global_attempt_budget_reached"
     INFRASTRUCTURE_OR_CONTRACT_FAILURE = "infrastructure_or_contract_failure"
+    COMPOSITION_DEPTH_INCOMPLETE = "composition_depth_incomplete"
+    EXTENSIONS_RETAINED_FOR_REVIEW = "extensions_retained_for_review"
     REVIEWER_HOLD = "reviewer_hold"
 
 
@@ -1380,6 +1382,7 @@ class ComponentScopeDecision(_ContentAddressedContract):
             CompositionStopReason.GLOBAL_ATTEMPT_BUDGET_REACHED,
             CompositionStopReason.INFRASTRUCTURE_OR_CONTRACT_FAILURE,
             CompositionStopReason.REVIEWER_HOLD,
+            CompositionStopReason.COMPOSITION_DEPTH_INCOMPLETE,
         }
         if self.search_depth_reached > self.validated_component_depth:
             expected_scope = (

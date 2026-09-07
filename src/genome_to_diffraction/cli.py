@@ -1482,6 +1482,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--attempt-result", type=Path, action="append", default=[]
     )
     composition_collect_parser.add_argument("--beam-width", type=int, default=3)
+    composition_collect_parser.add_argument(
+        "--fixed-coordinate-root", type=Path, required=True
+    )
+    composition_collect_parser.add_argument("--scheduler-trace", type=Path)
+    composition_collect_parser.add_argument("--workflow-run-id")
+    composition_collect_parser.add_argument("--task-work-root", type=Path)
     composition_collect_parser.add_argument("--outdir", type=Path, required=True)
     composition_seed_parser = composition_actions.add_parser(
         "build-pass2-a-seed",
@@ -3531,7 +3537,11 @@ def _run_composition(args: argparse.Namespace) -> int:
                 attempt_inventory=args.attempt_inventory,
                 attempt_result_directories=tuple(args.attempt_result),
                 output_directory=args.outdir,
+                fixed_coordinate_root=args.fixed_coordinate_root,
                 beam_width=args.beam_width,
+                scheduler_trace=args.scheduler_trace,
+                workflow_run_id=args.workflow_run_id,
+                task_work_root=args.task_work_root,
             )
         )
         print(

@@ -95,6 +95,36 @@ complete inventory, and every runtime input. The stub copies the inventory and
 emits only `stub_not_executed` identity evidence; it is not an MR result and
 cannot promote a composition state.
 
+## Complete depth collection
+
+`composition collect-depth` consumes the complete expected inventory, zero or
+more observed attempt directories and the original fixed-coordinate root.
+Nextflow also passes its session ID, owned work root and trace. Terminal trace
+rows are joined by logical attempt ID and resource attempt; the retained task
+command must name the exact inventory bytes. Scheduler task IDs, native IDs,
+work directories, exits and both resource attempts remain diagnostic evidence.
+They cannot supply Phaser scores or invent a missing native result.
+
+Every allocated logical attempt has a hit, no-hit, failure, missing-output or
+unexecuted outcome. Only native hit and no-hit records make a depth complete.
+Other outcomes force `composition_depth_incomplete` and block the next depth,
+including a mixed depth with some packed children. Allocation budgets count
+each logical search once across its existing single retry. The selected beam
+remains at most three states; the complete parent/child evidence is separate.
+Zero scores retain their numeric meaning when ordering packed children.
+
+The terminal package retains every input parent's coordinates and its own
+extension outcome, all observed child states and failed-task diagnostics.
+Reaching a search boundary makes no residual-content or completeness claim.
+The depth adapter is `phase3-composition-beam-depth-v2-complete-outcomes`.
+Malformed, duplicated or stale evidence still fails explicitly.
+
+Nextflow groups on channel completion with one sentinel for each planned
+crystal. Exhausted recognised resource failures and missing-output tasks can
+therefore reach collection without suppressing an entire group. Contract and
+infrastructure exits still fail the workflow. This uses the existing Nextflow
+retry and trace facilities; it adds no scheduler.
+
 ## Test coverage
 
 `tests/unit/test_composition_attempt_inventory.py` covers the shared 25-attempt
@@ -114,3 +144,11 @@ stale adapter authority, and fail-closed infrastructure status. Real Phenix
 2.1-6048/Phaser 2.8.4 was
 qualified through 6RTZ, 3U7Q, and positive 9ECN; one fixed-HPC general-attempt
 profile remains before this boundary is accepted for unknown pass 2.
+
+`tests/unit/test_composition_beam.py` covers all-failure, missing-output and
+mixed depths, zero-versus-negative scores, stale task authority, both retry
+diagnostics, multiple parent outcomes and retained review assets.
+`phase3-composition-beam-stub` also executes the real beam graph and retry
+policy with a synthetic CLI: both partial and zero native-output groups must
+reach exactly one collector after the single allowed retry. These fixtures
+are execution-contract checks, not native scientific qualification.

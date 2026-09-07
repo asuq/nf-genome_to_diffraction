@@ -108,7 +108,8 @@ def _available_resolution(
     )
 
 
-def _parent(rank: int) -> ParentExpansionInput:
+def _parent(rank: int, *, coordinate_sha256: str | None = None) -> ParentExpansionInput:
+    coordinate_sha256 = coordinate_sha256 or _sha(900 + rank)
     component = _component_specs(
         label="A",
         sequence_index=1,
@@ -126,7 +127,7 @@ def _parent(rank: int) -> ParentExpansionInput:
         component_tfz=10.0 + rank,
         incremental_llg=100.0 + rank,
         packing_passed=True,
-        coordinate_sha256=_sha(900 + rank),
+        coordinate_sha256=coordinate_sha256,
         identity_support=ComponentIdentitySupport.UNRESOLVED,
     )
     state = CompositionState.from_content(
@@ -137,7 +138,7 @@ def _parent(rank: int) -> ParentExpansionInput:
         depth=1,
         components=(component,),
         placements=(placement,),
-        combined_coordinate_sha256=_sha(900 + rank),
+        combined_coordinate_sha256=coordinate_sha256,
         physical_mass_lower_da=10_000.0,
         physical_mass_upper_da=100_000.0,
         support_state=CompositionSupportState.PACKED,

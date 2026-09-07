@@ -1,7 +1,8 @@
 """Publish terminal Phase III pass-2 composition and sequence review packages.
 
-Only terminal beam summaries and the at-most-three retained state directories
-are copied. Packing and MR scores remain search evidence. The sequence package
+Terminal summaries, every input parent and every observed child remain
+reviewable independently of the three-state continuing beam. Packing and MR
+scores remain search evidence. The sequence package
 offers catalogue sequence groups only as review targets; without later map-
 supported approval, ``no_assignment`` remains the scientifically valid result.
 """
@@ -13,6 +14,9 @@ from pathlib import Path, PurePosixPath
 from pydantic import ValidationError
 
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.execution.composition import (
+    load_composition_attempt_inventory,
+)
 from genome_to_diffraction.execution.composition_beam import (
     CompositionBeamDepthResult,
     CompositionBeamDepthStatus,
@@ -57,10 +61,13 @@ def _root(path: Path) -> Path:
 
 def _verify_checksums(root: Path) -> None:
     manifest = root / "composition_beam_depth_checksums.sha256"
+    if manifest.is_symlink():
+        raise Pass2ReviewPackageError("terminal beam checksums must not be a symlink")
     try:
         lines = manifest.read_text(encoding="ascii").splitlines()
     except (OSError, UnicodeError) as error:
         raise Pass2ReviewPackageError("terminal beam checksums are absent") from error
+    declared: set[Path] = set()
     for line in lines:
         fields = line.split("  ", maxsplit=1)
         if len(fields) != 2:
@@ -71,11 +78,21 @@ def _verify_checksums(root: Path) -> None:
         if (
             relative.is_absolute()
             or ".." in relative.parts
+            or path in declared
             or path.is_symlink()
             or not path.is_file()
             or sha256_file(path) != digest
         ):
             raise Pass2ReviewPackageError("terminal beam checksum evidence differs")
+        declared.add(path)
+    actual = set()
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise Pass2ReviewPackageError("terminal beam contains a symlink")
+        if path.is_file() and path != manifest:
+            actual.add(path)
+    if actual != declared:
+        raise Pass2ReviewPackageError("terminal beam checksum inventory is incomplete")
 
 
 def _states(root: Path) -> tuple[CompositionState, ...]:
@@ -88,8 +105,12 @@ def _states(root: Path) -> tuple[CompositionState, ...]:
         )
     except (OSError, UnicodeError, ValidationError, ValueError) as error:
         raise Pass2ReviewPackageError("terminal review states are invalid") from error
-    if not 1 <= len(states) <= 3:
-        raise Pass2ReviewPackageError("terminal review requires one to three states")
+    if not 1 <= len(states) <= 28 or len({state.state_id for state in states}) != len(
+        states
+    ):
+        raise Pass2ReviewPackageError(
+            "terminal review requires unique bounded parent/child states"
+        )
     return states
 
 
@@ -115,11 +136,23 @@ def build_pass2_review_packages(
     except (OSError, ValidationError, ValueError) as error:
         raise Pass2ReviewPackageError("terminal beam identity is invalid") from error
     states = _states(root)
+    inventory_path = root / "composition_attempt_inventory.json"
+    inventory = load_composition_attempt_inventory(inventory_path)
+    expected_state_ids = {
+        *(state.state_id for state in inventory.parent_states),
+        *(
+            item.child_state_id
+            for item in result.attempts
+            if item.child_state_id is not None
+        ),
+    }
     if (
         result.status is not CompositionBeamDepthStatus.TERMINAL
         or result.crystal_id != crystal_id
         or any(state.crystal_id != crystal_id for state in states)
         or not owned_parent_run_id.startswith("gtd-unknown-pass2-")
+        or sha256_file(inventory_path) != result.inventory_sha256
+        or {state.state_id for state in states} != expected_state_ids
     ):
         raise Pass2ReviewPackageError("terminal beam belongs to another authority")
     summary_names = {
@@ -130,18 +163,15 @@ def build_pass2_review_packages(
         "component_scope_decisions.jsonl",
         "composition_assessments.jsonl",
         "composition_beam_depth_checksums.sha256",
+        "composition_attempt_inventory.json",
+        "parent_extension_outcomes.jsonl",
     }
     evidence_paths = {path for name in summary_names if (path := root / name).is_file()}
     state_ids = {state.state_id for state in states}
-    for state_path in root.glob("attempts/*/composition_state.json"):
-        try:
-            state = CompositionState.model_validate_json(state_path.read_bytes())
-        except OSError, ValidationError, ValueError:
-            continue
-        if state.state_id in state_ids:
-            evidence_paths.update(
-                path for path in state_path.parent.rglob("*") if path.is_file()
-            )
+    for directory_name in ("attempts", "parent_evidence", "task_diagnostics"):
+        evidence_paths.update(
+            path for path in (root / directory_name).rglob("*") if path.is_file()
+        )
     sources = tuple(
         PhaseIIIReviewEvidenceSource(
             role=f"pass2_terminal_evidence_{index:05d}",

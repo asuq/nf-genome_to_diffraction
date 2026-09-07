@@ -15549,3 +15549,24 @@ with a collapsed combined parent or a guessed command.
 - Next finish streamed Phenix execution/timeout retention and integrate the
   Matthews-factor and reviewed-inventory contracts, then run the integrated
   locked release gate. No main checkout, active run or remote state was changed.
+
+## 2026-09-07 - Complete composition outcomes and parent review evidence
+
+- Corrected the local C01, C03 and C04 paths. The collector left-joins the
+  complete logical-attempt inventory with native results and authenticated
+  terminal Nextflow observations. Failed, missing and unexecuted outcomes stop
+  automatic advancement; zero scores retain their numeric ordering. Every
+  input parent keeps its own extension outcome and checksum-bound coordinates,
+  independently of the three-state continuing beam and observed child states.
+- The real Nextflow graph now retains partial and zero-output depth groups
+  after the existing single resource retry. Both resource attempts' diagnostics
+  survive under one logical search ID. Terminal packages retain all relevant
+  parents, children and failure evidence, and verify inventory completeness.
+- Validation: 43 focused inventory/runtime/beam/composition-contract tests,
+  typed-empty and cached Nextflow stubs, and real-process synthetic CLI cases
+  for mixed and all-failure groups passed. Focused Ruff, type and documentation
+  checks passed. These are local contracts, not native Phenix qualification.
+- Next integrate the committed Matthews and streamed-runtime slices, finish
+  C02's inner-failure-to-retry propagation, then integrate reviewed reopening,
+  M6 parity and independent copy-completeness semantics. Main's Raven migration
+  remains uncommitted and protected; no live run or remote state was changed.
