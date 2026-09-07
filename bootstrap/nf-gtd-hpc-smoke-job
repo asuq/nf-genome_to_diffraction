@@ -1944,8 +1944,11 @@ run_identification_screen() {
         --allowed-mtz-root "$P0_ALLOWED_ROOT" --outdir "$selected"
     cd "$RUN/execution"
     PHASE=test
+    # Temporary operator limit: four shared-executor children plus this controller.
+    # Do not lift this identification-only cap without explicit user direction.
+    printf 'identification_concurrency_limit=5 controller_jobs=1 child_queue_size=4\n'
     "$NEXTFLOW" -log "$RUN/logs/identification-nextflow.log" \
-        run "$RUN/source/qualification.nf" -profile marmic \
+        run "$RUN/source/qualification.nf" -profile marmic -qs 4 \
         --qualification_stage identification_screen \
         --identification_inputs "$inputs" \
         --identification_input_id "$input_id" \

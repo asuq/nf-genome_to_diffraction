@@ -2878,6 +2878,36 @@ def test_identification_remote_stage_requires_owned_complete_archive(
     )
     assert wrong_owner.returncode != 0
 
+    # A real identification run completed before exposing a misspelled
+    # collection size constant. Exercise the actual archive path, not just stage.
+    collection = run / "artifacts/identification-screen/collected"
+    collection.mkdir(parents=True)
+    payload = b'{"scope":"synthetic","identity_accepted":false}\n'
+    (collection / "assessment.json").write_bytes(payload)
+    (collection / "checksums.sha256").write_text(
+        hashlib.sha256(payload).hexdigest() + "  assessment.json\n"
+    )
+    (run / "state/failure-class").write_text("success\n")
+    (run / "state/phase").write_text("completed\n")
+    collected = _run(
+        [str(dispatcher), "collect", run_id, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    with tarfile.open(fileobj=io.BytesIO(collected.stdout), mode="r:gz") as archive:
+        handle = archive.extractfile(
+            "artifacts/identification-screen/collected/assessment.json"
+        )
+        assert handle is not None and handle.read() == payload
+    (collection / "assessment.json").write_bytes(b"changed")
+    changed = _run(
+        [str(dispatcher), "collect", run_id, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert "checksum differs" in _decode_protocol(changed.stdout)["message"]
+
 
 def _write_database_paths(
     root: Path,

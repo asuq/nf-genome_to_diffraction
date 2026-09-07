@@ -68,6 +68,14 @@ of the proposed full-expected-copy search or the deferred general mass-blind
 generator redesign. Do not request the supervisor's solved identity as a
 prerequisite for independent identification.
 
+The user subsequently imposed a temporary five-job total limit on this Marmic
+identification programme because other large jobs are active. Count one
+controller and at most four preparation/MR children shared across the executor,
+including submitted/pending work. Do not modify other user jobs, restart the
+already compliant three-case smoke, or lift the cap without explicit direction.
+This overrides the no-concurrency-cap policy only for this identification run
+programme; scientific task budgets and other workflow defaults are unchanged.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

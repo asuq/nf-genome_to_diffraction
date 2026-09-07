@@ -79,10 +79,17 @@ side-chain pruning or domain-splitting heuristic is introduced by this profile.
 MR uses isolated licensed Phenix `MR_AUTO`. Existing deterministic workload
 plans provide overprovisioned 8/12/16-CPU, 32/48/64-GB, 24/36/48-hour first
 attempts. One classified resource/interruption retry scales linearly with
-`task.attempt`, bounded at 16 CPUs, 64 GB and 48 hours. Slurm owns aggregate
-admission; no new application concurrency cap is imposed. MR children exclude
+`task.attempt`, bounded at 16 CPUs, 64 GB and 48 hours. At the operator's current
+temporary request, this profile launches Nextflow with `-qs 4`: at most four
+submitted/active preparation and MR children combined, plus one controller,
+for a five-job total. This is not a per-process `maxForks` limit and does not
+change other site workflows. Slurm still decides which admitted jobs can run.
+Do not remove this temporary limit without explicit direction. MR children exclude
 `slurm-003` under the existing site policy. The controller requests eight CPUs,
-32 GB and 120 hours. No refinement or identity decision runs automatically.
+32 GB and the configured 1,000-hour site allowance so a serialized catalogue is
+not cut off by the former 120-hour controller limit. This is an upper allowance,
+not an expected runtime; the controller exits on completion. Individual MR
+limits are unchanged. No refinement or identity decision runs automatically.
 
 ## Results and failure evidence
 

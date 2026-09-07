@@ -4007,7 +4007,9 @@ submit_run() {
         walltime=24:00:00
     fi
     [[ "$profile" != unknown-screen ]] || walltime=120:00:00
-    [[ "$profile" != identification-screen ]] || walltime=120:00:00
+    # The temporary four-child cap can serialize a large candidate catalogue.
+    # Allow queue time up to the configured site ceiling; MR task limits stay fixed.
+    [[ "$profile" != identification-screen ]] || walltime=1000:00:00
     [[ "$profile" != unknown-single-component ]] || walltime=120:00:00
     # Five sequential B--F depths can each consume a 48-hour first attempt and
     # one 48-hour retry. Retain two additional days for orchestration and the
@@ -5865,10 +5867,10 @@ collect_run() {
                    "$identification_digest" ]] || \
                     fail transfer_failure "identification collection checksum differs"
                 size="$(file_size "$candidate")"
-                (( size <= MAX_ARTIFACT_FILE_BYTES )) || \
+                (( size <= MAX_FILE_BYTES )) || \
                     fail transfer_failure "identification artifact exceeds per-file bound"
                 total=$((total + size))
-                (( total <= MAX_ARTIFACT_TOTAL_BYTES )) || \
+                (( total <= MAX_TOTAL_BYTES )) || \
                     fail transfer_failure "identification collection exceeds total bound"
                 files+=("artifacts/identification-screen/collected/$identification_relative")
                 identification_count=$((identification_count + 1))
@@ -5886,16 +5888,18 @@ collect_run() {
             artifacts/qualification/identification-phenix-manifest.json; do
             if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
                 size="$(file_size "$run/$candidate")"
-                (( size <= MAX_ARTIFACT_FILE_BYTES )) || \
+                (( size <= MAX_FILE_BYTES )) || \
                     fail transfer_failure "identification diagnostic exceeds per-file bound"
                 total=$((total + size))
-                (( total <= MAX_ARTIFACT_TOTAL_BYTES )) || \
+                (( total <= MAX_TOTAL_BYTES )) || \
                     fail transfer_failure "identification diagnostics exceed total bound"
                 files+=("$candidate")
             fi
         done
         printf '%s\n' "${files[@]}" > "$run/execution/identification-collection-members.txt"
-        tar -czf - -C "$run" --verbatim-files-from \
+        # Every member is a validated relative name beginning with a letter;
+        # portable -T cannot interpret a leading option or escaped filename.
+        tar -czf - -C "$run" \
             -T "$run/execution/identification-collection-members.txt"
         return
     fi

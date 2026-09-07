@@ -15400,3 +15400,30 @@ with a collapsed combined parent or a guessed command.
   source, deploy its exact wrapper hashes, and submit the representative remote
   screen. On its classified completion, reserve that completed work and submit
   the remaining full inventory without duplicate or failed-cache reuse.
+
+## 2026-09-07 - Remote qualification submitted; temporary five-job limit
+
+- Source `9f3b0112e986` passed the locked local gate and all six CI lanes in
+  run `34095105000`. Its reviewed tools were deployed, its complete input
+  archive passed remote validation, and one representative qualification run
+  was submitted. All seven Phenix probes passed; all three preparations and
+  three MR tasks were submitted. Scientific outcomes remain pending review.
+- The user then requested a temporary five-job total ceiling while other large
+  workloads are active. The current representative run is already below that
+  ceiling and was not cancelled or restarted. Other user jobs are untouched.
+- The identification-only launcher now passes `-qs 4`, sharing four child slots
+  across preparation/MR and retaining one controller. The real Nextflow stub
+  confirms monitor capacity four. Per-task resources, scientific parameters,
+  candidate budgets, and other workflow defaults are unchanged. The controller
+  receives the configured site time allowance to accommodate the longer queue,
+  but exits when work completes; this does not extend individual MR limits.
+- Qualify and deploy the capped source before the full remaining inventory.
+  Do not lift the temporary cap without explicit user direction. Retain exact
+  source/run ownership and classify the representative native results before
+  any full-screen submission or new scientific claim.
+- The representative controller subsequently completed successfully. Bounded
+  logs confirm normal workflow completion, but collection exposed undefined
+  Bash size-limit names. `PH3-P1-87` records the transfer-only defect. One focused
+  regression reproduces it and verifies the corrected standard byte limits and
+  checksum rejection. Re-deploy and re-collect the retained outputs; do not
+  rerun the scientific job or infer its scientific outcome before inspection.

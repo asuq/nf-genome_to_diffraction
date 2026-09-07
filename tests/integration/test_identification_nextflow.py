@@ -42,6 +42,8 @@ def test_identification_nextflow_fans_out_only_ready_cases(tmp_path: Path) -> No
             str(REPOSITORY / "qualification.nf"),
             "--qualification_stage",
             "identification_screen",
+            "-qs",
+            "4",
             "-stub-run",
             "-c",
             str(config),
@@ -66,6 +68,7 @@ def test_identification_nextflow_fans_out_only_ready_cases(tmp_path: Path) -> No
         timeout=120,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "capacity=4;" in (tmp_path / "nextflow.log").read_text()
     case = plan.cases[0]
     record = json.loads((out / "mr" / case.case_id / "run.json").read_text())
     assert record["status"] == "stub_not_scientific"
