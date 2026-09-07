@@ -296,6 +296,14 @@ class MatthewsHypothesis(ContractModel):
     solvent_fraction_lower: float | None = None
     solvent_fraction_upper: float | None = None
     matthews_prior: float = Field(ge=0, le=1)
+    solvent_density: float = Field(ge=0, le=1)
+    copy_frequency_factor: float = Field(ge=0, le=1)
+    prior_reference_record_count: int = Field(ge=200)
+    prior_minimum_reference_records: Literal[200]
+    prior_reference_resource_sha256: Sha256Hex
+    configured_solvent_fraction_min: float = Field(ge=0, lt=1)
+    configured_solvent_fraction_max: float = Field(gt=0, le=1)
+    review_reasons: tuple[NonEmptyString, ...] = ()
     prior_backend: NonEmptyString
     rank_within_candidate: PositiveInt
     retained: bool
@@ -309,6 +317,15 @@ class MatthewsHypothesis(ContractModel):
 
     @model_validator(mode="after")
     def _mass_representation_is_explicit(self) -> Self:
+        if self.configured_solvent_fraction_min >= self.configured_solvent_fraction_max:
+            raise ValueError("configured solvent preference window is invalid")
+        if not math.isclose(
+            self.matthews_prior,
+            self.solvent_density * self.copy_frequency_factor,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("Matthews prior differs from its solvent/copy product")
         exact = self.sequence_mass_da is not None
         bounded = (
             self.sequence_mass_lower_da is not None

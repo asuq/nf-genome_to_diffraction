@@ -48,8 +48,8 @@ from genome_to_diffraction.schemas.v2.diffraction import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.sequence_checkpoint")
-_ADAPTER_VERSION = "sequence-checkpoint-v3-mattprob"
-_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v3-mattprob"
+_ADAPTER_VERSION = "sequence-checkpoint-v4-nonnegative-solvent"
+_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v4-nonnegative-solvent"
 _MATTHEWS_RETAINED_COUNT = 4
 _MATTHEWS_MIN_SOLVENT_FRACTION = 0.10
 _MATTHEWS_MAX_SOLVENT_FRACTION = 0.90
@@ -1025,7 +1025,7 @@ def _publish_sequence_checkpoint(
         },
         "matthews_policy": {
             "prior_backend": PRIOR_BACKEND,
-            "copy_count_policy": "dynamic_by_asu_sequence_mass_and_solvent_bounds",
+            "copy_count_policy": "dynamic_by_asu_sequence_mass_nonnegative_solvent",
             "static_copy_count_ceiling": None,
             "retained_count": _MATTHEWS_RETAINED_COUNT,
             "min_solvent_fraction": _MATTHEWS_MIN_SOLVENT_FRACTION,

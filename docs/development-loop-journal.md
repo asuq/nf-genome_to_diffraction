@@ -15570,3 +15570,23 @@ with a collapsed combined parent or a guessed command.
   C02's inner-failure-to-retry propagation, then integrate reviewed reopening,
   M6 parity and independent copy-completeness semantics. Main's Raven migration
   remains uncommitted and protected; no live run or remote state was changed.
+## 2026-09-07 - v0.3 physical Matthews range and complete acquired inventory
+
+- The isolated release-fix worktree now separates the configured solvent
+  preference window from nonnegative-solvent mass/volume consistency. Exact
+  zero solvent and unusual positive fractions remain reviewable; the overflow
+  guard still fails without truncating the range. Successful rows expose the
+  solvent density, empirical copy-frequency factor, product, reference and
+  window metadata, and explicit review reasons.
+- The verified 0.9 A / 117-record case now stops with a structured
+  insufficient-reference diagnostic against the existing 200-record minimum.
+  It creates no successful hypothesis output or substitute prior.
+- The diverse funnel publishes a checksum-bound inventory of every acquired
+  model and mathematically admissible expected-copy state before admission
+  limits, including zero-prior states. Initial admission and one-copy searches
+  retain their existing bounded policy; omitted expected-copy states require
+  the separately implemented reviewed-reopening authority.
+- Focused Matthews, diffraction, funnel and sequence-checkpoint tests, Ruff and
+  targeted type checks passed. Reviewed-reopening integration, exact-source
+  release qualification and Raven work remain pending; main and active runs
+  were not modified.

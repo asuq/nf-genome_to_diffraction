@@ -403,6 +403,10 @@ def _comparison_document(
         row
         for row in pipeline_rows
         if row.physical_status is not PhysicalStatus.IMPOSSIBLE
+        and row.solvent_fraction is not None
+        and config.matthews.min_solvent_fraction
+        <= row.solvent_fraction
+        <= config.matthews.max_solvent_fraction
     )
     reference_copy_set = sorted(row.copy_count for row in reference_plausible_rows)
     pipeline_plausible_set = sorted(row.copy_count for row in pipeline_plausible_rows)

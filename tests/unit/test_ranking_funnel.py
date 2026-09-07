@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.matthews.enumerate import (
     COPY_RANGE_BACKEND,
@@ -64,7 +65,7 @@ def _coordinate(path: Path) -> None:
 
 
 def _request(
-    tmp_path: Path, *, first_copy_cap: int = 200
+    tmp_path: Path, *, first_copy_cap: int = 200, asu_volume_a3: float = 6_000.0
 ) -> ExactPredictedFunnelRequest:
     model_preparation = tmp_path / "model preparation with spaces"
     shutil.copytree(STUBS / "predicted_model_preparation", model_preparation)
@@ -85,9 +86,16 @@ def _request(
     preflight_document = json.loads(
         (STUBS / "mtz_preflight.jsonl").read_text(encoding="utf-8")
     )
-    preflight_document["asu_volume_a3"] = 6_000.0
-    preflight_document["cell_volume_a3"] = 24_000.0
-    preflight_document["unit_cell"] = [20.0, 30.0, 40.0, 90.0, 90.0, 90.0]
+    preflight_document["asu_volume_a3"] = asu_volume_a3
+    preflight_document["cell_volume_a3"] = asu_volume_a3 * 4
+    preflight_document["unit_cell"] = [
+        20.0,
+        30.0,
+        asu_volume_a3 / 150,
+        90.0,
+        90.0,
+        90.0,
+    ]
     preflight_path.write_text(
         f"{canonical_json_text(preflight_document)}\n",
         encoding="utf-8",
@@ -195,8 +203,10 @@ def test_funnel_rejects_path_traversal_in_preparation_manifest(
         build_exact_predicted_funnel(request)
 
 
-def _diverse_request(tmp_path: Path) -> DiverseFirstCopyFunnelRequest:
-    base = _request(tmp_path)
+def _diverse_request(
+    tmp_path: Path, *, asu_volume_a3: float = 6_000.0
+) -> DiverseFirstCopyFunnelRequest:
+    base = _request(tmp_path, asu_volume_a3=asu_volume_a3)
     predicted_coordinates = base.coordinate_sources_jsonl
     predicted_preparation = base.model_preparation_manifest.parent
     experimental_preparation = tmp_path / "experimental preparation"
@@ -304,16 +314,16 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        "multi-source-first-copy-funnel-v8-reviewed-alternatives"
     )
     assert manifest["expected_copy_count_policy"] == (
-        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+        "dynamic_by_asu_sequence_mass_nonnegative_solvent"
     )
     assert manifest["matthews_prior_backend"] == PRIOR_BACKEND
     assert manifest["matthews_copy_range_backend"] == COPY_RANGE_BACKEND
     assert manifest["matthews_copy_range_complete"] is True
     assert manifest["matthews_copy_range_validation"] == (
-        "rederived_from_preflight_sequence_mass_and_solvent_bounds"
+        "rederived_from_preflight_sequence_mass_nonnegative_solvent"
     )
     assert manifest["static_expected_copy_count_ceiling"] is None
     assert result.resource_plans_jsonl is not None
@@ -345,7 +355,7 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     assert manifest["copy_search_mode"] == ("single_copy_then_sequential_completion")
     assert manifest["initial_searched_copy_count"] == 1
     assert manifest["expected_copy_count_policy"] == (
-        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+        "dynamic_by_asu_sequence_mass_nonnegative_solvent"
     )
     assert manifest["static_expected_copy_count_ceiling"] is None
     assert "maximum_joint_copy_count" not in manifest
@@ -396,7 +406,11 @@ def test_phase3_diverse_funnel_recomputes_the_empirical_matthews_prior(
         if line
     ]
     rows[0] = rows[0].model_copy(
-        update={"matthews_prior": rows[0].matthews_prior + 1e-6}
+        update={
+            "matthews_prior": (rows[0].solvent_density + 1e-6)
+            * rows[0].copy_frequency_factor,
+            "solvent_density": rows[0].solvent_density + 1e-6,
+        }
     )
     request.matthews_hypotheses_jsonl.write_text(
         "".join(f"{canonical_json_text(row)}\n" for row in rows),
@@ -540,7 +554,7 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
         ).splitlines()
         if line.strip()
     )
-    assert len(deferred) == 6
+    assert len(deferred) == 22
     assert all(item.status is MrHypothesisStatus.SKIPPED for item in deferred)
     assert all(
         item.priority_features["localisation_first_wave_reason"]
@@ -549,7 +563,7 @@ def test_phase3_diverse_funnel_retains_but_skips_first_wave_exclusions(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["localisation_excluded_sequence_group_count"] == 1
-    assert manifest["retained_excluded_hypothesis_count"] == 6
+    assert manifest["retained_excluded_hypothesis_count"] == 22
     assert manifest["selected_hypothesis_count"] == 0
 
 
@@ -688,10 +702,11 @@ def test_diverse_smoke_funnel_enforces_twenty_five_jobs_per_crystal(
 
     assert len(result.hypotheses) == 25
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
-    assert manifest["candidate_count_before_caps"] == 30
+    assert manifest["candidate_count_before_caps"] == 330
+    assert manifest["initial_admission_candidate_count"] == 30
     assert manifest["per_crystal_first_copy_cap"] == 25
     assert manifest["per_crystal_selected_counts"] == {"test_crystal_01": 25}
-    assert manifest["excluded_by_caps_count"] == 5
+    assert manifest["excluded_by_caps_count"] == 305
     registry = load_all_eligible_model_registry(
         result.model_registry_directory / "all_model_registry.json"
     )
@@ -713,11 +728,48 @@ def test_diverse_funnel_applies_stricter_execution_cap(tmp_path: Path) -> None:
         if line
     )
     assert len(deferred) == manifest["candidate_count_before_caps"] - 1
+    complete = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in result.complete_acquired_hypotheses_jsonl.read_text().splitlines()
+    )
+    assert len(complete) == manifest["complete_acquired_hypothesis_count"] == 22
+    assert {item.copy_count_expected for item in complete} == set(range(1, 12))
+    assert any(
+        item.priority_features["initial_admission_eligible"] is False
+        for item in complete
+    )
+    assert all(item.copy_number_to_search == 1 for item in complete)
+    assert manifest["complete_acquired_hypotheses_sha256"] == sha256_file(
+        result.complete_acquired_hypotheses_jsonl
+    )
     assert all(
         item.status is MrHypothesisStatus.SKIPPED
         and item.priority_features["first_copy_execution_disposition"]
-        == "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+        in {
+            "deferred_initial_25_cap_reopen_only_after_complete_zero_pack",
+            "deferred_expected_copy_state_requires_reviewed_selection",
+        }
         for item in deferred
+    )
+
+
+def test_complete_acquired_inventory_retains_zero_copy_frequency_states(
+    tmp_path: Path,
+) -> None:
+    request = _diverse_request(tmp_path, asu_volume_a3=40_000.0)
+    output = build_diverse_first_copy_funnel(request)
+    complete = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in output.complete_acquired_hypotheses_jsonl.read_text().splitlines()
+    )
+    alternatives = tuple(item for item in complete if item.copy_count_expected == 67)
+    assert len(alternatives) == 2
+    assert all(
+        item.priority_features["copy_frequency_factor"] == 0.0
+        and item.priority_features["matthews_prior"] == 0.0
+        and item.status is MrHypothesisStatus.SKIPPED
+        and item.copy_number_to_search == 1
+        for item in alternatives
     )
 
 

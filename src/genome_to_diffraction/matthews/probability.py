@@ -42,6 +42,28 @@ class MatthewsProbabilityError(ValueError):
     """The empirical reference or requested probability is invalid."""
 
 
+class MatthewsInsufficientReferenceError(MatthewsProbabilityError):
+    """The requested resolution has too little support to estimate a prior."""
+
+    def __init__(self, resolution_high_a: float, reference_record_count: int) -> None:
+        self.diagnostic = {
+            "schema_version": "1.0",
+            "status": "insufficient_reference_support",
+            "resolution_high_a": resolution_high_a,
+            "reference_record_count": reference_record_count,
+            "minimum_reference_records": MINIMUM_REFERENCE_RECORDS,
+            "prior_backend": PRIOR_BACKEND,
+            "solvent_density_backend": SOLVENT_DENSITY_BACKEND,
+            "reference_resource_sha256": REFERENCE_RESOURCE_SHA256,
+        }
+        super().__init__(
+            "insufficient empirical Matthews reference support: "
+            f"resolution={resolution_high_a:g} A; "
+            f"records={reference_record_count}; minimum={MINIMUM_REFERENCE_RECORDS}; "
+            f"backend={PRIOR_BACKEND}; reference={REFERENCE_RESOURCE_SHA256}"
+        )
+
+
 @dataclass(frozen=True)
 class MatthewsProbabilityDistribution:
     """One cumulative-resolution solvent-fraction density estimate."""
@@ -291,6 +313,8 @@ def probability_distribution(
         raise MatthewsProbabilityError("high-resolution limit must be positive")
     resolutions, solvents, _ = _reference()
     selected = solvents[resolutions <= resolution_high_a]
+    if len(selected) < MINIMUM_REFERENCE_RECORDS:
+        raise MatthewsInsufficientReferenceError(resolution_high_a, len(selected))
     bandwidth = _oversmoothed_bandwidth(selected)
     grid = np.linspace(0.0, 1.0, KDE_GRID_SIZE, dtype=np.float64)
     counts = _linear_bin(selected, KDE_GRID_SIZE)
@@ -323,6 +347,7 @@ def probability_distribution(
 __all__ = [
     "PRIOR_BACKEND",
     "SOLVENT_DENSITY_BACKEND",
+    "MatthewsInsufficientReferenceError",
     "MatthewsProbabilityDistribution",
     "MatthewsProbabilityError",
     "homooligomer_copy_probability",

@@ -12,6 +12,9 @@ from genome_to_diffraction.matthews.enumerate import (
     MatthewsRequest,
     enumerate_matthews,
 )
+from genome_to_diffraction.matthews.probability import (
+    MatthewsInsufficientReferenceError,
+)
 from genome_to_diffraction.schemas.results import (
     MtzPreflightRecord,
     PreflightDecision,
@@ -144,6 +147,28 @@ def _assert_duplicate_rejected(
     with pytest.raises(MatthewsInputError) as captured:
         enumerate_matthews(request)
     assert str(captured.value) == expected
+
+
+def test_insufficient_reference_stops_without_hypothesis_outputs(
+    tmp_path: Path,
+) -> None:
+    group = _group("A" * 100, source_record_count=1)
+    request = _request(
+        tmp_path,
+        preflights=(_preflight().model_copy(update={"resolution_high_a": 0.9}),),
+        groups=(group,),
+        sources=(_source("source_a", group),),
+    )
+    with pytest.raises(MatthewsInsufficientReferenceError):
+        enumerate_matthews(request)
+    assert {path.name for path in request.output_directory.iterdir()} == {
+        "matthews_diagnostic.json"
+    }
+    diagnostic = json.loads(
+        (request.output_directory / "matthews_diagnostic.json").read_text()
+    )
+    assert diagnostic["reference_record_count"] == 117
+    assert diagnostic["execution_status"] == "failed_input_contract"
 
 
 @pytest.mark.parametrize("conflicting", (False, True))

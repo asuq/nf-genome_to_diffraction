@@ -608,7 +608,7 @@ def test_sequence_checkpoint_publishes_bounded_and_full_views(tmp_path: Path) ->
     assert copy_counts == set(range(1, max(copy_counts) + 1))
     assert max(copy_counts) > 16
     assert manifest["matthews_policy"]["copy_count_policy"] == (
-        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+        "dynamic_by_asu_sequence_mass_nonnegative_solvent"
     )
     assert manifest["matthews_policy"]["static_copy_count_ceiling"] is None
     checkpoint_html = output.review_html.read_text(encoding="utf-8")

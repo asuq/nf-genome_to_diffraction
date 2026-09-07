@@ -44,8 +44,19 @@ from genome_to_diffraction.ids import (
     canonical_sequence,
     content_id,
 )
-from genome_to_diffraction.matthews.enumerate import COPY_RANGE_BACKEND, prior_score
-from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
+from genome_to_diffraction.matthews.enumerate import (
+    COPY_RANGE_BACKEND,
+    physical_status,
+    prior_score,
+    solvent_review_reasons,
+)
+from genome_to_diffraction.matthews.probability import (
+    MINIMUM_REFERENCE_RECORDS,
+    PRIOR_BACKEND,
+    REFERENCE_RESOURCE_SHA256,
+    homooligomer_copy_probability,
+    probability_distribution,
+)
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
     prepare_live_add_copy_stage,
@@ -66,7 +77,6 @@ from genome_to_diffraction.schemas.results import (
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
-    PhysicalStatus,
     ProcessedModelRecord,
     SequenceGroupRecord,
     SourceProteinRecord,
@@ -614,7 +624,7 @@ def _prepare_heteromer_control(
             "matthews_hypothesis_id": matthews_id,
             "matthews_prior_backend": PRIOR_BACKEND,
             "matthews_copy_range_policy": (
-                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+                "dynamic_by_asu_sequence_mass_nonnegative_solvent"
             ),
             "matthews_copy_range_complete": False,
             "matthews_copy_range_exemption": "fixed_known_control",
@@ -867,7 +877,9 @@ def build_6rtz_control_review(
         raise HeteromerControlPreparationError("fixed 6RTZ MTZ lacks space group")
     asu_volume = mtz.cell.volume / len(mtz.spacegroup.operations())
     coefficient = asu_volume / parent_group.molecular_mass_da
-    solvent_fraction = max(0.0, min(1.0, 1.0 - 1.23 / coefficient))
+    solvent_fraction = 1.0 - 1.23 / coefficient
+    distribution = probability_distribution(mtz.resolution_high())
+    config = _control_pipeline_config()
     support = output / "support"
     support.mkdir()
     source_record = SourceProteinRecord(
@@ -906,9 +918,27 @@ def build_6rtz_control_review(
             copy_count=1,
         ),
         prior_backend=PRIOR_BACKEND,
+        solvent_density=distribution.score(solvent_fraction),
+        copy_frequency_factor=homooligomer_copy_probability(1),
+        prior_reference_record_count=distribution.reference_record_count,
+        prior_minimum_reference_records=MINIMUM_REFERENCE_RECORDS,
+        prior_reference_resource_sha256=REFERENCE_RESOURCE_SHA256,
+        configured_solvent_fraction_min=config.matthews.min_solvent_fraction,
+        configured_solvent_fraction_max=config.matthews.max_solvent_fraction,
+        review_reasons=solvent_review_reasons(
+            solvent_fraction,
+            solvent_fraction,
+            minimum=config.matthews.min_solvent_fraction,
+            maximum=config.matthews.max_solvent_fraction,
+        ),
         rank_within_candidate=1,
         retained=True,
-        physical_status=PhysicalStatus.PLAUSIBLE,
+        physical_status=physical_status(
+            solvent_fraction,
+            solvent_fraction,
+            minimum=config.matthews.min_solvent_fraction,
+            maximum=config.matthews.max_solvent_fraction,
+        ),
         sds_page_prior_label="unavailable",
         warnings=("fixed_control_review_support",),
     )

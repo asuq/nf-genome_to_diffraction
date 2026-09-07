@@ -37,9 +37,13 @@ from genome_to_diffraction.matthews.enumerate import (
     COPY_RANGE_BACKEND,
     dynamic_copy_counts,
     physical_status,
+    solvent_review_reasons,
 )
 from genome_to_diffraction.matthews.probability import (
+    MINIMUM_REFERENCE_RECORDS,
     PRIOR_BACKEND,
+    REFERENCE_RESOURCE_SHA256,
+    homooligomer_copy_probability,
     probability_distribution,
 )
 from genome_to_diffraction.model_registry.all_eligible import (
@@ -80,8 +84,10 @@ from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v1"
-_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v7-dynamic-matthews"
+_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v2-complete-inventory"
+_PHASE3_DIVERSE_ADAPTER_VERSION = (
+    "multi-source-first-copy-funnel-v8-reviewed-alternatives"
+)
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
@@ -153,6 +159,7 @@ class DiverseFirstCopyFunnelOutput:
     hypotheses: tuple[MrHypothesis, ...]
     hypotheses_jsonl: Path
     hypotheses_tsv: Path
+    complete_acquired_hypotheses_jsonl: Path
     deferred_cap_hypotheses_jsonl: Path
     deferred_localisation_hypotheses_jsonl: Path
     resource_plans_jsonl: Path | None
@@ -373,6 +380,12 @@ def _complete_matthews_rows(
                     "sequence_group_id": group.sequence_group_id,
                     "copy_count": row.copy_count,
                     "prior_backend": PRIOR_BACKEND,
+                    "configured_solvent_fraction_min": (
+                        config.matthews.min_solvent_fraction
+                    ),
+                    "configured_solvent_fraction_max": (
+                        config.matthews.max_solvent_fraction
+                    ),
                     "copy_range_backend": COPY_RANGE_BACKEND,
                 },
             )
@@ -391,6 +404,13 @@ def _complete_matthews_rows(
                 expected_prior = distribution.single_component_prior(
                     row.copy_count,
                     expected_solvent,
+                )
+                expected_density = distribution.score(expected_solvent)
+                expected_review_reasons = solvent_review_reasons(
+                    expected_solvent,
+                    expected_solvent,
+                    minimum=config.matthews.min_solvent_fraction,
+                    maximum=config.matthews.max_solvent_fraction,
                 )
                 exact_values = (
                     (row.sequence_mass_da, group.molecular_mass_da),
@@ -420,6 +440,15 @@ def _complete_matthews_rows(
                     expected_solvent_lower,
                     expected_solvent_upper,
                 )
+                expected_density = distribution.score_interval(
+                    expected_solvent_lower, expected_solvent_upper
+                )
+                expected_review_reasons = solvent_review_reasons(
+                    expected_solvent_lower,
+                    expected_solvent_upper,
+                    minimum=config.matthews.min_solvent_fraction,
+                    maximum=config.matthews.max_solvent_fraction,
+                )
                 exact_values = (
                     (row.sequence_mass_lower_da, mass_lower),
                     (row.sequence_mass_upper_da, mass_upper),
@@ -448,6 +477,28 @@ def _complete_matthews_rows(
                 abs_tol=1e-12,
             ):
                 raise FunnelInputError("Matthews status or empirical prior differs")
+            if (
+                row.prior_reference_record_count != distribution.reference_record_count
+                or row.prior_minimum_reference_records != MINIMUM_REFERENCE_RECORDS
+                or row.prior_reference_resource_sha256 != REFERENCE_RESOURCE_SHA256
+                or row.configured_solvent_fraction_min
+                != config.matthews.min_solvent_fraction
+                or row.configured_solvent_fraction_max
+                != config.matthews.max_solvent_fraction
+                or row.review_reasons != expected_review_reasons
+                or not math.isclose(
+                    row.solvent_density, expected_density, rel_tol=1e-12, abs_tol=1e-12
+                )
+                or not math.isclose(
+                    row.copy_frequency_factor,
+                    homooligomer_copy_probability(row.copy_count),
+                    rel_tol=1e-12,
+                    abs_tol=1e-12,
+                )
+            ):
+                raise FunnelInputError(
+                    "Matthews factors or reference/window metadata differ"
+                )
             recomputed[row.copy_count] = (expected_status, expected_prior)
         status_order = {
             PhysicalStatus.PLAUSIBLE: 0,
@@ -516,9 +567,17 @@ def _priority_features(
         "estimated_coordinate_error": model.estimated_coordinate_error,
         "matthews_hypothesis_id": matthews.hypothesis_id,
         "matthews_prior": matthews.matthews_prior,
+        "solvent_density": matthews.solvent_density,
+        "copy_frequency_factor": matthews.copy_frequency_factor,
+        "prior_reference_record_count": matthews.prior_reference_record_count,
+        "prior_minimum_reference_records": matthews.prior_minimum_reference_records,
+        "prior_reference_resource_sha256": matthews.prior_reference_resource_sha256,
+        "configured_solvent_fraction_min": matthews.configured_solvent_fraction_min,
+        "configured_solvent_fraction_max": matthews.configured_solvent_fraction_max,
+        "review_reasons": list(matthews.review_reasons),
         "matthews_prior_backend": matthews.prior_backend,
         "matthews_copy_range_policy": (
-            "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+            "dynamic_by_asu_sequence_mass_nonnegative_solvent"
         ),
         "matthews_copy_range_complete": True,
         "matthews_rank_within_candidate": matthews.rank_within_candidate,
@@ -1086,6 +1145,7 @@ def _make_diverse_candidate(
     mapping: CoordinateHitMappingRecord | None,
     localisation: BatchLocalisationGroupEvidence | None,
     build_resource_plan: bool,
+    moving_atom_count: int | None,
 ) -> _Candidate:
     copy_number_to_search = 1
     identity = {
@@ -1127,12 +1187,14 @@ def _make_diverse_candidate(
         priority_features=features,
         status=MrHypothesisStatus.QUEUED,
     )
+    if build_resource_plan and moving_atom_count is None:
+        raise FunnelInputError("Phase III model lacks its validated atom count")
     resource_plan = (
         build_mr_resource_plan(
             owner_kind="mr_hypothesis",
             owner_id=hypothesis.hypothesis_id,
             reflection_count=preflight.reflection_count,
-            moving_atom_count=count_polymer_atoms(model_path.absolute_path),
+            moving_atom_count=cast(int, moving_atom_count),
             searched_copy_count=copy_number_to_search,
             fixed_atom_count=0,
             symmetry_multiplicity=preflight.general_position_multiplicity,
@@ -1236,6 +1298,11 @@ def _join_diverse_candidates(
                 "unsupported coordinate provider in diverse funnel: "
                 f"{coordinate.provider}"
             )
+        moving_atom_count = (
+            count_polymer_atoms(model_paths[model.model_id].absolute_path)
+            if build_resource_plans
+            else None
+        )
         complete_rows = validated_matthews_by_group.get(group.sequence_group_id)
         if complete_rows is None:
             complete_rows = _complete_matthews_rows(
@@ -1246,28 +1313,21 @@ def _join_diverse_candidates(
                 config=config,
             )
             validated_matthews_by_group[group.sequence_group_id] = complete_rows
-        applicable = sorted(
-            (
-                row
-                for row in complete_rows
-                if row.retained and row.physical_status is not PhysicalStatus.IMPOSSIBLE
-            ),
-            key=lambda row: (
-                row.crystal_id,
-                row.rank_within_candidate,
-                -row.matthews_prior,
-                row.copy_count,
-            ),
-        )
-        if any(row.prior_backend != PRIOR_BACKEND for row in applicable):
+        if any(row.prior_backend != PRIOR_BACKEND for row in complete_rows):
             raise FunnelInputError(
                 "Matthews hypotheses use a superseded probability backend"
             )
         per_crystal_counts: dict[str, int] = {}
-        for row in applicable:
+        for row in sorted(
+            (
+                row
+                for row in complete_rows
+                if row.physical_status is not PhysicalStatus.IMPOSSIBLE
+            ),
+            key=lambda row: (row.crystal_id, row.rank_within_candidate, row.copy_count),
+        ):
             used = per_crystal_counts.get(row.crystal_id, 0)
-            if used >= per_model_copy_cap:
-                continue
+            admission_eligible = row.retained and used < per_model_copy_cap
             preflight = preflight_index[row.crystal_id]
             if preflight.decision is PreflightDecision.FAIL:
                 continue
@@ -1280,21 +1340,39 @@ def _join_diverse_candidates(
                 raise FunnelInputError(
                     f"passing preflight lacks observation labels: {row.crystal_id}"
                 )
+            candidate = _make_diverse_candidate(
+                coordinate=coordinate,
+                model=model,
+                model_path=model_paths[model.model_id],
+                group=group,
+                matthews=row,
+                preflight=preflight,
+                profile=config.prototype.profile,
+                mapping=mapping,
+                localisation=localisation,
+                build_resource_plan=build_resource_plans,
+                moving_atom_count=moving_atom_count,
+            )
             candidates.append(
-                _make_diverse_candidate(
-                    coordinate=coordinate,
-                    model=model,
-                    model_path=model_paths[model.model_id],
-                    group=group,
-                    matthews=row,
-                    preflight=preflight,
-                    profile=config.prototype.profile,
-                    mapping=mapping,
-                    localisation=localisation,
-                    build_resource_plan=build_resource_plans,
+                _Candidate(
+                    hypothesis=candidate.hypothesis.model_copy(
+                        update={
+                            "priority_features": {
+                                **candidate.hypothesis.priority_features,
+                                "initial_admission_eligible": admission_eligible,
+                                "matthews_retained": row.retained,
+                                "initial_per_model_copy_cap": per_model_copy_cap,
+                            },
+                        }
+                    ),
+                    model_path=candidate.model_path,
+                    coordinate=candidate.coordinate,
+                    model=candidate.model,
+                    matthews=candidate.matthews,
+                    resource_plan=candidate.resource_plan,
                 )
             )
-            per_crystal_counts[row.crystal_id] = used + 1
+            per_crystal_counts[row.crystal_id] = used + int(admission_eligible)
     candidates.sort(key=_diverse_candidate_sort_key)
     return candidates
 
@@ -1545,11 +1623,16 @@ def build_diverse_first_copy_funnel(
         build_resource_plans=phase3_screen,
         localisation_by_group=localisation_by_group,
     )
-    candidates = [
+    active_candidates = [
         candidate
         for candidate in all_candidates
         if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
         != "excluded"
+    ]
+    candidates = [
+        candidate
+        for candidate in active_candidates
+        if candidate.hypothesis.priority_features["initial_admission_eligible"]
     ]
     deferred_localisation = tuple(
         candidate.hypothesis.model_copy(
@@ -1581,12 +1664,23 @@ def build_diverse_first_copy_funnel(
                     **item.hypothesis.priority_features,
                     "first_copy_execution_disposition": (
                         "deferred_initial_25_cap_reopen_only_after_complete_zero_pack"
+                        if item.hypothesis.priority_features[
+                            "initial_admission_eligible"
+                        ]
+                        else "deferred_expected_copy_state_requires_reviewed_selection"
+                    ),
+                    "source_deferred_wave": (
+                        "initial_25_cap"
+                        if item.hypothesis.priority_features[
+                            "initial_admission_eligible"
+                        ]
+                        else "expected_copy_admission"
                     ),
                 },
                 "status": MrHypothesisStatus.SKIPPED,
             }
         )
-        for item in sorted(candidates, key=_diverse_candidate_sort_key)
+        for item in sorted(active_candidates, key=_diverse_candidate_sort_key)
         if item.hypothesis.hypothesis_id not in selected_ids
     )
     output = request.output_directory.resolve()
@@ -1630,6 +1724,8 @@ def build_diverse_first_copy_funnel(
             ),
         )
         for hypothesis_id, plan in resource_rows:
+            if hypothesis_id not in selected_ids:
+                continue
             atomic_write_json(
                 plan_directory / f"{hypothesis_id}.json",
                 plan.model_dump(mode="json"),
@@ -1647,6 +1743,25 @@ def build_diverse_first_copy_funnel(
     hypotheses_jsonl = output / "mr_hypotheses.jsonl"
     deferred_cap_jsonl = output / "deferred_cap_hypotheses.jsonl"
     deferred_localisation_jsonl = output / "deferred_localisation_hypotheses.jsonl"
+    complete_acquired_jsonl = output / "complete_acquired_hypotheses.jsonl"
+    complete_by_id = {
+        item.hypothesis_id: item
+        for item in (
+            *(candidate.hypothesis for candidate in selected),
+            *deferred_cap,
+            *deferred_localisation,
+        )
+    }
+    if len(complete_by_id) != len(all_candidates):
+        raise FunnelInputError("complete acquired-model hypothesis inventory differs")
+    atomic_write_text(
+        complete_acquired_jsonl,
+        "".join(
+            f"{canonical_json_text(complete_by_id[item.hypothesis.hypothesis_id])}\n"
+            for item in all_candidates
+        ),
+    )
+    complete_acquired_sha256 = sha256_file(complete_acquired_jsonl)
     atomic_write_text(
         hypotheses_jsonl,
         "".join(f"{canonical_json_text(item.hypothesis)}\n" for item in selected),
@@ -1680,13 +1795,13 @@ def build_diverse_first_copy_funnel(
             "copy_search_mode": "single_copy_then_sequential_completion",
             "initial_searched_copy_count": 1,
             "expected_copy_count_policy": (
-                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+                "dynamic_by_asu_sequence_mass_nonnegative_solvent"
             ),
             "matthews_prior_backend": PRIOR_BACKEND,
             "matthews_copy_range_backend": COPY_RANGE_BACKEND,
             "matthews_copy_range_complete": True,
             "matthews_copy_range_validation": (
-                "rederived_from_preflight_sequence_mass_and_solvent_bounds"
+                "rederived_from_preflight_sequence_mass_nonnegative_solvent"
             ),
             "static_expected_copy_count_ceiling": None,
             "localisation_policy_id": (
@@ -1725,6 +1840,8 @@ def build_diverse_first_copy_funnel(
     manifest_identity = {
         "adapter_version": adapter_version,
         "input_sha256": input_sha256,
+        "complete_acquired_hypothesis_count": len(complete_by_id),
+        "complete_acquired_hypotheses_sha256": complete_acquired_sha256,
         "hypothesis_ids": [item.hypothesis.hypothesis_id for item in selected],
         "per_crystal_cap": per_crystal_cap,
         **phase3_copy_details,
@@ -1740,9 +1857,12 @@ def build_diverse_first_copy_funnel(
             "scope": "multi_source_first_copy",
             "resource_profile": config.prototype.profile.value,
             "input_sha256": input_sha256,
-            "candidate_count_before_caps": len(candidates),
+            "candidate_count_before_caps": len(active_candidates),
+            "initial_admission_candidate_count": len(candidates),
+            "complete_acquired_hypothesis_count": len(complete_by_id),
+            "complete_acquired_hypotheses_sha256": complete_acquired_sha256,
             "selected_hypothesis_count": len(selected),
-            "excluded_by_caps_count": len(candidates) - len(selected),
+            "excluded_by_caps_count": len(active_candidates) - len(selected),
             "per_crystal_first_copy_cap": per_crystal_cap,
             "per_crystal_selected_counts": dict(sorted(per_crystal_counts.items())),
             "global_structural_cap": config.search_limits.max_structural_hypotheses,
@@ -1820,6 +1940,7 @@ def build_diverse_first_copy_funnel(
         hypotheses=tuple(item.hypothesis for item in selected),
         hypotheses_jsonl=hypotheses_jsonl,
         hypotheses_tsv=hypotheses_tsv,
+        complete_acquired_hypotheses_jsonl=complete_acquired_jsonl,
         deferred_cap_hypotheses_jsonl=deferred_cap_jsonl,
         deferred_localisation_hypotheses_jsonl=deferred_localisation_jsonl,
         resource_plans_jsonl=resource_plans_jsonl,

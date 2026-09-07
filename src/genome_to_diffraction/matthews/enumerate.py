@@ -16,11 +16,15 @@ import polars as pl
 from pydantic import BaseModel, ValidationError
 from tqdm import tqdm
 
-from genome_to_diffraction.checksums import atomic_write_text
+from genome_to_diffraction.checksums import atomic_write_json, atomic_write_text
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.matthews.probability import (
+    MINIMUM_REFERENCE_RECORDS,
     PRIOR_BACKEND,
+    REFERENCE_RESOURCE_SHA256,
+    MatthewsInsufficientReferenceError,
     MatthewsProbabilityDistribution,
+    homooligomer_copy_probability,
     probability_distribution,
     reference_metadata,
 )
@@ -43,7 +47,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.matthews")
-COPY_RANGE_BACKEND = "asu_sequence_mass_solvent_overlap_v1"
+COPY_RANGE_BACKEND = "asu_sequence_mass_nonnegative_solvent_v2"
 MAXIMUM_SAFE_DYNAMIC_COPY_COUNT = 100_000
 _EXCLUDED_SEQUENCE_FLAGS = frozenset(
     {
@@ -216,14 +220,46 @@ def physical_status(
     minimum: float,
     maximum: float,
 ) -> PhysicalStatus:
-    if upper < minimum or lower > maximum:
+    """Separate mass-volume impossibility from the configured preference window."""
+
+    if not all(math.isfinite(value) for value in (lower, upper, minimum, maximum)):
+        raise MatthewsInputError("Matthews solvent fractions must be finite")
+    if lower > upper or not 0 <= minimum < maximum <= 1:
+        raise MatthewsInputError("Matthews solvent interval or preference is invalid")
+    if upper < 0 or lower >= 1:
         return PhysicalStatus.IMPOSSIBLE
-    if lower < minimum or upper > maximum:
+    if lower <= 0 or upper >= 1 or lower < minimum or upper > maximum:
         return PhysicalStatus.REVIEW
     boundary_margin = min(0.05, (maximum - minimum) / 4)
     if lower < minimum + boundary_margin or upper > maximum - boundary_margin:
         return PhysicalStatus.REVIEW
     return PhysicalStatus.PLAUSIBLE
+
+
+def solvent_review_reasons(
+    lower: float,
+    upper: float,
+    *,
+    minimum: float,
+    maximum: float,
+) -> tuple[str, ...]:
+    """Explain physical inconsistency and unusual but admissible solvent states."""
+
+    status = physical_status(lower, upper, minimum=minimum, maximum=maximum)
+    if status is PhysicalStatus.IMPOSSIBLE:
+        return ("mass_volume_inconsistent_declared_composition",)
+    reasons: list[str] = []
+    if lower <= 0:
+        reasons.append(
+            "zero_solvent_model_boundary"
+            if lower == upper == 0
+            else "sequence_mass_interval_overlaps_zero_solvent_boundary"
+        )
+    if lower < minimum or upper > maximum:
+        reasons.append("outside_configured_solvent_preference_window")
+    elif status is PhysicalStatus.REVIEW:
+        reasons.append("near_configured_solvent_preference_boundary")
+    return tuple(reasons)
 
 
 def prior_score(
@@ -248,7 +284,7 @@ def dynamic_copy_counts(
     minimum_solvent_fraction: float,
     maximum_solvent_fraction: float,
 ) -> tuple[tuple[int, ...], tuple[str, ...]]:
-    """Derive the complete finite copy range that overlaps physical bounds."""
+    """Enumerate every nonnegative-solvent copy state, independent of preference."""
 
     if not math.isfinite(v_asu_a3) or v_asu_a3 <= 0:
         raise MatthewsInputError("Matthews ASU volume must be finite and positive")
@@ -261,13 +297,17 @@ def dynamic_copy_counts(
         or mass_upper_da < mass_lower_da
     ):
         raise MatthewsInputError("Matthews sequence-mass bounds are invalid")
-    upper_real = v_asu_a3 * (1.0 - minimum_solvent_fraction) / (1.23 * mass_lower_da)
+    upper_real = v_asu_a3 / (1.23 * mass_lower_da)
+    if not math.isfinite(upper_real):
+        raise MatthewsInputError(
+            "dynamic Matthews copy range exceeds the fail-closed safety bound"
+        )
     first = 1
-    last = math.floor(upper_real + 1e-12)
+    last = math.floor(upper_real)
     warnings: tuple[str, ...] = ()
     if last < first:
         last = first
-        warnings = ("no_positive_copy_count_reaches_minimum_solvent_bound",)
+        warnings = ("no_positive_copy_count_has_nonnegative_solvent",)
     if last > MAXIMUM_SAFE_DYNAMIC_COPY_COUNT:
         raise MatthewsInputError(
             "dynamic Matthews copy range exceeds the fail-closed safety bound"
@@ -328,6 +368,8 @@ def enumerate_group(
             "sequence_group_id": group.sequence_group_id,
             "copy_count": copy_count,
             "prior_backend": PRIOR_BACKEND,
+            "configured_solvent_fraction_min": minimum,
+            "configured_solvent_fraction_max": maximum,
             "copy_range_backend": COPY_RANGE_BACKEND,
         }
         common: dict[str, object] = {
@@ -338,6 +380,12 @@ def enumerate_group(
             "copy_count": copy_count,
             "v_asu_a3": preflight.asu_volume_a3,
             "prior_backend": PRIOR_BACKEND,
+            "copy_frequency_factor": homooligomer_copy_probability(copy_count),
+            "prior_reference_record_count": empirical.reference_record_count,
+            "prior_minimum_reference_records": MINIMUM_REFERENCE_RECORDS,
+            "prior_reference_resource_sha256": REFERENCE_RESOURCE_SHA256,
+            "configured_solvent_fraction_min": minimum,
+            "configured_solvent_fraction_max": maximum,
             "rank_within_candidate": 1,
             "retained": False,
             **_sds_fields(sds, crystal),
@@ -357,6 +405,10 @@ def enumerate_group(
                     "matthews_coefficient": coefficient,
                     "solvent_fraction": solvent,
                     "matthews_prior": prior,
+                    "solvent_density": empirical.score(solvent),
+                    "review_reasons": solvent_review_reasons(
+                        solvent, solvent, minimum=minimum, maximum=maximum
+                    ),
                     "physical_status": status,
                     "warnings": tuple(warnings),
                 }
@@ -393,6 +445,12 @@ def enumerate_group(
                     "solvent_fraction_lower": solvent_lower,
                     "solvent_fraction_upper": solvent_upper,
                     "matthews_prior": prior,
+                    "solvent_density": empirical.score_interval(
+                        solvent_lower, solvent_upper
+                    ),
+                    "review_reasons": solvent_review_reasons(
+                        solvent_lower, solvent_upper, minimum=minimum, maximum=maximum
+                    ),
                     "physical_status": status,
                     "warnings": tuple(sorted(warnings)),
                 }
@@ -592,7 +650,19 @@ def enumerate_matthews(request: MatthewsRequest) -> MatthewsResult:
         enumerated_groups = 0
         crystal_hypothesis_count = 0
         crystal_maximum_copy_count = 0
-        empirical = probability_distribution(preflight.resolution_high_a)
+        try:
+            empirical = probability_distribution(preflight.resolution_high_a)
+        except MatthewsInsufficientReferenceError as error:
+            atomic_write_json(
+                request.output_directory / "matthews_diagnostic.json",
+                {
+                    **error.diagnostic,
+                    "crystal_id": crystal.crystal_id,
+                    "preflight_id": preflight.preflight_id,
+                    "execution_status": "failed_input_contract",
+                },
+            )
+            raise
         for group_id in tqdm(
             group_ids,
             desc=f"Matthews {crystal.crystal_id}",

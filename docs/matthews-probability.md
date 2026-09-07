@@ -16,10 +16,10 @@ visible factors:
 2. the published empirical frequency `P(n)` of homooligomer copy counts in the
    asymmetric unit.
 
-Their product is a review-ordering weight, not a calibrated probability of
-protein identity. The unweighted solvent density remains available in the
-runtime API and the MR review publishes an independent MR rank so disagreement
-cannot be hidden in one unexplained score.
+Their product is a candidate-admission prior, not a calibrated probability of
+protein identity. Successful hypothesis records export `solvent_density`,
+`copy_frequency_factor`, their `matthews_prior` product, the reference checksum
+and supporting record count. Realised MR evidence controls A-review ordering.
 
 ## Reference and method
 
@@ -68,18 +68,23 @@ References:
 
 The workflow has no configured scientific copy ceiling. For each exact or
 bounded sequence mass it enumerates every positive integer copy count from one
-through the final count whose sequence-mass interval can still overlap the
-configured minimum solvent fraction. Low-copy, high-solvent states are retained
-and typed `review` or `impossible`; they are not silently omitted. A count of
+through `floor(V_ASU / (1.23 * lower_sequence_mass))`, independently of the
+configured solvent preference window. The range backend is
+`asu_sequence_mass_nonnegative_solvent_v2`. Positive solvent outside that window
+and the exact zero-solvent model boundary are typed `review`. Negative solvent
+under the declared exact composition is `impossible`; bounded sequence masses
+that straddle zero require review. If even one copy has negative solvent, the
+one-copy impossible row is retained to explain the exclusion. A count of
 100,000 is only a fail-closed corruption/resource guard and must never truncate
 a valid analysis.
 
-The current frozen-input audit enumerates 76,767 hypotheses and reaches maxima
-of 72, 171, and 19 copies for `AD4QS1P4G2_18`, `CD4QS2P2G1_15`, and
-`CD6QS2P2G1_5`. The bounded funnel still emits exactly 25 candidates per
-crystal. High-copy small proteins remain visible, but the empirical `P(n)`
-weight moves them behind better-supported ASU multiplicities instead of
-silently deleting them.
+The first-wave cap remains 25 hypotheses per crystal, each searching one copy.
+The funnel publishes `complete_acquired_hypotheses.jsonl` before the initial
+per-model copy and global admission limits. Every acquired model's mathematically
+admissible copy state remains available there, including zero-prior and
+out-of-window states. The manifest binds its checksum and count, and each row
+records whether initial admission was permitted. Further-copy execution still
+requires an approved seed and the existing sequential continuation policy.
 
 ## Inputs, outputs, and failure semantics
 
@@ -87,7 +92,7 @@ Inputs are the exact crystal manifest, pipeline configuration, MTZ preflight
 records, sequence groups, and source-protein records. Outputs are the complete
 Matthews JSONL, TSV, Parquet and Markdown inventories. Each hypothesis binds the
 preflight, sequence group, copy count, probability backend, and dynamic-range
-backend in its content identity.
+backend and configured preference window in its content identity.
 
 Malformed reference bytes, a checksum mismatch, unsupported backend metadata,
 insufficient resolution-conditioned observations, invalid mass/volume/solvent
@@ -95,6 +100,13 @@ bounds, or a dynamic range beyond the corruption guard fails the stage. A
 physically impossible hypothesis is a retained scientific state, not an
 execution failure. An unobserved `P(n)` has a prior weight of zero but remains
 eligible for explicit review and later evidence.
+
+The estimator requires at least 200 cumulative reference records. At 0.9 A the
+bundled reference supplies 117. That request raises
+`MatthewsInsufficientReferenceError`; enumeration writes only
+`matthews_diagnostic.json`, containing the resolution, observed count, minimum,
+backend/reference identity and non-success status. It publishes no hypothesis
+inventory and does not substitute a broader distribution or a zero score.
 
 No external executable or network service is required at runtime. The
 developer-only builder requires the exact checksum-pinned published ZIP archive
