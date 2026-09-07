@@ -15445,3 +15445,15 @@ with a collapsed combined parent or a guessed command.
 - Next resolve that existing staging response, record its exact ownership and
   submit once. Do not duplicate staging or lift the five-job cap without explicit
   user direction. Candidate assessments and the full v0.3 programme remain open.
+
+## 2026-09-07 - Longer identification input-staging allowance
+
+- The full-screen input attachment exceeded its 15-minute client transport
+  timeout. The exact retained run is staged without a Slurm job; no new MR test
+  started. Transfer completion is unconfirmed, not a scientific failure.
+- The user explicitly directed a fresh staging attempt with a longer allowance
+  instead of the proposed additional diagnostic-regression work. Only the
+  identification input transport timeout changes to 60 minutes. The failed
+  attempt is preserved; no input cleanup, overwrite or scientific cache reuse
+  is authorised. Scientific source and the temporary five-job ceiling remain
+  unchanged. Proceed to the explicitly authorised fresh stage and one submit.

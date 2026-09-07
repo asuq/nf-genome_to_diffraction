@@ -135,6 +135,7 @@ SSH_OPERATION_TIMEOUT_SECONDS = 45 * 60
 P0_STAGE_TIMEOUT_SECONDS = 45 * 60
 DATABASE_STAGE_TIMEOUT_SECONDS = 6 * 60 * 60
 P0_INPUT_STAGE_TIMEOUT_SECONDS = 15 * 60
+IDENTIFICATION_INPUT_STAGE_TIMEOUT_SECONDS = 60 * 60
 UNKNOWN_PROVIDER_STAGE_TIMEOUT_SECONDS = 60 * 60
 SSH_COLLECTION_TIMEOUT_SECONDS = 10 * 60
 SSH_REVIEW_COLLECTION_TIMEOUT_SECONDS = 30 * 60
@@ -1354,7 +1355,7 @@ class SshTransport:
                     stdin=handle,
                     check=False,
                     capture_output=True,
-                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                    timeout=IDENTIFICATION_INPUT_STAGE_TIMEOUT_SECONDS,
                 )
         except subprocess.TimeoutExpired as error:
             raise RemoteOperationError(

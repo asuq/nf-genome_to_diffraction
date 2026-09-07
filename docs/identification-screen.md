@@ -63,6 +63,11 @@ source commit and all input-file hashes. Links, duplicate members, traversal,
 oversized members and mismatched content are rejected before extraction. The
 job revalidates the staged input identity before emitting tasks.
 
+Identification input transfer and validation have a bounded 60-minute client
+timeout. This does not change scheduler or MR task time limits. Retain a timed-out
+attempt and verify that it has no scheduler submission before an explicitly
+authorised fresh staging attempt; do not overwrite partial inputs.
+
 `run_mode: "smoke"` runs one deterministic ready representative per crystal.
 All other rows remain visibly outside that run's execution subset. After a
 successful representative execution, a fresh `screen` plan includes all
