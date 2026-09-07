@@ -15,15 +15,17 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.mr.phaser import PhaserInputError
 from genome_to_diffraction.schemas.results import (
+    COPY_COUNT_UNASSESSED_REVIEW_FLAGS,
     AdditionalCopyResult,
     CopyCountAssessment,
 )
+from genome_to_diffraction.status import ExecutionStatus
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.copy_report")
-_ADAPTER_VERSION = "copy-count-report-v1"
+_ADAPTER_VERSION = "copy-count-report-v2-independent-completeness"
 _TSV_COLUMNS = (
     "seed_solution_id",
     "hypothesis_id",
@@ -32,6 +34,8 @@ _TSV_COLUMNS = (
     "best_supported_copy_count",
     "attempted_transition_count",
     "reached_expected_copy_count",
+    "independent_completeness_status",
+    "residual_content_status",
     "terminal_reason",
     "final_execution_status",
     "final_llg",
@@ -84,7 +88,8 @@ def _load(path: Path) -> tuple[AdditionalCopyResult, ...]:
 def _assess(records: list[AdditionalCopyResult]) -> CopyCountAssessment:
     ordered = sorted(records, key=lambda item: item.attempted_copy_number)
     first = ordered[0]
-    expected_numbers = list(range(2, 2 + len(ordered)))
+    start = first.parent_copy_count + 1
+    expected_numbers = list(range(start, start + len(ordered)))
     if [item.attempted_copy_number for item in ordered] != expected_numbers:
         raise PhaserInputError(
             f"copy series is not contiguous for seed {first.seed_solution_id}"
@@ -100,10 +105,7 @@ def _assess(records: list[AdditionalCopyResult]) -> CopyCountAssessment:
                 f"copy series provenance changes for seed {first.seed_solution_id}"
             )
         if index == 0:
-            if (
-                item.parent_copy_count != 1
-                or item.parent_solution_id != item.seed_solution_id
-            ):
+            if item.parent_solution_id != item.seed_solution_id:
                 raise PhaserInputError(
                     "copy series does not begin at approved seed "
                     f"{first.seed_solution_id}"
@@ -131,19 +133,17 @@ def _assess(records: list[AdditionalCopyResult]) -> CopyCountAssessment:
             "copy series ends before expected count without a stop for "
             f"{first.seed_solution_id}"
         )
-    flags = (
-        ()
-        if reached
-        else (
+    flags = COPY_COUNT_UNASSESSED_REVIEW_FLAGS
+    if not reached:
+        flags += (
             "expected_copy_count_not_reached",
             "possible_residual_content_or_special_position",
-            "copy_absence_not_proven",
         )
-    )
     identity = {
         "adapter_version": _ADAPTER_VERSION,
         "seed_solution_id": first.seed_solution_id,
         "attempt_ids": [item.attempt_id for item in ordered],
+        "attempt_result_sha256": [canonical_digest(item) for item in ordered],
     }
     return CopyCountAssessment(
         schema_version="1.0",
@@ -156,12 +156,22 @@ def _assess(records: list[AdditionalCopyResult]) -> CopyCountAssessment:
         best_supported_copy_count=final.best_supported_copy_count,
         attempted_transition_count=len(ordered),
         reached_expected_copy_count=reached,
+        independent_completeness_status="not_assessed",
+        residual_content_status="not_assessed",
         final_execution_status=final.execution_status,
         final_llg=final.llg,
         final_tfz=final.tfz,
         final_llg_delta_from_parent=final.llg_delta_from_parent,
         final_top_solution_packed=final.top_solution_packed,
-        final_placement_count=final.phaser_placement_count,
+        final_placement_count=(
+            final.phaser_placement_count
+            if final.execution_status
+            in {
+                ExecutionStatus.COMPLETED_HIT,
+                ExecutionStatus.COMPLETED_NO_HIT,
+            }
+            else None
+        ),
         terminal_reason=(
             "expected_copy_count_reached"
             if reached
@@ -215,9 +225,12 @@ def build_copy_count_report(request: CopyCountReportRequest) -> CopyCountReportO
         "# Copy-count comparison",
         "",
         "Stopped series retain their best parent and do not prove a copy absent.",
+        "Reaching the expected count does not assess composition completeness or "
+        "exclude residual content; both remain not assessed.",
         "",
-        "| Seed | Matthews expected | Best supported | State | Final LLG | Final TFZ |",
-        "|---|---:|---:|---|---:|---:|",
+        "| Seed | Matthews expected | Final placed | Best supported | Count state | "
+        "Completeness / residual content | Final LLG | Final TFZ |",
+        "|---|---:|---:|---:|---|---|---:|---:|",
     ]
     for item in assessments:
         state = (
@@ -225,9 +238,16 @@ def build_copy_count_report(request: CopyCountReportRequest) -> CopyCountReportO
             if item.reached_expected_copy_count
             else "review residual content / special position"
         )
+        placed = (
+            "unavailable"
+            if item.final_placement_count is None
+            else str(item.final_placement_count)
+        )
         lines.append(
             f"| `{item.seed_solution_id}` | {item.expected_copy_count} | "
-            f"{item.best_supported_copy_count} | {state} | "
+            f"{placed} | "
+            f"{item.best_supported_copy_count} | "
+            f"{state} | not assessed / not assessed | "
             f"{'' if item.final_llg is None else item.final_llg} | "
             f"{'' if item.final_tfz is None else item.final_tfz} |"
         )
@@ -247,6 +267,9 @@ def build_copy_count_report(request: CopyCountReportRequest) -> CopyCountReportO
             ),
             "all_candidates_retained": True,
             "failed_addition_proves_absence": False,
+            "expected_count_proves_completeness": False,
+            "independent_completeness_status": "not_assessed",
+            "residual_content_status": "not_assessed",
             "input": {
                 "results_jsonl": str(request.results_jsonl.resolve(strict=True)),
                 "sha256": sha256_file(request.results_jsonl),

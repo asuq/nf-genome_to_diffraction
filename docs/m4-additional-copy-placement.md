@@ -22,8 +22,8 @@ The normal `main.nf` workflow now reaches this operation through
 stage revalidates the current review package and every decided asset, copies the
 approved first-copy solution coordinate as the next search model, and records
 that rigid-body derivation alongside the distinct original first-copy model
-checksum. A one-copy hypothesis is retained as already complete and does not
-receive an invalid copy-two search.
+checksum. A one-copy hypothesis is retained as already at its expected count
+and does not receive an invalid copy-two search.
 
 The staging command used by Nextflow is:
 
@@ -41,7 +41,8 @@ and `live_m4_stage_manifest.json`. Unknown/stale IDs, pre-package timestamps,
 placeholder reviewers, unsafe assets, checksum drift, missing model provenance,
 and an empty approval set fail the checkpoint before Phaser. Its content
 identity binds the review/package, decisions, hypotheses, approved IDs, and both
-model checksums. Unit tests cover runnable and already-complete seeds; the
+model checksums. Unit tests cover runnable seeds and seeds at their expected
+count; the
 integrated parser-v2 stub and `-resume` test prove the file gate precedes the
 sequential-copy fan-out.
 
@@ -129,8 +130,8 @@ These arguments are inseparable. The typed result must be a supported
 `completed_hit` child of the same approved seed, review, hypothesis, sequence
 group, and expected-copy hypothesis; its coordinate checksum and observed
 placement count must match. A failed or unsupported addition cannot become the
-next parent, and an already complete `n`-copy state cannot advance beyond its
-hypothesis.
+next parent, and an `n`-copy state at its retained expectation cannot advance
+beyond its hypothesis.
 
 The workflow uses `--until-expected` to perform this bounded sequence for each
 approved seed. It writes every copy-specific child in a separate directory,
@@ -145,7 +146,7 @@ Inputs are authenticated against their prior records:
 - the approval must name the current review package and seed;
 - the review manifest and parent coordinate must match their recorded hashes;
 - the parent must be a successfully parsed, packed, typed result containing
-  exactly one placed copy; `completed_hit` and score-annotated
+  its explicitly reviewed observed copy count; `completed_hit` and score-annotated
   `completed_no_hit` parents are both eligible after explicit approval;
 - the hypothesis, exact catalogue sequence, observation labels, and MTZ
   preflight must agree;
@@ -212,9 +213,19 @@ checkpoint from those typed T12 results.
 validates every contiguous parent-child series and publishes typed JSONL, TSV,
 Markdown, and a checksum-bound manifest. It compares the Matthews-intended
 count with the best empirically supported count and retains the terminal raw
-LLG, TFZ, LLG delta, packing, placement, and execution evidence. A series that
-stops early is flagged for possible residual content or special-position
-review and explicitly states that copy absence was not proven. The Marmic M4
+LLG, TFZ, LLG delta, packing, placement, and execution evidence. A reviewed
+seed with multiple observed copies starts its series at the next count, including a
+reviewed coupled tNCS pair or triplet; the same count anchors refinement staging.
+Failed or unexecuted final attempts have a missing final placement count,
+while a completed native no-hit retains an observed zero for that final output.
+The best supported parent remains separate from either value.
+
+Every record, including an A-only seed already at its expectation, explicitly
+retains `independent_completeness_status=not_assessed` and
+`residual_content_status=not_assessed`. Reaching the expected count cannot clear
+those states or prove copy absence. Early stops additionally retain review flags
+for possible residual content or special positions. Assessment IDs bind the typed
+attempt-result digests as well as the attempt identifiers. The Marmic M4
 profile runs this report automatically for every retained candidate.
 
 ## Test coverage

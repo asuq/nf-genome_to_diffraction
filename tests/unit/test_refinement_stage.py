@@ -65,11 +65,12 @@ def _write_copy_series(
     *,
     expected_copy_count: int,
     outcome: str,
+    seed_placed_copy_count: int = 1,
 ) -> Path:
     root.mkdir()
     attempts: list[tuple[AdditionalCopyResult, Path]] = []
     parent_id = SEED_ID
-    parent_count = 1
+    parent_count = seed_placed_copy_count
 
     def add_attempt(*, supported: bool, status: ExecutionStatus) -> None:
         nonlocal parent_id, parent_count
@@ -358,6 +359,7 @@ def _live_request(
                 tmp_path / "additional-copy-results",
                 expected_copy_count=expected_copy_count,
                 outcome=outcome,
+                seed_placed_copy_count=placed_copy_count,
             ),
         )
         if outcome is not None
@@ -444,6 +446,7 @@ def test_live_stage_retains_best_supported_parent_for_every_typed_outcome(
     assert manifest["all_approved_seeds_retained"] is True
     assert manifest["numeric_score_filter_applied"] is False
     assert manifest["failed_addition_proves_absence"] is False
+    assert manifest["expected_count_proves_completeness"] is False
     candidate = manifest["candidates"][0]
     assert candidate["best_supported_copy_count"] == expected_best_count
     assert candidate["terminal_reason"] == expected_terminal_reason
@@ -451,6 +454,16 @@ def test_live_stage_retains_best_supported_parent_for_every_typed_outcome(
     assert candidate["final_addition_execution_status"] == expected_final_status
     assert candidate["parent_retained"] is True
     assert candidate["failed_addition_proves_absence"] is False
+    assert candidate["independent_completeness_status"] == "not_assessed"
+    assert candidate["residual_content_status"] == "not_assessed"
+    assert "independent_completeness_not_assessed" in candidate["copy_review_flags"]
+    rows = list(csv.DictReader(output.copy_report_tsv.open(), delimiter="\t"))
+    assert rows[0]["independent_completeness_status"] == "not_assessed"
+    assert rows[0]["residual_content_status"] == "not_assessed"
+    if expected_final_status == "failed_tool_execution":
+        assert rows[0]["final_placement_count"] == ""
+    elif outcome is None:
+        assert rows[0]["final_placement_count"] == "1"
 
     finalist = output.finalists.read_text(encoding="utf-8").splitlines()[1].split("\t")
     assert finalist[2] == str(expected_best_count)
@@ -464,6 +477,24 @@ def test_live_stage_retains_best_supported_parent_for_every_typed_outcome(
     assert "does not prove that the copy is absent" in (
         output.copy_report_markdown.read_text(encoding="utf-8")
     )
+
+
+def test_live_stage_continues_the_reviewed_multicopy_parent_to_refinement(
+    tmp_path: Path,
+) -> None:
+    request = _live_request(
+        tmp_path,
+        expected_copy_count=3,
+        outcome="supported",
+        placed_copy_count=2,
+    )
+    output = stage_live_t12_inputs(request)
+    candidate = json.loads(output.manifest.read_text())["candidates"][0]
+    assert candidate["attempted_transition_count"] == 1
+    assert candidate["best_supported_copy_count"] == 3
+    assert candidate["reached_expected_copy_count"] is True
+    assert candidate["independent_completeness_status"] == "not_assessed"
+    assert candidate["residual_content_status"] == "not_assessed"
 
 
 def test_phase3_live_stage_uses_only_canonical_seed_authority(
@@ -531,7 +562,7 @@ def test_phase3_joint_copy_parent_reaches_refinement_without_addition(
     legacy = _live_request(
         tmp_path,
         expected_copy_count=2,
-        outcome="supported",
+        outcome=None,
         placed_copy_count=2,
     )
     assert legacy.review_package is not None
@@ -623,6 +654,10 @@ def test_phase3_joint_copy_parent_reaches_refinement_without_addition(
     assert assessment.attempted_transition_count == 0
     assert assessment.best_supported_copy_count == 2
     assert assessment.reached_expected_copy_count is True
+    assert assessment.final_placement_count == 2
+    assert assessment.independent_completeness_status == "not_assessed"
+    assert assessment.residual_content_status == "not_assessed"
+    assert "independent_completeness_not_assessed" in assessment.review_flags
 
 
 def test_phase3_live_stage_rejects_dual_review_authority(tmp_path: Path) -> None:

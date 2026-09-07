@@ -26,9 +26,10 @@ from genome_to_diffraction.checksums import (
     atomic_write_text,
     sha256_file,
 )
-from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 from genome_to_diffraction.schemas.results import (
+    COPY_COUNT_UNASSESSED_REVIEW_FLAGS,
     AdditionalCopyResult,
     CopyCountAssessment,
     MrHypothesis,
@@ -301,6 +302,7 @@ def _load_copy_series(
     root_path: Path,
     *,
     seed_solution_id: str,
+    seed_placed_copy_count: int,
     review_id: str,
     hypothesis: MrHypothesis,
 ) -> _CopySeries:
@@ -372,7 +374,9 @@ def _load_copy_series(
             seed_solution_id if previous is None else previous.child_solution_id
         )
         expected_parent_count = (
-            1 if previous is None else previous.attempted_copy_number
+            seed_placed_copy_count
+            if previous is None
+            else previous.attempted_copy_number
         )
         if (
             expected_parent_id is None
@@ -1010,14 +1014,16 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         "expected_copy_count\tattempted_transition_count\t"
         "attempted_copy_numbers\tbest_supported_copy_count\t"
         "reached_expected_copy_count\tterminal_reason\t"
+        "independent_completeness_status\tresidual_content_status\treview_flags\t"
         "final_addition_execution_status\tfinal_llg\tfinal_tfz\t"
         "final_llg_delta_from_parent\tfinal_top_solution_packed\t"
         "final_placement_count\tparent_retained\t"
         "failed_addition_proves_absence"
     ]
     report_markdown_rows = [
-        "| Seed | Expected | Attempts | Best supported | Terminal reason |",
-        "|---|---:|---:|---:|---|",
+        "| Seed | Expected | Attempts | Final placed | Best supported | "
+        "Terminal reason | Completeness / residual content |",
+        "|---|---:|---:|---:|---:|---|---|",
     ]
     candidate_documents: list[dict[str, object]] = []
     copy_assessments: list[CopyCountAssessment] = []
@@ -1035,6 +1041,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             series = _load_copy_series(
                 result_roots[seed_id],
                 seed_solution_id=seed_id,
+                seed_placed_copy_count=root_state.copy_count,
                 review_id=review_id,
                 hypothesis=hypothesis,
             )
@@ -1070,9 +1077,32 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                     f"retained state differs from typed copy result: {seed_id}"
                 )
 
+        copy_review_flags = COPY_COUNT_UNASSESSED_REVIEW_FLAGS
+        if not reached_expected:
+            copy_review_flags += (
+                "expected_copy_count_not_reached",
+                "possible_residual_content_or_special_position",
+            )
+        final_execution_status = (
+            final_result.execution_status
+            if final_result is not None
+            else first_result.execution_status
+        )
+        final_placement_count: int | None = (
+            final_result.phaser_placement_count
+            if final_result is not None
+            else first_result.placed_copy_count
+        )
+        if final_execution_status not in {
+            ExecutionStatus.COMPLETED_HIT,
+            ExecutionStatus.COMPLETED_NO_HIT,
+        }:
+            final_placement_count = None
         if request.phase3_seed_stage_manifest is not None:
             assessment_identity = {
-                "adapter_version": "phase3-copy-count-assessment-v1",
+                "adapter_version": (
+                    "phase3-copy-count-assessment-v2-independent-completeness"
+                ),
                 "seed_solution_id": seed_id,
                 "first_result_sha256": copied_sha["normalised_result"],
                 "attempt_ids": (
@@ -1080,21 +1110,16 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                     if series is not None
                     else []
                 ),
+                "attempt_result_sha256": (
+                    [canonical_digest(item) for item in series.results]
+                    if series is not None
+                    else []
+                ),
             }
-            final_execution_status = (
-                final_result.execution_status
-                if final_result is not None
-                else first_result.execution_status
-            )
             final_top_solution_packed = (
                 final_result.top_solution_packed
                 if final_result is not None
                 else first_result.packing_summary.get("top_solution_packed") is True
-            )
-            final_placement_count = (
-                final_result.phaser_placement_count
-                if final_result is not None
-                else first_result.placed_copy_count
             )
             copy_assessments.append(
                 CopyCountAssessment(
@@ -1111,6 +1136,8 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                     best_supported_copy_count=retained.copy_count,
                     attempted_transition_count=len(attempted_numbers),
                     reached_expected_copy_count=reached_expected,
+                    independent_completeness_status="not_assessed",
+                    residual_content_status="not_assessed",
                     final_execution_status=final_execution_status,
                     final_llg=(
                         final_result.llg
@@ -1134,15 +1161,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                         if reached_expected
                         else "additional_copy_not_supported"
                     ),
-                    review_flags=(
-                        ()
-                        if reached_expected
-                        else (
-                            "expected_copy_count_not_reached",
-                            "possible_residual_content_or_special_position",
-                            "copy_absence_not_proven",
-                        )
-                    ),
+                    review_flags=copy_review_flags,
                 )
             )
 
@@ -1181,6 +1200,9 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                     str(retained.copy_count),
                     str(reached_expected).lower(),
                     terminal_reason,
+                    "not_assessed",
+                    "not_assessed",
+                    ";".join(copy_review_flags),
                     (
                         final_result.execution_status.value
                         if final_result is not None
@@ -1207,20 +1229,22 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                         if final_result is not None
                         else ""
                     ).lower(),
-                    str(
-                        final_result.phaser_placement_count
-                        if final_result is not None
-                        else ""
-                    ),
+                    "" if final_placement_count is None else str(final_placement_count),
                     "true",
                     "false",
                 )
             )
         )
+        placed = (
+            "unavailable"
+            if final_placement_count is None
+            else str(final_placement_count)
+        )
         report_markdown_rows.append(
             f"| `{seed_id}` | {hypothesis.copy_count_expected} | "
-            f"{len(attempted_numbers)} | {retained.copy_count} | "
-            f"{terminal_reason} |"
+            f"{len(attempted_numbers)} | "
+            f"{placed} | "
+            f"{retained.copy_count} | {terminal_reason} | not assessed / not assessed |"
         )
 
         attempt_documents: list[dict[str, object]] = []
@@ -1273,6 +1297,9 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
                 "attempted_copy_numbers": attempted_numbers,
                 "best_supported_copy_count": retained.copy_count,
                 "reached_expected_copy_count": reached_expected,
+                "independent_completeness_status": "not_assessed",
+                "residual_content_status": "not_assessed",
+                "copy_review_flags": copy_review_flags,
                 "terminal_reason": terminal_reason,
                 "final_addition_execution_status": (
                     final_result.execution_status.value
@@ -1319,9 +1346,11 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         copy_report_markdown,
         "# Same-component copy-count report\n\n"
         "Every explicitly approved seed is retained. A failed or unsupported "
-        "addition does not prove that the copy is absent.\n\n"
-        + "\n".join(report_markdown_rows)
-        + "\n",
+        "addition does not prove that the copy is absent. Reaching the expected "
+        "count does not assess composition completeness or exclude residual "
+        "content; both remain not assessed. Final placed describes the final "
+        "native result, while best supported retains the reviewed parent when "
+        "an addition is unsupported.\n\n" + "\n".join(report_markdown_rows) + "\n",
     )
     copy_assessments_jsonl: Path | None = None
     if request.phase3_seed_stage_manifest is not None:
@@ -1332,6 +1361,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
         )
 
     stage_identity = {
+        "adapter_version": "retained-copy-t12-stage-v2-independent-completeness",
         "approved_stage_manifest_sha256": sha256_file(approved_manifest_path),
         "review_manifest_sha256": review_manifest_sha,
         "hypotheses_sha256": sha256_file(hypotheses_path),
@@ -1385,6 +1415,7 @@ def stage_live_t12_inputs(request: LiveT12StageRequest) -> LiveT12StageOutput:
             "all_approved_seeds_retained": True,
             "numeric_score_filter_applied": False,
             "failed_addition_proves_absence": False,
+            "expected_count_proves_completeness": False,
             **stage_identity,
             **approval_identity,
             "diffraction_mtz_free_flag_status": selected_preflight.free_flag_status,

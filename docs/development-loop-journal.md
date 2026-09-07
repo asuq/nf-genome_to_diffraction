@@ -15726,3 +15726,22 @@ with a collapsed combined parent or a guessed command.
   harness, reconcile the integrated release surface, and run the complete
   locked gate. Native Raven qualification and prerequisite evidence remain
   outstanding; this entry makes no scientific or release acceptance claim.
+
+## 2026-09-07 - Copy support and independent completeness remain separate
+
+- Copy-count and refinement-stage reports now retain expected, final placed
+  and best supported counts separately. Failed/unexecuted native outputs have
+  an unavailable final count; a completed native result must supply its count.
+  Reaching the expectation preserves independently unassessed completeness and
+  residual-content states, including A-only seeds, with explicit review flags.
+- Reviewed multi-copy seeds now begin continuation and refinement validation
+  at their actual next count. Parent/child and coordinate checks remain strict.
+  Assessment IDs also bind typed attempt-result digests, and affected report
+  and retained-copy stage identities changed with their semantics.
+- Validation: 22 focused copy-report, refinement-stage and terminal-derivation
+  checks passed, including reviewed two-copy continuation and failed-result
+  count handling. Focused Ruff and type checks passed. No native qualification
+  or completeness claim follows from these local tests.
+- Next complete M6 retry/failure accounting and the approved comparison
+  harness, import the owner's completed Raven migration commit, then reconcile
+  and run the integrated locked gate before remote qualification.

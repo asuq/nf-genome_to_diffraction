@@ -1151,8 +1151,15 @@ class CompositionAssessment(ContractModel):
         return self
 
 
+COPY_COUNT_UNASSESSED_REVIEW_FLAGS = (
+    "independent_completeness_not_assessed",
+    "residual_content_not_assessed",
+    "copy_absence_not_proven",
+)
+
+
 class CopyCountAssessment(ContractModel):
-    """Matthews-intended and empirically supported count for one retained seed."""
+    """Separate expected/placed/supported counts without inferring completeness."""
 
     schema_version: Literal["1.0"]
     assessment_id: NonEmptyString
@@ -1164,22 +1171,41 @@ class CopyCountAssessment(ContractModel):
     best_supported_copy_count: PositiveInt
     attempted_transition_count: int = Field(ge=0)
     reached_expected_copy_count: bool
+    independent_completeness_status: Literal["not_assessed"] = "not_assessed"
+    residual_content_status: Literal["not_assessed"] = "not_assessed"
     final_execution_status: ExecutionStatus
     final_llg: float | None = None
     final_tfz: float | None = None
     final_llg_delta_from_parent: float | None = None
     final_top_solution_packed: bool
-    final_placement_count: int = Field(ge=0)
+    final_placement_count: int | None = Field(ge=0)
     terminal_reason: Literal[
         "expected_copy_count_reached",
         "additional_copy_not_supported",
     ]
     parent_states_retained: Literal[True] = True
     failed_addition_proves_absence: Literal[False] = False
-    review_flags: tuple[str, ...] = ()
+    review_flags: tuple[str, ...] = COPY_COUNT_UNASSESSED_REVIEW_FLAGS
 
     @model_validator(mode="after")
     def _validate_count_assessment(self) -> Self:
+        if (
+            self.final_execution_status
+            in {ExecutionStatus.COMPLETED_HIT, ExecutionStatus.COMPLETED_NO_HIT}
+            and self.final_placement_count is None
+        ):
+            raise ValueError("completed MR requires an observed final copy count")
+        if (
+            self.final_execution_status
+            not in {
+                ExecutionStatus.COMPLETED_HIT,
+                ExecutionStatus.COMPLETED_NO_HIT,
+            }
+            and self.final_placement_count is not None
+        ):
+            raise ValueError(
+                "failed or unexecuted MR cannot claim an observed copy count"
+            )
         if self.best_supported_copy_count > self.expected_copy_count:
             raise ValueError("supported count must not exceed expected count")
         reached = self.best_supported_copy_count == self.expected_copy_count
