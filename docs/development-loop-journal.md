@@ -15745,3 +15745,26 @@ with a collapsed combined parent or a guessed command.
 - Next complete M6 retry/failure accounting and the approved comparison
   harness, import the owner's completed Raven migration commit, then reconcile
   and run the integrated locked gate before remote qualification.
+
+## 2026-09-07 - Approved Raven bootstrap and shared identification execution
+
+- The user approved migration using the maintained nf-helper Raven profile,
+  with all project-managed files under `/ptmp`. The current Marmic run remains
+  owned and capped until a small Raven execution qualifies the new site; no
+  concurrent duplicate full screen or inferred identity is authorised.
+- The pinned helper update supplies Raven's profile and site submission guard.
+  A bounded login controller reuses the existing identification graph and common
+  input/archive/assessment implementation. Its explicit process identity is
+  not represented as a Slurm job. Worker requests retain CPU/memory policy and
+  record resolved walltime under Raven's mandatory 24-hour limit.
+- The local locked gate passes with 1,462 unit and 152 contract tests, plus
+  formatting, lint, typing, schema and documentation checks. Focused existing
+  identification/helper checks and new controller ownership/command checks
+  pass together. Local configuration rendering resolves the Raven MR limits.
+- The user-provided Phenix installer was transferred and checksum-verified,
+  and pinned Pixi was installed and verified in the approved scratch workspace.
+  No Phenix download or scientific Raven submission occurred. Next publish the
+  focused source, install its locked environment and the supplied runtime,
+  qualify Raven, then retire the owned Marmic run with evidence preserved and
+  launch the full Raven screen. General candidate-generation redesign remains
+  deferred; candidate assessments and v0.3.0 are incomplete.

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Fixed Raven transport entry point; all project-managed state stays in /ptmp.
+set -euo pipefail
+umask 077
+source_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+root="/ptmp/${USER}/nf-genome_to_diffraction"
+[[ "$source_root" == "$root/sources/"* ]] || {
+    printf 'Raven source must be inside the approved /ptmp source tree\n' >&2
+    exit 2
+}
+export TMPDIR="$root/tmp"
+export XDG_CACHE_HOME="$root/cache"
+export MPLCONFIGDIR="$root/cache/matplotlib"
+export XDG_CONFIG_HOME="$root/cache/config"
+export CONDA_REGISTER_ENVS=false
+export PYTHONDONTWRITEBYTECODE=1
+export PYTHONPATH="$source_root/src"
+module load apptainer/1.4.3
+exec "$source_root/.pixi/envs/hpc/bin/python" \
+    -m genome_to_diffraction.hpc.raven_identification "$@"

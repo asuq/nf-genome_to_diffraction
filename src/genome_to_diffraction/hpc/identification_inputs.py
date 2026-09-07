@@ -439,6 +439,16 @@ def build_identification_input_bundle(
     ):
         raise IdentificationInputError("invalid identification input-root spec")
     root = Path(spec["input_root"])
+    return build_identification_archive(
+        root=root, archive_path=archive_path, source_commit=source_commit
+    )
+
+
+def build_identification_archive(
+    *, root: Path, archive_path: Path, source_commit: str
+) -> IdentificationInputBundle:
+    """Build the shared archive format from an explicitly selected input root."""
+
     if not root.is_absolute() or root.is_symlink() or not root.is_dir():
         raise IdentificationInputError(
             "identification input root is not a regular absolute directory"

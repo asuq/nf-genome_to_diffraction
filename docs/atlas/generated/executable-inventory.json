@@ -5634,11 +5634,11 @@
   "configuration_files": [
     {
       "path": "nextflow.config",
-      "sha256": "c2642764702dcaaf999827dcf3ad1da1711c7e5aa6a752486ccfa82509c85dbe"
+      "sha256": "fed153bc7c8cb9600cf059a2175418b11db524aa5702a993bef3cd26366242f4"
     },
     {
       "path": "pixi.toml",
-      "sha256": "1d04d25b102acf374037d59a867b5f5d6c333df77cc26c15d3fb3c0af3cf56a8"
+      "sha256": "6fb47a48292adf4f4b9959df84d4d8695a8895e248d23d6b0f790c73989d7fd9"
     },
     {
       "path": "pyproject.toml",
@@ -5657,6 +5657,10 @@
       "sha256": "24f0ff831edf6082bf9c0d061336ef5d6a5d6557176adae8a65b75bad8bf2202"
     },
     {
+      "path": "conf/raven.config",
+      "sha256": "62336f08e3da7faf633d48bfe20c8a65fcb2fa7c2ca36a0fb69f7d0711e66cf2"
+    },
+    {
       "path": "conf/site-specific.example.config",
       "sha256": "8aab96966021176f6aac0e532d0204dc19b2814f71ee3999943f5c0655036063"
     },
@@ -5673,7 +5677,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_7b51b316dff4f0311d3bb90416f048ae52ae6f7425edf79d0c25118f4614a160",
+  "inventory_id": "atlasinv_8a8043172e2cc68ee6d7c979ed9e7dee7dd2c85cec12375b187f0d827d8fcc86",
   "nextflow_files": [
     {
       "declarations": [],
@@ -6983,13 +6987,13 @@
         },
         {
           "kind": "workflow",
-          "line": 62,
+          "line": 63,
           "name": "IDENTIFICATION_SCREEN_WORKFLOW"
         }
       ],
       "includes": [],
       "path": "workflows/qualification/identification_screen.nf",
-      "sha256": "fd56cc14e885e028458dcc9db2e4b54a596de2c29b35b77136d2c46d8446a550",
+      "sha256": "3cc1ee172619b972c27b598dbbd2ff70724c0b50aad0c020713b6fedd7d04c63",
       "subsystem": "execution_hpc"
     },
     {
@@ -28500,7 +28504,7 @@
         "typing"
       ],
       "path": "src/genome_to_diffraction/hpc/identification_inputs.py",
-      "sha256": "18b0bfff2529513a5ea1a6917c5a5f058c4a54de41572f906e1af3f51e67976c",
+      "sha256": "8d00c194d388b69e3b2f4ede4b2f0da8b095529ffdaf774115673d23cef88958",
       "substantive": true,
       "subsystem": "execution_hpc",
       "symbols": [
@@ -28745,20 +28749,39 @@
         },
         {
           "calls": [
-            "IdentificationInputBundle",
             "IdentificationInputError",
             "Path",
+            "build_identification_archive",
+            "isinstance",
+            "load_json_document",
+            "os.getuid",
+            "set",
+            "spec_path.is_file",
+            "spec_path.is_symlink",
+            "spec_path.stat"
+          ],
+          "decorators": [],
+          "doc": "Build one bounded archive from the explicit private input-root spec.",
+          "end_line": 444,
+          "kind": "function",
+          "line": 419,
+          "name": "build_identification_input_bundle",
+          "public": true,
+          "qualname": "build_identification_input_bundle",
+          "signature": "def build_identification_input_bundle(*, repository: Path, archive_path: Path, source_commit: str) -> IdentificationInputBundle"
+        },
+        {
+          "calls": [
+            "IdentificationInputBundle",
+            "IdentificationInputError",
             "archive.addfile",
             "archive_path.stat",
             "archive_path.with_suffix",
             "atomic_write_json",
             "content_id",
             "int",
-            "isinstance",
             "len",
-            "load_json_document",
             "names.update",
-            "os.getuid",
             "path.open",
             "path.stat",
             "re.fullmatch",
@@ -28766,12 +28789,8 @@
             "root.is_dir",
             "root.is_symlink",
             "safe_member",
-            "set",
             "sha256_file",
             "sorted",
-            "spec_path.is_file",
-            "spec_path.is_symlink",
-            "spec_path.stat",
             "stat",
             "sum",
             "tarfile.TarInfo",
@@ -28779,14 +28798,14 @@
             "validate_plan"
           ],
           "decorators": [],
-          "doc": "Build one bounded archive from the explicit private input-root spec.",
-          "end_line": 492,
+          "doc": "Build the shared archive format from an explicitly selected input root.",
+          "end_line": 502,
           "kind": "function",
-          "line": 419,
-          "name": "build_identification_input_bundle",
+          "line": 447,
+          "name": "build_identification_archive",
           "public": true,
-          "qualname": "build_identification_input_bundle",
-          "signature": "def build_identification_input_bundle(*, repository: Path, archive_path: Path, source_commit: str) -> IdentificationInputBundle"
+          "qualname": "build_identification_archive",
+          "signature": "def build_identification_archive(*, root: Path, archive_path: Path, source_commit: str) -> IdentificationInputBundle"
         },
         {
           "calls": [
@@ -28823,9 +28842,9 @@
           ],
           "decorators": [],
           "doc": "Reject links, traversal, duplicates and oversized members before any write.",
-          "end_line": 584,
+          "end_line": 594,
           "kind": "function",
-          "line": 495,
+          "line": 505,
           "name": "unpack_identification_archive",
           "public": true,
           "qualname": "unpack_identification_archive",
@@ -28837,15 +28856,15 @@
       "cli_commands": [
         {
           "command": "unpack",
-          "line": 473
-        },
-        {
-          "command": "validate",
           "line": 479
         },
         {
+          "command": "validate",
+          "line": 485
+        },
+        {
           "command": "summarise",
-          "line": 495
+          "line": 502
         }
       ],
       "imports": [
@@ -28868,7 +28887,7 @@
         "sys"
       ],
       "path": "src/genome_to_diffraction/hpc/identification_run.py",
-      "sha256": "9d0e5caffddb8e6973c7640d26028aa5d2ef2b7ec1a435599f36df7c931d506c",
+      "sha256": "4b3feb432e17852c83708b29793dae859471e3605365d22b4468eb56a7b3d304",
       "substantive": true,
       "subsystem": "execution_hpc",
       "symbols": [
@@ -28991,6 +29010,7 @@
             "atomic_write_json",
             "capture_from_manifest",
             "dataclasses.asdict",
+            "dataclasses.replace",
             "is_file",
             "isinstance",
             "load_case",
@@ -29014,13 +29034,13 @@
           ],
           "decorators": [],
           "doc": "Execute one licensed subprocess; preserve failures without inventing no-hits.",
-          "end_line": 287,
+          "end_line": 293,
           "kind": "function",
           "line": 192,
           "name": "run_case",
           "public": true,
           "qualname": "run_case",
-          "signature": "def run_case(root: Path, case_id: str, prepared: Path, manifest: Path, threads: int, attempt: int, outdir: Path) -> int"
+          "signature": "def run_case(root: Path, case_id: str, prepared: Path, manifest: Path, threads: int, attempt: int, outdir: Path, walltime_hours: int) -> int"
         },
         {
           "calls": [
@@ -29075,9 +29095,9 @@
           ],
           "decorators": [],
           "doc": "Inventory all candidates and attempts, retaining bounded diagnostic assets.",
-          "end_line": 467,
+          "end_line": 473,
           "kind": "function",
-          "line": 290,
+          "line": 296,
           "name": "summarise",
           "public": true,
           "qualname": "summarise",
@@ -29105,9 +29125,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 535,
+          "end_line": 543,
           "kind": "function",
-          "line": 470,
+          "line": 476,
           "name": "main",
           "public": true,
           "qualname": "main",
@@ -30302,6 +30322,407 @@
           "public": true,
           "qualname": "build_p0_input_bundle",
           "signature": "def build_p0_input_bundle(*, repository: Path, remote_root: PurePosixPath, spec_confirmation: str, archive_path: Path, progress: bool, logger: logging.Logger) -> P0InputBundle"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "argparse",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.hpc.client",
+        "genome_to_diffraction.hpc.raven_identification",
+        "json",
+        "os",
+        "pathlib",
+        "pydantic",
+        "re",
+        "shlex",
+        "subprocess",
+        "sys",
+        "tarfile"
+      ],
+      "path": "src/genome_to_diffraction/hpc/raven_client.py",
+      "sha256": "256eea865ae4884ed20f2a528d383a4aca1112c59da56b99686857ca9abd3e5f",
+      "substantive": true,
+      "subsystem": "execution_hpc",
+      "symbols": [
+        {
+          "bases": [
+            "BaseModel"
+          ],
+          "decorators": [],
+          "doc": "One explicit Raven account and local state directory, not run ownership.",
+          "end_line": 31,
+          "kind": "class",
+          "line": 24,
+          "name": "RavenClientConfig",
+          "public": true,
+          "qualname": "RavenClientConfig"
+        },
+        {
+          "calls": [
+            "RavenClientConfig.model_validate_json",
+            "RavenLaunch.model_validate_json",
+            "ValueError",
+            "_extract_approved_archive",
+            "any",
+            "archive.extractfile",
+            "archive.getmember",
+            "archive.getmembers",
+            "archive_path.open",
+            "archive_path.stat",
+            "argparse.ArgumentParser",
+            "args.config.is_symlink",
+            "args.config.read_text",
+            "args.config.stat",
+            "config.local_state_root.is_absolute",
+            "config.local_state_root.resolve",
+            "destination.exists",
+            "expected.items",
+            "handle.read",
+            "is_relative_to",
+            "json.dumps",
+            "json.loads",
+            "launch.isfile",
+            "len",
+            "local_run.is_symlink",
+            "local_run.resolve",
+            "os.getuid",
+            "parser.add_argument",
+            "parser.parse_args",
+            "payload.get",
+            "print",
+            "re.fullmatch",
+            "record_path.is_file",
+            "record_path.is_symlink",
+            "record_path.read_text",
+            "record_path.stat",
+            "remote_command.extend",
+            "set",
+            "sha256_file",
+            "shlex.join",
+            "str",
+            "subprocess.run",
+            "sys.stderr.buffer.write",
+            "tarfile.open"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 161,
+          "kind": "function",
+          "line": 34,
+          "name": "main",
+          "public": true,
+          "qualname": "main",
+          "signature": "def main() -> int"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "argparse",
+        "fcntl",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.hpc.client",
+        "genome_to_diffraction.hpc.identification_inputs",
+        "genome_to_diffraction.hpc.identification_run",
+        "json",
+        "os",
+        "pathlib",
+        "pydantic",
+        "re",
+        "shutil",
+        "signal",
+        "socket",
+        "subprocess",
+        "sys",
+        "tarfile",
+        "traceback",
+        "typing"
+      ],
+      "path": "src/genome_to_diffraction/hpc/raven_identification.py",
+      "sha256": "51df2c4c955231c9d161d4a1b1c5fe41d0faac21e89a229a18d3d3eaa19f8bff",
+      "substantive": true,
+      "subsystem": "execution_hpc",
+      "symbols": [
+        {
+          "bases": [
+            "BaseModel"
+          ],
+          "decorators": [],
+          "doc": "Exact source, input and licensed-runtime authority for one Raven run.",
+          "end_line": 52,
+          "kind": "class",
+          "line": 36,
+          "name": "RavenLaunch",
+          "public": true,
+          "qualname": "RavenLaunch"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "isinstance",
+            "json.loads",
+            "os.getuid",
+            "path.is_file",
+            "path.is_symlink",
+            "path.read_text",
+            "path.stat"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 66,
+          "kind": "function",
+          "line": 55,
+          "name": "_owned_json",
+          "public": false,
+          "qualname": "_owned_json",
+          "signature": "def _owned_json(path: Path) -> dict"
+        },
+        {
+          "calls": [
+            "Path",
+            "RavenLaunch.model_validate_json",
+            "ValueError",
+            "_owned_json",
+            "is_relative_to",
+            "json.dumps",
+            "os.getuid",
+            "path.is_absolute",
+            "path.resolve",
+            "range",
+            "re.fullmatch",
+            "root.resolve",
+            "run.is_dir",
+            "run.is_symlink",
+            "run.name.split",
+            "run.stat",
+            "socket.gethostname",
+            "split"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 97,
+          "kind": "function",
+          "line": 69,
+          "name": "_load",
+          "public": false,
+          "qualname": "_load",
+          "signature": "def _load(run: Path, owner: str) -> tuple[Path, RavenLaunch]"
+        },
+        {
+          "calls": [
+            "Path",
+            "os.getuid",
+            "proc.stat",
+            "read_text",
+            "rsplit",
+            "split",
+            "str",
+            "strip"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 112,
+          "kind": "function",
+          "line": 100,
+          "name": "_process_identity",
+          "public": false,
+          "qualname": "_process_identity",
+          "signature": "def _process_identity(pid: int) -> dict | None"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "_owned_json",
+            "_process_identity",
+            "items",
+            "record.get",
+            "state.get",
+            "state_path.exists"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 159,
+          "kind": "function",
+          "line": 115,
+          "name": "_status",
+          "public": false,
+          "qualname": "_status",
+          "signature": "def _status(run: Path, spec: RavenLaunch) -> dict"
+        },
+        {
+          "calls": [
+            "RuntimeError",
+            "ValueError",
+            "_process_identity",
+            "_status",
+            "atomic_write_json",
+            "exists",
+            "fcntl.flock",
+            "is_symlink",
+            "open",
+            "str",
+            "subprocess.Popen",
+            "timestamp"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 201,
+          "kind": "function",
+          "line": 162,
+          "name": "_start",
+          "public": false,
+          "qualname": "_start",
+          "signature": "def _start(run: Path, spec: RavenLaunch) -> dict"
+        },
+        {
+          "calls": [
+            "str"
+          ],
+          "decorators": [],
+          "doc": "Use the shared graph with a run-owned work directory and Raven admission.",
+          "end_line": 233,
+          "kind": "function",
+          "line": 204,
+          "name": "nextflow_command",
+          "public": true,
+          "qualname": "nextflow_command",
+          "signature": "def nextflow_command(run: Path, spec: RavenLaunch) -> list[str]"
+        },
+        {
+          "calls": [
+            "RuntimeError",
+            "SubprocessGitRepository",
+            "ValueError",
+            "_process_identity",
+            "atomic_write_json",
+            "c.model_dump",
+            "child.poll",
+            "child.send_signal",
+            "child.wait",
+            "environment.get",
+            "environment.update",
+            "execution_cases",
+            "git.ensure_clean",
+            "git.resolve_commit",
+            "len",
+            "mkdir",
+            "nextflow_command",
+            "os.environ.copy",
+            "sha256_file",
+            "shutil.copyfile",
+            "signal.signal",
+            "state.update",
+            "str",
+            "subprocess.Popen",
+            "subprocess.run",
+            "summarise",
+            "timestamp",
+            "traceback.print_exc",
+            "validate_bound_input_root",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 372,
+          "kind": "function",
+          "line": 236,
+          "name": "_run",
+          "public": false,
+          "qualname": "_run",
+          "signature": "def _run(run: Path, root: Path, spec: RavenLaunch) -> int"
+        },
+        {
+          "calls": [
+            "child.poll",
+            "child.send_signal"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 254,
+          "kind": "function",
+          "line": 250,
+          "name": "stop",
+          "public": true,
+          "qualname": "_run.stop",
+          "signature": "def stop(signum, frame)"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "_status",
+            "any",
+            "archive.add",
+            "files.extend",
+            "is_relative_to",
+            "len",
+            "os.getuid",
+            "p.exists",
+            "p.is_file",
+            "p.is_symlink",
+            "p.resolve",
+            "p.stat",
+            "path.relative_to",
+            "rglob",
+            "run.resolve",
+            "sorted",
+            "str",
+            "sum",
+            "tarfile.open"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 404,
+          "kind": "function",
+          "line": 375,
+          "name": "_collect",
+          "public": false,
+          "qualname": "_collect",
+          "signature": "def _collect(run: Path, spec: RavenLaunch) -> None"
+        },
+        {
+          "calls": [
+            "RuntimeError",
+            "ValueError",
+            "_collect",
+            "_load",
+            "_owned_json",
+            "_process_identity",
+            "_run",
+            "_start",
+            "_status",
+            "argparse.ArgumentParser",
+            "decode",
+            "handle.read",
+            "handle.seek",
+            "join",
+            "json.dumps",
+            "max",
+            "os.close",
+            "os.getuid",
+            "os.pidfd_open",
+            "parser.add_argument",
+            "parser.parse_args",
+            "path.is_file",
+            "path.is_symlink",
+            "path.open",
+            "path.stat",
+            "print",
+            "signal.pidfd_send_signal",
+            "splitlines"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 465,
+          "kind": "function",
+          "line": 407,
+          "name": "main",
+          "public": true,
+          "qualname": "main",
+          "signature": "def main() -> int"
         }
       ]
     },
@@ -57275,6 +57696,12 @@
     },
     {
       "functions": [],
+      "path": "bootstrap/nf-gtd-raven-dispatch",
+      "sha256": "f9fd38d6e390ff69c81a0ea620df4fbe54ebc5cf2e8df85a16ada0e068af3518",
+      "subsystem": "execution_hpc"
+    },
+    {
+      "functions": [],
       "path": "bootstrap/nf-gtd-worker-offline-shell",
       "sha256": "740e4fa4c404f557fe8e7b4c1bee85f8bfcb0a2a00747cae6354bb0f96b9dc22",
       "subsystem": "execution_hpc"
@@ -79592,7 +80019,7 @@
         "tests.support.identification_fixture"
       ],
       "path": "tests/unit/test_identification_screen.py",
-      "sha256": "bb5f94de7b13a8fddbad65ef3ddda0b776436a7cc4165e2781adf4135d7293e9",
+      "sha256": "6c2f2ecb2b0039b84a0f1718fb89f18ef3a670d14620bd6e13662aa8e5dc4b01",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -79695,7 +80122,7 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 154,
+          "end_line": 155,
           "kind": "function",
           "line": 130,
           "name": "test_real_chain_preparation_and_resource_thread_contract",
@@ -79719,9 +80146,9 @@
             "pytest.mark.parametrize('kind', ['no_hit', 'malformed', 'resource_failure'])"
           ],
           "doc": "",
-          "end_line": 193,
+          "end_line": 196,
           "kind": "function",
-          "line": 158,
+          "line": 159,
           "name": "test_native_execution_outcomes_stay_separate",
           "public": true,
           "qualname": "test_native_execution_outcomes_stay_separate",
@@ -79735,9 +80162,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 178,
+          "end_line": 179,
           "kind": "function",
-          "line": 166,
+          "line": 167,
           "name": "capture",
           "public": true,
           "qualname": "test_native_execution_outcomes_stay_separate.capture",
@@ -79755,9 +80182,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 211,
+          "end_line": 214,
           "kind": "function",
-          "line": 196,
+          "line": 199,
           "name": "test_failed_preparation_does_not_become_a_no_hit",
           "public": true,
           "qualname": "test_failed_preparation_does_not_become_a_no_hit",
@@ -79769,9 +80196,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 202,
+          "end_line": 205,
           "kind": "function",
-          "line": 201,
+          "line": 204,
           "name": "fail",
           "public": true,
           "qualname": "test_failed_preparation_does_not_become_a_no_hit.fail",
@@ -79798,9 +80225,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 257,
+          "end_line": 260,
           "kind": "function",
-          "line": 214,
+          "line": 217,
           "name": "test_collection_preserves_unpublished_killed_task_without_scientific_claim",
           "public": true,
           "qualname": "test_collection_preserves_unpublished_killed_task_without_scientific_claim",
@@ -94135,6 +94562,107 @@
           "public": true,
           "qualname": "test_diverse_a_cap_does_not_change_all_model_registry_identity",
           "signature": "def test_diverse_a_cap_does_not_change_all_model_registry_identity(tmp_path: Path) -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "genome_to_diffraction.hpc",
+        "json",
+        "pathlib",
+        "pytest"
+      ],
+      "path": "tests/unit/test_raven_controller.py",
+      "sha256": "ab67f9b8699193bc0035ff72aadc7ee2aee70ad28e7913102d014b63eafe81c2",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "Path",
+            "raven.RavenLaunch"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 27,
+          "kind": "function",
+          "line": 11,
+          "name": "_spec",
+          "public": false,
+          "qualname": "_spec",
+          "signature": "def _spec() -> raven.RavenLaunch"
+        },
+        {
+          "calls": [
+            "_spec",
+            "json.dumps",
+            "monkeypatch.setattr",
+            "pytest.raises",
+            "raven._status",
+            "state.update",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 64,
+          "kind": "function",
+          "line": 30,
+          "name": "test_raven_status_rejects_other_owner_and_reused_pid",
+          "public": true,
+          "qualname": "test_raven_status_rejects_other_owner_and_reused_pid",
+          "signature": "def test_raven_status_rejects_other_owner_and_reused_pid(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None"
+        },
+        {
+          "calls": [
+            "_spec",
+            "pytest.raises",
+            "raven._start",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 70,
+          "kind": "function",
+          "line": 67,
+          "name": "test_raven_duplicate_start_never_spawns_a_second_controller",
+          "public": true,
+          "qualname": "test_raven_duplicate_start_never_spawns_a_second_controller",
+          "signature": "def test_raven_duplicate_start_never_spawns_a_second_controller(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "Path",
+            "_spec",
+            "command.index",
+            "raven.nextflow_command",
+            "str"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 84,
+          "kind": "function",
+          "line": 73,
+          "name": "test_raven_command_keeps_shared_graph_and_ptmp_work_without_marmic_cap",
+          "public": true,
+          "qualname": "test_raven_command_keeps_shared_graph_and_ptmp_work_without_marmic_cap",
+          "signature": "def test_raven_command_keeps_shared_graph_and_ptmp_work_without_marmic_cap() -> None"
+        },
+        {
+          "calls": [
+            "monkeypatch.setattr",
+            "pytest.raises",
+            "raven._load"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 95,
+          "kind": "function",
+          "line": 87,
+          "name": "test_raven_rejects_foreign_host_and_non_ptmp_root",
+          "public": true,
+          "qualname": "test_raven_rejects_foreign_host_and_non_ptmp_root",
+          "signature": "def test_raven_rejects_foreign_host_and_non_ptmp_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None"
         }
       ]
     },
