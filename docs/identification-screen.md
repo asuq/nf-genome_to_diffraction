@@ -1,5 +1,8 @@
 # Case-specific all-candidate identification screen
 
+The approved [Raven execution route](raven-identification.md) reuses this same
+scientific graph with site-specific orchestration and the Raven scheduler policy.
+
 This internal, experimental Marmic profile runs explicit catalogue-derived
 protein hypotheses without the ordinary discovery route's global 25-coordinate
 acquisition boundary. It does not replace or scientifically validate the general

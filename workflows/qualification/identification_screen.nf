@@ -50,6 +50,7 @@ process RUN_IDENTIFICATION_PHASER {
         --case-id '${item[0]}' --prepared '${item[1]}' \
         --phenix-manifest '${params.phenix_manifest}' \
         --threads '${task.cpus}' --attempt '${task.attempt}' \
+        --walltime-hours '${task.time.toHours()}' \
         --outdir '${item[0]}'
     """
 

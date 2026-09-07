@@ -150,6 +150,7 @@ def test_real_chain_preparation_and_resource_thread_contract(tmp_path: Path) -> 
             4,
             1,
             tmp_path / "not_started",
+            24,
         )
     assert not (tmp_path / "not_started").exists()
 
@@ -180,7 +181,7 @@ def test_native_execution_outcomes_stay_separate(
     monkeypatch.setattr(identification_run, "capture_from_manifest", capture)
     out = tmp_path / "run"
     code = identification_run.run_case(
-        root, case.case_id, prepared, tmp_path / "mock_manifest", 8, 1, out
+        root, case.case_id, prepared, tmp_path / "mock_manifest", 8, 1, out, 12
     )
     record = json.loads((out / "run.json").read_text())
     expected = {
@@ -190,6 +191,8 @@ def test_native_execution_outcomes_stay_separate(
     }
     assert record["status"] == expected[kind]
     assert record["identity_accepted"] is False
+    assert record["resources"]["time_hours"] == 12
+    assert record["planned_resources"]["time_hours"] == 24
     assert code == (137 if kind == "resource_failure" else 0)
 
 

@@ -76,6 +76,18 @@ already compliant three-case smoke, or lift the cap without explicit direction.
 This overrides the no-concurrency-cap policy only for this identification run
 programme; scientific task budgets and other workflow defaults are unchanged.
 
+The user then approved migration of this identification programme to MPCDF
+Raven using the maintained nf-helper profile. Keep all project-managed tools,
+inputs, work, results, temporary files and caches under `/ptmp`. Raven must not
+inherit the temporary five-job cap: use its site profile and scheduler limits
+(the inspected account permits eight running and 300 submitted jobs). Its
+24-hour per-job limit is mandatory and resolved task allocations must be
+recorded accurately. Bootstrap and verify Raven before retiring only the owned
+Marmic run; preserve its evidence and avoid concurrent duplicate candidates.
+Initial-copy, catalogue, scientific and human-review policy remains unchanged.
+One-off raw SSH/bootstrap commands may be requested for explicit approval during
+this migration; do not grant persistent broad SSH or scheduler permission.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

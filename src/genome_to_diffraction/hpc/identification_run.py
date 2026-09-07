@@ -197,6 +197,7 @@ def run_case(
     threads: int,
     attempt: int,
     outdir: Path,
+    walltime_hours: int,
 ) -> int:
     """Execute one licensed subprocess; preserve failures without inventing no-hits."""
 
@@ -224,6 +225,10 @@ def run_case(
     resources = verify_mr_thread_allocation(
         plan=resource_plan, resource_attempt=attempt, threads=threads
     )
+    if not 0 < walltime_hours <= resources.time_hours:
+        raise IdentificationInputError("resolved walltime exceeds the resource plan")
+    planned_resources = dataclasses.asdict(resources)
+    resources = dataclasses.replace(resources, time_hours=walltime_hours)
     crystal = next(c for c in plan.crystals if c.crystal_id == case.crystal_id)
     if sha256_file(Path(crystal.mtz)) != crystal.mtz_sha256:
         raise IdentificationInputError("diffraction changed before MR")
@@ -243,6 +248,7 @@ def run_case(
         "requested_search_copies": 1,
         "attempt": attempt,
         "resources": dataclasses.asdict(resources),
+        "planned_resources": planned_resources,
         "resource_plan_id": resource_plan.resource_plan_id,
         "command": command,
         "started_at": timestamp(),
@@ -492,6 +498,7 @@ def main() -> int:
             action.add_argument("--phenix-manifest", type=Path, required=True)
             action.add_argument("--threads", type=int, required=True)
             action.add_argument("--attempt", type=int, required=True)
+            action.add_argument("--walltime-hours", type=int, required=True)
     summary = sub.add_parser("summarise")
     summary.add_argument("--inputs", type=Path, required=True)
     summary.add_argument("--results", type=Path, required=True)
@@ -529,6 +536,7 @@ def main() -> int:
             args.threads,
             args.attempt,
             args.outdir,
+            args.walltime_hours,
         )
     else:
         summarise(args.inputs, args.results, args.work_root, args.outdir)
