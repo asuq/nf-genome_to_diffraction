@@ -13,9 +13,13 @@ include { CONTROL_FIRST_COPY_MR_WORKFLOW } from './workflows/control_first_copy_
 include { ADDITIONAL_COPY_WORKFLOW } from './workflows/additional_copy_workflow'
 include { BRIEF_REFINEMENT_WORKFLOW } from './workflows/brief_refinement_workflow'
 include { PHASE3_NETWORK_PROBE_WORKFLOW } from './workflows/qualification/phase3_network_probe'
+include { IDENTIFICATION_SCREEN_WORKFLOW } from './workflows/qualification/identification_screen'
 
 params {
     qualification_stage: String
+    identification_inputs: Path? = null
+    identification_cases: Path? = null
+    identification_input_id: String? = null
     sequence_groups: Path? = null
     source_records: Path? = null
     config: Path? = null
@@ -75,7 +79,8 @@ workflow {
         'first_copy_controls',
         'additional_copy',
         'refine_finalists',
-        'phase3_network_probe'
+        'phase3_network_probe',
+        'identification_screen'
     ]
     if (!(params.qualification_stage in supported)) {
         error "Unsupported qualification_stage: ${params.qualification_stage}"
@@ -266,6 +271,16 @@ workflow {
             params.source_records as Path,
             params.phenix_manifest as Path
         )
+    } else if (params.qualification_stage == 'identification_screen') {
+        if (
+            params.identification_inputs == null ||
+            params.identification_cases == null ||
+            params.identification_input_id == null ||
+            params.phenix_manifest == null
+        ) {
+            error 'identification screen requires its validated complete inputs and Phenix binding'
+        }
+        IDENTIFICATION_SCREEN_WORKFLOW()
     } else {
         if (
             params.outer_job_id == null ||

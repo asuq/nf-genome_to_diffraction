@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -709,6 +709,62 @@ p0_inputs_stage() {
     emit status ready
 }
 
+identification_inputs_stage() {
+    [[ "$#" -eq 5 ]] || fail wrapper_failure \
+        "identification-inputs-stage expects five fixed identity fields"
+    local run_id="$1" owner_id="$2" input_id="$3" archive_sha256="$4" archive_size="$5"
+    local run archive destination python source_commit
+    local -a p0_values=()
+    validate_run_id "$run_id"
+    validate_owner "$owner_id"
+    [[ "$input_id" =~ ^identificationinputs_[a-f0-9]{64}$ && \
+       "$archive_sha256" =~ $CHECKSUM_RE && "$archive_size" =~ $BYTE_COUNT_RE ]] || \
+        fail wrapper_failure "invalid identification input identity"
+    (( archive_size >= 1 && archive_size <= 1073741824 )) || \
+        fail wrapper_failure "identification archive exceeds the fixed bound"
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    [[ "$SITE_ID" == marmic && \
+       "$(<"$run/state/profile")" == identification-screen && \
+       "$(<"$run/state/phase")" == staged && ! -e "$run/state/job-id" ]] || \
+        fail wrapper_failure "identification inputs require their exact staged run"
+    destination="$run/artifacts/identification-screen/inputs"
+    [[ ! -e "$destination" && ! -L "$destination" ]] || \
+        fail wrapper_failure "identification inputs are already attached"
+    mkdir -p -- "$run/artifacts/identification-screen"
+    archive="$run/execution/identification-inputs.tar"
+    [[ ! -e "$archive" ]] || fail wrapper_failure "input transfer already attempted"
+    head -c "$archive_size" > "$archive" || \
+        fail transfer_failure "identification input transfer failed"
+    [[ "$(file_size "$archive")" == "$archive_size" && \
+       "$(sha256sum "$archive" | awk '{print $1}')" == "$archive_sha256" ]] || \
+        fail transfer_failure "identification input transfer checksum differs"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || fail environment_failure "locked identification Python absent"
+    p0_config_readiness || fail environment_failure "P0 authority unavailable"
+    mapfile -t p0_values < "$P0_CONFIG"
+    [[ "${#p0_values[@]}" -eq 7 ]] || fail environment_failure "P0 authority malformed"
+    source_commit="$(<"$run/state/commit")"
+    if ! PYTHONPATH="$run/source/src" "$python" \
+        -m genome_to_diffraction.hpc.identification_run unpack \
+        --archive "$archive" --input-id "$input_id" \
+        --source-commit "$source_commit" --allowed-mtz-root "${p0_values[0]}" \
+        --outdir "$destination" > "$run/logs/identification-input-validation.log" 2>&1; then
+        fail wrapper_failure "identification input validation failed"
+    fi
+    find "$destination" -xdev -type f -exec chmod 0444 {} +
+    find "$destination" -xdev -type d -exec chmod 0555 {} +
+    atomic_text "$run/state/identification-input-id" "$input_id"
+    atomic_text "$run/state/identification-input-archive-sha256" "$archive_sha256"
+    append_event "$run" "identification_inputs_ready"
+    emit operation identification-inputs-stage
+    emit run_id "$run_id"
+    emit input_id "$input_id"
+    emit archive_sha256 "$archive_sha256"
+    emit status ready
+}
+
+
 unknown_discovery_inputs_stage() {
     [[ "$#" -eq 7 ]] || \
         fail wrapper_failure \
@@ -1205,6 +1261,7 @@ stage_run_common() {
     if [[ "$profile" == heteromer-smoke || \
           "$profile" == phase3-phenix-probe || \
           "$profile" == unknown-discovery || \
+          "$profile" == identification-screen || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
           "$profile" == unknown-pass2 || \
@@ -1227,6 +1284,7 @@ stage_run_common() {
         if [[ "$profile" == heteromer-smoke || \
               "$profile" == phase3-phenix-probe || \
               "$profile" == unknown-discovery || \
+              "$profile" == identification-screen || \
               "$profile" == unknown-screen || \
               "$profile" == unknown-single-component || \
               "$profile" == unknown-pass2 || \
@@ -1463,6 +1521,7 @@ stage_run_common() {
     if [[ "$profile" == heteromer-smoke || \
           "$profile" == phase3-phenix-probe || \
           "$profile" == unknown-discovery || \
+          "$profile" == identification-screen || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
           "$profile" == unknown-pass2 ]]; then
@@ -1492,6 +1551,7 @@ stage_run_common() {
     if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == unknown-discovery || \
+          "$profile" == identification-screen || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
           "$profile" == unknown-pass2 || \
@@ -1572,6 +1632,7 @@ stage_run_common() {
           "$profile" == phase3-phenix-probe || \
           "$profile" == phase3-network-probe || \
           "$profile" == unknown-discovery || \
+          "$profile" == identification-screen || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
           "$profile" == control-slice || "$profile" == control-matrix || \
@@ -1601,6 +1662,7 @@ stage_run_common() {
         if [[ "$profile" == p0 || "$profile" == p1 || "$profile" == p2 || \
               "$profile" == p2-diverse || "$profile" == p2-control || \
               "$profile" == unknown-discovery || \
+              "$profile" == identification-screen || \
               "$profile" == unknown-screen || \
               "$profile" == unknown-single-component || \
               "$profile" == unknown-pass2 || \
@@ -2300,7 +2362,7 @@ EOF
 stage_run() {
     [[ "$#" -eq 6 || ( "$#" -eq 8 && \
        ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe || \
-         "$6" == unknown-discovery || "$6" == unknown-screen || \
+         "$6" == unknown-discovery || "$6" == identification-screen || "$6" == unknown-screen || \
          "$6" == unknown-single-component || "$6" == unknown-pass2 ) ) ]] || \
         fail wrapper_failure "stage received an invalid fixed argument set"
     [[ "$6" != database ]] || \
@@ -2311,7 +2373,7 @@ stage_run() {
 stage_archive_run() {
     [[ "$#" -eq 9 || ( "$#" -eq 11 && \
        ( "$6" == heteromer-smoke || "$6" == phase3-phenix-probe || \
-         "$6" == unknown-discovery || "$6" == unknown-screen || \
+         "$6" == unknown-discovery || "$6" == identification-screen || "$6" == unknown-screen || \
          "$6" == unknown-single-component || "$6" == unknown-pass2 ) ) ]] || \
         fail wrapper_failure "stage-archive received an invalid fixed argument set"
     [[ "$6" != database ]] || \
@@ -3809,6 +3871,11 @@ submit_run() {
             fail wrapper_failure \
                 "M6 leakage requires its collected operational cache authority"
     fi
+    if [[ "$profile" == identification-screen ]]; then
+        [[ -f "$run/state/identification-input-id" && \
+           -f "$run/artifacts/identification-screen/inputs/identification_input_manifest.json" ]] || \
+            fail wrapper_failure "identification submit requires its complete input archive"
+    fi
     if [[ "$profile" == unknown-discovery ]]; then
         [[ -f "$run/state/unknown-discovery-input-id" && \
            -f "$run/state/phase3-execution-identity-id" && \
@@ -3908,6 +3975,7 @@ submit_run() {
         memory=32G
     fi
     if [[ "$profile" == unknown-discovery || \
+          "$profile" == identification-screen || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
           "$profile" == unknown-pass2 ]]; then
@@ -3928,6 +3996,7 @@ submit_run() {
           "$profile" == p2-diverse || "$profile" == p2-control || \
           "$profile" == heteromer-smoke || \
           "$profile" == unknown-discovery || \
+          "$profile" == identification-screen || \
           "$profile" == unknown-screen || \
           "$profile" == unknown-single-component || \
           "$profile" == control-slice || "$profile" == control-matrix || \
@@ -3938,6 +4007,7 @@ submit_run() {
         walltime=24:00:00
     fi
     [[ "$profile" != unknown-screen ]] || walltime=120:00:00
+    [[ "$profile" != identification-screen ]] || walltime=120:00:00
     [[ "$profile" != unknown-single-component ]] || walltime=120:00:00
     # Five sequential B--F depths can each consume a 48-hour first attempt and
     # one 48-hour retry. Retain two additional days for orchestration and the
@@ -5775,6 +5845,61 @@ collect_run() {
         fi
     fi
     ((${#files[@]} > 0)) || fail transfer_failure "no approved artefacts are available"
+    if [[ "$profile" == identification-screen ]]; then
+        local identification_root="$run/artifacts/identification-screen/collected"
+        local identification_checksums="$run/artifacts/identification-screen/collected/checksums.sha256"
+        local identification_digest identification_relative identification_extra
+        local identification_count=0
+        if [[ -f "$identification_checksums" && ! -L "$identification_checksums" ]]; then
+            while read -r identification_digest identification_relative identification_extra; do
+                [[ "$identification_digest" =~ $CHECKSUM_RE && \
+                   -z "$identification_extra" && \
+                   "$identification_relative" =~ ^[A-Za-z0-9][A-Za-z0-9_./-]*$ && \
+                   "$identification_relative" != *..* ]] || \
+                    fail wrapper_failure "unsafe identification collection inventory"
+                candidate="$identification_root/$identification_relative"
+                [[ -f "$candidate" && ! -L "$candidate" && \
+                   "$(realpath -e "$candidate")" == "$candidate" ]] || \
+                    fail wrapper_failure "unsafe identification collection member"
+                [[ "$(sha256sum "$candidate" | awk '{print $1}')" == \
+                   "$identification_digest" ]] || \
+                    fail transfer_failure "identification collection checksum differs"
+                size="$(file_size "$candidate")"
+                (( size <= MAX_ARTIFACT_FILE_BYTES )) || \
+                    fail transfer_failure "identification artifact exceeds per-file bound"
+                total=$((total + size))
+                (( total <= MAX_ARTIFACT_TOTAL_BYTES )) || \
+                    fail transfer_failure "identification collection exceeds total bound"
+                files+=("artifacts/identification-screen/collected/$identification_relative")
+                identification_count=$((identification_count + 1))
+                (( identification_count <= 12000 )) || \
+                    fail transfer_failure "identification collection has too many files"
+            done < "$identification_checksums"
+            files+=("artifacts/identification-screen/collected/checksums.sha256")
+        elif [[ "$failure_class" == success ]]; then
+            fail transfer_failure "successful identification collection inventory absent"
+        fi
+        for candidate in state/identification-input-id \
+            state/identification-input-archive-sha256 \
+            logs/identification-nextflow.log logs/identification-input-validation.log \
+            artifacts/qualification/identification-phenix-verification.log \
+            artifacts/qualification/identification-phenix-manifest.json; do
+            if [[ -f "$run/$candidate" && ! -L "$run/$candidate" ]]; then
+                size="$(file_size "$run/$candidate")"
+                (( size <= MAX_ARTIFACT_FILE_BYTES )) || \
+                    fail transfer_failure "identification diagnostic exceeds per-file bound"
+                total=$((total + size))
+                (( total <= MAX_ARTIFACT_TOTAL_BYTES )) || \
+                    fail transfer_failure "identification diagnostics exceed total bound"
+                files+=("$candidate")
+            fi
+        done
+        printf '%s\n' "${files[@]}" > "$run/execution/identification-collection-members.txt"
+        tar -czf - -C "$run" --verbatim-files-from \
+            -T "$run/execution/identification-collection-members.txt"
+        return
+    fi
+
     tar -czf - -C "$run" "${files[@]}"
 }
 
@@ -6347,6 +6472,7 @@ main() {
         readiness) readiness_p0 "$@" ;;
         p0-configure) p0_configure "$@" ;;
         p0-inputs-stage) p0_inputs_stage "$@" ;;
+        identification-inputs-stage) identification_inputs_stage "$@" ;;
         unknown-discovery-inputs-stage) unknown_discovery_inputs_stage "$@" ;;
         unknown-screen-stage) unknown_screen_stage_run "$@" ;;
         unknown-single-component-stage) unknown_single_component_stage_run "$@" ;;

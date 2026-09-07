@@ -117,6 +117,7 @@ class FakeTransport:
     calls: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
     p0_archive: bytes = b""
     unknown_discovery_archive: bytes = b""
+    identification_archive: bytes = b""
     m4_import_archive: bytes = b""
     control_slice_archive: bytes = b""
     control_matrix_archive: bytes = b""
@@ -128,6 +129,18 @@ class FakeTransport:
     stage_site_id: str = "marmic"
     log_payload: bytes = b"line one\nline two\n"
     log_response: dict[str, str] | None = None
+
+    def identification_inputs_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("identification-inputs-stage", tuple(arguments)))
+        assert archive_path.is_file()
+        self.identification_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "input_id": arguments[2],
+            "archive_sha256": arguments[3],
+        }
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
@@ -776,6 +789,31 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
         git=FakeGit(repository=tmp_path),
         progress=False,
     )
+
+
+def test_identification_stage_attaches_source_bound_complete_inputs(
+    tmp_path: Path,
+) -> None:
+    from tests.support.identification_fixture import materialise_identification_fixture
+
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    materialise_identification_fixture(tmp_path)
+    binding = tmp_path / ".untracked/m0-qualification/hpc-phase3-phenix.paths"
+    binding.parent.mkdir(parents=True)
+    binding.write_text("/approved/phenix.json\n" + "f" * 64 + "\n")
+    binding.chmod(0o600)
+    result = controller.stage("identification-screen", "HEAD")
+    assert result["profile"] == "identification-screen"
+    input_id = result["identification_input_id"]
+    assert isinstance(input_id, str) and input_id.startswith("identificationinputs_")
+    assert transport.calls[-1][0] == "identification-inputs-stage"
+    with tarfile.open(fileobj=io.BytesIO(transport.identification_archive)) as archive:
+        handle = archive.extractfile("identification_input_manifest.json")
+        assert handle is not None
+        manifest = json.load(handle)
+        assert manifest["source_commit"] == COMMIT
+        assert manifest["input_id"] == result["identification_input_id"]
 
 
 def _owned_terminal_files(

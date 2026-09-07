@@ -17,6 +17,9 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.hpc.identification_inputs import (
+    build_identification_input_bundle,
+)
 from genome_to_diffraction.hpc.unknown_inputs import (
     UNKNOWN_DISCOVERY_SPEC_RELATIVE,
     build_unknown_discovery_input_bundle,
@@ -25,6 +28,7 @@ from genome_to_diffraction.hpc.unknown_single_inputs import (
     UNKNOWN_SINGLE_SPEC_RELATIVE,
     build_unknown_single_component_input_bundle,
 )
+from tests.support.identification_fixture import materialise_identification_fixture
 from tests.support.unknown_pass1_fixture import (
     PUBLIC_STUB_CRYSTAL_IDS,
     materialise_neutral_localisation_fixture,
@@ -199,6 +203,10 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
     qualification_workflows = source / "workflows" / "qualification"
     qualification_workflows.mkdir(parents=True)
+    shutil.copy2(
+        REPOSITORY / "workflows/qualification/identification_screen.nf",
+        qualification_workflows / "identification_screen.nf",
+    )
     shutil.copy2(
         REPOSITORY / "workflows/qualification/phase3_network_probe.nf",
         qualification_workflows / "phase3_network_probe.nf",
@@ -2781,6 +2789,94 @@ def _write_p0_paths(root: Path, *, unsafe: bool = False) -> Path:
     )
     p0_config.chmod(0o600)
     return p0_config
+
+
+def test_identification_remote_stage_requires_owned_complete_archive(
+    tmp_path: Path,
+) -> None:
+    dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
+    remote_root = smoke_job.parent.parent
+    config = _write_p0_paths(remote_root)
+    values = config.read_text().splitlines()
+    phenix = Path(values[6])
+    run_id = f"gtd-identification-screen-20260907T000000Z-{commit[:12]}-01234567"
+    lock_sha = hashlib.sha256(
+        (tmp_path / "source-origin/pixi.lock").read_bytes()
+    ).hexdigest()
+    staged = _run(
+        [
+            str(dispatcher),
+            "stage",
+            run_id,
+            commit,
+            lock_sha,
+            OWNER_ID,
+            "1",
+            "identification-screen",
+            str(phenix),
+            hashlib.sha256(phenix.read_bytes()).hexdigest(),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(staged.stdout)["profile"] == "identification-screen"
+    missing = _run(
+        [str(dispatcher), "submit", run_id, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert "complete input archive" in _decode_protocol(missing.stdout)["message"]
+    local = remote_root / "p0-inputs/identification-fixture"
+    local.mkdir()
+    materialise_identification_fixture(local)
+    bundle = build_identification_input_bundle(
+        repository=local,
+        archive_path=tmp_path / "identification.tar",
+        source_commit=commit,
+    )
+    args = [
+        str(dispatcher),
+        "identification-inputs-stage",
+        run_id,
+        OWNER_ID,
+        bundle.input_id,
+        bundle.archive_sha256,
+        str(bundle.archive_size_bytes),
+    ]
+    attached = _run(
+        args,
+        cwd=tmp_path,
+        environment=environment,
+        input_data=bundle.archive_path.read_bytes(),
+        timeout_seconds=60,
+    )
+    assert _decode_protocol(attached.stdout)["input_id"] == bundle.input_id
+    duplicate = _run(
+        args,
+        cwd=tmp_path,
+        environment=environment,
+        input_data=bundle.archive_path.read_bytes(),
+        success=False,
+    )
+    assert "already attached" in _decode_protocol(duplicate.stdout)["message"]
+    submitted = _run(
+        [str(dispatcher), "submit", run_id, OWNER_ID],
+        cwd=tmp_path,
+        environment=environment,
+    )
+    assert _decode_protocol(submitted.stdout)["profile"] == "identification-screen"
+    run = remote_root / "runs" / run_id
+    assert (
+        run / "state/identification-input-id"
+    ).read_text().strip() == bundle.input_id
+    wrong_owner = _run(
+        [str(dispatcher), "status", run_id, "f" * 32],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    assert wrong_owner.returncode != 0
 
 
 def _write_database_paths(

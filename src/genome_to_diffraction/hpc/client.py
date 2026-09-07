@@ -35,6 +35,9 @@ from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
 from genome_to_diffraction.hpc.control_matrix import build_fixed_control_matrix_bundle
 from genome_to_diffraction.hpc.control_slice import build_fixed_control_slice_bundle
+from genome_to_diffraction.hpc.identification_inputs import (
+    build_identification_input_bundle,
+)
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
 from genome_to_diffraction.hpc.models import (
     COMMIT_PATTERN,
@@ -153,6 +156,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/phase3-network-probe.log",
         "logs/unknown-discovery.log",
         "logs/unknown-screen.log",
+        "logs/identification-screen.log",
         "logs/unknown-single-component.log",
         "logs/unknown-pass2.log",
         "logs/control-slice.log",
@@ -167,7 +171,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -582,6 +586,13 @@ class TextTransport(Protocol):
         arguments: Sequence[str],
     ) -> dict[str, str]:
         """Run bounded login acquisition from one owned discovery parent."""
+
+    def identification_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Attach a complete explicitly selected identification input inventory."""
 
     def unknown_single_component_stage(
         self,
@@ -1329,6 +1340,42 @@ class SshTransport:
             )
         return fields
 
+    def identification_inputs_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream one bounded input archive to its fixed identification profile."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("identification-inputs-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "identification staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            raise RemoteOperationError(
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "identification input staging failed",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "identification staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def unknown_screen_stage(
         self,
         arguments: Sequence[str],
@@ -1850,6 +1897,12 @@ class HpcController:
             raise ValidationError(
                 "database administration requires the separate database-stage operation"
             )
+        if profile == "identification-screen" and (
+            self.config.site_id != "marmic" or parent_run_id is not None
+        ):
+            raise ValidationError(
+                "identification-screen requires Marmic and its own input bundle"
+            )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
         approved_source_branch = source_branch or "main"
@@ -1948,6 +2001,7 @@ class HpcController:
             "phase3-phenix-probe",
             "unknown-discovery",
             "unknown-screen",
+            "identification-screen",
             "unknown-single-component",
             "unknown-pass2",
         }:
@@ -1987,6 +2041,39 @@ class HpcController:
                     ],
                     archive_path,
                 )
+        if profile == "identification-screen":
+            with tempfile.TemporaryDirectory(
+                prefix="nf-gtd-identification-", dir="/tmp"
+            ) as temporary:
+                bundle = build_identification_input_bundle(
+                    repository=self.config.repository,
+                    archive_path=Path(temporary) / "identification-inputs.tar",
+                    source_commit=commit,
+                )
+                attached = self.transport.identification_inputs_stage(
+                    [
+                        run_id,
+                        owner_id,
+                        bundle.input_id,
+                        bundle.archive_sha256,
+                        str(bundle.archive_size_bytes),
+                    ],
+                    bundle.archive_path,
+                )
+            if (
+                attached.get("run_id") != run_id
+                or attached.get("input_id") != bundle.input_id
+                or attached.get("archive_sha256") != bundle.archive_sha256
+            ):
+                raise RemoteOperationError(
+                    "identification staged input identity differs",
+                    failure_class=FailureClass.TRANSFER_FAILURE,
+                )
+            remote = {
+                **remote,
+                "identification_input_id": bundle.input_id,
+                "identification_input_sha256": bundle.archive_sha256,
+            }
         if profile == "unknown-discovery":
             with tempfile.TemporaryDirectory(
                 prefix="nf-gtd-unknown-discovery-",

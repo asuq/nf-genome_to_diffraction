@@ -15376,3 +15376,27 @@ with a collapsed combined parent or a guessed command.
   distinct batch or requesting review of a convincing seed. Keep weak
   placements, no-solutions, failures and unsubmitted work distinct. Complete
   candidate assessments before returning to the remaining v0.3 programme.
+
+## 2026-09-07 - Independent all-candidate Marmic identification profile
+
+- The user declined obtaining the solved identity and explicitly approved a
+  focused implementation, push and deployment of the all-candidate Marmic
+  profile. Further local batches are superseded; the existing local run remains
+  untouched. Initial-copy policy, resource tiers, tNCS acceptance and human
+  review remain unchanged, and the general generator redesign stays deferred.
+- The new internal profile validates complete catalogue/mass-interval coverage,
+  explicit existing-work reservations and model gaps, exact template mapping,
+  original diffraction identity and retained Free-R values. The entire private
+  input plan validates; its public coordinate resources have been acquired.
+- Source-bound bounded archives reject unsafe members before extraction. A
+  real Nextflow graph schedules independent preparations and MR, using the
+  existing resource/retry policy. The collector retains failed-attempt evidence
+  and explicitly indexes large native MTZ assets retained on Marmic.
+- Focused input, command, parser/failure, catalogue-coverage, staging/ownership,
+  and real Nextflow stub tests pass. The existing remote-dispatcher suite also
+  passes. `PH3-P1-86` records the restricted scope of this case-specific remedy;
+  no protein identity or catalogue-wide method validation is claimed.
+- Next complete the locked local review gate, push only the focused completed
+  source, deploy its exact wrapper hashes, and submit the representative remote
+  screen. On its classified completion, reserve that completed work and submit
+  the remaining full inventory without duplicate or failed-cache reuse.

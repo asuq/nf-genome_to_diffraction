@@ -1,0 +1,120 @@
+# Case-specific all-candidate identification screen
+
+This internal, experimental Marmic profile runs explicit catalogue-derived
+protein hypotheses without the ordinary discovery route's global 25-coordinate
+acquisition boundary. It does not replace or scientifically validate the general
+mass-blind candidate generator. An apparent polypeptide-mass interval is an
+experimental prior, not protein identity, ASU total mass, or a hard biological
+exclusion outside that interval.
+
+## Inputs and accounting
+
+The operator prepares one private input directory containing:
+
+- `plan.json`, validated as `IdentificationPlan` by
+  `src/genome_to_diffraction/hpc/identification_inputs.py`;
+- complete canonical `sequence_groups.jsonl` and `source_records.jsonl` from one
+  trusted catalogue and annotation source; and
+- the compressed public PDB coordinates named by ready candidates.
+
+The plan contains original diffraction paths/checksums and reviewed observation
+labels, explicit retained Free-R test values, symmetry, resolution, ASU volume,
+reflection count and experimental mass intervals. Diffraction paths must remain
+under the already approved P0 input root. No new Free-R flags are generated.
+
+Every interval-matching sequence group must appear exactly once per crystal.
+Missing, duplicate, incorrectly mapped or silently omitted groups fail
+validation. Candidate dispositions are:
+
+| Disposition | Meaning |
+| --- | --- |
+| `ready` | An eligible model is explicitly bound to this catalogue sequence. |
+| `model_unavailable` | No usable model is supplied; no MR or no-hit claim is made. |
+| `existing_work` | An explicit evidence reference reserves or records another attempt; no scientific cache is imported. |
+
+Template identity and coverage describe model suitability, not the probability
+of protein identity. The full sequence mass determines all configured Matthews
+copy alternatives and their existing prior. Initial MR still searches one copy
+while composition retains its expected total. A coupled tNCS placement must be
+reported with its observed copy count; it is not strict one-copy evidence.
+Staged bytes remain checksum-exact. Independent ARM/x86 NumPy re-evaluation of
+the pinned prior permits only relative round-off of `1e-12` (absolute `1e-15`);
+copy inventories and the selected expected count must still agree exactly.
+
+The fixed safety boundaries are at most three crystals, 5,000 inventory rows,
+12,000 input files, 128 MiB per file and a 1 GiB input archive. These protect
+staging resources; they do not truncate the input list. Exceeding a bound fails
+explicitly and requires a reviewed execution plan.
+
+## Execution and source ownership
+
+The private mode-0600 spec `.untracked/identification-marmic/input-root.json`
+contains exactly `schema_version: "1.0"` and an absolute `input_root`. The
+ordinary internal HPC client stages a clean commit already on `origin/main`:
+
+```text
+pixi run --locked nf-gtd-hpc-test --config CONFIG --no-progress stage identification-screen --revision COMMIT --source-branch main
+pixi run --locked nf-gtd-hpc-test --config CONFIG --no-progress submit identification-screen --run-id RUN_ID
+```
+
+Use the exact returned run ID, never a recent directory. Raw SSH and direct
+Slurm commands are not part of this interface. The tar stream is bound to the
+source commit and all input-file hashes. Links, duplicate members, traversal,
+oversized members and mismatched content are rejected before extraction. The
+job revalidates the staged input identity before emitting tasks.
+
+`run_mode: "smoke"` runs one deterministic ready representative per crystal.
+All other rows remain visibly outside that run's execution subset. After a
+successful representative execution, a fresh `screen` plan includes all
+remaining ready candidates and explicitly reserves completed smoke work. There
+is no automatic cross-run scientific resume.
+
+The internal `identification_screen` stage of `qualification.nf` emits one
+preparation task and then one dependent MR
+task for each ready candidate. Preparation verifies the exact PDB entity/author
+chain, removes other chains, non-polymer residues and hydrogens, and writes a
+single-chain model and the full catalogue sequence. No new sequence adaptation,
+side-chain pruning or domain-splitting heuristic is introduced by this profile.
+
+MR uses isolated licensed Phenix `MR_AUTO`. Existing deterministic workload
+plans provide overprovisioned 8/12/16-CPU, 32/48/64-GB, 24/36/48-hour first
+attempts. One classified resource/interruption retry scales linearly with
+`task.attempt`, bounded at 16 CPUs, 64 GB and 48 hours. Slurm owns aggregate
+admission; no new application concurrency cap is imposed. MR children exclude
+`slurm-003` under the existing site policy. The controller requests eight CPUs,
+32 GB and 120 hours. No refinement or identity decision runs automatically.
+
+## Results and failure evidence
+
+Each MR task preserves its exact command, candidate/model/diffraction identity,
+allocated resources and attempt, byte streams, native Phaser log, and assets.
+Statuses distinguish retained placements (`completed_hit`), `completed_no_hit`,
+`failed_parse`, `execution_failed`, and `output_missing`. Preparation failures
+remain `model_preparation_failed`. A zero scheduler exit does not establish
+scientific success or protein identity.
+
+The fixed collector preserves all inventory dispositions and trace rows,
+including failed-attempt command/log/partial-asset evidence from confined work
+directories when available. A missing terminal record stays incomplete or
+unknown, not a no-hit. The summary keeps raw parser metrics separate from
+primary-PDB-associated metrics and observed polymer-chain counts.
+
+Bulk collection transfers metadata, logs, PDBs and checksums. Large native map
+and reflection MTZ files remain unchanged on Marmic and are indexed by path,
+size and checksum; their omission from bulk transfer is explicit. They must be
+retrieved for selected finalist review before any map or refinement claim.
+Private candidate reports, inputs and outputs do not belong in the public atlas.
+
+Stop for explicit review of convincing exploratory seeds. Preserve unresolved
+and sequence-equivalence-group endpoints; no score, runtime or mass prior alone
+can establish identity.
+
+## Checks
+
+Focused tests cover inventories exceeding 25 ready candidates, exact catalogue
+coverage, altered mappings/coordinates/copies/diffraction, source-bound archive
+round trips, unsafe archive members, native chain preparation, resource/thread
+binding, no-hit versus parse/resource failure, unpublished failed-task evidence,
+owned staging/submission, and a real Nextflow preparation/non-scientific stub
+graph. Real Phenix execution is qualified separately on Marmic. A passing stub
+or orchestration test is not a scientific identification or a release claim.

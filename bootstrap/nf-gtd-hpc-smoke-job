@@ -5,8 +5,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -38,6 +38,7 @@ if [[ "$PROFILE" == heteromer-smoke && "${SLURM_CPUS_PER_TASK:-}" != 8 ]]; then
     exit 2
 fi
 if [[ ( "$PROFILE" == unknown-discovery || \
+        "$PROFILE" == identification-screen || \
         "$PROFILE" == unknown-screen || \
         "$PROFILE" == unknown-single-component || \
         "$PROFILE" == unknown-pass2 ) && \
@@ -194,6 +195,9 @@ finalise() {
     elif [[ "$PROFILE" == unknown-discovery ]]; then
         reports_json='["artifacts/unknown-discovery/results/phase3_provider_discovery/phase3_provider_discovery_manifest.json"]'
         retained_json='["artifacts/unknown-discovery","artifacts/qualification"]'
+    elif [[ "$PROFILE" == identification-screen ]]; then
+        reports_json='["artifacts/identification-screen/collected/assessment.json"]'
+        retained_json='["artifacts/identification-screen","artifacts/qualification"]'
     elif [[ "$PROFILE" == unknown-screen ]]; then
         reports_json='["artifacts/unknown-screen/provider_preparation/provider_preparation.json","artifacts/unknown-screen/results/phase3_offline_provider_input/phase3_offline_provider_input.json"]'
         retained_json='["artifacts/unknown-screen","artifacts/qualification"]'
@@ -1906,6 +1910,56 @@ run_phase3_network_probe() {
         return 3
     printf 'phase3_network_probe_status=child_and_controller_sockets_denied\n'
 }
+
+run_identification_screen() {
+    local base="$RUN/artifacts/identification-screen"
+    local qualification="$RUN/artifacts/qualification"
+    local inputs="$RUN/artifacts/identification-screen/inputs"
+    local selected="$RUN/artifacts/identification-screen/selected"
+    local results="$RUN/artifacts/identification-screen/results"
+    local input_id legacy_manifest expected_sha rc=0
+    load_p0_config
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    PYTHON="$RUN/source/.pixi/envs/hpc/bin/python"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$PYTHON" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD
+    export NXF_HOME="$RUN/cache/nextflow-home"
+    mkdir -p "$qualification" "$results" "$RUN/cache/identification-nextflow"
+    input_id="$(<"$RUN/state/identification-input-id")"
+    [[ "$input_id" =~ ^identificationinputs_[a-f0-9]{64}$ ]] || return 2
+    legacy_manifest="$(<"$RUN/state/phenix-manifest")"
+    expected_sha="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$(sha256sum "$legacy_manifest" | awk '{print $1}')" == "$expected_sha" ]] || return 2
+    "$GTD" --no-progress --log-format json phenix verify \
+        --manifest "$legacy_manifest" \
+        --verification-log "$qualification/identification-phenix-verification.log" \
+        --no-command-timeout
+    cp -- "$legacy_manifest" "$qualification/identification-phenix-manifest.json"
+    "$PYTHON" -m genome_to_diffraction.hpc.identification_run validate \
+        --inputs "$inputs" --input-id "$input_id" \
+        --source-commit "$(<"$RUN/state/commit")" \
+        --allowed-mtz-root "$P0_ALLOWED_ROOT" --outdir "$selected"
+    cd "$RUN/execution"
+    PHASE=test
+    "$NEXTFLOW" -log "$RUN/logs/identification-nextflow.log" \
+        run "$RUN/source/qualification.nf" -profile marmic \
+        --qualification_stage identification_screen \
+        --identification_inputs "$inputs" \
+        --identification_input_id "$input_id" \
+        --identification_cases "$selected/execution_cases.json" \
+        --phenix_manifest "$qualification/identification-phenix-manifest.json" \
+        --outdir "$results" --cache_root "$RUN/cache/identification-nextflow" || rc=$?
+    "$PYTHON" -m genome_to_diffraction.hpc.identification_run summarise \
+        --inputs "$inputs" --results "$results" \
+        --work-root "$RUN/cache/identification-nextflow/work" \
+        --outdir "$base/collected"
+    (( rc == 0 )) || return "$rc"
+    printf 'identification_screen_status=completed_no_identity_inferred\n'
+}
+
 
 run_unknown_discovery_nextflow() {
     local label="$1"
@@ -5311,6 +5365,7 @@ case "$PROFILE" in
     phase3-phenix-probe) run_phase3_phenix_probe ;;
     phase3-network-probe) run_phase3_network_probe ;;
     unknown-discovery) run_unknown_discovery ;;
+    identification-screen) run_identification_screen ;;
     unknown-screen) run_unknown_screen ;;
     unknown-single-component) run_unknown_single_component ;;
     unknown-pass2) run_unknown_pass2 ;;

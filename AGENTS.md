@@ -57,6 +57,17 @@ consumed. For this round the user explicitly accepts Phaser's coupled two-copy
 tNCS states for AD4; this does not convert them into strict one-copy evidence or
 an identity claim.
 
+On 2026-09-07 the user authorised a separate case-specific
+`identification-screen` profile on Marmic, including implementation, testing,
+push and deployment on `main`. It accounts for every catalogue sequence in each
+supplied apparent-mass interval, not the earlier global 25-model pool. Explicit
+existing-work reservations avoid duplicate tests, and unavailable models remain
+visible non-executed records. The existing initial-copy, resource, tNCS,
+catalogue-identity and human-review safeguards still apply. This is not approval
+of the proposed full-expected-copy search or the deferred general mass-blind
+generator redesign. Do not request the supervisor's solved identity as a
+prerequisite for independent identification.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.
