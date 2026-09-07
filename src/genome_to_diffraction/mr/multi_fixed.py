@@ -38,7 +38,9 @@ from genome_to_diffraction.mr.phaser import (
     PhaserParseError,
     parse_completed_phaser_outputs,
     read_phaser_evidence_text,
+    read_phaser_log_evidence,
     read_phaser_solution_metrics,
+    reported_no_component_extension,
 )
 from genome_to_diffraction.phenix.runtime import (
     stream_from_manifest,
@@ -72,15 +74,6 @@ _PRIMARY_LLG = 100.0
 _PRIMARY_TFZ = 10.0
 _FALLBACK_LLG = 50.0
 _FALLBACK_TFZ = 5.0
-_NO_COMPLETE_COMPOSITION = re.compile(
-    r"^\s*\*\*\s+Sorry\s+-\s+No solution with all components\s*$",
-    re.I | re.M,
-)
-_INPUT_SOLUTION_NOT_EXTENDED = re.compile(
-    r"^\s*\*\*\s+Search did not extend input solution with new components\s*$",
-    re.I | re.M,
-)
-_SUCCESSFUL_EXIT = re.compile(r"^\s*EXIT STATUS:\s+SUCCESS\s*$", re.I | re.M)
 
 type _ScoreCohort = Literal["primary", "fallback", "below_threshold"]
 
@@ -535,12 +528,8 @@ def run_multi_fixed_search(
         )
     else:
         try:
-            text = read_phaser_evidence_text(raw_log)
-            if (
-                _NO_COMPLETE_COMPOSITION.search(text)
-                and _INPUT_SOLUTION_NOT_EXTENDED.search(text)
-                and _SUCCESSFUL_EXIT.search(text)
-            ):
+            text = read_phaser_log_evidence(raw_log)
+            if reported_no_component_extension(text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection = "phaser_reported_no_component_extension"
             else:
@@ -560,7 +549,6 @@ def run_multi_fixed_search(
                     if not coordinate.is_file() or not result_mtz.is_file():
                         raise PhaserParseError("multi-fixed hit lacks combined assets")
                     combined_llg, candidate_tfz, _, pak = read_phaser_solution_metrics(
-                        parsed,
                         coordinate,
                     )
                     if combined_llg is None or candidate_tfz is None:

@@ -44,7 +44,9 @@ from genome_to_diffraction.mr.phaser import (
     PhaserParseError,
     parse_completed_phaser_outputs,
     read_phaser_evidence_text,
+    read_phaser_log_evidence,
     read_phaser_solution_metrics,
+    reported_no_component_extension,
 )
 from genome_to_diffraction.mr_resources import (
     MrResourcePlanError,
@@ -81,14 +83,6 @@ _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
 _SEARCH_COPY_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+search_copy(?:\s|$)", re.M)
-_NO_COMPLETE_COMPONENT_SOLUTION = re.compile(
-    r"^\s*\*\*\s+Sorry\s+-\s+No solution with all components\s*$", re.I | re.M
-)
-_INPUT_SOLUTION_NOT_EXTENDED = re.compile(
-    r"^\s*\*\*\s+Search did not extend input solution with new components\s*$",
-    re.I | re.M,
-)
-_SUCCESSFUL_EXIT = re.compile(r"^\s*EXIT STATUS:\s+SUCCESS\s*$", re.I | re.M)
 
 
 def _phaser_placement_count(text: str, *, parent_copy_count: int) -> int:
@@ -97,14 +91,6 @@ def _phaser_placement_count(text: str, *, parent_copy_count: int) -> int:
     if fixed_parent_count == 1 and search_copy_count >= 1:
         return parent_copy_count + search_copy_count
     return len(_PLACEMENT.findall(text))
-
-
-def _reported_no_additional_solution(text: str) -> bool:
-    return (
-        _NO_COMPLETE_COMPONENT_SOLUTION.search(text) is not None
-        and _INPUT_SOLUTION_NOT_EXTENDED.search(text) is not None
-        and _SUCCESSFUL_EXIT.search(text) is not None
-    )
 
 
 @dataclass(frozen=True)
@@ -798,8 +784,8 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         )
     else:
         try:
-            raw_log_text = read_phaser_evidence_text(raw_log)
-            if _reported_no_additional_solution(raw_log_text):
+            raw_log_text = read_phaser_log_evidence(raw_log)
+            if reported_no_component_extension(raw_log_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_additional_solution"
             else:
@@ -815,7 +801,7 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
                         raise PhaserParseError(
                             "additional-copy solution lacks PDB or MTZ"
                         )
-                    llg, tfz, _, pak = read_phaser_solution_metrics(parsed, coordinate)
+                    llg, tfz, _, pak = read_phaser_solution_metrics(coordinate)
                     if llg is None or tfz is None or pak is None:
                         raise PhaserParseError(
                             "additional-copy solution lacks selected metrics or packing"

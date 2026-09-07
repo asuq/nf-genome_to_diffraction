@@ -15665,3 +15665,18 @@ with a collapsed combined parent or a guessed command.
 - Next integrate reviewed reopening and bounded log/copy-completeness updates,
   reconcile remaining schema/cache/fixture versions, then run the complete
   locked gate before exact-source CI and any authorised Raven qualification.
+
+## 2026-09-07 - Bounded native Phaser-log evidence extraction
+
+- All live Phaser adapters now scan native logs with bounded line and retained
+  evidence memory. The extraction preserves final terminal/packing records,
+  peak raw scores, latest LLGI/selected annotation and exact advisory/extension
+  markers, while keeping the original log unchanged. Delimiters prevent
+  unrelated fragments from becoming valid records after filtering.
+- A read-only replay of the retained public 3U7Q log produced identical parsed
+  evidence from 136,983 original bytes and a 789-character summary. Frozen
+  supported outputs, repeated-record memory bounds, interrupted grammar,
+  oversized lines and adjacent adapter outcomes passed 139 focused tests.
+- This is parser replay and local execution testing, not a new native Phenix
+  scientific qualification. Next finish independently unassessed copy/residual
+  reporting and hand off the isolated fix branch for the integrated gate.

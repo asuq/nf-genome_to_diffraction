@@ -32,6 +32,7 @@ from genome_to_diffraction.hpc.identification_inputs import (
 from genome_to_diffraction.mr.phaser import (
     PhaserParseError,
     parse_completed_phaser_outputs,
+    read_phaser_log_evidence,
 )
 from genome_to_diffraction.mr_resources import (
     build_mr_resource_plan,
@@ -266,7 +267,7 @@ def run_case(
     else:
         try:
             parsed = parse_completed_phaser_outputs(
-                (outdir / "PHASER.log").read_text(), outdir
+                read_phaser_log_evidence(outdir / "PHASER.log"), outdir
             )
         except PhaserParseError as error:
             record.update(status="failed_parse", reason=str(error))

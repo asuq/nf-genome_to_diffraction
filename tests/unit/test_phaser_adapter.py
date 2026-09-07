@@ -429,9 +429,7 @@ def test_solution_pdb_llg_accepts_scientific_notation(tmp_path: Path) -> None:
         encoding="ascii",
     )
 
-    llg, tfz, placed_count, pak = read_phaser_solution_metrics(
-        parse_phaser_log(POSITIVE_LOG), coordinate
-    )
+    llg, tfz, placed_count, pak = read_phaser_solution_metrics(coordinate)
 
     assert llg == pytest.approx(247000.0)
     assert tfz == pytest.approx(371.4)
@@ -449,13 +447,13 @@ def test_solution_pdb_rejects_non_utf8_scientific_evidence(tmp_path: Path) -> No
     )
 
     with pytest.raises(PhaserParseError, match="not valid UTF-8"):
-        read_phaser_solution_metrics(parse_phaser_log(POSITIVE_LOG), coordinate)
+        read_phaser_solution_metrics(coordinate)
 
 
 def test_selected_metrics_use_frozen_native_history_and_never_log_maxima() -> None:
     parsed = parse_phaser_log(POSITIVE_LOG)
     llg, tfz, placed_count, pak = read_phaser_solution_metrics(
-        parsed, PHASER_FIXTURES / "phenix_2_1_3u7q_selected.pdb"
+        PHASER_FIXTURES / "phenix_2_1_3u7q_selected.pdb"
     )
     assert (llg, tfz, placed_count, pak) == (17887.289, 127.4, 2, 0.0)
     assert llg != parsed.llg
@@ -476,9 +474,7 @@ def test_selected_metrics_never_fill_missing_values_from_other_solutions(
             if missing not in line
         )
     )
-    llg, tfz, _, _ = read_phaser_solution_metrics(
-        parse_phaser_log(POSITIVE_LOG), coordinate
-    )
+    llg, tfz, _, _ = read_phaser_solution_metrics(coordinate)
     assert (llg if missing == "Log-Likelihood Gain" else tfz) is None
 
 

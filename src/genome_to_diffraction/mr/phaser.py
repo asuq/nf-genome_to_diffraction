@@ -126,6 +126,19 @@ _PDB_TFZ = re.compile(r"\bTFZ==(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PAK = re.compile(r"\bPAK=(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _PDB_TNCS = re.compile(r"^REMARK[^\n]*\+TNCS(?:\s|$)", re.M)
+_PACKING_FIRST_LINE = re.compile(r"\d+ accepted of \d+ solutions?\s*$")
+_TOP_ANNOTATION_HEADER = re.compile(
+    r"Solution(?:\s+#1)?\s+annotation \(history\):\s*$", re.I
+)
+_NO_COMPLETE_COMPONENTS = re.compile(
+    r"^\s*\*\*\s+Sorry\s+-\s+No solution with all components\s*$", re.I | re.M
+)
+_INPUT_NOT_EXTENDED = re.compile(
+    r"^\s*\*\*\s+Search did not extend input solution with new components\s*$",
+    re.I | re.M,
+)
+_SUCCESSFUL_EXIT = re.compile(r"^\s*EXIT STATUS:\s+SUCCESS\s*$", re.I | re.M)
+_MAXIMUM_LOG_LINE_CHARACTERS = 1_048_576
 
 
 class PhaserInputError(InputContractError):
@@ -145,6 +158,103 @@ def read_phaser_evidence_text(path: Path) -> str:
         raise PhaserParseError(
             f"Phaser scientific evidence {path.name} is not valid UTF-8"
         ) from error
+
+
+def read_phaser_log_evidence(path: Path) -> str:
+    """Stream a complete native log into a bounded, lossless parser summary.
+
+    Retain exactly the parser's final counts/packing, peak raw scores, latest
+    LLGI and selected annotation, version and advisory/extension markers in
+    their original order. Complete raw bytes stay in the owned log. At most
+    one record per evidence class and two pending lines remain in memory.
+    A malformed line over 1,048,576 decoded characters fails explicitly.
+    """
+
+    chunks: dict[str, tuple[int, str]] = {}
+    peaks: dict[str, float] = {}
+    pending_packing: tuple[int, str] | None = None
+    pending_annotation: tuple[int, str] | None = None
+    try:
+        with path.open(encoding="utf-8") as handle:
+            line_number = 0
+            while line := handle.readline(_MAXIMUM_LOG_LINE_CHARACTERS + 1):
+                line_number += 1
+                if len(line) > _MAXIMUM_LOG_LINE_CHARACTERS:
+                    raise PhaserParseError(
+                        "Phaser log line exceeds the 1048576-character evidence limit"
+                    )
+                if "version" not in chunks and _VERSION.search(line):
+                    chunks["version"] = (line_number, line)
+                for name, expression in (("llg", _TOP_LLG), ("tfz", _REFINED_TFZ)):
+                    values = [float(value) for value in expression.findall(line)]
+                    if values and (name not in peaks or max(values) > peaks[name]):
+                        peaks[name] = max(values)
+                        chunks[name] = (line_number, line)
+                if _LLGI.search(line):
+                    chunks["llgi"] = (line_number, line)
+                if _PDB_PAK.search(line):
+                    chunks["pak"] = (line_number, line)
+                if any(
+                    expression.search(line)
+                    for expression in (
+                        _SOLUTION_COUNT,
+                        _SINGLE_SOLUTION,
+                        _NO_SOLUTION,
+                    )
+                ):
+                    chunks["terminal"] = (line_number, line)
+                for name, expression in (
+                    ("no_complete_components", _NO_COMPLETE_COMPONENTS),
+                    ("input_not_extended", _INPUT_NOT_EXTENDED),
+                    ("successful_exit", _SUCCESSFUL_EXIT),
+                ):
+                    if expression.search(line):
+                        chunks[name] = (line_number, line)
+                if "The top solution from a FTF did not pack" in line:
+                    chunks["advisory"] = (line_number, line)
+                if "EXIT STATUS: SUCCESS" in line:
+                    chunks["success_marker"] = (line_number, line)
+
+                if pending_packing is not None and line.strip():
+                    position, previous = pending_packing
+                    combined = previous + line
+                    if _PACKING.search(combined):
+                        chunks["packing"] = (position, combined)
+                    pending_packing = None
+                if _PACKING.search(line):
+                    chunks["packing"] = (line_number, line)
+                elif _PACKING_FIRST_LINE.search(line):
+                    pending_packing = (line_number, line)
+
+                if pending_annotation is not None and line.strip():
+                    position, previous = pending_annotation
+                    combined = previous + line
+                    if _TOP_SOLUTION_TFZ.search(combined):
+                        chunks["annotation"] = (position, combined)
+                    pending_annotation = None
+                if _TOP_SOLUTION_TFZ.search(line):
+                    chunks["annotation"] = (line_number, line)
+                elif _TOP_ANNOTATION_HEADER.search(line):
+                    pending_annotation = (line_number, line)
+    except UnicodeDecodeError as error:
+        raise PhaserParseError(
+            f"Phaser scientific evidence {path.name} is not valid UTF-8"
+        ) from error
+    # Keep unmatched fragments from becoming adjacent after unrelated lines
+    # were discarded. Genuine multiline grammar stays within one retained chunk.
+    return "\n[Phaser evidence record boundary]\n".join(
+        text for _, text in sorted(chunks.values())
+    )
+
+
+def reported_no_component_extension(text: str) -> bool:
+    """Recognise the supported completed fixed-parent no-extension convention."""
+
+    return (
+        _NO_COMPLETE_COMPONENTS.search(text) is not None
+        and _INPUT_NOT_EXTENDED.search(text) is not None
+        and _SUCCESSFUL_EXIT.search(text) is not None
+    )
 
 
 @dataclass(frozen=True)
@@ -851,7 +961,6 @@ def _failure_result(
 
 
 def read_phaser_solution_metrics(
-    parsed: ParsedPhaserLog,
     coordinate_path: Path,
 ) -> tuple[float | None, float | None, int, float | None]:
     """Read final selected-coordinate metrics; run-wide maxima are not evidence.
@@ -860,7 +969,6 @@ def read_phaser_solution_metrics(
     and appends final TFZ/PAK values to its history remark. Earlier history
     entries and other solutions can have larger metrics. Missing selected
     values remain missing so callers fail explicitly without borrowing them.
-    ``parsed`` supplies run-level context only; its maxima are never selected.
     """
 
     if not coordinate_path.is_file():
@@ -916,7 +1024,7 @@ def _normalised_success(
         )
     if not coordinate.is_file() or not output_mtz.is_file():
         raise PhaserParseError("Phaser solution is missing PDB or MTZ output")
-    llg, tfz, placed_count, pak = read_phaser_solution_metrics(parsed, coordinate)
+    llg, tfz, placed_count, pak = read_phaser_solution_metrics(coordinate)
     if llg is None or tfz is None or placed_count < 1:
         raise PhaserParseError("Phaser solution files lack final placement metrics")
     if pak is None:
@@ -1139,7 +1247,7 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
         )
         return _write_result(output, result, command_json)
     try:
-        log_text = read_phaser_evidence_text(raw_log)
+        log_text = read_phaser_log_evidence(raw_log)
         parsed = parse_completed_phaser_outputs(log_text, output)
         tool_version = (
             f"Phenix {phenix_manifest.phenix_version}; Phaser {parsed.phaser_version}"

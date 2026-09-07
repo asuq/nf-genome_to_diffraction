@@ -123,9 +123,12 @@ Scientific Phenix commands stream stdout and stderr into a binary log from
 process start. They use an isolated process group, with five-second TERM and
 bounded KILL cleanup on timeout, including workers whose leader exits first.
 Partial output is retained alongside the timeout marker and observed native
-exit. Only diagnostic tails are memory-bounded excerpts; they never replace
-scientific parser evidence. Short help/interface probes retain their separate
-capture boundary.
+exit. Diagnostic tails are bounded excerpts. Native Phaser parsing separately
+streams the full log, retaining bounded records for every required metric,
+terminal count, packing, annotation and extension/advisory marker. Unrelated
+fragments remain separated after extraction. A line exceeding 1,048,576 decoded
+characters fails explicitly; complete raw logs remain on disk. Short
+help/interface probes retain their separate capture boundary.
 
 All four MR adapters emit `execution_failure` for an observed timeout or tool
 exit, with `kind`, `native_exit_code` and `retryable`. Retryability follows the

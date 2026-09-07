@@ -48,7 +48,9 @@ from genome_to_diffraction.mr.phaser import (
     PhaserParseError,
     parse_completed_phaser_outputs,
     read_phaser_evidence_text,
+    read_phaser_log_evidence,
     read_phaser_solution_metrics,
+    reported_no_component_extension,
 )
 from genome_to_diffraction.phenix.runtime import (
     stream_from_manifest,
@@ -82,14 +84,6 @@ _FIXED_PARENT_PLACEMENT = re.compile(
 _SEARCH_PARTNER_PLACEMENT = re.compile(
     r"^REMARK ENSEMBLE\s+search_partner(?:\s|$)", re.I | re.M
 )
-_NO_COMPLETE_COMPOSITION = re.compile(
-    r"^\s*\*\*\s+Sorry\s+-\s+No solution with all components\s*$", re.I | re.M
-)
-_INPUT_SOLUTION_NOT_EXTENDED = re.compile(
-    r"^\s*\*\*\s+Search did not extend input solution with new components\s*$",
-    re.I | re.M,
-)
-_SUCCESSFUL_EXIT = re.compile(r"^\s*EXIT STATUS:\s+SUCCESS\s*$", re.I | re.M)
 
 type _ScoreCohort = Literal["primary", "fallback", "below_threshold"]
 
@@ -399,14 +393,6 @@ def _parameters(
 """
 
 
-def _reported_no_partner_solution(text: str) -> bool:
-    return (
-        _NO_COMPLETE_COMPOSITION.search(text) is not None
-        and _INPUT_SOLUTION_NOT_EXTENDED.search(text) is not None
-        and _SUCCESSFUL_EXIT.search(text) is not None
-    )
-
-
 def _score_cohort(incremental_llg: float, tfz: float) -> _ScoreCohort:
     if incremental_llg > _PRIMARY_LLG and tfz > _PRIMARY_TFZ:
         return "primary"
@@ -583,8 +569,8 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
         )
     else:
         try:
-            raw_text = read_phaser_evidence_text(raw_log)
-            if _reported_no_partner_solution(raw_text):
+            raw_text = read_phaser_log_evidence(raw_log)
+            if reported_no_component_extension(raw_text):
                 status = ExecutionStatus.COMPLETED_NO_HIT
                 rejection_reason = "phaser_reported_no_partner_solution"
             else:
@@ -606,7 +592,7 @@ def run_partner_search(request: PartnerSearchRequest) -> PartnerSearchOutput:
                             "partner solution lacks combined PDB or MTZ"
                         )
                     combined_llg, partner_tfz, _, pak = read_phaser_solution_metrics(
-                        parsed, coordinate
+                        coordinate
                     )
                     if combined_llg is None or partner_tfz is None:
                         raise PhaserParseError(
