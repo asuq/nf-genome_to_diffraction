@@ -42,6 +42,17 @@ from genome_to_diffraction.benchmarks import (
     run_9ecn_phase3_control,
     verify_m6_runner_bundle,
 )
+from genome_to_diffraction.benchmarks.m6_comparison import (
+    freeze_m6_comparison_advancement,
+    prepare_m6_comparison,
+    select_m6_comparison_seeds,
+    validate_m6_comparison_advancement,
+    validate_m6_comparison_plan,
+)
+from genome_to_diffraction.benchmarks.m6_comparison_results import (
+    collect_m6_comparison_results,
+    evaluate_m6_comparison_results,
+)
 from genome_to_diffraction.benchmarks.m6_execution import (
     M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
@@ -70,7 +81,7 @@ from genome_to_diffraction.benchmarks.m6_nextflow import (
     run_m6_select_seeds_task,
 )
 from genome_to_diffraction.catalogue import CatalogueImportRequest, import_catalogues
-from genome_to_diffraction.checksums import atomic_write_text
+from genome_to_diffraction.checksums import atomic_write_json, atomic_write_text
 from genome_to_diffraction.databases.preflight import (
     DatabasePreflightRequest,
     preflight_database_administration,
@@ -926,6 +937,68 @@ def _build_parser() -> argparse.ArgumentParser:
         "--first-copy-result", type=Path, action="append", default=[]
     )
     m6_seed_task.add_argument("--outdir", type=Path, required=True)
+    comparison_prepare = benchmark_actions.add_parser(
+        "prepare-m6-comparison",
+        help="freeze the approved two-cohort M6 comparison inputs",
+    )
+    comparison_prepare.add_argument(
+        "--case-bundle", type=Path, action="append", required=True
+    )
+    comparison_prepare.add_argument("--recipe", type=Path, required=True)
+    comparison_prepare.add_argument("--protocol", type=Path, required=True)
+    comparison_prepare.add_argument("--software-lock", type=Path, required=True)
+    comparison_prepare.add_argument("--phenix-manifest", type=Path, required=True)
+    comparison_prepare.add_argument("--source-commit", required=True)
+    comparison_prepare.add_argument("--outdir", type=Path, required=True)
+    comparison_validate = benchmark_actions.add_parser(
+        "validate-m6-comparison",
+        help="authenticate an initial or frozen continuation workload",
+    )
+    comparison_validate.add_argument("--root", type=Path, required=True)
+    comparison_validate.add_argument(
+        "--stage", choices=("initial", "continuation"), required=True
+    )
+    comparison_validate.add_argument("--software-lock", type=Path, required=True)
+    comparison_validate.add_argument("--phenix-manifest", type=Path, required=True)
+    comparison_validate.add_argument("--output", type=Path, required=True)
+    comparison_select = benchmark_actions.add_parser(
+        "select-m6-comparison-seeds",
+        help="review one shared native cohort under its frozen arm",
+    )
+    comparison_select.add_argument("--case-bundle", type=Path, required=True)
+    comparison_select.add_argument(
+        "--first-copy-result", type=Path, action="append", default=[]
+    )
+    comparison_select.add_argument("--arm", choices=("A", "B", "C", "D"), required=True)
+    comparison_select.add_argument("--outdir", type=Path, required=True)
+    comparison_freeze = benchmark_actions.add_parser(
+        "freeze-m6-comparison",
+        help="freeze exact copy workload after all forty-eight reviews",
+    )
+    comparison_freeze.add_argument("--root", type=Path, required=True)
+    comparison_freeze.add_argument(
+        "--seed-bundle", type=Path, action="append", required=True
+    )
+    comparison_freeze.add_argument("--outdir", type=Path, required=True)
+    comparison_collect = benchmark_actions.add_parser(
+        "collect-m6-comparison",
+        help="freeze all terminal comparison results before truth joining",
+    )
+    comparison_collect.add_argument("--root", type=Path, required=True)
+    comparison_collect.add_argument(
+        "--case-evidence", type=Path, action="append", required=True
+    )
+    comparison_collect.add_argument("--software-lock", type=Path, required=True)
+    comparison_collect.add_argument("--phenix-manifest", type=Path, required=True)
+    comparison_collect.add_argument("--outdir", type=Path, required=True)
+    comparison_evaluate = benchmark_actions.add_parser(
+        "evaluate-m6-comparison",
+        help="report diagnostic gains and losses using existing M6 truth assessment",
+    )
+    comparison_evaluate.add_argument("--root", type=Path, required=True)
+    comparison_evaluate.add_argument("--protocol", type=Path, required=True)
+    comparison_evaluate.add_argument("--private-truth-map", type=Path, required=True)
+    comparison_evaluate.add_argument("--outdir", type=Path, required=True)
     m6_empty_seed_task = benchmark_actions.add_parser(
         "empty-m6-seeds", help="emit an explicit zero-hypothesis M6 seed bundle"
     )
@@ -2923,6 +2996,70 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             args.outdir,
         )
         print(f"Staged M6 coordinates: {result}")
+        return 0
+    if args.benchmark_action == "prepare-m6-comparison":
+        result = prepare_m6_comparison(
+            cases=tuple(args.case_bundle),
+            recipe=args.recipe,
+            protocol=args.protocol,
+            software_lock=args.software_lock,
+            phenix_manifest=args.phenix_manifest,
+            source_commit=args.source_commit,
+            output=args.outdir,
+        )
+        print(f"Prepared frozen M6 comparison: {result}")
+        return 0
+    if args.benchmark_action == "validate-m6-comparison":
+        if args.stage == "initial":
+            validated = validate_m6_comparison_plan(
+                args.root,
+                software_lock=args.software_lock,
+                phenix_manifest=args.phenix_manifest,
+            ).model_dump(mode="json")
+        else:
+            validated = validate_m6_comparison_advancement(
+                args.root,
+                software_lock=args.software_lock,
+                phenix_manifest=args.phenix_manifest,
+            )
+        atomic_write_json(args.output, {"stage": args.stage, "validated": validated})
+        print(f"Validated M6 comparison {args.stage}: {args.output}")
+        return 0
+    if args.benchmark_action == "select-m6-comparison-seeds":
+        result = select_m6_comparison_seeds(
+            case=args.case_bundle,
+            results=tuple(args.first_copy_result),
+            arm=args.arm,
+            output=args.outdir,
+        )
+        print(f"Selected M6 comparison arm {args.arm}: {result}")
+        return 0
+    if args.benchmark_action == "freeze-m6-comparison":
+        result = freeze_m6_comparison_advancement(
+            plan_root=args.root,
+            seed_bundles=tuple(args.seed_bundle),
+            output=args.outdir,
+        )
+        print(f"Frozen M6 comparison advancement: {result}")
+        return 0
+    if args.benchmark_action == "collect-m6-comparison":
+        result = collect_m6_comparison_results(
+            frozen_root=args.root,
+            case_evidence=tuple(args.case_evidence),
+            software_lock=args.software_lock,
+            phenix_manifest=args.phenix_manifest,
+            output=args.outdir,
+        )
+        print(f"Collected M6 comparison: {result}")
+        return 0
+    if args.benchmark_action == "evaluate-m6-comparison":
+        result = evaluate_m6_comparison_results(
+            results_root=args.root,
+            protocol_path=args.protocol,
+            private_truth_map=args.private_truth_map,
+            output=args.outdir,
+        )
+        print(f"Evaluated M6 comparison: {result}")
         return 0
     if args.benchmark_action == "select-m6-seeds":
         result = run_m6_select_seeds_task(

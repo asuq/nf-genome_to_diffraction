@@ -14,6 +14,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, model_validator
 
+from genome_to_diffraction.benchmarks.m6_comparison_policy import M6ComparisonArmContext
 from genome_to_diffraction.schemas.base import ContractModel, PositiveInt, Sha256Hex
 from genome_to_diffraction.schemas.results import MrHypothesis
 
@@ -69,15 +70,26 @@ class M6DecisionTrace(ContractModel):
     """Exact inventories at the scheduled-25 and advanced-five boundaries."""
 
     schema_version: Literal["1.0"]
-    policy_id: Literal["m6_production_scheduled25_advanced5_v1"]
+    policy_id: Literal[
+        "m6_production_scheduled25_advanced5_v1", "m6_ranking_four_arm_v1"
+    ]
     case_id: str
     scheduled_hypotheses: tuple[MrHypothesis, ...] = Field(max_length=25)
     recommendations: tuple[M6SeedRecommendation, ...] = Field(max_length=25)
     observed_advancement: tuple[M6ObservedAdvancement, ...] = Field(max_length=5)
     provider_ranks_are_diagnostic: Literal[True]
+    comparison_context: M6ComparisonArmContext | None = None
 
     @model_validator(mode="after")
     def _validate_stage_joins(self) -> Self:
+        if (self.comparison_context is None) != (self.policy_id == M6_DECISION_POLICY):
+            raise ValueError("M6 decision policy and comparison scope differ")
+        if self.comparison_context is not None and (
+            self.comparison_context.cohort.case_id != self.case_id
+            or self.comparison_context.cohort.scheduled_hypothesis_ids
+            != tuple(row.hypothesis_id for row in self.scheduled_hypotheses)
+        ):
+            raise ValueError("M6 comparison trace has another initial cohort")
         hypotheses = {row.hypothesis_id: row for row in self.scheduled_hypotheses}
         if len(hypotheses) != len(self.scheduled_hypotheses):
             raise ValueError("M6 scheduled hypotheses are duplicated")
@@ -113,7 +125,11 @@ class M6DecisionTrace(ContractModel):
             for row in self.recommendations
             if row.recommendation_rank is not None
         )
-        if eligible_ranks != tuple(range(1, len(eligible_ranks) + 1)):
+        if (
+            eligible_ranks
+            if self.comparison_context is None
+            else tuple(sorted(eligible_ranks))
+        ) != tuple(range(1, len(eligible_ranks) + 1)):
             raise ValueError("M6 eligible recommendation order is incomplete")
         advanced_ids = [row.solution_id for row in self.observed_advancement]
         if len(advanced_ids) != len(set(advanced_ids)):
@@ -131,7 +147,10 @@ class M6DecisionTrace(ContractModel):
                 )
         expected_order = tuple(
             row.solution_id
-            for row in self.recommendations
+            for row in sorted(
+                self.recommendations,
+                key=lambda row: row.recommendation_rank or 26,
+            )
             if row.solution_id in set(advanced_ids)
         )
         if tuple(advanced_ids) != expected_order:
@@ -163,7 +182,9 @@ class M6StageMetrics(ContractModel):
     """Truth-side metrics with unambiguous inventory and stage definitions."""
 
     trace_sha256: Sha256Hex
-    policy_id: Literal["m6_production_scheduled25_advanced5_v1"]
+    policy_id: Literal[
+        "m6_production_scheduled25_advanced5_v1", "m6_ranking_four_arm_v1"
+    ]
     target_rank_stage: Literal["scheduled_hypothesis_prefix"]
     provider_diagnostic_rank: PositiveInt | None
     scheduled_hypothesis_count: Annotated[int, Field(ge=0, le=25)]

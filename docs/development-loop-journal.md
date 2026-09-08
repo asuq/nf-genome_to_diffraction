@@ -15803,3 +15803,34 @@ with a collapsed combined parent or a guessed command.
 - Next implement the frozen four-arm comparison through the shared admission,
   review and copy execution boundaries, then complete Raven qualification
   preparation and the integrated locked release gate.
+
+## 2026-09-08 - Freeze the approved M6 ranking comparison
+
+- Added the checksum-frozen twelve-case/four-arm recipe, preserving each case's
+  original operational or leakage track. The comparison reuses the complete
+  production model inventory, diversity admission, MR review, copy execution,
+  refinement and truth assessment. Its weighted admission must exactly replay
+  production; the solvent-only cohort retains the same model bytes and raw
+  prior factors with coherent selected/deferred records and tables.
+- Initial execution creates 24 native cohorts shared by 48 case/arm reviews.
+  A separate advancement record fixes the selected seeds, at most 240 chains,
+  and exact planned additional-copy budget before submission. Paired native
+  evidence must match; initial execution failures hold continuation. Results
+  are checksum-fixed before the truth map is opened. Reference arms introduce
+  no acceptance cutoff and cannot replace complete 63-case M6 acceptance.
+- Integration found and fixed the original moving-model lookup's registry
+  base path and collection staging collisions between identically named result
+  directories. Explicit per-input staging paths protect both comparison and
+  existing M6 discovery/aggregation boundaries without changing scientific
+  selection or shared import/search identities.
+- Validation: 100 focused M6/admission checks passed, then 68 checks including
+  the stricter full-M6 scope boundary passed. The real two-stage Nextflow
+  metadata path retained all 48 case/arm outcomes, replayed initial work from
+  cache and rejected native-output mutation before truth joining. Syntax,
+  focused lint/type checks and documentation links passed. These checks ran
+  no native Phenix science and do not qualify Raven or any release gate.
+- Next extend only the required Raven control/M6/continuation operations,
+  reconcile active schemas, cache identities, examples, package metadata and
+  atlas, and run the complete locked integrated gate before exact-source CI
+  and native qualification. Owner FS-G1 and terminal pass-1 evidence remain
+  prerequisites for the later closure/unknown programme.

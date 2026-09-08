@@ -299,6 +299,11 @@ Historical track outputs remain independently verifiable, but their different
 admission/ranking cannot enter corrected release acceptance. The frozen case
 population, truth isolation and numeric criteria below are unchanged.
 
+The approved [four-arm ranking comparison](m6-ranking-comparison.md) reuses these
+production boundaries on twelve frozen cases. It shares native evidence within
+each admission cohort and freezes the exact copy workload before continuation.
+Its diagnostic arm records cannot enter complete M6 release acceptance.
+
 All candidates and parent/child attempts must be retained. LLG and TFZ remain
 ranking annotations and never delete candidates. Correctness requires zero
 exact false assignments across the 20 open-set negatives, 4/4 heteromer

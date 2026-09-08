@@ -16,6 +16,9 @@ from typing import Annotated, Literal, Self, cast
 
 from pydantic import Field, model_validator
 
+from genome_to_diffraction.benchmarks.m6_comparison_policy import (
+    M6ComparisonArmContext,
+)
 from genome_to_diffraction.benchmarks.m6_scientific import m6_track_case_ids
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import canonical_digest, content_id
@@ -32,7 +35,7 @@ from genome_to_diffraction.status import ExecutionStatus
 M6_FROZEN_PROTOCOL_SHA256 = (
     "c3fa4c04b78c7aae8d6da41f5f0c6dad47a6cea3d09cc76d285f512d58e95854"
 )
-M6_ADVANCEMENT_POLICY = {
+M6_ADVANCEMENT_POLICY: dict[str, object] = {
     "policy_id": "m6_production_review_top_five_v1",
     "scope": "m6_bounded_validation",
     "maximum_first_copy_tasks": 25,
@@ -57,7 +60,7 @@ class M6BenchmarkAdvancementAuthority(ContractModel):
     schema_version: Literal["1.0"]
     authority_kind: Literal["benchmark_policy"]
     authority_id: NonEmptyString
-    policy_id: Literal["m6_production_review_top_five_v1"]
+    policy_id: Literal["m6_production_review_top_five_v1", "m6_ranking_four_arm_v1"]
     policy_sha256: Sha256Hex
     protocol_sha256: Sha256Hex
     execution_scope: Literal["m6_bounded_validation"]
@@ -66,6 +69,7 @@ class M6BenchmarkAdvancementAuthority(ContractModel):
     selected_solution_ids: tuple[str, ...] = Field(min_length=1, max_length=5)
     additional_copy_budget_by_seed: dict[str, Annotated[int, Field(ge=0)]]
     human_approval: Literal[False] = False
+    comparison_context: M6ComparisonArmContext | None = None
 
     @model_validator(mode="after")
     def _validate_policy_and_identity(self) -> Self:
@@ -75,14 +79,26 @@ class M6BenchmarkAdvancementAuthority(ContractModel):
             raise ValueError("M6 advancement case is outside the frozen protocol")
         if self.protocol_sha256 != M6_FROZEN_PROTOCOL_SHA256:
             raise ValueError("M6 advancement uses another frozen protocol")
-        if self.policy_sha256 != canonical_digest(M6_ADVANCEMENT_POLICY):
+        if self.policy_sha256 != canonical_digest(
+            _advancement_policy(self.comparison_context)
+        ):
             raise ValueError("M6 advancement policy checksum differs")
-        if set(self.dependencies) != {
+        if self.policy_id != _advancement_policy(self.comparison_context)["policy_id"]:
+            raise ValueError("M6 advancement policy and comparison scope differ")
+        if (
+            self.comparison_context is not None
+            and self.comparison_context.cohort.case_id != self.case_id
+        ):
+            raise ValueError("M6 comparison advancement belongs to another case")
+        required_dependencies = {
             "case_task",
             "case_plan",
             "hypotheses",
             "review_package",
-        }:
+        }
+        if self.comparison_context is not None:
+            required_dependencies.add("comparison_context")
+        if set(self.dependencies) != required_dependencies:
             raise ValueError("M6 advancement dependency inventory differs")
         if len(self.selected_solution_ids) != len(set(self.selected_solution_ids)):
             raise ValueError("M6 advancement duplicates a selected seed")
@@ -93,6 +109,61 @@ class M6BenchmarkAdvancementAuthority(ContractModel):
         ):
             raise ValueError("M6 advancement authority identity differs")
         return self
+
+
+def _advancement_policy(context: M6ComparisonArmContext | None) -> dict[str, object]:
+    if context is None:
+        return M6_ADVANCEMENT_POLICY
+    return {
+        **M6_ADVANCEMENT_POLICY,
+        "policy_id": "m6_ranking_four_arm_v1",
+        "comparison_spec_sha256": context.cohort.comparison_spec_sha256,
+        "arm": context.arm,
+        "admission_prior": context.cohort.admission_prior,
+        "order": context.review_order,
+    }
+
+
+def m6_order_eligible_seeds(
+    eligible: tuple[dict[str, object], ...],
+    context: M6ComparisonArmContext | None,
+    *,
+    hypotheses_jsonl: Path,
+) -> tuple[dict[str, object], ...]:
+    """Keep production eligibility; vary review order only in the frozen comparison."""
+
+    if context is None or context.review_order == "production_mr_led":
+        return eligible
+    features = {
+        row.hypothesis_id: row.priority_features
+        for row in (
+            MrHypothesis.model_validate_json(line)
+            for line in hypotheses_jsonl.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        )
+    }
+    metric = (
+        "solvent_density"
+        if context.cohort.admission_prior == "solvent_density"
+        else "matthews_prior"
+    )
+    return tuple(
+        sorted(
+            eligible,
+            key=lambda item: (
+                {"plausible": 0, "review": 1, "impossible": 2}[
+                    cast(
+                        str,
+                        features[cast(str, item["hypothesis_id"])][
+                            "matthews_physical_status"
+                        ],
+                    )
+                ],
+                -cast(float, features[cast(str, item["hypothesis_id"])][metric]),
+                cast(int, item["review_priority_rank"]),
+            ),
+        )
+    )
 
 
 def _owned(root: Path, relative: str) -> Path:
@@ -174,7 +245,11 @@ def m6_review_seed_selection(
 
 
 def write_m6_advancement_authority(
-    *, case_id: str, dependencies: dict[str, Path], output: Path
+    *,
+    case_id: str,
+    dependencies: dict[str, Path],
+    output: Path,
+    comparison_context: M6ComparisonArmContext | None = None,
 ) -> M6BenchmarkAdvancementAuthority:
     """Freeze production's first five eligible states without a human decision."""
 
@@ -183,12 +258,15 @@ def write_m6_advancement_authority(
         hypotheses_jsonl=dependencies["hypotheses"],
         case_id=case_id,
     )
+    eligible = m6_order_eligible_seeds(
+        eligible, comparison_context, hypotheses_jsonl=dependencies["hypotheses"]
+    )
     selected = tuple(cast(str, row["solution_id"]) for row in eligible[:5])
     payload = {
         "schema_version": "1.0",
         "authority_kind": "benchmark_policy",
-        "policy_id": M6_ADVANCEMENT_POLICY["policy_id"],
-        "policy_sha256": canonical_digest(M6_ADVANCEMENT_POLICY),
+        "policy_id": _advancement_policy(comparison_context)["policy_id"],
+        "policy_sha256": canonical_digest(_advancement_policy(comparison_context)),
         "protocol_sha256": M6_FROZEN_PROTOCOL_SHA256,
         "execution_scope": "m6_bounded_validation",
         "case_id": case_id,
@@ -204,6 +282,11 @@ def write_m6_advancement_authority(
             seed_id: budgets[seed_id] for seed_id in selected
         },
         "human_approval": False,
+        "comparison_context": (
+            None
+            if comparison_context is None
+            else comparison_context.model_dump(mode="json")
+        ),
     }
     authority = M6BenchmarkAdvancementAuthority.model_validate(
         {**payload, "authority_id": content_id("m6advance_", payload)}
@@ -231,6 +314,12 @@ def validate_m6_advancement_authority(
         paths[role] = path
     if sha256_file(hypotheses_jsonl) != authority.dependencies["hypotheses"].sha256:
         raise ValueError("M6 advancement hypotheses differ from the execution input")
+    if authority.comparison_context is not None:
+        context = M6ComparisonArmContext.model_validate_json(
+            paths["comparison_context"].read_bytes()
+        )
+        if context != authority.comparison_context:
+            raise ValueError("M6 advancement comparison context differs")
     task = _object(paths["case_task"])
     plan = _object(paths["case_plan"])
     if (
@@ -266,10 +355,17 @@ def validate_m6_advancement_authority(
     )
     if tuple(row.hypothesis_id for row in hypotheses) != tuple(identifiers):
         raise ValueError("M6 advancement scheduled hypothesis inventory differs")
+    if authority.comparison_context is not None and tuple(identifiers) != (
+        authority.comparison_context.cohort.scheduled_hypothesis_ids
+    ):
+        raise ValueError("M6 comparison advancement has another initial cohort")
     eligible, budgets = m6_review_seed_selection(
         package_manifest=paths["review_package"],
         hypotheses_jsonl=paths["hypotheses"],
         case_id=authority.case_id,
+    )
+    eligible = m6_order_eligible_seeds(
+        eligible, authority.comparison_context, hypotheses_jsonl=paths["hypotheses"]
     )
     selected = tuple(cast(str, item["solution_id"]) for item in eligible[:5])
     if (

@@ -31,9 +31,15 @@ from typing import Annotated, Literal, Self, cast
 from pydantic import Field, model_validator
 
 from genome_to_diffraction.benchmarks.m6_advancement import (
+    m6_order_eligible_seeds,
     m6_review_seed_selection,
     validate_m6_advancement_authority,
     write_m6_advancement_authority,
+)
+from genome_to_diffraction.benchmarks.m6_comparison_policy import (
+    M6ComparisonArm,
+    M6ComparisonArmContext,
+    load_comparison_cohort,
 )
 from genome_to_diffraction.benchmarks.m6_decisions import (
     M6_DECISION_POLICY,
@@ -1952,10 +1958,23 @@ def run_m6_select_seeds_task(
     case_bundle: Path,
     first_copy_results: tuple[Path, ...],
     output_directory: Path,
+    *,
+    comparison_arm: M6ComparisonArm | None = None,
 ) -> Path:
     """Select up to five retained advancement seeds for exactly one case."""
 
     case = case_bundle.resolve(strict=True)
+    if (case / "comparison_cohort.json").is_file() != (comparison_arm is not None):
+        raise PublicControlError("M6 comparison selection requires its explicit arm")
+    comparison_context = (
+        None
+        if comparison_arm is None
+        else M6ComparisonArmContext(
+            schema_version="1.0",
+            arm=comparison_arm,
+            cohort=load_comparison_cohort(case),
+        )
+    )
     plan = _case_plan(case)
     case_id = plan.case_id
     expected = plan.hypothesis_count
@@ -2017,6 +2036,14 @@ def run_m6_select_seeds_task(
         hypotheses_jsonl=scheduled_hypotheses,
         case_id=case_id,
     )
+    eligible = m6_order_eligible_seeds(
+        eligible, comparison_context, hypotheses_jsonl=scheduled_hypotheses
+    )
+    comparison_dependencies: dict[str, Path] = {}
+    if comparison_context is not None:
+        context_path = output / "comparison_context.json"
+        atomic_write_json(context_path, comparison_context.model_dump(mode="json"))
+        comparison_dependencies["comparison_context"] = context_path
     selected = eligible[:_M6_SEED_CAP]
     authority_path = output / "benchmark_advancement_manifest.json"
     if selected:
@@ -2027,14 +2054,26 @@ def run_m6_select_seeds_task(
                 "case_plan": output / "case_plan.json",
                 "hypotheses": scheduled_hypotheses,
                 "review_package": review.manifest_json,
+                **comparison_dependencies,
             },
             output=authority_path,
+            comparison_context=comparison_context,
         )
     funnel = _json_object(case / "first-copy-funnel/funnel_manifest.json", "funnel")
     model_entries = {
         cast(str, item["hypothesis_id"]): item
         for item in cast(list[dict[str, object]], funnel["hypotheses"])
     }
+    registry_path = Path(
+        cast(str, cast(dict[str, object], funnel["model_registry"])["path"])
+    )
+    if registry_path.is_absolute() or ".." in registry_path.parts:
+        raise PublicControlError("M6 original moving-model registry is not owned")
+    registry_root = case / "first-copy-funnel" / registry_path
+    if not registry_root.resolve(strict=True).is_relative_to(
+        (case / "first-copy-funnel").resolve(strict=True)
+    ):
+        raise PublicControlError("M6 original moving-model registry leaves its funnel")
     rows: list[dict[str, object]] = []
     for item in selected:
         hypothesis = hypotheses[cast(str, item["hypothesis_id"])]
@@ -2043,7 +2082,13 @@ def run_m6_select_seeds_task(
         task_root = output / "seed_tasks" / solution_id
         task_root.mkdir(parents=True)
         model = model_entries[hypothesis.hypothesis_id]
-        source_model = case / "first-copy-funnel" / cast(str, model["model_path"])
+        source_model = registry_root / cast(str, model["model_path"])
+        if not source_model.resolve(strict=True).is_relative_to(
+            registry_root.resolve(strict=True)
+        ):
+            raise PublicControlError(
+                "M6 original moving model leaves its owned registry"
+            )
         search_model = task_root / "search_model.pdb"
         _copy_verified(source_model, search_model, cast(str, model["model_sha256"]))
         task = M6SeedTask(
@@ -2566,7 +2611,9 @@ def _case_decision_trace(
     hypotheses = _hypotheses(case)
     recommendations = _jsonl(seeds / "seed_advancement.jsonl", M6SeedRecommendation)
     observed: list[M6ObservedAdvancement] = []
-    for recommendation in recommendations:
+    for recommendation in sorted(
+        recommendations, key=lambda row: row.recommendation_rank or 26
+    ):
         if recommendation.advancement_disposition != "recommended":
             continue
         terminal = add_results / recommendation.solution_id / "best_parent.json"
@@ -2598,9 +2645,19 @@ def _case_decision_trace(
                 }
             )
         )
+    context_path = seeds / "comparison_context.json"
+    comparison_context = (
+        M6ComparisonArmContext.model_validate_json(context_path.read_bytes())
+        if context_path.is_file()
+        else None
+    )
     return M6DecisionTrace(
         schema_version="1.0",
-        policy_id=M6_DECISION_POLICY,
+        policy_id=(
+            M6_DECISION_POLICY
+            if comparison_context is None
+            else "m6_ranking_four_arm_v1"
+        ),
         case_id=plan.case_id,
         scheduled_hypotheses=tuple(
             hypotheses[identifier] for identifier in plan.hypothesis_ids
@@ -2608,6 +2665,7 @@ def _case_decision_trace(
         recommendations=recommendations,
         observed_advancement=tuple(observed),
         provider_ranks_are_diagnostic=True,
+        comparison_context=comparison_context,
     )
 
 

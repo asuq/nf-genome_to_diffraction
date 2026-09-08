@@ -872,7 +872,9 @@ def _stage_metrics(
     trace = M6DecisionTrace.model_validate(raw.get("decision_trace"))
     recommended = tuple(
         row
-        for row in trace.recommendations
+        for row in sorted(
+            trace.recommendations, key=lambda row: row.recommendation_rank or 26
+        )
         if row.advancement_disposition == "recommended"
     )
     unique_groups = tuple(

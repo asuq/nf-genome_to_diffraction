@@ -17,7 +17,10 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, model_validator
 
-from genome_to_diffraction.benchmarks.m6_decisions import M6StageMetrics
+from genome_to_diffraction.benchmarks.m6_decisions import (
+    M6_DECISION_POLICY,
+    M6StageMetrics,
+)
 from genome_to_diffraction.benchmarks.m6_edge import (
     M6EdgeObservation,
     verify_edge_observations,
@@ -206,6 +209,11 @@ class M6CollectedEvidence(ContractModel):
 
     @model_validator(mode="after")
     def _validate_case_ids(self) -> Self:
+        if any(
+            assessment.stage_metrics.policy_id != M6_DECISION_POLICY
+            for assessment in self.assessments
+        ):
+            raise ValueError("full M6 qualification cannot consume comparison arms")
         case_ids = [assessment.case_id for assessment in self.assessments]
         if len(case_ids) != len(set(case_ids)):
             raise ValueError("collected M6 case IDs must be unique")

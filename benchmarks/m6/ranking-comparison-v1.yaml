@@ -1,0 +1,41 @@
+schema_version: "1.0"
+comparison_id: m6_ranking_four_arm_v1
+approved_at: "2026-09-07"
+base_protocol_sha256: c3fa4c04b78c7aae8d6da41f5f0c6dad47a6cea3d09cc76d285f512d58e95854
+case_ids:
+  - M6C001
+  - M6C009
+  - M6C010
+  - M6C012
+  - M6C013
+  - M6C022
+  - M6C025
+  - M6C034
+  - M6C037
+  - M6C042
+  - M6C055
+  - M6C056
+arms:
+  A: {admission_prior: solvent_density, review_order: prior_first_reference}
+  B: {admission_prior: copy_weighted, review_order: prior_first_reference}
+  C: {admission_prior: solvent_density, review_order: production_mr_led}
+  D: {admission_prior: copy_weighted, review_order: production_mr_led}
+maximum_initial_tasks_per_case_and_admission: 25
+maximum_advanced_seeds_per_case_and_arm: 5
+maximum_comparison_initial_tasks: 600
+maximum_comparison_continuation_chains: 240
+additional_copy_budget_policy: freeze_exact_sum_of_selected_expected_minus_observed_counts
+reference_arm_acceptance: diagnostic_no_new_recovery_cutoff
+production_acceptance: unchanged_full_63_case_m6_criteria
+required_execution_site: raven
+required_execution_prerequisite: completed_owned_raven_migration
+same_evidence_pairs: [[A, C], [B, D]]
+fixed_across_arms:
+  - eligible_catalogue_and_model_inputs
+  - physical_status_semantics
+  - leakage_policy_and_per_route_hit_envelope
+  - initial_and_advancement_budgets
+  - scientific_tool_parameters_and_runtime
+  - evaluation_stage_definitions
+truth_isolation: join_only_after_result_checksums_are_fixed
+unknown_crystal_tuning: prohibited

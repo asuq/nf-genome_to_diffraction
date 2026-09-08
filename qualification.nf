@@ -14,12 +14,15 @@ include { ADDITIONAL_COPY_WORKFLOW } from './workflows/additional_copy_workflow'
 include { BRIEF_REFINEMENT_WORKFLOW } from './workflows/brief_refinement_workflow'
 include { PHASE3_NETWORK_PROBE_WORKFLOW } from './workflows/qualification/phase3_network_probe'
 include { IDENTIFICATION_SCREEN_WORKFLOW } from './workflows/qualification/identification_screen'
+include { M6_COMPARISON_INITIAL_WORKFLOW; M6_COMPARISON_CONTINUATION_WORKFLOW } from './workflows/qualification/m6_ranking_comparison'
 
 params {
     qualification_stage: String
     identification_inputs: Path? = null
     identification_cases: Path? = null
     identification_input_id: String? = null
+    comparison_root: Path? = null
+    software_lock: Path? = null
     sequence_groups: Path? = null
     source_records: Path? = null
     config: Path? = null
@@ -80,7 +83,9 @@ workflow {
         'additional_copy',
         'refine_finalists',
         'phase3_network_probe',
-        'identification_screen'
+        'identification_screen',
+        'm6_comparison_initial',
+        'm6_comparison_continuation'
     ]
     if (!(params.qualification_stage in supported)) {
         error "Unsupported qualification_stage: ${params.qualification_stage}"
@@ -271,6 +276,15 @@ workflow {
             params.source_records as Path,
             params.phenix_manifest as Path
         )
+    } else if (params.qualification_stage in ['m6_comparison_initial', 'm6_comparison_continuation']) {
+        if (params.comparison_root == null || params.software_lock == null || params.phenix_manifest == null) {
+            error 'M6 comparison requires its frozen root, software lock and Phenix binding'
+        }
+        if (params.qualification_stage == 'm6_comparison_initial') {
+            M6_COMPARISON_INITIAL_WORKFLOW(params.comparison_root as Path, params.software_lock as Path, params.phenix_manifest as Path)
+        } else {
+            M6_COMPARISON_CONTINUATION_WORKFLOW(params.comparison_root as Path, params.software_lock as Path, params.phenix_manifest as Path)
+        }
     } else if (params.qualification_stage == 'identification_screen') {
         if (
             params.identification_inputs == null ||

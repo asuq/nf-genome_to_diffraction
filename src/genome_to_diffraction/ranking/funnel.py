@@ -17,7 +17,7 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import cast
+from typing import Literal, cast
 
 from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
@@ -1120,16 +1120,43 @@ def _diverse_priority_features(
 def _diverse_candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
     """Reserve exact mappings before ordering the remaining evidence features."""
 
-    exact_mapping = candidate.hypothesis.priority_features.get("exact_sequence_mapping")
-    localisation = candidate.hypothesis.priority_features.get(
-        "localisation_wave_disposition"
-    )
+    return diverse_hypothesis_sort_key(candidate.hypothesis)
+
+
+def diverse_hypothesis_sort_key(
+    hypothesis: MrHypothesis,
+    *,
+    prior: Literal["copy_weighted", "solvent_density"] = "copy_weighted",
+) -> tuple[object, ...]:
+    """Order the production inventory, with one frozen M6 reference-prior option.
+
+    Raw density, copy-frequency and product features remain unchanged. The
+    solvent-only option is used only by the approved bounded comparison.
+    """
+
+    if prior not in {"copy_weighted", "solvent_density"}:
+        raise FunnelInputError("unsupported first-copy admission prior")
+    features = hypothesis.priority_features
+    exact_mapping = features["exact_sequence_mapping"]
+    localisation = features.get("localisation_wave_disposition")
     localisation_rank = {"active": 0, "neutral": 1}.get(localisation, 0)
     return (
-        candidate.hypothesis.crystal_id,
+        hypothesis.crystal_id,
         0 if exact_mapping is True else 1,
         localisation_rank,
-        *_candidate_sort_key(candidate)[1:],
+        {"plausible": 0, "review": 1, "impossible": 2}[
+            cast(str, features["matthews_physical_status"])
+        ],
+        -cast(float, features["matthews_prior" if prior == "copy_weighted" else prior]),
+        (
+            features["matthews_rank_within_candidate"]
+            if prior == "copy_weighted"
+            else hypothesis.copy_count_expected
+        ),
+        -cast(float, features["model_retained_fraction"]),
+        features["coordinate_provider"],
+        features["coordinate_provider_accession"],
+        hypothesis.model_id,
     )
 
 
@@ -1384,6 +1411,28 @@ def _select_diverse_candidates(
     *,
     phase3_screen: bool,
 ) -> tuple[tuple[_Candidate, ...], int]:
+    selected, cap = select_diverse_hypothesis_inventory(
+        tuple(candidate.hypothesis for candidate in candidates),
+        config,
+        execution_cap,
+        phase3_screen=phase3_screen,
+    )
+    by_id = {candidate.hypothesis.hypothesis_id: candidate for candidate in candidates}
+    return tuple(by_id[hypothesis.hypothesis_id] for hypothesis in selected), cap
+
+
+def select_diverse_hypothesis_inventory(
+    hypotheses: Sequence[MrHypothesis],
+    config: PipelineConfig,
+    execution_cap: int | None,
+    *,
+    phase3_screen: bool,
+    prior: Literal["copy_weighted", "solvent_density"] = "copy_weighted",
+) -> tuple[tuple[MrHypothesis, ...], int]:
+    """Apply the shared diversity buckets and hard caps to eligible hypotheses."""
+
+    if len({row.hypothesis_id for row in hypotheses}) != len(hypotheses):
+        raise FunnelInputError("first-copy admission inventory has duplicate IDs")
     if execution_cap is not None and not 1 <= execution_cap <= 1000:
         raise ValueError("maximum_first_copy_jobs must be between 1 and 1000")
     maximum_cap = _PHASE3_MAXIMUM_FIRST_COPY_JOBS if phase3_screen else 1000
@@ -1395,25 +1444,26 @@ def _select_diverse_candidates(
         config.search_limits.max_first_copy_jobs,
         requested_cap,
     )
-    by_crystal: dict[str, list[_Candidate]] = {}
-    for candidate in candidates:
-        by_crystal.setdefault(candidate.hypothesis.crystal_id, []).append(candidate)
-    selected: list[_Candidate] = []
+    by_crystal: dict[str, list[MrHypothesis]] = {}
+    for hypothesis in hypotheses:
+        by_crystal.setdefault(hypothesis.crystal_id, []).append(hypothesis)
+    selected: list[MrHypothesis] = []
     for crystal_id in sorted(by_crystal):
-        buckets: dict[tuple[str, str, str], list[_Candidate]] = {}
-        for candidate in by_crystal[crystal_id]:
+        buckets: dict[tuple[str, str, str], list[MrHypothesis]] = {}
+        for hypothesis in by_crystal[crystal_id]:
             bucket = (
-                candidate.hypothesis.sequence_group_id,
-                candidate.coordinate.provider,
-                candidate.model.variant_type,
+                hypothesis.sequence_group_id,
+                cast(str, hypothesis.priority_features["coordinate_provider"]),
+                cast(str, hypothesis.priority_features["model_variant_type"]),
             )
-            buckets.setdefault(bucket, []).append(candidate)
+            buckets.setdefault(bucket, []).append(hypothesis)
         for values in buckets.values():
-            values.sort(key=_diverse_candidate_sort_key)
+            values.sort(key=lambda row: diverse_hypothesis_sort_key(row, prior=prior))
         ordered_buckets = sorted(
-            buckets, key=lambda key: _diverse_candidate_sort_key(buckets[key][0])
+            buckets,
+            key=lambda key: diverse_hypothesis_sort_key(buckets[key][0], prior=prior),
         )
-        crystal_selected: list[_Candidate] = []
+        crystal_selected: list[MrHypothesis] = []
         round_index = 0
         while len(crystal_selected) < per_crystal_cap:
             added = False

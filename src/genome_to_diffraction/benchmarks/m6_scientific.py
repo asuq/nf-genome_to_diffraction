@@ -162,7 +162,13 @@ def verify_m6_scientific_output(
             from genome_to_diffraction.benchmarks.m6_nextflow import M6CaseEvidence
 
             try:
-                M6CaseEvidence.model_validate_json(canonical_json_text(case))
+                case_evidence = M6CaseEvidence.model_validate_json(
+                    canonical_json_text(case)
+                )
+                if case_evidence.decision_trace.comparison_context is not None:
+                    raise ValueError(
+                        "comparison arms cannot replace full M6 qualification"
+                    )
             except (ValidationError, ValueError) as error:
                 raise PublicControlError(
                     f"M6 production decision evidence is invalid: {case_id}"

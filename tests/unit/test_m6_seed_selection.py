@@ -54,9 +54,6 @@ def _case(
     )
     hypothesis = json.loads(request.hypotheses_jsonl.read_text())
     hypothesis["copy_count_expected"] = expected_copies
-    (funnel / "mr_hypotheses.jsonl").write_text(
-        json.dumps(hypothesis) + "\n", encoding="utf-8"
-    )
     matthews_path = case / "matthews/matthews_hypotheses.jsonl"
     matthews = json.loads(matthews_path.read_text())
     matthews["copy_count"] = expected_copies
@@ -67,13 +64,24 @@ def _case(
         matthews["solvent_density"] * matthews["copy_frequency_factor"]
     )
     matthews_path.write_text(json.dumps(matthews) + "\n", encoding="utf-8")
+    hypothesis["priority_features"].update(
+        matthews_physical_status=matthews["physical_status"],
+        matthews_prior=matthews["matthews_prior"],
+        solvent_density=matthews["solvent_density"],
+        copy_frequency_factor=matthews["copy_frequency_factor"],
+    )
+    (funnel / "mr_hypotheses.jsonl").write_text(
+        json.dumps(hypothesis) + "\n", encoding="utf-8"
+    )
     identifier = hypothesis["hypothesis_id"]
     (funnel / "hypotheses" / f"{identifier}.jsonl").write_text(
         json.dumps(hypothesis) + "\n", encoding="utf-8"
     )
-    model = funnel / "model.pdb"
+    model = funnel / "model_registry/model.pdb"
+    model.parent.mkdir()
     model.write_text("original one-copy moving model\n", encoding="utf-8")
     manifest = json.loads(request.funnel_manifest.read_text())
+    manifest["model_registry"] = {"path": "model_registry"}
     manifest["hypotheses"][0].update(
         model_path="model.pdb", model_sha256=sha256_file(model)
     )
@@ -129,7 +137,7 @@ def test_selection_uses_production_review_and_explicit_benchmark_authority(
     assert not list(seeds.rglob("mr_seed_approval.json"))
     row = json.loads((seeds / "seed_tasks.jsonl").read_text())
     assert (seeds / row["search_model"]).read_bytes() == (
-        case / "first-copy-funnel/model.pdb"
+        case / "first-copy-funnel/model_registry/model.pdb"
     ).read_bytes()
     recommendation = json.loads((seeds / "seed_advancement.jsonl").read_text())
     assert recommendation["advancement_disposition"] == "recommended"
