@@ -15518,3 +15518,155 @@ with a collapsed combined parent or a guessed command.
   qualify Raven, then retire the owned Marmic run with evidence preserved and
   launch the full Raven screen. General candidate-generation redesign remains
   deferred; candidate assessments and v0.3.0 are incomplete.
+
+## 2026-09-08 - Raven pilot qualified and full identification screen launched
+
+- Pushed source `2aea38b1010e` passed CI `34164446352`. The locked Raven
+  environment and user-provided Phenix installation passed strict runtime
+  qualification. Original inputs and both bound inventories verified.
+- The non-overlapping operational pilot completed both Slurm tasks successfully;
+  collected native results, resource records and checksums verified. Its weak
+  placement reproduces the portability reference, not protein identity.
+- The user prioritised the full Raven launch over retiring the previous site.
+  One detached full-screen controller is running and the native graph confirms
+  model preparation and initial MR submissions. A timed-out local launch
+  acknowledgement was resolved by exact remote ownership checks, not resubmission.
+- The owned Marmic predecessor was then cancelled. Terminal collection exposed
+  missing scheduler-result metadata; native evidence is preserved and child
+  termination still needs verification. No other jobs or caches were modified.
+- Next monitor only the exact owned Raven run and recover the predecessor's
+  evidence without fabricating metadata or reusing its cancelled cache. Candidate
+  assessments, human review and the complete v0.3 programme remain unfinished.
+
+## 2026-09-08 - Raven execution complete; full evidence transfer in progress
+
+- The exact owned Raven controller completed with exit zero. The native log
+  reports successful completion of every submitted preparation and MR task.
+  Some prepared candidates did not advance to MR and require explicit reasons;
+  controller success is not a complete scientific or identity classification.
+- One bounded terminal collection is in progress, with exact ownership and
+  transfer state retained privately. Do not start a duplicate transfer or
+  accept its partial archive. Resolve that collection, authenticate all
+  evidence and classify every candidate before proposing A-seed follow-up.
+- No scientific source change, new MR submission, identity acceptance or
+  release completion occurred. The preceding cancellation-evidence issue
+  remains separate follow-up work; private assessments and human review remain
+  the next priority.
+
+## 2026-09-08 - Interrupted evidence transfer preserved; retrieval retried
+
+- The full scientific execution remains complete. Its first terminal transfer
+  exited with a transport error and the local compressed archive failed integrity
+  checking. It is retained explicitly as incomplete diagnostic evidence.
+- After an approved non-overwriting move preserved that failed archive, one
+  replacement read-only retrieval began for the same exact owner. It is making
+  progress; no scientific task, input, source or runtime was changed or rerun.
+- Resolve the recorded retrieval rather than starting another transfer. Only
+  after complete authenticated extraction may the full audit and private
+  candidate review proceed. No identity or release completion is claimed.
+
+## 2026-09-08 - Full Raven evidence audited; candidate review required
+
+- The retained replacement transfer completed and its complete launch authority,
+  task inventory and file checksums verified. Every submitted task completed on
+  its first attempt, but adapter-level preparation, execution and parsing
+  exceptions remain explicitly distinct from successful hits and no-hits.
+- Native logs identify multi-model preparation failures, oversized-template
+  composition failures and partial-only outputs after negative final packing.
+  No stored failure was reclassified as a successful scientific result, and
+  no source fix or scientific rerun was made in response to this audit.
+- Trace-derived resource accounting supersedes the earlier account-concurrency
+  interpretation. Scientific runtime, provenance, copy semantics, model gaps
+  and previously reserved work remain visible in the private assessment.
+- The private report presents primary candidates and a competing alternative
+  using separate native scores, packing, model coverage and expected/placed
+  copies. These are screening leads, not confirmed identities. The pointer is
+  now at the explicit A-review stop; no further MR or refinement is authorised
+  until exact target decisions are supplied. Release work remains incomplete.
+
+## 2026-09-08 - Pre-review brief refinement assigned to v0.4
+
+- The user approved BR01 for v0.4, not the current investigation: validity
+  checks and target-aware preparation precede one fixed diagnostic refinement
+  macrocycle, then combined-evidence filtering and explicit A-seed review.
+- The successor plan now defines cohort conservation, shared-adapter reuse,
+  original Free-R data, map/model reporting, incomplete-ASU/tNCS interpretation,
+  unchanged-MR reuse, human gates and held-out-control acceptance. The original
+  52 requirements remain intact; BR01 is the additional successor requirement.
+- Current v0.3 execution, candidate decisions and all completed scientific
+  evidence remain unchanged. No implementation, deployment or scientific job
+  was performed. Documentation-link and diff checks are the proportionate
+  validation for this planning-only change; real-tool qualification belongs to
+  the later implementation milestone.
+
+## 2026-09-08 - Excel-readable candidate summaries exported
+
+- Created private combined and per-crystal TSV summaries from the authenticated
+  completed-run assessment. They preserve the full inventory, separate native
+  search TFZ from refined TFZ-equivalent, keep missing scores distinct from zero,
+  and identify local versus remotely retained model/map/log assets.
+- Independent TSV round-trip checks conserve candidate identities, annotation
+  mappings, outcome counts and score meanings; referenced local assets exist.
+  Separate Phenix refinement fields remain explicitly unavailable.
+- These are derived report exports, not a deployed workflow feature. The TSV
+  output convention is suitable for subsequent shared reporting integration.
+  No native result, scientific task or human review decision changed; private
+  biological rows and machine paths remain outside Git.
+
+## 2026-09-08 - Requested AFDB model-gap retrieval completed
+
+- The user requested the existing AFDB route for candidates lacking PDB
+  templates. Public-identifier lookup through the sequence archive recovered
+  current or archived UniProt mappings after full catalogue-sequence equality
+  checks. The earlier PDB-only inventory was not evidence of AFDB absence.
+- An independently prepared coordinate cache and checksum-bound AFDB-only
+  provider plan passed a representative real retrieval before the bounded
+  cohort. Native results preserve exact hits, accession-specific no-hits and
+  unmapped/non-interpretable cases separately. Remaining known accession
+  alternatives were checked only for cases without a retrieved model.
+- Private evidence includes raw responses, reference releases, mappings,
+  immutable coordinate objects, independent sequence/coordinate verification
+  and an Excel-readable availability supplement. API and coordinate-file mean
+  confidence values are retained separately where they differ.
+- No shared scientific source, original screen, native MR score or A decision
+  changed. This was retrieval, not whole-proteome homology search, automatic
+  mapping integration, model preparation, MR or refinement. The original
+  A-review stop remains; additional model-use execution needs its own scoped
+  continuation decision.
+
+## 2026-09-08 - Requested top-three MTZ retrieval verified
+
+- The user requested native MTZ outputs for the three highest-ranked candidates
+  per crystal. Selection used descending primary-PDB LLG among completed hits,
+  preserving its distinction from identity confidence and human A approval.
+- The existing collector omits MTZ assets. A separately approved, read-only
+  transfer retrieved only the selected files after connectivity was restored.
+  Every byte count and checksum matches the authenticated completed-run asset
+  inventory; independent MTZ parsing confirms intact map-coefficient columns.
+- A private index links each MTZ to its retained placed PDB and exact run/case
+  provenance. No remote result, scientific source, original score or decision
+  changed. The programme remains at the existing human-review checkpoint.
+- At the user's subsequent request, the verified MTZ files were moved beside
+  their matching retained placed PDBs and checked again. A separate relocation
+  manifest records current paths; original transfer and collection manifests
+  remain intact historical provenance. No existing PDB was overwritten.
+
+## 2026-09-08 - AlphaFold fallback and finalist MR goals recorded
+
+- Recorded v0.4 AF01: experimental-first AFDB Foldseek fallback using a
+  verified original-sequence predicted query model, with confidence and true
+  coordinate-based similarity provenance. The operator deferred this new
+  prediction/fallback component until suitable GPU access is available.
+- Recorded separate AF02: exact-sequence AlphaFold-model MR for retained
+  finalists, including those initially screened with PDB templates. The user
+  explicitly chose finalists rather than every screened catalogue candidate.
+  Preserve original results, model-source comparisons, BR01 ordering and the
+  A-review gate; identical authenticated exact-model work need not be repeated.
+- The user separately requested immediate Raven MR with the already retrieved
+  exact AFDB models. No new folding is needed. Source inspection found that
+  the current identification preparation path extracts experimental PDB
+  chains only; shared confidence-aware predicted-model preparation exists but
+  is not integrated into that profile. A private bounded integration/validation
+  plan is ready for review before scientific source changes and deployment.
+- Documentation-link and diff checks cover this planning update. No new
+  scientific run was staged or submitted, and no seed decision changed.
