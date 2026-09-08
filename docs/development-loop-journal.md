@@ -15693,3 +15693,25 @@ with a collapsed combined parent or a guessed command.
   approval was produced by these local tests. Next push the exact clean source,
   verify CI, deploy its isolated environment and run the approved bounded
   supplied-model smoke before the remaining cohort. Keep previous evidence intact.
+
+## 2026-09-08 - Exact-AFDB Raven smoke launched from qualified source
+
+- Immutable source `431582db49cb52c858eebb687d24c14a23c462de` passed all six
+  jobs in CI run `34275205173` after the complete locked local gate. Uploaded
+  source, bounded inputs and launch records were checksum-verified before
+  installation in a fresh isolated locked Raven environment.
+- Reused the existing licensed Phenix installation without modification. Its
+  seven strict command probes passed; the representative predicted-model
+  preparations completed and all smoke MR tasks were submitted through the
+  reviewed source-bound launcher. Native scheduler evidence distinguishes
+  running work from shared-account CPU-limit queueing; preserve requested
+  resources and other user jobs.
+- The original PDB screen and undecided A-review evidence remain intact.
+  Initial-copy, tNCS, catalogue and human-review safeguards are unchanged.
+  Preparation success is not an MR result or scientific identification.
+- The user explicitly resumed hourly progress reports. The sole private run
+  pointer now owns the AFDB smoke, with the completed PDB owner retained as
+  historical parent evidence. At terminal, collect and authenticate the native
+  preparation/MR records, distinguish genuine hit/no-hit from failures, and
+  qualify the smoke before staging the remaining supplied models without
+  duplicate work. No remaining-cohort launch has occurred yet.
