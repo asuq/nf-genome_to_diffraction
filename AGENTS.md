@@ -88,6 +88,16 @@ Initial-copy, catalogue, scientific and human-review policy remains unchanged.
 One-off raw SSH/bootstrap commands may be requested for explicit approval during
 this migration; do not grant persistent broad SSH or scheduler permission.
 
+On 2026-09-08 the user approved BR01 for v0.4: valid retained MR placements
+receive target-aware preparation and one fixed diagnostic phenix.refine
+macrocycle before final score-based candidate filtering and A-seed review.
+Keep eligibility distinct from score filtering, preserve Free-R and incomplete
+ASU/tNCS caveats, and reuse the shared refinement adapter and saved MR evidence.
+Explicit A approval remains required before copy completion and deeper
+follow-up. This is future v0.4 scope only; it does not change v0.3 execution,
+approve current seeds, or authorise new scientific jobs. Implementation and
+acceptance criteria are in docs/v0.3-v0.4-development-plan.md (BR01/WP3).
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

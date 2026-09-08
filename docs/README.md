@@ -7,7 +7,8 @@ remain authoritative for scientific policy and interface contracts.
 ## Available documents
 
 - [Consolidated v0.3 release gates and v0.4 development plan](v0.3-v0.4-development-plan.md):
-  five pre-release gates, 52 mapped requirements, implementation dependencies,
+  five pre-release gates, the original 52 mapped requirements plus v0.4 BR01
+  (brief refinement before final candidate filtering), implementation dependencies,
   direct-fix and simplification rules, acceptance criteria, and scoped handoff
   guidance. Private operational inputs and results remain outside Git.
 - [Sanitised v0.3 development handoff](v0.3-development-handoff.md): current

@@ -7,6 +7,14 @@ protocol. It does not approve a structure, force a unique sequence/locus, or
 discard a candidate because refinement or sequence scoring is poor. The output
 is evidence for Coot review and the second file-based checkpoint.
 
+**Approved v0.4 extension, not current behaviour:**
+[BR01](v0.3-v0.4-development-plan.md#br01-brief-refinement-before-final-candidate-filtering)
+will reuse the fixed one-cycle refinement implementation for all eligible
+retained MR placements before final score-based filtering and A review, after
+validity checks and target-aware preparation. The early diagnostic pass will
+not automatically invoke later sequence analysis or deeper refinement. Current
+v0.3 T12 finalist eligibility and human-review prerequisites remain unchanged.
+
 The first increment is exposed by
 `qualification.nf --qualification_stage refine_finalists` and the Python
 command:
