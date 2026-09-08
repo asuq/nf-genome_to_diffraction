@@ -15768,3 +15768,19 @@ with a collapsed combined parent or a guessed command.
   qualify Raven, then retire the owned Marmic run with evidence preserved and
   launch the full Raven screen. General candidate-generation redesign remains
   deferred; candidate assessments and v0.3.0 are incomplete.
+
+## 2026-09-07 - Integrate committed Raven support and release test isolation
+
+- Imported the owner's completed Raven source commit into the isolated release
+  branch and checked out its exact helper revision. The main checkout and owned
+  runs were not modified. The owner's record still requires installed-runtime
+  and small-site qualification before scientific Raven work.
+- Locked test tasks now use worktree-local ignored temporary directories.
+  The existing composition gate runs the reviewed JSON/staging/no-A path and
+  partial/zero-result retry collection through the real Nextflow graph.
+- Validation: all beam/reopening/cache/failure checks passed, and 23 integrated
+  Raven controller and identification checks passed. This does not establish
+  native Raven, M6, unknown-crystal or release qualification.
+- Next finish M6 failure accounting and the frozen comparison harness, extend
+  only the required Raven qualification operations, then reconcile and execute
+  the complete locked release gate.

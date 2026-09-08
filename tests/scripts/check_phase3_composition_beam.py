@@ -7,7 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from check_composition_failure_collection import check_failure_collection
+from tests.scripts.check_composition_failure_collection import check_failure_collection
+from tests.scripts.check_reviewed_reopening import run_reviewed_reopening_stub
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 FIXTURE = REPOSITORY / "tests/fixtures/stubs/phase3_composition_beam"
@@ -91,9 +92,10 @@ def main() -> int:
             raise RuntimeError("composition beam cached replay was incomplete")
         if result.read_bytes() != before:
             raise RuntimeError("composition beam cached replay changed output bytes")
+        run_reviewed_reopening_stub(root / "reviewed-reopening")
     check_failure_collection(REPOSITORY)
     print(
-        "Phase III composition beam stub, cached resume and failure collection passed."
+        "Phase III composition beam, reviewed reopening, cache and failure checks passed."
     )
     return 0
 
