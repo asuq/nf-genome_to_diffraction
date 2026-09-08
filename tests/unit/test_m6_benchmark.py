@@ -2516,6 +2516,13 @@ def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
             30,
             "10/1s",
         ),
+        (
+            EXECUTION_POLICY.with_name("execution-nextflow-raven-v1.yaml"),
+            "raven",
+            "m6_nextflow_slurm_raven_v1",
+            250,
+            "5/1s",
+        ),
     ],
 )
 def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(

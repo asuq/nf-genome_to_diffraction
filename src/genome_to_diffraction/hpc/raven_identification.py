@@ -28,8 +28,23 @@ from genome_to_diffraction.hpc.identification_inputs import (
     validate_bound_input_root,
 )
 from genome_to_diffraction.hpc.identification_run import summarise, timestamp
+from genome_to_diffraction.hpc.raven_qualification import (
+    QUALIFICATION_RUN_PATTERN,
+    RavenQualificationLaunch,
+    retain_evidence,
+    validate_launch,
+)
+from genome_to_diffraction.hpc.raven_qualification import (
+    cache_root as qualification_cache_root,
+)
+from genome_to_diffraction.hpc.raven_qualification import (
+    nextflow_command as qualification_command,
+)
 
-RUN_PATTERN = r"gtd-identification-screen-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}-[a-f0-9]{8}"
+IDENTIFICATION_RUN_PATTERN = (
+    r"gtd-identification-screen-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}-[a-f0-9]{8}"
+)
+RUN_PATTERN = f"(?:{IDENTIFICATION_RUN_PATTERN}|{QUALIFICATION_RUN_PATTERN})"
 MAX_COLLECT_BYTES = 12 * 1024**3
 
 
@@ -38,7 +53,7 @@ class RavenLaunch(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     schema_version: Literal["1.0"]
-    run_id: str = Field(pattern=f"^{RUN_PATTERN}$")
+    run_id: str = Field(pattern=f"^{IDENTIFICATION_RUN_PATTERN}$")
     owner_id: str = Field(pattern=r"^[a-f0-9]{32}$")
     site_id: Literal["raven"]
     account: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
@@ -50,6 +65,30 @@ class RavenLaunch(BaseModel):
     phenix_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     mtz_root: Path
     run_mode: Literal["smoke", "screen"]
+
+
+type RavenLaunchSpec = RavenLaunch | RavenQualificationLaunch
+
+
+def parse_launch(payload: str | bytes) -> RavenLaunchSpec:
+    """Preserve active identification records and admit only fixed qualification."""
+
+    document = json.loads(payload)
+    if not isinstance(document, dict):
+        raise ValueError("Raven launch must be an object")
+    if document.get("schema_version") == "1.0":
+        return RavenLaunch.model_validate(document)
+    return RavenQualificationLaunch.model_validate(document)
+
+
+def launch_profile(spec: RavenLaunchSpec) -> str:
+    """Return the exact operation carried by the authenticated launch."""
+
+    return (
+        spec.stage
+        if isinstance(spec, RavenQualificationLaunch)
+        else "identification-screen"
+    )
 
 
 def _owned_json(path: Path) -> dict:
@@ -66,7 +105,7 @@ def _owned_json(path: Path) -> dict:
     return result
 
 
-def _load(run: Path, owner: str) -> tuple[Path, RavenLaunch]:
+def _load(run: Path, owner: str) -> tuple[Path, RavenLaunchSpec]:
     host = socket.gethostname().split(".")[0]
     if host not in {
         f"raven{i:02d}{suffix}" for i in range(1, 5) for suffix in ("", "i")
@@ -81,7 +120,7 @@ def _load(run: Path, owner: str) -> tuple[Path, RavenLaunch]:
         or run.stat().st_uid != os.getuid()
     ):
         raise ValueError("run is outside the owned /ptmp run namespace")
-    spec = RavenLaunch.model_validate_json(json.dumps(_owned_json(run / "launch.json")))
+    spec = parse_launch(json.dumps(_owned_json(run / "launch.json")))
     if spec.owner_id != owner or spec.run_id != run.name:
         raise ValueError("Raven run ownership differs")
     if spec.source_commit[:12] != run.name.split("-")[-2]:
@@ -90,7 +129,7 @@ def _load(run: Path, owner: str) -> tuple[Path, RavenLaunch]:
         spec.source_root,
         spec.input_root,
         spec.phenix_manifest,
-        spec.mtz_root,
+        *((spec.mtz_root,) if isinstance(spec, RavenLaunch) else (spec.migration_run,)),
     ):
         if not path.is_absolute() or not path.resolve().is_relative_to(root.resolve()):
             raise ValueError("Raven source/input/runtime path escapes /ptmp project")
@@ -112,7 +151,7 @@ def _process_identity(pid: int) -> dict | None:
         return None
 
 
-def _status(run: Path, spec: RavenLaunch) -> dict:
+def _status(run: Path, spec: RavenLaunchSpec) -> dict:
     record = _owned_json(run / "controller.json")
     if record.get("owner_id") != spec.owner_id or record.get("run_id") != spec.run_id:
         raise ValueError("controller ownership differs")
@@ -149,7 +188,7 @@ def _status(run: Path, spec: RavenLaunch) -> dict:
         "run_id": spec.run_id,
         "owner_id": spec.owner_id,
         "site_id": "raven",
-        "profile": "identification-screen",
+        "profile": launch_profile(spec),
         "controller_kind": "login_process",
         "controller_pid": record["process"]["pid"],
         "source_commit": spec.source_commit,
@@ -159,7 +198,7 @@ def _status(run: Path, spec: RavenLaunch) -> dict:
     }
 
 
-def _start(run: Path, spec: RavenLaunch) -> dict:
+def _start(run: Path, spec: RavenLaunchSpec) -> dict:
     if (run / "start.lock").is_symlink():
         raise ValueError("Raven start lock is unsafe")
     with (run / "start.lock").open("a") as lock:
@@ -233,7 +272,7 @@ def nextflow_command(run: Path, spec: RavenLaunch) -> list[str]:
     ]
 
 
-def _run(run: Path, root: Path, spec: RavenLaunch) -> int:
+def _run(run: Path, root: Path, spec: RavenLaunchSpec) -> int:
     state = {
         "state": "RUNNING",
         "started_at": timestamp(),
@@ -292,8 +331,17 @@ def _run(run: Path, root: Path, spec: RavenLaunch) -> int:
                 "TMPDIR": str(run / "tmp"),
                 "XDG_CACHE_HOME": str(root / "cache"),
                 "MPLCONFIGDIR": str(root / "cache/matplotlib"),
+                "XDG_CONFIG_HOME": str(root / "cache/config"),
+                "CONDA_REGISTER_ENVS": "false",
+                "CONDA_PKGS_DIRS": str(root / "cache/conda"),
+                "PIXI_CACHE_DIR": str(root / "cache/pixi"),
+                "RATTLER_CACHE_DIR": str(root / "cache/rattler"),
+                "UV_CACHE_DIR": str(root / "cache/uv"),
+                "PYTHONDONTWRITEBYTECODE": "1",
             }
         )
+        if isinstance(spec, RavenQualificationLaunch):
+            validate_launch(run, root, spec)
         subprocess.run(
             [
                 str(binary / "genome-to-diffraction"),
@@ -310,57 +358,118 @@ def _run(run: Path, root: Path, spec: RavenLaunch) -> int:
             env=environment,
             check=True,
         )
-        plan = validate_bound_input_root(
-            spec.input_root,
-            expected_input_id=spec.input_id,
-            source_commit=spec.source_commit,
-            allowed_mtz_root=spec.mtz_root,
-        )
-        if plan.run_mode != spec.run_mode:
-            raise ValueError("Raven execution mode differs from its input plan")
-        selected = execution_cases(plan)
-        atomic_write_json(
-            run / "selected/execution_cases.json",
-            [c.model_dump(mode="json") for c in selected],
-        )
-        state.update(execution_case_count=len(selected), run_mode=plan.run_mode)
-        atomic_write_json(run / "state.json", state)
-        (run / "raven-account.config").write_text(
-            f"executor.account = '{spec.account}'\n"
-        )
-        command = nextflow_command(run, spec)
-        atomic_write_json(
-            run / "nextflow-command.json",
-            {
-                "argv": command,
+        if isinstance(spec, RavenQualificationLaunch):
+            environment["NXF_CACHE_DIR"] = str(
+                qualification_cache_root(run, spec) / "nextflow"
+            )
+            (run / "raven-account.config").write_text(
+                f"executor.account = '{spec.account}'\n"
+            )
+            commands = {
+                "argv": qualification_command(run, spec),
+                "resume_argv": qualification_command(run, spec, resume=True),
                 "environment": {
-                    k: environment[k]
-                    for k in (
+                    key: environment[key]
+                    for key in (
                         "NXF_HOME",
+                        "NXF_CACHE_DIR",
                         "NXF_TEMP",
                         "NXF_APPTAINER_CACHEDIR",
                         "TMPDIR",
                     )
                 },
-            },
-        )
-        if cancelled:
-            raise RuntimeError("controller cancelled before Nextflow launch")
-        child = subprocess.Popen(command, cwd=run / "execution", env=environment)
-        state["nextflow_process"] = _process_identity(child.pid)
-        atomic_write_json(run / "state.json", state)
-        result_code = child.wait()
-        summarise(
-            spec.input_root,
-            run / "results",
-            run / "cache/identification/work",
-            run / "collected",
-        )
+            }
+            atomic_write_json(run / "nextflow-command.json", commands)
+            # Two explicit qualification phases of one graph. Independent
+            # scientific work remains channel items scheduled by Nextflow.
+            for phase in ("first", "resume"):
+                if cancelled:
+                    raise RuntimeError("controller cancelled before Nextflow launch")
+                if phase == "resume":
+                    validate_launch(run, root, spec)
+                command = qualification_command(run, spec, resume=phase == "resume")
+                child = subprocess.Popen(
+                    command, cwd=run / "execution", env=environment
+                )
+                state.update(phase=phase, nextflow_process=_process_identity(child.pid))
+                atomic_write_json(run / "state.json", state)
+                result_code = child.wait()
+                pipeline_info = run / "results/pipeline_info"
+                if pipeline_info.is_dir():
+                    trace_label = (
+                        f"m6-{phase}"
+                        if spec.stage in {"m6-operational", "m6-leakage"}
+                        else phase
+                    )
+                    shutil.copytree(
+                        pipeline_info,
+                        run / f"qualification/{trace_label}-pipeline-info",
+                    )
+                if result_code != 0:
+                    break
+                if spec.stage in {"m6-operational", "m6-leakage"}:
+                    from genome_to_diffraction.hpc.raven_m6 import finish_phase
+
+                    finish_phase(run, spec, phase=phase)
+        else:
+            plan = validate_bound_input_root(
+                spec.input_root,
+                expected_input_id=spec.input_id,
+                source_commit=spec.source_commit,
+                allowed_mtz_root=spec.mtz_root,
+            )
+            if plan.run_mode != spec.run_mode:
+                raise ValueError("Raven execution mode differs from its input plan")
+            selected = execution_cases(plan)
+            atomic_write_json(
+                run / "selected/execution_cases.json",
+                [c.model_dump(mode="json") for c in selected],
+            )
+            state.update(execution_case_count=len(selected), run_mode=plan.run_mode)
+            atomic_write_json(run / "state.json", state)
+            (run / "raven-account.config").write_text(
+                f"executor.account = '{spec.account}'\n"
+            )
+            command = nextflow_command(run, spec)
+            atomic_write_json(
+                run / "nextflow-command.json",
+                {
+                    "argv": command,
+                    "environment": {
+                        k: environment[k]
+                        for k in (
+                            "NXF_HOME",
+                            "NXF_TEMP",
+                            "NXF_APPTAINER_CACHEDIR",
+                            "TMPDIR",
+                        )
+                    },
+                },
+            )
+            if cancelled:
+                raise RuntimeError("controller cancelled before Nextflow launch")
+            child = subprocess.Popen(command, cwd=run / "execution", env=environment)
+            state["nextflow_process"] = _process_identity(child.pid)
+            atomic_write_json(run / "state.json", state)
+            result_code = child.wait()
+            summarise(
+                spec.input_root,
+                run / "results",
+                run / "cache/identification/work",
+                run / "collected",
+            )
     except Exception as error:
         traceback.print_exc()
         state["reason"] = str(error)
         result_code = 1
     finally:
+        if isinstance(spec, RavenQualificationLaunch):
+            try:
+                retain_evidence(run, spec)
+            except (OSError, ValueError, KeyError) as error:
+                traceback.print_exc()
+                state["retention_error"] = str(error)
+                result_code = 1
         state.update(
             state="CANCELLED"
             if cancelled
@@ -372,7 +481,7 @@ def _run(run: Path, root: Path, spec: RavenLaunch) -> int:
     return result_code
 
 
-def _collect(run: Path, spec: RavenLaunch) -> None:
+def _collect(run: Path, spec: RavenLaunchSpec) -> None:
     if not _status(run, spec)["terminal"]:
         raise ValueError("collect requires a terminal Raven controller")
     files = [
@@ -434,7 +543,7 @@ def main() -> int:
         result = {
             "run_id": spec.run_id,
             "site_id": "raven",
-            "profile": "identification-screen",
+            "profile": launch_profile(spec),
             "owner_id": spec.owner_id,
             "source_commit": spec.source_commit,
             "input_id": spec.input_id,

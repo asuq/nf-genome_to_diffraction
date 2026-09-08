@@ -330,6 +330,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
     policy_names = {
         "m6_nextflow_slurm_v1": "execution-nextflow-v1.yaml",
         "m6_nextflow_slurm_marmic_v1": "execution-nextflow-marmic-v1.yaml",
+        "m6_nextflow_slurm_raven_v1": "execution-nextflow-raven-v1.yaml",
     }
     policy_name = policy_names.get(evidence.execution_policy_id or "")
     execution_policy_path = (

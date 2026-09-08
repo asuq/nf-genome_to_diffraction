@@ -229,6 +229,118 @@ def _inventory(root: Path) -> tuple[tuple[str, Path, str, int], ...]:
     return tuple(rows)
 
 
+def validate_no_a_reopening_authority(
+    paths: dict[str, Path],
+    *,
+    crystal_id: str,
+    identity: PhaseIIIExecutionIdentity,
+    expected_parent_run_id: str,
+) -> None:
+    """Authenticate the same reviewed selection for controls and unknown pass 2."""
+
+    plan_root = paths.get("no_a_expansion_plan")
+    if plan_root is None:
+        raise UnknownPass2InputError(f"pass-2 no-A plan is absent for {crystal_id}")
+    try:
+        plan = BatchLocalisationReopenPlan.model_validate_json(
+            (plan_root / "localisation_reopen_plan.json").read_bytes()
+        )
+        hypotheses = tuple(
+            MrHypothesis.model_validate_json(line)
+            for line in (plan_root / "reopened_hypotheses.jsonl")
+            .read_text()
+            .splitlines()
+            if line.strip()
+        )
+    except (OSError, UnicodeError, ValidationError, ValueError) as error:
+        raise UnknownPass2InputError(
+            f"pass-2 no-A plan is invalid for {crystal_id}"
+        ) from error
+    if (
+        plan.status
+        not in {
+            BatchLocalisationReopenStatus.READY,
+            BatchLocalisationReopenStatus.READY_REVIEWED,
+        }
+        or plan.reopened_hypothesis_count != len(hypotheses)
+        or tuple(item.hypothesis_id for item in hypotheses)
+        != plan.reopened_hypothesis_ids
+        or any(item.crystal_id != crystal_id for item in hypotheses)
+    ):
+        raise UnknownPass2InputError(f"pass-2 no-A inventory differs for {crystal_id}")
+    if plan.status is BatchLocalisationReopenStatus.READY_REVIEWED:
+        package_path = (
+            plan_root / "review_package" / "phase3_review_package_manifest.json"
+        )
+        decision_path = plan_root / "review_stage" / "phase3_review_decision.json"
+        try:
+            package = validate_phase3_review_package(package_path.parent)
+            decisions = load_staged_phase3_reopen_decisions(
+                decision_path=decision_path,
+                package_manifest=package_path,
+            )
+            selected = validate_phase3_reopen_decision(
+                package_manifest=package_path,
+                decisions=decisions,
+                terminal_results_sha256=plan.terminal_results_sha256,
+            )
+        except InputContractError as error:
+            raise UnknownPass2InputError(
+                f"invalid pass-2 reviewed authority for {crystal_id}: {error}"
+            ) from error
+        artifacts = {item.role: item for item in package.evidence_inventory}
+        assert decisions.reopen_request is not None
+        if (
+            package.owned_parent_run_id != expected_parent_run_id
+            or package.execution_identity_id != identity.execution_identity_id
+            or package.crystal_id != crystal_id
+            or plan.review_package_id != package.review_package_id
+            or plan.review_package_manifest_sha256 != sha256_file(package_path)
+            or plan.review_decision_file_id != decisions.decision_file_id
+            or plan.source_review_decisions_sha256 != sha256_file(decision_path)
+            or plan.funnel_manifest_sha256 != artifacts["source_funnel_manifest"].sha256
+            or plan.complete_acquired_hypotheses_sha256
+            != artifacts["complete_acquired_hypotheses"].sha256
+            or plan.source_hypothesis_ids
+            != decisions.reopen_request.selected_hypothesis_ids
+            or plan.maximum_reopened_attempts
+            != decisions.reopen_request.maximum_reopened_attempts
+            or any(
+                result.priority_features.get("source_hypothesis_id")
+                != original.hypothesis_id
+                or result.status is not MrHypothesisStatus.QUEUED
+                or result.hypothesis_id
+                != content_id(
+                    "mrhyp_",
+                    {
+                        "source_hypothesis_id": original.hypothesis_id,
+                        "reopen_evidence_id": plan.reopen_evidence_id,
+                    },
+                )
+                or result.priority_features.get("localisation_reopen_evidence_id")
+                != plan.reopen_evidence_id
+                or result.priority_features.get("no_a_expansion_after_human_review")
+                is not True
+                or any(
+                    result.priority_features.get(key) != value
+                    for key, value in original.priority_features.items()
+                )
+                or result.model_copy(
+                    update={
+                        "hypothesis_id": original.hypothesis_id,
+                        "priority_features": original.priority_features,
+                        "status": original.status,
+                    }
+                )
+                != original
+                for result, original in zip(hypotheses, selected, strict=True)
+            )
+        ):
+            raise UnknownPass2InputError(
+                f"pass-2 reviewed reopening authority differs for {crystal_id}"
+            )
+
+
 def _validate_source(
     root: Path,
     source: dict[str, object],
@@ -342,118 +454,12 @@ def _validate_source(
                 f"pass-2 parent beam is invalid for {crystal_id}"
             )
         if mode == "no_a_expansion":
-            plan_root = paths.get("no_a_expansion_plan")
-            if plan_root is None:
-                raise UnknownPass2InputError(
-                    f"pass-2 no-A plan is absent for {crystal_id}"
-                )
-            try:
-                plan = BatchLocalisationReopenPlan.model_validate_json(
-                    (plan_root / "localisation_reopen_plan.json").read_bytes()
-                )
-                hypotheses = tuple(
-                    MrHypothesis.model_validate_json(line)
-                    for line in (plan_root / "reopened_hypotheses.jsonl")
-                    .read_text()
-                    .splitlines()
-                    if line.strip()
-                )
-            except (OSError, UnicodeError, ValidationError, ValueError) as error:
-                raise UnknownPass2InputError(
-                    f"pass-2 no-A plan is invalid for {crystal_id}"
-                ) from error
-            if (
-                plan.status
-                not in {
-                    BatchLocalisationReopenStatus.READY,
-                    BatchLocalisationReopenStatus.READY_REVIEWED,
-                }
-                or plan.reopened_hypothesis_count != len(hypotheses)
-                or tuple(item.hypothesis_id for item in hypotheses)
-                != plan.reopened_hypothesis_ids
-                or any(item.crystal_id != crystal_id for item in hypotheses)
-            ):
-                raise UnknownPass2InputError(
-                    f"pass-2 no-A inventory differs for {crystal_id}"
-                )
-            if plan.status is BatchLocalisationReopenStatus.READY_REVIEWED:
-                package_path = (
-                    plan_root / "review_package" / "phase3_review_package_manifest.json"
-                )
-                decision_path = (
-                    plan_root / "review_stage" / "phase3_review_decision.json"
-                )
-                try:
-                    package = validate_phase3_review_package(package_path.parent)
-                    decisions = load_staged_phase3_reopen_decisions(
-                        decision_path=decision_path,
-                        package_manifest=package_path,
-                    )
-                    selected = validate_phase3_reopen_decision(
-                        package_manifest=package_path,
-                        decisions=decisions,
-                        terminal_results_sha256=plan.terminal_results_sha256,
-                    )
-                except InputContractError as error:
-                    raise UnknownPass2InputError(
-                        f"invalid pass-2 reviewed authority for {crystal_id}: {error}"
-                    ) from error
-                artifacts = {item.role: item for item in package.evidence_inventory}
-                assert decisions.reopen_request is not None
-                if (
-                    package.owned_parent_run_id != expected_parent_run_id
-                    or package.execution_identity_id != identity.execution_identity_id
-                    or package.crystal_id != crystal_id
-                    or plan.review_package_id != package.review_package_id
-                    or plan.review_package_manifest_sha256 != sha256_file(package_path)
-                    or plan.review_decision_file_id != decisions.decision_file_id
-                    or plan.source_review_decisions_sha256 != sha256_file(decision_path)
-                    or plan.funnel_manifest_sha256
-                    != artifacts["source_funnel_manifest"].sha256
-                    or plan.complete_acquired_hypotheses_sha256
-                    != artifacts["complete_acquired_hypotheses"].sha256
-                    or plan.source_hypothesis_ids
-                    != decisions.reopen_request.selected_hypothesis_ids
-                    or plan.maximum_reopened_attempts
-                    != decisions.reopen_request.maximum_reopened_attempts
-                    or any(
-                        result.priority_features.get("source_hypothesis_id")
-                        != original.hypothesis_id
-                        or result.status is not MrHypothesisStatus.QUEUED
-                        or result.hypothesis_id
-                        != content_id(
-                            "mrhyp_",
-                            {
-                                "source_hypothesis_id": original.hypothesis_id,
-                                "reopen_evidence_id": plan.reopen_evidence_id,
-                            },
-                        )
-                        or result.priority_features.get(
-                            "localisation_reopen_evidence_id"
-                        )
-                        != plan.reopen_evidence_id
-                        or result.priority_features.get(
-                            "no_a_expansion_after_human_review"
-                        )
-                        is not True
-                        or any(
-                            result.priority_features.get(key) != value
-                            for key, value in original.priority_features.items()
-                        )
-                        or result.model_copy(
-                            update={
-                                "hypothesis_id": original.hypothesis_id,
-                                "priority_features": original.priority_features,
-                                "status": original.status,
-                            }
-                        )
-                        != original
-                        for result, original in zip(hypotheses, selected, strict=True)
-                    )
-                ):
-                    raise UnknownPass2InputError(
-                        f"pass-2 reviewed reopening authority differs for {crystal_id}"
-                    )
+            validate_no_a_reopening_authority(
+                paths,
+                crystal_id=crystal_id,
+                identity=identity,
+                expected_parent_run_id=expected_parent_run_id,
+            )
         mtz_sha256 = sha256_file(paths["mtz"])
         mtz_artifacts = tuple(
             artifact

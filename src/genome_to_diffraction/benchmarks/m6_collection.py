@@ -88,9 +88,26 @@ _M6_OPERATIONAL_PRECHECK_PATHS = (
 )
 
 
+def _collection_manifest(root: Path) -> dict[str, object]:
+    """Load the site's actual controller format without inventing Slurm state."""
+
+    if (root / "launch.json").exists():
+        from genome_to_diffraction.hpc.raven_m6 import collection_manifest
+
+        if (root / "manifest.json").exists():
+            raise PublicControlError("M6 collection has ambiguous controller records")
+        try:
+            return collection_manifest(root)
+        except (OSError, KeyError, ValueError) as error:
+            raise PublicControlError(
+                f"Raven M6 controller evidence is invalid: {error}"
+            ) from error
+    return _json_object(root / "manifest.json", "collection manifest")
+
+
 @dataclass(frozen=True, slots=True)
 class M6CollectionRequest:
-    """Truth-side assembly request for exactly two collected Viper runs."""
+    """Truth-side assembly request for two runs from one reviewed HPC site."""
 
     protocol: Path
     private_truth_map: Path
@@ -341,6 +358,10 @@ def _state_text(root: Path, name: str) -> str:
 def _operational_precheck_sha256(root: Path) -> str:
     """Recreate the exact successful-parent digest bound before leakage."""
 
+    if (root / "launch.json").is_file():
+        from genome_to_diffraction.hpc.raven_m6 import operational_precheck
+
+        return operational_precheck(root)
     resolved = root.resolve(strict=True)
     inventory: list[str] = []
     for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
@@ -448,8 +469,11 @@ def _load_track(
     expected_execution_policy_sha256: str,
 ) -> _CollectedTrack:
     resolved = root.resolve(strict=True)
-    qualification = resolved / "artifacts" / "qualification"
-    manifest = _json_object(resolved / "manifest.json", "collection manifest")
+    manifest = _collection_manifest(resolved)
+    raven = manifest.get("site_id") == "raven"
+    qualification = (
+        resolved / "qualification" if raven else resolved / "artifacts/qualification"
+    )
     summary = _json_object(
         qualification / "m6-scientific-summary.json", "scientific summary"
     )
@@ -494,15 +518,16 @@ def _load_track(
         or runtime.get("profile") != profile
     ):
         raise PublicControlError(f"collected M6 {track} identity is inconsistent")
-    job_result = _json_object(resolved / "state/job-result.json", "job result")
-    if (
-        job_result.get("scheduler_state") != "COMPLETED"
-        or job_result.get("exit_code") != 0
-        or job_result.get("failure_class") != "success"
-        or _state_text(resolved, "failure-class") != "success"
-        or _state_text(resolved, "exit-code") != "0"
-    ):
-        raise PublicControlError(f"collected M6 {track} job did not succeed")
+    if not raven:
+        job_result = _json_object(resolved / "state/job-result.json", "job result")
+        if (
+            job_result.get("scheduler_state") != "COMPLETED"
+            or job_result.get("exit_code") != 0
+            or job_result.get("failure_class") != "success"
+            or _state_text(resolved, "failure-class") != "success"
+            or _state_text(resolved, "exit-code") != "0"
+        ):
+            raise PublicControlError(f"collected M6 {track} job did not succeed")
     case_ids = tuple(cast(str, row.get("case_id")) for row in cases)
     if case_ids != expected_case_ids:
         raise PublicControlError(f"collected M6 {track} cases are incomplete")
@@ -607,8 +632,16 @@ def _load_track(
         or runtime.get("tool_runtime_timeouts") is not False
     ):
         raise PublicControlError(f"collected M6 {track} legacy resources changed")
-    runner_archive = _state_text(resolved, "m6-runner-archive-sha256")
-    runner_manifest = _state_text(resolved, "m6-runner-manifest-sha256")
+    runner_archive = (
+        str(manifest["runner_archive_sha256"])
+        if raven
+        else _state_text(resolved, "m6-runner-archive-sha256")
+    )
+    runner_manifest = (
+        str(manifest["runner_manifest_sha256"])
+        if raven
+        else _state_text(resolved, "m6-runner-manifest-sha256")
+    )
     if (
         _SHA256_RE.fullmatch(runner_archive) is None
         or _SHA256_RE.fullmatch(runner_manifest) is None
@@ -624,11 +657,15 @@ def _load_track(
     parent_path = resolved / "state/m6-operational-parent-run-id"
     precheck_path = resolved / "state/m6-operational-precheck-sha256"
     if track == "leakage":
-        operational_parent_run_id = _state_text(
-            resolved, "m6-operational-parent-run-id"
+        operational_parent_run_id = (
+            str(manifest["operational_parent_run_id"])
+            if raven
+            else _state_text(resolved, "m6-operational-parent-run-id")
         )
-        operational_precheck_sha256 = _state_text(
-            resolved, "m6-operational-precheck-sha256"
+        operational_precheck_sha256 = (
+            str(manifest["operational_precheck_sha256"])
+            if raven
+            else _state_text(resolved, "m6-operational-precheck-sha256")
         )
         if _SHA256_RE.fullmatch(operational_precheck_sha256) is None:
             raise PublicControlError("collected M6 leakage precheck is invalid")
@@ -1141,13 +1178,11 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         item.target_key: item for item in private_truth.verified_families
     }
     private_case_by_id = {item.case_id: item for item in private_truth.cases}
-    operational_manifest = _json_object(
-        request.operational_collection.resolve(strict=True) / "manifest.json",
-        "operational collection manifest",
+    operational_manifest = _collection_manifest(
+        request.operational_collection.resolve(strict=True)
     )
-    leakage_manifest = _json_object(
-        request.leakage_collection.resolve(strict=True) / "manifest.json",
-        "leakage collection manifest",
+    leakage_manifest = _collection_manifest(
+        request.leakage_collection.resolve(strict=True)
     )
     site_id = operational_manifest.get("site_id")
     site_policies = {
@@ -1155,6 +1190,10 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         "marmic": (
             "m6_nextflow_slurm_marmic_v1",
             "execution-nextflow-marmic-v1.yaml",
+        ),
+        "raven": (
+            "m6_nextflow_slurm_raven_v1",
+            "execution-nextflow-raven-v1.yaml",
         ),
     }
     if (

@@ -17,7 +17,8 @@ from genome_to_diffraction.hpc.client import _extract_approved_archive
 from genome_to_diffraction.hpc.raven_identification import (
     MAX_COLLECT_BYTES,
     RUN_PATTERN,
-    RavenLaunch,
+    launch_profile,
+    parse_launch,
 )
 
 
@@ -70,7 +71,7 @@ def main() -> int:
         or record_path.stat().st_size > 65536
     ):
         raise ValueError("local Raven ownership record is absent or unsafe")
-    spec = RavenLaunch.model_validate_json(record_path.read_text())
+    spec = parse_launch(record_path.read_text())
     if (
         spec.run_id != args.run_id
         or spec.source_root != config.remote_root / "sources" / spec.source_commit
@@ -107,7 +108,7 @@ def main() -> int:
         expected = {
             "run_id": spec.run_id,
             "site_id": "raven",
-            "profile": "identification-screen",
+            "profile": launch_profile(spec),
             "owner_id": spec.owner_id,
             "source_commit": spec.source_commit,
             "input_id": spec.input_id,
@@ -139,7 +140,7 @@ def main() -> int:
         if not launch.isfile() or launch.size > 65536:
             raise ValueError("Raven collection lacks bounded source ownership")
         handle = archive.extractfile(launch)
-        if handle is None or RavenLaunch.model_validate_json(handle.read()) != spec:
+        if handle is None or parse_launch(handle.read()) != spec:
             raise ValueError("Raven collection source/input/owner differs")
     destination = local_run / "collected"
     if destination.exists():

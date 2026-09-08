@@ -15,6 +15,8 @@ include { BRIEF_REFINEMENT_WORKFLOW } from './workflows/brief_refinement_workflo
 include { PHASE3_NETWORK_PROBE_WORKFLOW } from './workflows/qualification/phase3_network_probe'
 include { IDENTIFICATION_SCREEN_WORKFLOW } from './workflows/qualification/identification_screen'
 include { M6_COMPARISON_INITIAL_WORKFLOW; M6_COMPARISON_CONTINUATION_WORKFLOW } from './workflows/qualification/m6_ranking_comparison'
+include { COMPOSITION_ATTEMPT_WORKFLOW } from './workflows/composition_attempt_workflow'
+include { KNOWN_CONTROL_REOPENING_WORKFLOW } from './workflows/qualification/known_control_reopening'
 
 params {
     qualification_stage: String
@@ -23,6 +25,12 @@ params {
     identification_input_id: String? = null
     comparison_root: Path? = null
     software_lock: Path? = null
+    source_commit: String? = null
+    attempt_inventory: Path? = null
+    fixed_coordinate_root: Path? = null
+    model_registry: Path? = null
+    execution_identity: Path? = null
+    known_control_inputs: Path? = null
     sequence_groups: Path? = null
     source_records: Path? = null
     config: Path? = null
@@ -85,7 +93,9 @@ workflow {
         'phase3_network_probe',
         'identification_screen',
         'm6_comparison_initial',
-        'm6_comparison_continuation'
+        'm6_comparison_continuation',
+        'composition_attempts',
+        'known_control_reopening'
     ]
     if (!(params.qualification_stage in supported)) {
         error "Unsupported qualification_stage: ${params.qualification_stage}"
@@ -274,6 +284,28 @@ workflow {
             channel.of(params.finalists as Path),
             params.sequence_groups as Path,
             params.source_records as Path,
+            params.phenix_manifest as Path
+        )
+    } else if (params.qualification_stage == 'composition_attempts') {
+        if (params.attempt_inventory == null || params.fixed_coordinate_root == null ||
+            params.model_registry == null || params.sequence_groups == null ||
+            params.preflight == null || params.mtz == null ||
+            params.phenix_manifest == null || params.execution_identity == null) {
+            error 'Composition control requires its complete selected attempt authority'
+        }
+        COMPOSITION_ATTEMPT_WORKFLOW(
+            params.attempt_inventory as Path, params.fixed_coordinate_root as Path,
+            params.model_registry as Path, params.sequence_groups as Path,
+            params.preflight as Path, params.mtz as Path,
+            params.phenix_manifest as Path, params.execution_identity as Path
+        )
+    } else if (params.qualification_stage == 'known_control_reopening') {
+        if (params.known_control_inputs == null || params.source_commit == null ||
+            params.phenix_manifest == null) {
+            error 'Known-control reopening requires its reviewed input/source/runtime'
+        }
+        KNOWN_CONTROL_REOPENING_WORKFLOW(
+            params.known_control_inputs as Path, params.source_commit as String,
             params.phenix_manifest as Path
         )
     } else if (params.qualification_stage in ['m6_comparison_initial', 'm6_comparison_continuation']) {

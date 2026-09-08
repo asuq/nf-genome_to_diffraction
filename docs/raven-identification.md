@@ -4,6 +4,11 @@ This case-specific operator route uses the same identification input archive,
 model preparation, Phaser adapter, Nextflow graph and terminal assessment as
 the Marmic screen. It does not add a new candidate generator or identity rule.
 
+The same owned controller also supports the separately bound
+[fixed release qualification stages](raven-qualification.md). Those stages
+require completed site-smoke and exact-source CI evidence; the identification
+launch format and run ownership remain unchanged.
+
 ## Execution and storage
 
 The maintained nf-helper `raven` profile launches from an explicit Raven login

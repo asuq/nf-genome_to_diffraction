@@ -15834,3 +15834,32 @@ with a collapsed combined parent or a guessed command.
   atlas, and run the complete locked integrated gate before exact-source CI
   and native qualification. Owner FS-G1 and terminal pass-1 evidence remain
   prerequisites for the later closure/unknown programme.
+
+## 2026-09-08 - Prepare fixed Raven release qualification
+
+- Extended the owner's login controller with a separate source-bound launch
+  for fixed controls, full M6, comparison stages and reviewed continuations.
+  Successful exact-source CI and the completed, checksum-authenticated native
+  site smoke are required before scientific dispatch. Identification keeps its
+  existing launch format and ownership.
+- Reused existing Nextflow workflows and the same reviewed reopening validator
+  for known controls and RG7-gated unknown inputs. Known-control metadata now
+  binds its complete staged bundle and a plain validated parent value, avoiding
+  lost relative assets and non-cacheable channel objects at the owned review.
+  Original reviewed diffraction/Free-R authority is rechecked on continuation.
+- Raven M6 keeps its existing CPU/memory policy with the site's 24-hour limit
+  and submission guard. First/resume traces, native outputs, failed/aborted
+  task diagnostics and resolved allocations are retained. Leakage validates
+  the exact completed operational input/cache bytes without writing its
+  parent. The existing truth-side collector accepts the real login-controller
+  records and keeps the complete 63-case criteria unchanged.
+- Validation: 93 focused controller, continuation, M6 policy and collection
+  checks passed at integration; subsequent retention/cache checks passed.
+  The real Nextflow known-control route scheduled exactly one reviewed stub
+  hypothesis, published its next owned A package, replayed entirely from cache
+  and rejected an unknown-crystal mutation. Focused lint/type and documentation
+  checks passed. No native Raven or scientific acceptance is claimed.
+- Main remains at the imported migration source; no completed site/runtime or
+  FS-G1/pass-1 evidence was received. Next reconcile active schemas, cache
+  identities, examples, unreleased package metadata and atlas, then run the
+  complete locked integration gate before exact-source CI and native work.

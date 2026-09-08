@@ -84,8 +84,9 @@ class M6ExecutionPolicy(ContractModel):
     policy_id: Literal[
         "m6_nextflow_slurm_v1",
         "m6_nextflow_slurm_marmic_v1",
+        "m6_nextflow_slurm_raven_v1",
     ]
-    site_id: Literal["marmic", "viper-cpu"]
+    site_id: Literal["marmic", "viper-cpu", "raven"]
     orchestrator: Literal["nextflow_dsl2"]
     executor: Literal["slurm"]
     driver: M6DriverPolicy
@@ -100,6 +101,7 @@ class M6ExecutionPolicy(ContractModel):
         expected_site = {
             "m6_nextflow_slurm_v1": "viper-cpu",
             "m6_nextflow_slurm_marmic_v1": "marmic",
+            "m6_nextflow_slurm_raven_v1": "raven",
         }[self.policy_id]
         if self.site_id != expected_site:
             raise ValueError("M6 execution policy ID and site ID disagree")
