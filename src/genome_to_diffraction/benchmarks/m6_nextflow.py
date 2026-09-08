@@ -97,6 +97,7 @@ from genome_to_diffraction.mr.add_copy import (
     run_additional_copy_series,
 )
 from genome_to_diffraction.mr.phaser import PhaserRunOutput
+from genome_to_diffraction.mr_resources import mr_task_exit_code
 from genome_to_diffraction.ranking import (
     DiverseFirstCopyFunnelRequest,
     build_diverse_first_copy_funnel,
@@ -128,6 +129,7 @@ from genome_to_diffraction.schemas.results import (
     StructuralSearchHit,
     StructuralSearchResult,
 )
+from genome_to_diffraction.status import ExecutionStatus, TransientInfrastructureError
 from genome_to_diffraction.structure_search import (
     PdbSequenceSearchRequest,
     ProstT5FoldseekSearchRequest,
@@ -296,6 +298,23 @@ class M6CaseEvidence(ContractModel):
 
     @model_validator(mode="after")
     def _validate_retention_and_counts(self) -> Self:
+        failures = _native_failure_stages(
+            first_copy=self.first_copy_results,
+            additional_copy=self.additional_copy_results,
+            refinement=self.refinement_results,
+            sequence=self.sequence_summaries,
+        )
+        if failures and (
+            self.execution_status != "failed"
+            or self.typed_outcome != "native_execution_incomplete"
+            or self.scientific_status != "not_assessed"
+            or self.failure_class != "native_child_failure:" + ",".join(failures)
+        ):
+            raise ValueError(
+                "M6 native child failures require incomplete case evidence"
+            )
+        if (self.execution_status == "failed") != (self.failure_class is not None):
+            raise ValueError("M6 execution status and failure class disagree")
         if self.decision_trace.case_id != self.case_id:
             raise ValueError("M6 decision trace belongs to another case")
         scheduled = {
@@ -2229,6 +2248,7 @@ def run_m6_add_copy_task(
     output.mkdir(parents=True, exist_ok=False)
     best_parent = output / "best_parent.pdb"
     best_copy_count = task.first_copy_placed_count
+    terminal_result: AdditionalCopyResult | None = None
     if task.first_copy_placed_count >= task.expected_copy_count:
         atomic_write_text(output / "additional_copy_series_results.jsonl", "")
         atomic_write_json(
@@ -2273,6 +2293,7 @@ def run_m6_add_copy_task(
                 progress=False,
             )
         )
+        terminal_result = series.attempts[-1].result
         shutil.copy2(
             series.results_jsonl, output / "additional_copy_series_results.jsonl"
         )
@@ -2313,7 +2334,52 @@ def run_m6_add_copy_task(
             "human_approval": False,
         },
     )
+    if (
+        terminal_result is not None
+        and mr_task_exit_code(
+            execution_status=terminal_result.execution_status,
+            execution_failure=terminal_result.execution_failure,
+            resource_attempt=resource_attempt,
+        )
+        == 75
+    ):
+        raise TransientInfrastructureError(
+            "M6 additional-copy native failure permits the existing single retry"
+        )
     return output
+
+
+def _native_failure_stages(
+    *,
+    first_copy: tuple[Mapping[str, object], ...],
+    additional_copy: tuple[Mapping[str, object], ...],
+    refinement: tuple[Mapping[str, object], ...],
+    sequence: tuple[Mapping[str, object], ...],
+) -> tuple[str, ...]:
+    """Identify failed stages from retained native statuses, including parse errors."""
+
+    failed = {
+        ExecutionStatus.FAILED_INPUT_CONTRACT,
+        ExecutionStatus.FAILED_TOOL_EXECUTION,
+        ExecutionStatus.FAILED_PARSE,
+        ExecutionStatus.FAILED_INFRASTRUCTURE,
+    }
+    stages = (
+        (
+            "first_copy",
+            tuple(cast(dict[str, object], row["result"]) for row in first_copy),
+        ),
+        ("additional_copy", additional_copy),
+        ("refinement", refinement),
+        ("sequence", sequence),
+    )
+    return tuple(
+        stage
+        for stage, rows in stages
+        if failed.intersection(
+            ExecutionStatus(cast(str, row.get("execution_status"))) for row in rows
+        )
+    )
 
 
 def run_m6_select_finalists_task(
@@ -2704,6 +2770,17 @@ def run_m6_assemble_case_task(
     duplicate_outcome = _duplicate_locus_outcome(fault, sources)
     if duplicate_outcome is not None:
         scientific_status, typed_outcome = duplicate_outcome
+    failures = _native_failure_stages(
+        first_copy=tuple(first_rows),
+        additional_copy=tuple(item.model_dump(mode="json") for item in copy_rows),
+        refinement=tuple(item.model_dump(mode="json") for item in refinements),
+        sequence=tuple(sequence_summaries),
+    )
+    if failures:
+        execution_status = "failed"
+        scientific_status = "not_assessed"
+        typed_outcome = "native_execution_incomplete"
+        failure_class = "native_child_failure:" + ",".join(failures)
     policy = case / "policy_bundle/policy"
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)

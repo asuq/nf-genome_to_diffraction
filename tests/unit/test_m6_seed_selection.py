@@ -14,6 +14,8 @@ from genome_to_diffraction.benchmarks.m6_advancement import (
 from genome_to_diffraction.benchmarks.m6_nextflow import (
     M6CaseTask,
     run_m6_add_copy_task,
+    run_m6_assemble_case_task,
+    run_m6_empty_finalists_task,
     run_m6_select_seeds_task,
 )
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
@@ -22,6 +24,7 @@ from genome_to_diffraction.ids import canonical_json_text
 from genome_to_diffraction.matthews.probability import homooligomer_copy_probability
 from genome_to_diffraction.mr.add_copy import run_additional_copy_series
 from genome_to_diffraction.mr.phaser import PhaserInputError
+from genome_to_diffraction.status import TransientInfrastructureError
 from tests.unit.test_add_copy_phaser import POSITIVE_LOG, _fake_runtime
 from tests.unit.test_add_copy_phaser import _request as _copy_request
 from tests.unit.test_mr_seed_review import _request as _review_request
@@ -224,3 +227,87 @@ def test_benchmark_authority_uses_shared_copy_execution_and_binds_command_identi
     )
     assert command["search_model_sha256"] == seed["search_model_sha256"]
     assert command["parent_coordinate_sha256"] != command["search_model_sha256"]
+
+
+@pytest.mark.parametrize(
+    "native_exit,resource_attempt,retries",
+    [(75, 1, True), (75, 2, False), (1, 1, False)],
+)
+def test_m6_copy_chain_retries_only_explicit_first_transient_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    native_exit: int,
+    resource_attempt: int,
+    retries: bool,
+) -> None:
+    case, result = _case(tmp_path, expected_copies=2)
+    seeds = run_m6_select_seeds_task(case, (result,), tmp_path / "seeds")
+    seed = json.loads((seeds / "seed_tasks.jsonl").read_text())
+    inputs = _copy_request(tmp_path / "copy-inputs", expected_copy_count=2)
+    preflight = json.loads(inputs.preflight_jsonl.read_text())
+    preflight["crystal_id"] = "M6C001"
+    preflight_path = case / "preflight_bundle/preflight/mtz_preflight.jsonl"
+    preflight_path.parent.mkdir(parents=True)
+    preflight_path.write_text(json.dumps(preflight) + "\n")
+    eligible = case / "eligible-candidates"
+    eligible.mkdir()
+    shutil.copy2(inputs.sequence_groups_jsonl, eligible / "sequence_groups.jsonl")
+    shutil.copy2(inputs.mtz, case / "reflections.mtz")
+    _fake_runtime(
+        monkeypatch,
+        log_text="native failure\n",
+        write_solution=False,
+        returncode=native_exit,
+    )
+    output = tmp_path / "advanced"
+
+    def run() -> Path:
+        return run_m6_add_copy_task(
+            case,
+            seeds,
+            seed["seed_solution_id"],
+            inputs.phenix_manifest,
+            output,
+            threads=16,
+            resource_attempt=resource_attempt,
+        )
+
+    if retries:
+        with pytest.raises(TransientInfrastructureError, match="single retry"):
+            run()
+    else:
+        assert run() == output
+    retained = json.loads((output / "additional_copy_series_results.jsonl").read_text())
+    assert retained["execution_status"] == "failed_tool_execution"
+    assert retained["execution_failure"]["native_exit_code"] == native_exit
+    assert retained["best_supported_copy_count"] == 1
+
+
+@pytest.mark.parametrize(
+    "status,expected",
+    [
+        ("completed_no_hit", "completed"),
+        ("failed_tool_execution", "failed"),
+        ("failed_parse", "failed"),
+    ],
+)
+def test_m6_case_keeps_no_hit_separate_from_native_first_copy_failure(
+    tmp_path: Path,
+    status: str,
+    expected: str,
+) -> None:
+    case, result = _case(tmp_path, hit=False)
+    for name in ("normalised_mr_result.json", "normalised_mr_result.jsonl"):
+        path = result / name
+        record = json.loads(path.read_text())
+        record["execution_status"] = status
+        path.write_text(json.dumps(record) + "\n")
+    seeds = run_m6_select_seeds_task(case, (result,), tmp_path / "seeds")
+    finalists = run_m6_empty_finalists_task(case, seeds, tmp_path / "finalists")
+    output = run_m6_assemble_case_task(case, finalists, (), tmp_path / "evidence")
+    record = json.loads((output / "case_record.json").read_text())
+    assert record["execution_status"] == expected
+    if expected == "failed":
+        assert record["typed_outcome"] == "native_execution_incomplete"
+        assert record["failure_class"] == "native_child_failure:first_copy"
+        assert record["scientific_status"] == "not_assessed"

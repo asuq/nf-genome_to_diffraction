@@ -3,7 +3,12 @@
 import json
 from pathlib import Path
 
-from genome_to_diffraction.benchmarks.m6_nextflow import run_m6_assemble_case_task
+import pytest
+
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    M6CaseEvidence,
+    run_m6_assemble_case_task,
+)
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.ids import sequence_digest
 
@@ -273,13 +278,20 @@ def _tree_digest(root: Path) -> tuple[tuple[str, str], ...]:
     )
 
 
+@pytest.mark.parametrize("sequence_failed", [False, True])
 def test_case_assembly_is_byte_identical_under_refinement_completion_order(
     tmp_path: Path,
+    sequence_failed: bool,
 ) -> None:
     case, seed_rows = _write_case_bundle(tmp_path / "case")
     finalists = _write_finalist_bundle(tmp_path / "finalists", seed_rows)
     first = _write_refinement(tmp_path / "refinement-b", seed_rows[1])
     second = _write_refinement(tmp_path / "refinement-a", seed_rows[0])
+    if sequence_failed:
+        path = first / "t12/sequence_map_result.json"
+        sequence = json.loads(path.read_text())
+        sequence["execution_status"] = "failed_parse"
+        _write_json(path, sequence)
 
     forward = run_m6_assemble_case_task(
         case,
@@ -297,3 +309,13 @@ def test_case_assembly_is_byte_identical_under_refinement_completion_order(
     assert _tree_digest(forward) == _tree_digest(reverse)
     refinements = (forward / "refinement_results.jsonl").read_text(encoding="utf-8")
     assert refinements.index("sol_a") < refinements.index("sol_b")
+    record = json.loads((forward / "case_record.json").read_text())
+    assert record["execution_status"] == "failed"
+    assert record["typed_outcome"] == "native_execution_incomplete"
+    assert record["failure_class"] == "native_child_failure:refinement" + (
+        ",sequence" if sequence_failed else ""
+    )
+    record["execution_status"] = "completed"
+    record["failure_class"] = None
+    with pytest.raises(ValueError, match="native child failures"):
+        M6CaseEvidence.model_validate(record)

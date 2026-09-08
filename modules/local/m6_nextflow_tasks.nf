@@ -353,6 +353,7 @@ process M6_ADDITIONAL_COPY {
         --seed-solution-id '${item[2]}' \
         --phenix-manifest '${item[5]}' \
         --threads '${task.cpus}' \
+        --resource-attempt '${task.attempt}' \
         --outdir m6_add_copy_result
     """
 

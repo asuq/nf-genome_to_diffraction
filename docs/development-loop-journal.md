@@ -15784,3 +15784,22 @@ with a collapsed combined parent or a guessed command.
 - Next finish M6 failure accounting and the frozen comparison harness, extend
   only the required Raven qualification operations, then reconcile and execute
   the complete locked release gate.
+
+## 2026-09-07 - Retain M6 native failures and bounded copy retries
+
+- M6 copy chains now pass the actual resource attempt to shared execution and
+  propagate only an explicitly retryable first failure to the existing single
+  retry. Deterministic and exhausted attempts retain their native status and
+  parent evidence for case assembly.
+- Any failed MR, copy, refinement or sequence stage marks the case as failed
+  with an incomplete native-execution outcome and explicit failed-stage names.
+  The case contract rejects a forged completed status; completed no-hit remains
+  a completed scientific outcome. Current unpublished v3 M6 identities cover
+  these integrated production-decision semantics.
+- Validation: 75 focused M6 checks passed initially; the one failing synthetic
+  collector fixture lacked a native status and was corrected. All 15 affected
+  collector, selection, retry and assembly regressions then passed. Focused
+  lint and type checks passed. Native Raven qualification remains outstanding.
+- Next implement the frozen four-arm comparison through the shared admission,
+  review and copy execution boundaries, then complete Raven qualification
+  preparation and the integrated locked release gate.

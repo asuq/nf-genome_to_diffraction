@@ -500,7 +500,7 @@ def _synthetic_decision_trace(raw: dict[str, object]) -> dict[str, object]:
                     "sequence_group_id": seed["sequence_group_id"],
                     "model_id": f"model_{case_id}_{index}",
                 },
-                "result": {},
+                "result": {"execution_status": "completed_hit"},
             }
             first.append(match)
         seed.setdefault("seed_solution_id", f"seed_{case_id}_{index}")
