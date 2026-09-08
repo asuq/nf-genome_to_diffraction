@@ -98,6 +98,25 @@ follow-up. This is future v0.4 scope only; it does not change v0.3 execution,
 approve current seeds, or authorise new scientific jobs. Implementation and
 acceptance criteria are in docs/v0.3-v0.4-development-plan.md (BR01/WP3).
 
+The user also assigned AF01 and AF02 to the v0.4 plan. AFDB Foldseek is a
+fallback after suitable experimental-template routes, ideally using an
+AlphaFold-predicted monomer of the original catalogue sequence as its query.
+Development of the new original-sequence prediction/fallback component is
+deferred until suitable GPU access is available. Preserve pLDDT/PAE and genuine
+coordinate-based TM-score provenance; do not invent TM-scores for ProstT5-only
+queries. Independently, the end-of-screening exact-sequence AlphaFold-model MR
+check applies to retained finalists, including those first screened with PDB
+models, not every screened candidate. These requirements do not authorise AF3
+complex/stoichiometry inference or automatically approve any candidate.
+
+Separately, the user requested an immediate Raven initial-MR screen with the
+already retrieved exact-sequence AFDB models for the unknown crystals. This
+does not require new GPU folding. Qualify predicted-model preparation and its
+integration in the current identification profile before execution; preserve
+the completed PDB screen, initial-copy/tNCS policy and human-review gates. Do
+not claim that the deferred AFDB Foldseek fallback or automatic finalist check
+has been implemented by running this bounded supplied-model cohort.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

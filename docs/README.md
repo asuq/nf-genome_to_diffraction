@@ -8,7 +8,9 @@ remain authoritative for scientific policy and interface contracts.
 
 - [Consolidated v0.3 release gates and v0.4 development plan](v0.3-v0.4-development-plan.md):
   five pre-release gates, the original 52 mapped requirements plus v0.4 BR01
-  (brief refinement before final candidate filtering), implementation dependencies,
+  (pre-review brief refinement), AF01 (GPU-deferred original-sequence-model AFDB
+  Foldseek fallback) and AF02 (exact-sequence AlphaFold MR for retained finalists),
+  implementation dependencies,
   direct-fix and simplification rules, acceptance criteria, and scoped handoff
   guidance. Private operational inputs and results remain outside Git.
 - [Sanitised v0.3 development handoff](v0.3-development-handoff.md): current
