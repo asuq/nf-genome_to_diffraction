@@ -15894,3 +15894,21 @@ with a collapsed combined parent or a guessed command.
   RG7/pass-2 sequence. Main merges, tags and publication remain separately
   authorised. The detailed local evidence and limitations are recorded in
   `docs/v0.3-fix-integration-report-2026-09-08.md`.
+
+## 2026-09-08 - Publish and CI-qualify the isolated release fixes
+
+- The user explicitly authorised the release-branch push. Implementation
+  commit `394bccd0004b124981b567240a2fc93095896713` is available from the private
+  origin on `release/v0.3-fixes`; no main merge, release tag or publication ran.
+- Exact-source CI `34212338189` passed all seven lanes: quality, unit,
+  integration, core Nextflow workflows, both scientific-stub groups and the
+  ranking comparison. The retained API response and validated CI record bind
+  the exact source, run and successful job identities. Native scientific
+  acceptance remains outstanding.
+- This evidence-only follow-up changes no executable code and receives its own
+  CI before hand-off. The implementation report and mandatory-gate context now
+  name the observed source/CI evidence rather than a future qualification.
+- Next receive the owner's authenticated FS-G1 accounting and terminal pass-1
+  reviews, then continue the approved canonical cleanup and fresh controls/M6
+  programme before closure and RG7-gated pass 2. The owner's full screen and
+  predecessor evidence recovery remain under its existing ownership.
