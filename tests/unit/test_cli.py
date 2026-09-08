@@ -35,7 +35,7 @@ def test_version_flag_exits_successfully(
     with pytest.raises(SystemExit) as error:
         main(["--version"])
     assert error.value.code == 0
-    assert capsys.readouterr().out.strip() == "0.2.0"
+    assert capsys.readouterr().out.strip() == "0.3.0.dev0"
 
 
 @pytest.mark.parametrize("action", ("build-status", "build-report"))

@@ -16,9 +16,10 @@ from genome_to_diffraction.hpc.raven_m6 import (
     operational_precheck,
     validate_operational_parent,
 )
+from genome_to_diffraction.schemas.raven import QualificationStage
 
 
-def _launch(root: Path, stage: str = "control-first-copy"):
+def _launch(root: Path, stage: QualificationStage = "control-first-copy"):
     source = root / "sources" / ("a" * 40)
     source.mkdir(parents=True)
     (source / "external/nf-helper").mkdir(parents=True)
@@ -469,7 +470,10 @@ def test_full_m6_collector_accepts_real_raven_record_shape(tmp_path):
         original = root / "artifacts/qualification"
         output = root / "qualification"
         shutil.copytree(original, output)
-        _, spec = _launch(tmp_path / f"launch-{track}", f"m6-{track}")
+        _, spec = _launch(
+            tmp_path / f"launch-{track}",
+            "m6-operational" if track == "operational" else "m6-leakage",
+        )
         summary = json.loads((output / "m6-scientific-summary.json").read_text())
         inputs = summary["input_sha256"]
         updates = {

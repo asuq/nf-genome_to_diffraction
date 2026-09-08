@@ -10,6 +10,17 @@ import pytest
 from genome_to_diffraction.checksums import sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text
+from genome_to_diffraction.matthews.enumerate import (
+    physical_status,
+    solvent_review_reasons,
+)
+from genome_to_diffraction.matthews.probability import (
+    MINIMUM_REFERENCE_RECORDS,
+    PRIOR_BACKEND,
+    REFERENCE_RESOURCE_SHA256,
+    homooligomer_copy_probability,
+    probability_distribution,
+)
 from genome_to_diffraction.ranking import (
     ApprovedPartnerPlanRequest,
     PartnerPlanInputError,
@@ -52,6 +63,7 @@ def _matthews(
     assert mass is not None
     coefficient = 250000.0 / mass
     solvent = 1.0 - 1.23 / coefficient
+    empirical = probability_distribution(2.0)
     return MatthewsHypothesis.model_validate(
         {
             "schema_version": "1.0",
@@ -64,11 +76,23 @@ def _matthews(
             "v_asu_a3": 250000.0,
             "matthews_coefficient": coefficient,
             "solvent_fraction": solvent,
-            "matthews_prior": 0.5,
-            "prior_backend": "synthetic",
+            "matthews_prior": empirical.single_component_prior(1, solvent),
+            "solvent_density": empirical.score(solvent),
+            "copy_frequency_factor": homooligomer_copy_probability(1),
+            "prior_reference_record_count": empirical.reference_record_count,
+            "prior_minimum_reference_records": MINIMUM_REFERENCE_RECORDS,
+            "prior_reference_resource_sha256": REFERENCE_RESOURCE_SHA256,
+            "configured_solvent_fraction_min": 0.30,
+            "configured_solvent_fraction_max": 0.80,
+            "review_reasons": solvent_review_reasons(
+                solvent, solvent, minimum=0.30, maximum=0.80
+            ),
+            "prior_backend": PRIOR_BACKEND,
             "rank_within_candidate": 1,
             "retained": True,
-            "physical_status": "review",
+            "physical_status": physical_status(
+                solvent, solvent, minimum=0.30, maximum=0.80
+            ),
             "sds_page_nearest_band_kda": 20.0 if label != "unavailable" else None,
             "sds_page_absolute_difference_kda": (
                 0.5 if label != "unavailable" else None
@@ -195,6 +219,7 @@ def test_partner_plan_caps_first_wave_and_retains_every_reason(tmp_path: Path) -
     output = build_partner_search_plan(request)
 
     plan = output.plan
+    assert plan.adapter_version == "catalogue-partner-plan-v3-nonnegative-solvent"
     assert plan.candidate_count == 28
     assert plan.searchable_candidate_count == 26
     assert plan.selected_attempt_count == 25

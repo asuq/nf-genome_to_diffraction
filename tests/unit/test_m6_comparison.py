@@ -217,7 +217,9 @@ def test_comparison_freezes_complete_empty_case_accounting_and_rejects_mutation(
     assert validated["continuation_chain_count"] == 0
     assert validated["additional_copy_attempt_budget"] == 0
     assert validated["continuation_authorised"] is True
-    assert len(validated["arms"]) == 48
+    arms = validated["arms"]
+    assert isinstance(arms, list)
+    assert len(arms) == 48
     (seeds[0] / "first-copy-results/changed-native.log").write_text("changed\n")
     with pytest.raises(ValueError, match="identical native evidence"):
         freeze_m6_comparison_advancement(

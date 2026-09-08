@@ -15863,3 +15863,34 @@ with a collapsed combined parent or a guessed command.
   FS-G1/pass-1 evidence was received. Next reconcile active schemas, cache
   identities, examples, unreleased package metadata and atlas, then run the
   complete locked integration gate before exact-source CI and native work.
+
+## 2026-09-08 - Complete the local v0.3 fix integration gate
+
+- Reconciled the current M6 contracts across wrappers, stubs and collectors,
+  retaining explicit historical readers. Moved the pure Raven ownership model
+  and terminal evidence reader into the installed package so the public
+  collector does not import the excluded internal HPC implementation.
+- The runtime audit removed the remaining whole-file refinement/sequence-log
+  reads. Bounded parsers preserve final metrics, reject malformed evidence and
+  keep native failures distinct. The two indirect physical-status consumers
+  now carry changed partner-plan and component-generation cache identities.
+- Active metadata reports `0.3.0.dev0`. Current documentation, finding rows and
+  the 428-file atlas reflect the integrated contracts; v0.2 release history
+  remains unchanged. Canonical executable renaming remains sequenced after the
+  owner's completed pass-1 evidence and required reviews.
+- The complete locked gate passed: 1,610 unit, 152 contract and 100 integration
+  tests, real Nextflow stubs/failure/reopening/cache/comparison checks,
+  schema/example parity, documentation/atlas, syntax and offline installation.
+  The wheel exposes one CLI and ten schemas. Follow-up checks verified all five
+  shell wrappers independently and preserved complete CI lane coverage.
+  Integration repaired stale fixtures, test-directory/lint traversal and
+  package-import boundaries rather than weakening scientific assertions.
+- Read-only checks authenticated the owner's completed Raven pilot and actual
+  task allocations under its original `2aea38b1010e` source. Its full screen
+  remains owned elsewhere and running; terminal FS-G1 accounting and applicable
+  pass-1 reviews are still pending. No release-source native science ran.
+- Next obtain exact-source CI for the committed release branch, then follow
+  the approved owner-evidence, canonical-cleanup, controls/M6, closure and
+  RG7/pass-2 sequence. Main merges, tags and publication remain separately
+  authorised. The detailed local evidence and limitations are recorded in
+  `docs/v0.3-fix-integration-report-2026-09-08.md`.

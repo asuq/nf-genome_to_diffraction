@@ -14,6 +14,8 @@ file-based human decisions without treating any single score as proof.
 > supports the bounded two-component form `ASU = nA + mB`. Unreleased
 > candidate-confidence and general-composition development now continues on
 > `main` toward `v0.3.0`; it is not part of the `v0.2.0` release contract.
+> The isolated release-fix package reports `0.3.0.dev0`; this development
+> identifier does not establish release or scientific qualification.
 
 ## Documentation
 
@@ -160,11 +162,15 @@ pixi run --locked genome-to-diffraction matthews enumerate \
 ```
 
 Matthews estimates are physical priors, not identity evidence. The active
-development line derives each candidate's complete copy range from ASU volume,
-sequence mass, and solvent bounds; it has no configured copy ceiling. Its
+development line derives each candidate's complete copy range from ASU volume
+and full sequence mass, through `floor(V_ASU / (1.23 * lower_sequence_mass))`.
+Configured solvent bounds are review preferences, and the zero-solvent model
+boundary remains selectable. Its
 checksum-pinned empirical prior combines resolution-conditioned solvent density
 with a soft observed-copy-frequency weight, while retaining even zero-weight
-states for review. See the [Matthews method and limits](docs/matthews-probability.md).
+states for review. Density, copy weight, product, reference support and window
+reasons remain explicit; insufficient reference support fails without an
+invented prior. See the [Matthews method and limits](docs/matthews-probability.md).
 
 ### 4. Continue to structural search and MR
 

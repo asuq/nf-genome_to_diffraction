@@ -1,6 +1,6 @@
 [workspace]
 name = "nf-genome_to_diffraction"
-version = "0.2.0"
+version = "0.3.0.dev0"
 description = "Foundation for genome-to-diffraction protein candidate identification"
 authors = ["Akito Shima"]
 channels = ["conda-forge", "bioconda"]
@@ -60,11 +60,11 @@ format = "ruff format src tests"
 format-check = "ruff format --check src tests"
 lint = "ruff check src tests"
 typecheck = "ty check"
-test-unit = "pytest -n auto --dist loadgroup --basetemp=.cache/pytest/unit -q tests/unit"
-test-unit-serial = "pytest --basetemp=.cache/pytest/unit-serial -q tests/unit"
-test-contract = "pytest --basetemp=.cache/pytest/contract -q tests/contract"
-test-integration = "pytest -n auto --dist worksteal --basetemp=.cache/pytest/integration -q tests/integration"
-test-integration-serial = "pytest --basetemp=.cache/pytest/integration-serial -q tests/integration"
+test-unit = "pytest -n auto --dist loadgroup --basetemp=.pytest-tmp-unit -q tests/unit"
+test-unit-serial = "pytest --basetemp=.pytest-tmp-unit-serial -q tests/unit"
+test-contract = "pytest --basetemp=.pytest-tmp-contract -q tests/contract"
+test-integration = "pytest -n auto --dist worksteal --basetemp=.pytest-tmp-integration -q tests/integration"
+test-integration-serial = "pytest --basetemp=.pytest-tmp-integration-serial -q tests/integration"
 test = { depends-on = ["test-unit", "test-contract", "test-integration"] }
 check-fast = { depends-on = ["format-check", "lint", "typecheck", "test-unit", "test-contract", "schema-check", "docs-check"] }
 schema-check = "genome-to-diffraction schema-check"
@@ -86,7 +86,7 @@ phase3-multicrystal-stub = "python -m tests.scripts.check_multicrystal_fanout"
 phase3-foldseek-batch-stub = "python -m tests.scripts.check_phase3_foldseek_batches"
 provider-empty-graph-stub = "python -m tests.scripts.check_provider_empty_graph"
 offline-wheel-check = "python -m tests.scripts.check_offline_wheel --repository ."
-hpc-wrapper-check = "bash -n bootstrap/nf-gtd-hpc-remote bootstrap/nf-gtd-hpc-smoke-job bootstrap/nf-gtd-hpc-recover-tools bootstrap/nf-gtd-worker-offline-shell"
+hpc-wrapper-check = '''bash -c 'for gtd_script in "$@"; do bash -n "$gtd_script" || exit $?; done' -- bootstrap/nf-gtd-hpc-remote bootstrap/nf-gtd-hpc-smoke-job bootstrap/nf-gtd-hpc-recover-tools bootstrap/nf-gtd-worker-offline-shell bootstrap/nf-gtd-raven-dispatch'''
 mr-resource-retry-check = "python -m tests.scripts.check_mr_resource_retry"
 nf-gtd-hpc-test = "python -m genome_to_diffraction.hpc.cli"
 nf-gtd-raven = "python -m genome_to_diffraction.hpc.raven_client"

@@ -1,6 +1,7 @@
 """Focused final-metric and sequence-parse gates for brief refinement."""
 
 import hashlib
+import tracemalloc
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,9 @@ from genome_to_diffraction.refinement.brief import (
     T12InputError,
     _assess_refinement_completion,
     _classify_sequence_output,
+    _log_lines,
     _prepare_attempt_directory,
+    _refinement_metrics,
 )
 from genome_to_diffraction.schemas.results import (
     BriefRefinementResult,
@@ -19,6 +22,61 @@ from genome_to_diffraction.schemas.results import (
 )
 
 _SHA = "a" * 64
+
+
+def test_native_log_parsing_does_not_retain_unrelated_output(tmp_path: Path) -> None:
+    log = tmp_path / "native.log"
+    with log.open("w", encoding="ascii") as handle:
+        handle.write("Start r_work = 0.4120 r_free = 0.4560\n")
+        for _ in range(10_000):
+            handle.write("unrelated progress " + "x" * 1024 + "\n")
+        handle.write("Final R-work = 0.3110 R-free = 0.3680\n")
+        handle.write("RMS bonds = 0.014\nRMS angles = 1.72\n")
+        handle.write("Overall best Z-score: 0.0\n\n")
+        handle.write("Mean and SD of scores: 0.0 +/- 1.0\n")
+
+    tracemalloc.start()
+    try:
+        metrics = _refinement_metrics(_log_lines(log))
+        sequence = _classify_sequence_output(
+            _log_lines(log),
+            refinement_id="refine_test",
+            groups={},
+            crosswalk={},
+        )
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert metrics == (0.412, 0.456, 0.311, 0.368, 0.014, 1.72)
+    assert sequence[0] is ExecutionStatus.COMPLETED_NO_HIT
+    assert peak < 2 * 1024 * 1024
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        b"x" * 1_048_577,
+        b"\xff\n",
+        b"Overall best Z-score: 0.0\nunrelated output\n"
+        b"Mean and SD of scores: 0.0 +/- 1.0\n",
+        b"Overall best Z-score: 0.0 Mean and SD of scores: 0.0 +/- 1.0\n" * 2,
+    ),
+    ids=("oversized-line", "invalid-utf8", "separated-summary", "repeated-summary"),
+)
+def test_malformed_stream_remains_a_typed_parse_failure(
+    tmp_path: Path, payload: bytes
+) -> None:
+    log = tmp_path / "native.log"
+    log.write_bytes(payload)
+    result = _classify_sequence_output(
+        _log_lines(log),
+        refinement_id="refine_test",
+        groups={},
+        crosswalk={},
+    )
+    assert result[0] is ExecutionStatus.FAILED_PARSE
+    assert result[1] == ()
 
 
 def test_t12_attempt_directory_refuses_stale_outputs(tmp_path: Path) -> None:
@@ -127,7 +185,7 @@ def test_unknown_sequence_from_map_group_becomes_typed_parse_failure() -> None:
     )
 
     status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
-        text,
+        text.splitlines(keepends=True),
         refinement_id="refine_test",
         groups={group_id: group},
         crosswalk={group_id: (("source_01",), ("locus_01",))},
@@ -170,7 +228,7 @@ def test_malformed_sequence_output_cannot_become_scientific_no_hit(
     )
 
     status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
-        text,
+        text.splitlines(keepends=True),
         refinement_id="refine_test",
         groups={group_id: group},
         crosswalk={group_id: (("source_01",), ("locus_01",))},
@@ -202,7 +260,7 @@ def test_sequence_score_requires_complete_finite_summary() -> None:
     )
 
     status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
-        text,
+        text.splitlines(keepends=True),
         refinement_id="refine_test",
         groups={group_id: group},
         crosswalk={group_id: (("source_01",), ("locus_01",))},
@@ -230,7 +288,7 @@ def test_explicit_zero_score_summary_remains_scientific_no_hit() -> None:
     )
 
     status, candidates, best, mean, sd, best_z, warnings = _classify_sequence_output(
-        "Overall best Z-score: 0.0  Mean and SD of scores: 0.0 +/- 1.0\n",
+        ("Overall best Z-score: 0.0  Mean and SD of scores: 0.0 +/- 1.0\n",),
         refinement_id="refine_test",
         groups={group_id: group},
         crosswalk={group_id: (("source_01",), ("locus_01",))},

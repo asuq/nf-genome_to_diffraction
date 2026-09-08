@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 ## Unreleased
 
+Development metadata is `0.3.0.dev0`. Native qualification, finding closure and
+publication readiness remain pending.
+
+- Bind MR review to the selected Phaser solution's metrics, packing, copy state
+  and coordinate/MTZ evidence, with explicit coupled-tNCS interpretation.
+- Retain the complete acquired-model hypothesis inventory and permit reviewed,
+  bounded reopening. Enumerate the declared nonnegative-solvent copy range
+  independently of solvent preferences and export the empirical prior factors.
+- Preserve reviewed diffraction and Free-R authority through continuation;
+  retain failed and missing searches, all parent outcomes, and residual
+  uncertainty independently of the supported copy count.
+- Stream native Phenix output, retain timeout diagnostics, terminate process
+  descendants and propagate the existing single retry for classified failures.
+- Reuse production admission, review and copy execution in M6, with explicit
+  benchmark advancement authority and a bounded four-arm comparison. The full
+  frozen 63-case acceptance criteria are unchanged.
+- Add fixed Raven qualification routes bound to source, CI, migration evidence,
+  inputs and actual task allocations. Keep one installed public CLI and require
+  FS-G1 and RF-G1--RF-G4 in release closure.
+
 ## 0.2.0 - 2026-08-23
 
 ### Changed

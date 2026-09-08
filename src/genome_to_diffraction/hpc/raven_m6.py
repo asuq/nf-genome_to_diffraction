@@ -25,6 +25,10 @@ from genome_to_diffraction.benchmarks.m6_execution import (
     collect_m6_resource_evidence,
     m6_process_name,
 )
+from genome_to_diffraction.benchmarks.m6_raven import (
+    collection_manifest,
+    operational_precheck,
+)
 from genome_to_diffraction.benchmarks.m6_scientific import verify_m6_scientific_output
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.hpc.raven_qualification import (
@@ -32,14 +36,7 @@ from genome_to_diffraction.hpc.raven_qualification import (
     confined,
     load_parameters,
 )
-from genome_to_diffraction.ids import canonical_digest
 
-_PRECHECK_PATHS = (
-    "launch.json",
-    "state.json",
-    "qualification/m6-scientific-summary.json",
-    "qualification/m6-scientific-checksums.sha256",
-)
 _OUTPUTS = {
     "m6_scientific_summary.json": "m6-scientific-summary.json",
     "m6_execution_verification.json": "m6-execution-verification.json",
@@ -48,94 +45,6 @@ _OUTPUTS = {
     "m6_model_policy_results.jsonl": "m6-model-policy-results.jsonl",
     "m6_sequence_summary.jsonl": "m6-sequence-summary.jsonl",
 }
-
-
-def operational_precheck(root: Path) -> str:
-    """Hash the completed login-run authority consumed by its leakage child."""
-
-    files = {}
-    for name in _PRECHECK_PATHS:
-        path = root / name
-        if path.is_symlink() or not path.is_file():
-            raise ValueError("Raven M6 operational precheck is incomplete")
-        files[name] = sha256_file(path)
-    return canonical_digest(files)
-
-
-def collection_manifest(root: Path) -> dict[str, object]:
-    """Verify a terminal Raven record, then project its observed provenance."""
-
-    from genome_to_diffraction.hpc.raven_identification import _status
-
-    spec = RavenQualificationLaunch.model_validate_json(
-        (root / "launch.json").read_text()
-    )
-    status = _status(root, spec)
-    if spec.stage not in {"m6-operational", "m6-leakage"} or (
-        status["state"] != "COMPLETED" or status.get("exit_code") != 0
-    ):
-        raise ValueError("Raven M6 collection lacks a completed owned controller")
-    qualification = root / "qualification"
-    declared = set()
-    checksum_path = qualification / "m6-scientific-checksums.sha256"
-    for line in checksum_path.read_text().splitlines():
-        digest, relative = line.split("  ", 1)
-        path = Path(relative)
-        if (
-            path.is_absolute()
-            or ".." in path.parts
-            or str(path) != relative
-            or relative in declared
-            or (qualification / path).is_symlink()
-            or sha256_file(qualification / path) != digest
-        ):
-            raise ValueError("Raven M6 collected qualification checksum changed")
-        declared.add(relative)
-    actual = {
-        p.relative_to(qualification).as_posix()
-        for p in qualification.rglob("*")
-        if p.is_file() and p != checksum_path
-    }
-    if not declared or actual != declared:
-        raise ValueError("Raven M6 qualification snapshot is incomplete")
-    parameters = json.loads(
-        (root / "qualification/m6-input-provenance.json").read_text()
-    )
-    if (
-        parameters.get("run_id") != spec.run_id
-        or parameters.get("input_id") != spec.input_id
-        or parameters.get("runner_archive_sha256") != spec.runner_archive_sha256
-        or parameters.get("software_lock_sha256") != spec.pixi_lock_sha256
-    ):
-        raise ValueError("Raven M6 collected inputs differ from their launch")
-    summary = json.loads((qualification / "m6-scientific-summary.json").read_text())
-    inputs = summary.get("input_sha256")
-    if not isinstance(inputs, dict) or any(
-        inputs.get(key) != value
-        for key, value in {
-            "phenix_manifest": spec.phenix_manifest_sha256,
-            "database_manifest": parameters["database_manifest_sha256"],
-            "runner_manifest": parameters["runner_manifest_sha256"],
-        }.items()
-    ):
-        raise ValueError("Raven M6 scientific inputs differ from their launch")
-    return {
-        "run_id": spec.run_id,
-        "site_id": "raven",
-        "profile": spec.stage,
-        "controller_kind": "login_process",
-        "commit": spec.source_commit,
-        "nf_helper_commit": spec.nf_helper_commit,
-        "pixi_version": spec.pixi_version,
-        "pixi_lock_sha256": spec.pixi_lock_sha256,
-        "database_manifest_sha256": parameters["database_manifest_sha256"],
-        "runner_archive_sha256": spec.runner_archive_sha256,
-        "runner_manifest_sha256": parameters["runner_manifest_sha256"],
-        "operational_parent_run_id": (
-            spec.operational_parent_run.name if spec.operational_parent_run else None
-        ),
-        "operational_precheck_sha256": spec.operational_precheck_sha256,
-    }
 
 
 def validate_operational_parent(root: Path, spec: RavenQualificationLaunch) -> None:

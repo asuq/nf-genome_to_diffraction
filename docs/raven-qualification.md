@@ -12,7 +12,8 @@ Phenix, native Raven, M6, unknown-crystal or release acceptance.
 ## Source, site and input authority
 
 Identification keeps its existing schema-1.0 launch. Release qualification uses
-the separate `RavenQualificationLaunch` schema-2.0 record in
+the separate `RavenQualificationLaunch` schema-2.0
+[ownership contract](../src/genome_to_diffraction/schemas/raven.py), validated by
 [raven_qualification.py](../src/genome_to_diffraction/hpc/raven_qualification.py).
 Store identical private local `run.json` and remote `launch.json` records using
 the existing client configuration and run ownership. No migration or scientific

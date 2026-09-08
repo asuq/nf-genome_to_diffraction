@@ -29,6 +29,7 @@ import hashlib
 import logging
 import math
 import re
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -79,6 +80,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 _LOGGER = logging.getLogger("genome_to_diffraction.refinement.brief")
 _PROTOCOL_VERSION = "phenix-t12-brief-v7-streamed"
 _PHASE3_PROTOCOL_VERSION = "phenix-t12-brief-v11-streamed"
+_MAXIMUM_LOG_LINE_CHARACTERS = 1_048_576
 _R_VALUES = re.compile(
     r"(?:R[-_ ]?work|r_work)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)"
     r"[^\n]{0,120}?(?:R[-_ ]?free|r_free)\s*[=:]\s*([0-9]+(?:\.[0-9]+)?)",
@@ -99,6 +101,9 @@ _SCORE_SUMMARY = re.compile(
     r"Mean and SD of scores:\s*(-?[0-9]+(?:\.[0-9]+)?)\s+\+/-\s+"
     r"([0-9]+(?:\.[0-9]+)?)",
     re.I,
+)
+_SCORE_SUMMARY_FIRST_LINE = re.compile(
+    r"Overall best Z-score:\s*-?[0-9]+(?:\.[0-9]+)?\s*$", re.I
 )
 
 
@@ -484,28 +489,36 @@ def _phase3_refinement_selection_arguments(
     )
 
 
-def _refinement_metrics(text: str) -> tuple[float | None, ...]:
-    matches = [(float(a), float(b)) for a, b in _R_VALUES.findall(text)]
-    bonds = [float(value) for value in _RMS_BONDS.findall(text)]
-    angles = [float(value) for value in _RMS_ANGLES.findall(text)]
-    if not matches:
-        return (
-            None,
-            None,
-            None,
-            None,
-            bonds[-1] if bonds else None,
-            angles[-1] if angles else None,
-        )
-    initial = matches[0]
-    final = matches[-1]
+def _log_lines(path: Path) -> Iterator[str]:
+    """Read retained native evidence with a bounded line buffer and strict UTF-8."""
+
+    with path.open(encoding="utf-8") as handle:
+        while line := handle.readline(_MAXIMUM_LOG_LINE_CHARACTERS + 1):
+            if len(line) > _MAXIMUM_LOG_LINE_CHARACTERS:
+                raise T12InputError("Phenix log line exceeds 1048576 characters")
+            yield line
+
+
+def _refinement_metrics(lines: Iterable[str]) -> tuple[float | None, ...]:
+    initial: tuple[float | None, float | None] = (None, None)
+    final: tuple[float | None, float | None] = (None, None)
+    bonds = angles = None
+    for line in lines:
+        for match in _R_VALUES.finditer(line):
+            final = (float(match[1]), float(match[2]))
+            if initial == (None, None):
+                initial = final
+        for match in _RMS_BONDS.finditer(line):
+            bonds = float(match[1])
+        for match in _RMS_ANGLES.finditer(line):
+            angles = float(match[1])
     return (
         initial[0],
         initial[1],
         final[0],
         final[1],
-        bonds[-1] if bonds else None,
-        angles[-1] if angles else None,
+        bonds,
+        angles,
     )
 
 
@@ -534,7 +547,7 @@ def _source_crosswalk(
 
 
 def _sequence_candidates(
-    text: str,
+    lines: Iterable[str],
     *,
     refinement_id: str,
     groups: dict[str, SequenceGroupRecord],
@@ -546,15 +559,27 @@ def _sequence_candidates(
     float | None,
     float | None,
 ]:
-    summaries = list(_SCORE_SUMMARY.finditer(text))
-    if len(summaries) != 1:
-        raise T12InputError("sequence-from-map output lacks one complete score summary")
-    best_z, mean, sd = (float(value) for value in summaries[0].groups())
-    if not all(math.isfinite(value) for value in (best_z, mean, sd)) or sd < 0:
-        raise T12InputError("sequence-from-map score summary contains invalid values")
-
+    summary: tuple[float, float, float] | None = None
+    pending_summary: str | None = None
     raw: list[tuple[str, int, float]] = []
-    for line in text.splitlines():
+    seen_groups: set[str] = set()
+    for line in lines:
+        summary_line = line
+        if pending_summary is not None and line.strip():
+            summary_line = pending_summary + line
+            pending_summary = None
+        for summary_match in _SCORE_SUMMARY.finditer(summary_line):
+            if summary is not None:
+                raise T12InputError(
+                    "sequence-from-map output repeats its score summary"
+                )
+            summary = (
+                float(summary_match[1]),
+                float(summary_match[2]),
+                float(summary_match[3]),
+            )
+        if _SCORE_SUMMARY_FIRST_LINE.search(line):
+            pending_summary = line
         if "Score for sequence" not in line:
             continue
         match = _SCORE.search(line)
@@ -564,7 +589,17 @@ def _sequence_candidates(
         parsed_score = float(score)
         if not math.isfinite(parsed_score):
             raise T12InputError("sequence-from-map output contains a non-finite score")
+        if group_id not in groups or group_id in seen_groups:
+            raise T12InputError(
+                "sequence-from-map output contains an unknown or repeated group"
+            )
+        seen_groups.add(group_id)
         raw.append((group_id, int(length), parsed_score))
+    if summary is None:
+        raise T12InputError("sequence-from-map output lacks one complete score summary")
+    best_z, mean, sd = summary
+    if not all(math.isfinite(value) for value in summary) or sd < 0:
+        raise T12InputError("sequence-from-map score summary contains invalid values")
     if not raw and (best_z != 0.0 or mean != 0.0):
         raise T12InputError("sequence-from-map summary claims unreported scores")
 
@@ -601,7 +636,7 @@ def _sequence_candidates(
 
 
 def _classify_sequence_output(
-    text: str,
+    lines: Iterable[str],
     *,
     refinement_id: str,
     groups: dict[str, SequenceGroupRecord],
@@ -619,7 +654,7 @@ def _classify_sequence_output(
 
     try:
         candidates, best, mean, sd, best_z = _sequence_candidates(
-            text,
+            lines,
             refinement_id=refinement_id,
             groups=groups,
             crosswalk=crosswalk,
@@ -914,10 +949,14 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         timeout_seconds=request.timeout_seconds,
         log_path=refine_log,
     )
-    refine_text = refine_log.read_text(encoding="utf-8")
-    initial_rw, initial_rf, final_rw, final_rf, rms_bonds, rms_angles = (
-        _refinement_metrics(refine_text)
-    )
+    refine_parse_failed = False
+    try:
+        initial_rw, initial_rf, final_rw, final_rf, rms_bonds, rms_angles = (
+            _refinement_metrics(_log_lines(refine_log))
+        )
+    except T12InputError, ValueError, OverflowError:
+        initial_rw = initial_rf = final_rw = final_rf = rms_bonds = rms_angles = None
+        refine_parse_failed = True
     required_assets = (refined_model, refined_mtz, map_path, difference_map_path)
     required_assets_present = all(path.is_file() for path in required_assets)
     coefficients_valid = (
@@ -934,6 +973,8 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         final_r_free=final_rf,
     )
     refinement_warnings = list(completion_warnings)
+    if refine_parse_failed:
+        refinement_warnings.append("phenix_refine_log_failed_evidence_validation")
     if completed.timed_out:
         refinement_success = False
         refinement_warnings.append("phenix.refine_timeout")
@@ -1078,7 +1119,6 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
         atomic_write_text(
             sequence_log, "sequence-from-map skipped: refinement failed\n"
         )
-    sequence_text = sequence_log.read_text(encoding="utf-8")
     candidates: tuple[SequenceMapCandidate, ...] = ()
     best = mean = sd = best_z = None
     sequence_warnings: list[str] = []
@@ -1098,7 +1138,7 @@ def run_t12_candidate(request: T12RunRequest) -> T12RunOutput:
                 best_z,
                 parsed_warnings,
             ) = _classify_sequence_output(
-                sequence_text,
+                _log_lines(sequence_log),
                 refinement_id=refinement_id,
                 groups=group_by_id,
                 crosswalk=crosswalk,

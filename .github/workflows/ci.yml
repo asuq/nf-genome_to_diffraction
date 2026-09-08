@@ -2,7 +2,7 @@ name: foundation-checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/v0.3-fixes]
   pull_request:
 
 permissions:
@@ -123,3 +123,18 @@ jobs:
       - run: pixi run --locked phase3-foldseek-batch-stub
       - run: pixi run --locked provider-empty-graph-stub
       - run: pixi run --locked mr-resource-retry-check
+
+  ranking-comparison:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          pixi-version: v0.76.2
+          cache: true
+          cache-write: false
+          frozen: true
+      - run: pixi run --locked m6-comparison-check

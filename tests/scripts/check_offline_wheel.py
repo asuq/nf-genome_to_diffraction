@@ -57,6 +57,12 @@ import importlib.metadata
 import json
 from pathlib import Path
 import genome_to_diffraction
+from genome_to_diffraction.benchmarks.m6_raven import collection_manifest
+
+try:
+    collection_manifest(Path("absent-raven-collection"))
+except FileNotFoundError:
+    pass
 
 print(json.dumps({
     "distribution": importlib.metadata.version("nf-genome-to-diffraction"),

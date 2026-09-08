@@ -76,7 +76,31 @@ def check_syntax() -> None:
         prefix="nf-genome-to-diffraction-lint-", dir="/tmp"
     ) as temporary:
         environment = _environment(Path(temporary) / "nxf-home")
-        _run(["nextflow", "lint", "."], environment=environment)
+        # Include new source files while respecting the repository's exclusions
+        # for environments, test checkouts, caches and private run artefacts.
+        inventory = _run(
+            [
+                "git",
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "--",
+                "*.nf",
+                "*.config",
+            ],
+            environment=environment,
+        ).stdout
+        paths = sorted(path for path in inventory.split("\0") if path)
+        if not paths or any("\n" in path for path in paths):
+            raise RuntimeError("Nextflow source inventory is empty or malformed")
+        path_list = Path(temporary) / "sources.txt"
+        path_list.write_text("\n".join(paths) + "\n", encoding="utf-8")
+        _run(
+            ["nextflow", "lint", "-files-from", str(path_list)],
+            environment=environment,
+        )
 
 
 def _assert_files(root: Path, names: set[str]) -> None:
@@ -1890,10 +1914,10 @@ def check_stubs() -> None:
         summary_path = summary_paths[0]
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         if (
-            summary.get("schema_version") != "2.0"
-            or summary.get("adapter_version") != "m6-nextflow-run-v2"
+            summary.get("schema_version") != "3.0"
+            or summary.get("adapter_version") != "m6-nextflow-run-v3"
         ):
-            raise RuntimeError("M6 stub did not publish the v2 aggregate contract")
+            raise RuntimeError("M6 stub did not publish the v3 aggregate contract")
         case_records = tuple(
             json.loads(line)
             for line in (summary_path.parent / "m6_case_results.jsonl")
@@ -1902,13 +1926,14 @@ def check_stubs() -> None:
             if line
         )
         if len(case_records) != 2 or any(
-            record.get("schema_version") != "2.0"
-            or record.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+            record.get("schema_version") != "3.0"
+            or record.get("adapter_version")
+            != "m6-nextflow-case-evidence-v3-production-decisions"
             or not isinstance(record.get("identity_decision"), dict)
             or not isinstance(record.get("edge_observations"), list)
             for record in case_records
         ):
-            raise RuntimeError("M6 stub did not retain v2 identity/edge evidence")
+            raise RuntimeError("M6 stub did not retain v3 production-decision evidence")
         m6_files = sorted(path for path in m6_out.rglob("*") if path.is_file())
         before_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()

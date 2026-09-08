@@ -6,6 +6,9 @@ remain authoritative for scientific policy and interface contracts.
 
 ## Available documents
 
+- [v0.3 fix integration report](v0.3-fix-integration-report-2026-09-08.md):
+  implemented release fixes, cache/package reconciliation, local validation
+  and the remaining source-bound Raven/scientific qualification.
 - [Consolidated v0.3 release gates and v0.4 development plan](v0.3-v0.4-development-plan.md):
   five pre-release gates, 52 mapped requirements, implementation dependencies,
   direct-fix and simplification rules, acceptance criteria, and scoped handoff

@@ -4167,13 +4167,13 @@ def digest(path):
 def load_contract(path, label):
     record = json.loads(path.read_text(encoding="utf-8"))
     expected = {
-        "schema_version": "2.0",
-        "adapter_version": "m6-nextflow-run-v2",
+        "schema_version": "3.0",
+        "adapter_version": "m6-nextflow-run-v3",
         "track": "operational",
         "case_count": 2,
     }
     if any(record.get(key) != value for key, value in expected.items()):
-        raise SystemExit(f"M6 smoke {label} is not the v2 operational contract")
+        raise SystemExit(f"M6 smoke {label} is not the v3 operational contract")
     return {key: record[key] for key in expected}
 
 
@@ -4191,10 +4191,10 @@ case_contracts = []
 for record in case_records:
     case_id = record["case_id"]
     if (
-        record.get("schema_version") != "2.0"
-        or record.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+        record.get("schema_version") != "3.0"
+        or record.get("adapter_version") != "m6-nextflow-case-evidence-v3-production-decisions"
     ):
-        raise SystemExit(f"M6 smoke case is not v2: {case_id}")
+        raise SystemExit(f"M6 smoke case is not v3: {case_id}")
     identity = record.get("identity_decision")
     edges = record.get("edge_observations")
     if (

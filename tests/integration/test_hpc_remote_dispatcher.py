@@ -1884,7 +1884,7 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
         input_data=contract_script.encode(),
     )
     contract = json.loads(contract_output.read_text(encoding="utf-8"))
-    assert contract["aggregate_contract"]["adapter_version"] == ("m6-nextflow-run-v2")
+    assert contract["aggregate_contract"]["adapter_version"] == ("m6-nextflow-run-v3")
     assert [row["case_id"] for row in contract["case_contracts"]] == [
         "M6C001",
         "M6C057",
@@ -2048,7 +2048,9 @@ def test_dispatcher_rejects_an_unknown_site_configuration(tmp_path: Path) -> Non
     assert rejected.stderr == b"unsupported HPC site configuration\n"
 
 
-def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> None:
+def test_m6_nextflow_smoke_collects_current_run_and_resume_evidence(
+    tmp_path: Path,
+) -> None:
     dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
     run = remote_root / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID

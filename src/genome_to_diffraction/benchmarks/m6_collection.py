@@ -92,7 +92,7 @@ def _collection_manifest(root: Path) -> dict[str, object]:
     """Load the site's actual controller format without inventing Slurm state."""
 
     if (root / "launch.json").exists():
-        from genome_to_diffraction.hpc.raven_m6 import collection_manifest
+        from genome_to_diffraction.benchmarks.m6_raven import collection_manifest
 
         if (root / "manifest.json").exists():
             raise PublicControlError("M6 collection has ambiguous controller records")
@@ -359,7 +359,7 @@ def _operational_precheck_sha256(root: Path) -> str:
     """Recreate the exact successful-parent digest bound before leakage."""
 
     if (root / "launch.json").is_file():
-        from genome_to_diffraction.hpc.raven_m6 import operational_precheck
+        from genome_to_diffraction.benchmarks.m6_raven import operational_precheck
 
         return operational_precheck(root)
     resolved = root.resolve(strict=True)

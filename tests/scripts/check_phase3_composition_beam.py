@@ -95,7 +95,8 @@ def main() -> int:
         run_reviewed_reopening_stub(root / "reviewed-reopening")
     check_failure_collection(REPOSITORY)
     print(
-        "Phase III composition beam, reviewed reopening, cache and failure checks passed."
+        "Phase III composition beam, reviewed reopening, cache "
+        "and failure checks passed."
     )
     return 0
 

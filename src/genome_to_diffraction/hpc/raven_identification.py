@@ -29,16 +29,18 @@ from genome_to_diffraction.hpc.identification_inputs import (
 )
 from genome_to_diffraction.hpc.identification_run import summarise, timestamp
 from genome_to_diffraction.hpc.raven_qualification import (
-    QUALIFICATION_RUN_PATTERN,
-    RavenQualificationLaunch,
-    retain_evidence,
-    validate_launch,
-)
-from genome_to_diffraction.hpc.raven_qualification import (
     cache_root as qualification_cache_root,
 )
 from genome_to_diffraction.hpc.raven_qualification import (
     nextflow_command as qualification_command,
+)
+from genome_to_diffraction.hpc.raven_qualification import (
+    retain_evidence,
+    validate_launch,
+)
+from genome_to_diffraction.schemas.raven import (
+    QUALIFICATION_RUN_PATTERN,
+    RavenQualificationLaunch,
 )
 
 IDENTIFICATION_RUN_PATTERN = (

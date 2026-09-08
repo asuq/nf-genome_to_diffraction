@@ -208,7 +208,7 @@ Final R-work = 0.3110 R-free = 0.3680
 RMS angles = 1.72
 """
 
-    assert _refinement_metrics(text) == (
+    assert _refinement_metrics(text.splitlines(keepends=True)) == (
         0.412,
         0.456,
         0.311,
@@ -236,7 +236,7 @@ Overall best Z-score: 1.00  Mean and SD of scores: 9.00 +/- 2.00 .
 """
 
     candidates, best, mean, sd, best_z = _sequence_candidates(
-        text,
+        text.splitlines(keepends=True),
         refinement_id="refine_" + "c" * 64,
         groups={first.sequence_group_id: first, second.sequence_group_id: second},
         crosswalk={
