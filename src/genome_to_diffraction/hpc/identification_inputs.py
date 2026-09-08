@@ -25,6 +25,7 @@ from genome_to_diffraction.matthews.enumerate import dynamic_copy_counts, prior_
 from genome_to_diffraction.schemas.base import ContractModel, Sha256Hex
 from genome_to_diffraction.schemas.io import load_json_document, parse_json_document
 from genome_to_diffraction.schemas.results import (
+    CoordinateSourceRecord,
     SequenceGroupRecord,
     SourceProteinRecord,
     StructuralSearchHit,
@@ -77,6 +78,7 @@ class IdentificationCase(ContractModel):
     hit: StructuralSearchHit | None = None
     coordinate_file: str | None = None
     coordinate_sha256: Sha256Hex | None = None
+    coordinate_source: CoordinateSourceRecord | None = None
     component_copies: int = Field(gt=0)
     search_copies: Literal[1] = 1
     copy_priors: tuple[dict[str, float | int], ...] = Field(min_length=1)
@@ -86,7 +88,7 @@ class IdentificationPlan(ContractModel):
     """Complete catalogue accounting without a globally truncated model pool."""
 
     schema_version: Literal["1.0"] = "1.0"
-    adapter_version: Literal["identification-screen-v1"] = "identification-screen-v1"
+    adapter_version: Literal["identification-screen-v2"] = "identification-screen-v2"
     run_mode: Literal["smoke", "screen"] = "screen"
     discovery_package_id: str
     sequence_groups_sha256: Sha256Hex
@@ -177,6 +179,49 @@ def expected_case_id(crystal: CrystalInput, group_id: str) -> str:
             "sequence_group_id": group_id,
         },
     )
+
+
+def validate_model_source(case: IdentificationCase, group: SequenceGroupRecord) -> None:
+    """Bind an explicitly supported model source without guessing its namespace."""
+
+    hit = case.hit
+    if hit is None:
+        raise IdentificationInputError("ready candidate has no structural hit")
+    if hit.provider in {"pdb_sequence_mmseqs", "foldseek_prostt5_pdb"}:
+        if case.coordinate_source is not None or hit.pdb_id is None:
+            raise IdentificationInputError("experimental model source is inconsistent")
+        return
+    source = case.coordinate_source
+    version = hit.raw_metrics.get("latest_version")
+    if (
+        hit.provider != "afdb_exact"
+        or source is None
+        or source.provider != "afdb"
+        or source.coordinate_path != case.coordinate_file
+        or source.coordinate_sha256 != case.coordinate_sha256
+        or source.source_sequence_sha256 != group.sha256
+        or source.provider_accession != hit.raw_metrics.get("accession")
+        or source.coordinate_sha256 != hit.raw_metrics.get("coordinate_sha256")
+        or hit.sequence_group_id != group.sequence_group_id
+        or hit.sequence_identity != 1.0
+        or hit.query_coverage != 1.0
+        or hit.target_coverage != 1.0
+        or hit.query_start != 1
+        or hit.target_start != 1
+        or hit.query_end != group.length_aa
+        or hit.target_end != group.length_aa
+        or hit.aligned_length != group.length_aa
+        or hit.target_id != hit.raw_metrics.get("model_entity_id")
+        or hit.target_chain_or_entity != hit.target_id
+        or hit.pdb_id is not None
+        or hit.identifier_namespace != "alphafold_db_model_entity"
+        or isinstance(version, bool)
+        or not isinstance(version, int)
+        or version < 1
+        or source.source_release != f"model-version-{version}"
+        or hit.model_key != f"afdb:{hit.target_id}:v{version}"
+    ):
+        raise IdentificationInputError("exact predicted model source is inconsistent")
 
 
 def copy_priors(
@@ -377,6 +422,7 @@ def validate_plan(
             coordinate = safe_member(root, case.coordinate_file)
             if sha256_file(coordinate) != case.coordinate_sha256:
                 raise IdentificationInputError("coordinate checksum differs")
+            validate_model_source(case, group)
     return plan
 
 

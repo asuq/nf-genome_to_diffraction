@@ -18,7 +18,17 @@ The operator prepares one private input directory containing:
   `src/genome_to_diffraction/hpc/identification_inputs.py`;
 - complete canonical `sequence_groups.jsonl` and `source_records.jsonl` from one
   trusted catalogue and annotation source; and
-- the compressed public PDB coordinates named by ready candidates.
+- the public coordinate files named by ready candidates.
+
+New input plans use `identification-screen-v2`. Ready cases accept the existing
+PDB sequence/Foldseek providers or `afdb_exact`. An exact AFDB case must include
+`coordinate_source` with its real AFDB accession, release, sequence/coordinate
+checksums, retrieval and confidence provenance. Its `coordinate_path` is the
+same safe input-relative path as `coordinate_file`; the preparation task binds
+that record to the staged absolute path. Provider, version, sequence, model key
+and checksum contradictions fail closed. An AFDB model must not use a fabricated
+PDB identifier. Historical version-1 runs retain their original immutable source;
+they are not silently interpreted using version-2 preparation or cache semantics.
 
 The plan contains original diffraction paths/checksums and reviewed observation
 labels, explicit retained Free-R test values, symmetry, resolution, ASU volume,
@@ -83,6 +93,28 @@ task for each ready candidate. Preparation verifies the exact PDB entity/author
 chain, removes other chains, non-polymer residues and hydrogens, and writes a
 single-chain model and the full catalogue sequence. No new sequence adaptation,
 side-chain pruning or domain-splitting heuristic is introduced by this profile.
+
+For an exact AFDB case, preparation instead reuses the shared
+[`phenix.process_predicted_model` adapter](m2-predicted-model-preparation.md)
+for one candidate per Nextflow task. The established policy removes
+low-confidence residues, converts pLDDT to pseudo-B values and retains one
+unsplit model. Source and retained-position sequence mappings, the full
+catalogue composition, raw confidence provenance, processed-model record,
+runtime digest and native processing logs remain visible. No predicted model
+enters MR as an untreated PDB-chain substitute. Empty, malformed or failed
+preparations remain explicit preparation failures and do not become MR no-hits.
+
+Both processes stage and content-hash the Phenix manifest. AF-model MR checks
+its prepared model/source/runtime binding and uses the established exact-model
+100% sequence-mapping input with uncertainty encoded in the converted B values,
+as in the shared [first-copy adapter](m3-first-copy-phaser.md). This is not a
+claim of error-free predicted coordinates. Experimental models retain their
+registered homologue identity and native B values.
+
+The preparation stub bypasses licensed prediction processing and is explicitly
+`stub_not_scientific`; the real MR adapter refuses that state. Collection retains
+nested predicted-model manifests, models and native logs, including evidence
+from failed tasks. Existing MTZ retention and collection bounds still apply.
 
 MR uses isolated licensed Phenix `MR_AUTO`. Existing deterministic workload
 plans provide overprovisioned 8/12/16-CPU, 32/48/64-GB, 24/36/48-hour first

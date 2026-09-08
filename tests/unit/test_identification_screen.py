@@ -131,7 +131,7 @@ def test_real_chain_preparation_and_resource_thread_contract(tmp_path: Path) -> 
     root, plan = materialise_identification_fixture(tmp_path)
     case = plan.cases[0]
     prepared = tmp_path / "prepared"
-    identification_run.prepare_case(root, case.case_id, prepared)
+    identification_run.prepare_case(root, case.case_id, prepared, tmp_path / "manifest")
     record = json.loads((prepared / "preparation.json").read_text())
     assert record["status"] == "prepared"
     assert record["resource_plan"]["base_cpus"] == 8
@@ -162,7 +162,7 @@ def test_native_execution_outcomes_stay_separate(
     root, plan = materialise_identification_fixture(tmp_path)
     case = plan.cases[0]
     prepared = tmp_path / "prepared"
-    identification_run.prepare_case(root, case.case_id, prepared)
+    identification_run.prepare_case(root, case.case_id, prepared, tmp_path / "manifest")
 
     def capture(manifest, command, *, working_directory, timeout_seconds):
         assert timeout_seconds is None
@@ -206,7 +206,9 @@ def test_failed_preparation_does_not_become_a_no_hit(
 
     monkeypatch.setattr(identification_run, "_pdb_entity", fail)
     out = tmp_path / "failed_preparation"
-    identification_run.prepare_case(root, plan.cases[0].case_id, out)
+    identification_run.prepare_case(
+        root, plan.cases[0].case_id, out, tmp_path / "manifest"
+    )
     assert (
         json.loads((out / "preparation.json").read_text())["status"]
         == "model_preparation_failed"
@@ -233,6 +235,9 @@ def test_collection_preserves_unpublished_killed_task_without_scientific_claim(
     child.mkdir(parents=True)
     (child / "PHASER.log").write_text("unfinished native calculation\n")
     (child / "PHASER.1.mtz").write_bytes(b"partial diagnostic map bytes")
+    nested_log = child / "predicted/raw/source/phenix.process_predicted_model.log"
+    nested_log.parent.mkdir(parents=True)
+    nested_log.write_text("retained confidence-processing failure\n")
     atomic_write_json(
         child / "run.json",
         {"case_id": case.case_id, "status": "running", "identity_accepted": False},
@@ -254,6 +259,9 @@ def test_collection_preserves_unpublished_killed_task_without_scientific_claim(
         out / "attempts/1/PHASER.log"
     ).read_text() == "unfinished native calculation\n"
     assert not (out / "attempts/1/PHASER.1.mtz").exists()
+    assert (
+        out / "attempts/1/predicted/raw/source/phenix.process_predicted_model.log"
+    ).read_text() == "retained confidence-processing failure\n"
     assert any(
         a["path"].endswith("PHASER.1.mtz") and not a["collected"]
         for a in report["artifacts"]

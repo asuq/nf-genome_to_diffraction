@@ -116,6 +116,10 @@ integration in the current identification profile before execution; preserve
 the completed PDB screen, initial-copy/tNCS policy and human-review gates. Do
 not claim that the deferred AFDB Foldseek fallback or automatic finalist check
 has been implemented by running this bounded supplied-model cohort.
+The user subsequently approved the narrow integration, focused testing,
+commit/push/deployment, and a three-crystal smoke followed by the remaining
+exact-model cohort. This approval does not change the deferred v0.4 scope or
+the A-review boundary.
 
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 

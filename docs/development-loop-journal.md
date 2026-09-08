@@ -15670,3 +15670,26 @@ with a collapsed combined parent or a guessed command.
   plan is ready for review before scientific source changes and deployment.
 - Documentation-link and diff checks cover this planning update. No new
   scientific run was staged or submitted, and no seed decision changed.
+
+## 2026-09-08 - Exact-predicted identification path passed local qualification
+
+- The user approved the narrow current-profile integration, tests, push and
+  deployment, followed by a representative Raven smoke and the remaining
+  supplied-model cohort. This is separate from deferred v0.4 AF01/AF02 work.
+- Identification input version two explicitly binds exact AFDB source,
+  sequence, coordinate, release and hit provenance. One Nextflow preparation
+  task reuses the existing confidence-pruned, unsplit Phenix adapter per case;
+  experimental-chain handling and initial-copy/composition semantics remain.
+- Prepared model/source/runtime bindings are checked before MR. Both tasks
+  content-hash their staged Phenix manifest; predicted stubs are explicitly
+  non-scientific and refused by the real MR adapter. Collection now preserves
+  nested preparation records and native logs, including failed-task evidence.
+- The complete locked local gate passed: 1,472 unit, 152 contract and 101
+  integration tests, schemas, documentation/atlas, workflow syntax and stubs,
+  cache-mutation/resume, offline packaging and resource checks. A concurrent
+  test-history collision was resolved by isolating the new Nextflow test's
+  launch directory; the affected existing review-gate test also passed again.
+- No GPU prediction, AFDB Foldseek fallback, new MR/refinement result or candidate
+  approval was produced by these local tests. Next push the exact clean source,
+  verify CI, deploy its isolated environment and run the approved bounded
+  supplied-model smoke before the remaining cohort. Keep previous evidence intact.

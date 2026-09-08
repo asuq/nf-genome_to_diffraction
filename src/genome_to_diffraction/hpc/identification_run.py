@@ -16,7 +16,11 @@ from pathlib import Path
 
 import gemmi
 
-from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.checksums import (
+    atomic_write_json,
+    atomic_write_text,
+    sha256_file,
+)
 from genome_to_diffraction.hpc.identification_inputs import (
     MANIFEST_NAME,
     MAX_FILE_BYTES,
@@ -28,6 +32,13 @@ from genome_to_diffraction.hpc.identification_inputs import (
     safe_member,
     unpack_identification_archive,
     validate_bound_input_root,
+    validate_model_source,
+)
+from genome_to_diffraction.model_registry.predicted import (
+    PredictedModelParseError,
+    PredictedModelPreparationRequest,
+    PredictedModelToolError,
+    prepare_predicted_models,
 )
 from genome_to_diffraction.mr.phaser import (
     PhaserParseError,
@@ -41,6 +52,7 @@ from genome_to_diffraction.mr_resources import (
 from genome_to_diffraction.phenix.runtime import capture_from_manifest
 from genome_to_diffraction.schemas.io import load_json_document
 from genome_to_diffraction.schemas.mr_resources import MrResourcePlan
+from genome_to_diffraction.schemas.results import SequenceGroupRecord
 from genome_to_diffraction.structure_search.pdb_coordinates import (
     PdbCoordinateParseError,
     _pdb_entity,
@@ -63,8 +75,95 @@ def load_case(
     return plan, found[0]
 
 
-def prepare_case(root: Path, case_id: str, outdir: Path) -> None:
-    """Extract the authenticated author chain without new model-editing heuristics."""
+def _prepare_predicted_case(
+    case: IdentificationCase,
+    group: SequenceGroupRecord,
+    coordinate: Path,
+    outdir: Path,
+    phenix_manifest: Path,
+) -> dict[str, object]:
+    """Reuse the confidence-pruned unsplit policy for one Nextflow-owned case."""
+
+    if case.coordinate_source is None:
+        raise IdentificationInputError("predicted model lacks source provenance")
+    source = case.coordinate_source.model_copy(
+        update={"coordinate_path": str(coordinate.resolve())}
+    )
+    sources_path = outdir / "coordinate_sources.jsonl"
+    groups_path = outdir / "sequence_groups.jsonl"
+    atomic_write_text(sources_path, source.model_dump_json() + "\n")
+    atomic_write_text(groups_path, group.model_dump_json() + "\n")
+    output = prepare_predicted_models(
+        PredictedModelPreparationRequest(
+            coordinate_sources_jsonl=sources_path,
+            sequence_groups_jsonl=groups_path,
+            phenix_manifest=phenix_manifest,
+            output_directory=outdir / "predicted",
+            progress=False,
+        )
+    )
+    if len(output.records) != 1:
+        raise IdentificationInputError("one predicted case must produce one model")
+    model = output.records[0]
+    model_path = (
+        outdir
+        / "predicted/models"
+        / model.model_sha256[:2]
+        / f"{model.model_sha256}.pdb"
+    )
+    if (
+        model.full_candidate_sequence_group_id != group.sequence_group_id
+        or model.coordinate_id != source.coordinate_id
+        or sha256_file(model_path) != model.model_sha256
+    ):
+        raise IdentificationInputError("processed predicted model binding differs")
+    shutil.copyfile(model_path, outdir / "model.pdb")
+    return {
+        "source_confidence_summary": source.confidence_summary,
+        "processed_model": model.model_dump(mode="json"),
+        "phenix_manifest_sha256": sha256_file(phenix_manifest),
+        "model_uncertainty_source": "phenix.process_predicted_model converted B values",
+    }
+
+
+def _prepare_experimental_case(
+    case: IdentificationCase, coordinate: Path, outdir: Path
+) -> dict[str, object]:
+    """Extract the same authenticated PDB author chain as the original profile."""
+
+    if case.hit is None:
+        raise IdentificationInputError("experimental case lacks its hit")
+    entity = _pdb_entity(coordinate, hit=case.hit)
+    structure = gemmi.read_structure(str(coordinate))
+    structure.setup_entities()
+    if len(structure) != 1:
+        raise PdbCoordinateParseError("model coordinate has multiple structural models")
+    chains = [c for c in structure[0] if c.name == case.hit.target_chain_or_entity]
+    if len(chains) != 1 or not chains[0].get_polymer():
+        raise PdbCoordinateParseError("exact model author chain is absent or ambiguous")
+    for index in range(len(structure[0]) - 1, -1, -1):
+        if structure[0][index].name != case.hit.target_chain_or_entity:
+            del structure[0][index]
+    chain = structure[0][0]
+    for index in range(len(chain) - 1, -1, -1):
+        if chain[index].entity_type != gemmi.EntityType.Polymer:
+            del chain[index]
+    structure.remove_hydrogens()
+    chain.name = "A"
+    (outdir / "model.pdb").write_text(structure.make_pdb_string())
+    return {
+        "template_entity_id": entity.entity_id,
+        "template_sequence_sha256": entity.sequence_sha256,
+        "model_uncertainty_source": (
+            "registered PDB homologue identity with native coordinate B values"
+        ),
+    }
+
+
+def prepare_case(
+    root: Path, case_id: str, outdir: Path, phenix_manifest: Path, *, stub: bool = False
+) -> None:
+    """Prepare one authenticated PDB or exact predicted model with explicit policy."""
 
     plan, case = load_case(root, case_id)
     if case.hit is None or case.coordinate_file is None:
@@ -74,40 +173,36 @@ def prepare_case(root: Path, case_id: str, outdir: Path) -> None:
         raise IdentificationInputError("candidate coordinate changed")
     groups = read_groups(root / "sequence_groups.jsonl")
     group = groups[case.sequence_group_id]
+    validate_model_source(case, group)
     crystal = next(c for c in plan.crystals if c.crystal_id == case.crystal_id)
     outdir.mkdir(parents=True, exist_ok=False)
     record = {
         "case_id": case_id,
         "crystal_id": case.crystal_id,
         "sequence_group_id": case.sequence_group_id,
+        "structural_source_class": (
+            "predicted" if case.coordinate_source is not None else "experimental"
+        ),
+        "source_coordinate_sha256": case.coordinate_sha256,
         "started_at": timestamp(),
         "status": "preparing",
         "identity_accepted": False,
     }
     atomic_write_json(outdir / "preparation.json", record)
     try:
-        entity = _pdb_entity(coordinate, hit=case.hit)
-        structure = gemmi.read_structure(str(coordinate))
-        structure.setup_entities()
-        if len(structure) != 1:
-            raise PdbCoordinateParseError(
-                "model coordinate has multiple structural models"
+        if stub and case.coordinate_source is not None:
+            record["status"] = "stub_not_scientific"
+            resource_model = coordinate
+        else:
+            record.update(
+                _prepare_predicted_case(
+                    case, group, coordinate, outdir, phenix_manifest
+                )
+                if case.hit.provider == "afdb_exact"
+                else _prepare_experimental_case(case, coordinate, outdir)
             )
-        chains = [c for c in structure[0] if c.name == case.hit.target_chain_or_entity]
-        if len(chains) != 1 or not chains[0].get_polymer():
-            raise PdbCoordinateParseError(
-                "exact model author chain is absent or ambiguous"
-            )
-        for index in range(len(structure[0]) - 1, -1, -1):
-            if structure[0][index].name != case.hit.target_chain_or_entity:
-                del structure[0][index]
-        chain = structure[0][0]
-        for index in range(len(chain) - 1, -1, -1):
-            if chain[index].entity_type != gemmi.EntityType.Polymer:
-                del chain[index]
-        structure.remove_hydrogens()
-        chain.name = "A"
-        (outdir / "model.pdb").write_text(structure.make_pdb_string())
+            resource_model = outdir / "model.pdb"
+            record.update(status="prepared", model_sha256=sha256_file(resource_model))
         (outdir / "candidate.fasta").write_text(
             f">{case.sequence_group_id}\n{group.sequence}\n"
         )
@@ -115,7 +210,7 @@ def prepare_case(root: Path, case_id: str, outdir: Path) -> None:
             owner_kind="mr_hypothesis",
             owner_id=case_id,
             reflection_count=crystal.reflection_count,
-            moving_atom_count=count_polymer_atoms(outdir / "model.pdb"),
+            moving_atom_count=count_polymer_atoms(resource_model),
             searched_copy_count=1,
             fixed_atom_count=0,
             symmetry_multiplicity=crystal.symmetry_multiplicity,
@@ -124,14 +219,14 @@ def prepare_case(root: Path, case_id: str, outdir: Path) -> None:
             outdir / "resource_plan.json", resources.model_dump(mode="json")
         )
         record.update(
-            status="prepared",
-            template_entity_id=entity.entity_id,
-            template_sequence_sha256=entity.sequence_sha256,
-            model_sha256=sha256_file(outdir / "model.pdb"),
             sequence_sha256=group.sha256,
             resource_plan=resources.model_dump(mode="json"),
         )
-    except PdbCoordinateParseError as error:
+    except (
+        PdbCoordinateParseError,
+        PredictedModelToolError,
+        PredictedModelParseError,
+    ) as error:
         record.update(status="model_preparation_failed", reason=str(error))
     record["completed_at"] = timestamp()
     atomic_write_json(outdir / "preparation.json", record)
@@ -217,6 +312,28 @@ def run_case(
         or sha256_file(prepared / "model.pdb") != prep.get("model_sha256")
     ):
         raise IdentificationInputError("prepared model identity differs")
+    validate_model_source(case, group)
+    expected_source = (
+        "predicted" if case.coordinate_source is not None else "experimental"
+    )
+    if (
+        prep.get("structural_source_class") != expected_source
+        or prep.get("source_coordinate_sha256") != case.coordinate_sha256
+    ):
+        raise IdentificationInputError("prepared model source differs")
+    if case.coordinate_source is not None:
+        processed = prep.get("processed_model")
+        if (
+            prep.get("phenix_manifest_sha256") != sha256_file(manifest)
+            or not isinstance(processed, dict)
+            or processed.get("model_sha256") != prep["model_sha256"]
+            or processed.get("coordinate_id") != case.coordinate_source.coordinate_id
+            or processed.get("variant_type") != "predicted_confidence_pruned_full"
+            or processed.get("processing_tool") != "phenix.process_predicted_model"
+        ):
+            raise IdentificationInputError(
+                "predicted preparation/runtime binding differs"
+            )
     resource_plan = MrResourcePlan.model_validate_json(
         (prepared / "resource_plan.json").read_text()
     )
@@ -244,6 +361,9 @@ def run_case(
         "mass_da": case.mass_da,
         "mtz_sha256": crystal.mtz_sha256,
         "model_sha256": prep["model_sha256"],
+        "structural_source_class": prep["structural_source_class"],
+        "source_coordinate_sha256": prep["source_coordinate_sha256"],
+        "model_uncertainty_source": prep["model_uncertainty_source"],
         "component_copies": case.component_copies,
         "requested_search_copies": 1,
         "attempt": attempt,
@@ -361,8 +481,14 @@ def summarise(root: Path, results: Path, work_root: Path, outdir: Path) -> None:
                     raise IdentificationInputError(
                         "unsafe failed-task evidence directory"
                     )
-                for path in sorted(child.iterdir()):
-                    if path.is_symlink() or not path.is_file():
+                for path in sorted(child.rglob("*")):
+                    if path.is_symlink():
+                        raise IdentificationInputError(
+                            "unsafe failed-task evidence file"
+                        )
+                    if path.is_dir():
+                        continue
+                    if not path.is_file():
                         raise IdentificationInputError(
                             "unsafe failed-task evidence file"
                         )
@@ -383,19 +509,25 @@ def summarise(root: Path, results: Path, work_root: Path, outdir: Path) -> None:
                             raise IdentificationInputError(
                                 "failed-task evidence exceeds collection bounds"
                             )
-                        shutil.copyfile(path, destination / path.name)
+                        target = destination / path.relative_to(child)
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(path, target)
     completed = {}
     for case in plan.cases:
         for role in ("prepared", "mr"):
             directory = results / role / case.case_id
             if not directory.exists():
                 continue
-            if directory.is_symlink():
-                raise IdentificationInputError("result directory is a symlink")
+            if directory.is_symlink() or not directory.is_dir():
+                raise IdentificationInputError("result directory is unsafe")
             destination = outdir / role / case.case_id
             destination.mkdir(parents=True, exist_ok=True)
-            for path in sorted(directory.iterdir()):
-                if path.is_symlink() or not path.is_file():
+            for path in sorted(directory.rglob("*")):
+                if path.is_symlink():
+                    raise IdentificationInputError("unexpected result member")
+                if path.is_dir():
+                    continue
+                if not path.is_file():
                     raise IdentificationInputError("unexpected result member")
                 size = path.stat().st_size
                 digest = sha256_file(path)
@@ -414,7 +546,9 @@ def summarise(root: Path, results: Path, work_root: Path, outdir: Path) -> None:
                         raise IdentificationInputError(
                             "identification collection exceeds fixed bounds"
                         )
-                    shutil.copyfile(path, destination / path.name)
+                    target = destination / path.relative_to(directory)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(path, target)
             record_path = directory / (
                 "run.json" if role == "mr" else "preparation.json"
             )
@@ -493,9 +627,11 @@ def main() -> int:
         action.add_argument("--inputs", type=Path, required=True)
         action.add_argument("--case-id", required=True)
         action.add_argument("--outdir", type=Path, required=True)
+        action.add_argument("--phenix-manifest", type=Path, required=True)
+        if name == "prepare":
+            action.add_argument("--stub", action="store_true")
         if name == "run":
             action.add_argument("--prepared", type=Path, required=True)
-            action.add_argument("--phenix-manifest", type=Path, required=True)
             action.add_argument("--threads", type=int, required=True)
             action.add_argument("--attempt", type=int, required=True)
             action.add_argument("--walltime-hours", type=int, required=True)
@@ -526,7 +662,9 @@ def main() -> int:
             [c.model_dump(mode="json") for c in execution_cases(plan)],
         )
     elif args.action == "prepare":
-        prepare_case(args.inputs, args.case_id, args.outdir)
+        prepare_case(
+            args.inputs, args.case_id, args.outdir, args.phenix_manifest, stub=args.stub
+        )
     elif args.action == "run":
         return run_case(
             args.inputs,

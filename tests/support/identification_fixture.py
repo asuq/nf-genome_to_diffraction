@@ -15,6 +15,7 @@ from genome_to_diffraction.hpc.identification_inputs import (
     IdentificationPlan,
     copy_priors,
     expected_case_id,
+    validate_plan,
 )
 from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
@@ -170,3 +171,58 @@ def materialise_identification_fixture(
     atomic_write_json(spec, {"schema_version": "1.0", "input_root": str(root)})
     spec.chmod(0o600)
     return root, plan
+
+
+def materialise_afdb_identification_fixture(
+    tmp_path: Path,
+) -> tuple[Path, IdentificationPlan]:
+    root, plan = materialise_identification_fixture(tmp_path)
+    case = plan.cases[0]
+    assert case.hit is not None
+    atoms = [
+        f"ATOM  {i:5d}  CA  {name} A{i:4d}    "
+        f"{float(i):8.3f}{0.0:8.3f}{0.0:8.3f}  1.00 90.00           C"
+        for i, name in enumerate(("ALA", "CYS", "ASP", "GLN"), 1)
+    ]
+    structure = gemmi.read_pdb_string("\n".join([*atoms, "END", ""]))
+    structure.setup_entities()
+    relative = "coordinates/AF-P12345-F1.cif"
+    coordinate = root / relative
+    coordinate.write_text(structure.make_mmcif_document().as_string())
+    digest = sha256_file(coordinate)
+    document = plan.model_dump(mode="json")
+    row = document["cases"][0]
+    row["coordinate_file"] = relative
+    row["coordinate_sha256"] = digest
+    row["coordinate_source"] = {
+        "schema_version": "1.0",
+        "coordinate_id": "coord_" + "b" * 64,
+        "provider": "afdb",
+        "provider_accession": "P12345",
+        "retrieval_date": "2026-09-08T00:00:00Z",
+        "source_release": "model-version-6",
+        "coordinate_path": relative,
+        "coordinate_sha256": digest,
+        "source_sequence_sha256": hashlib.sha256(b"ACDQ").hexdigest(),
+        "confidence_summary": {"metric": "mean_plddt", "value": 90.0},
+        "license_or_provenance": "synthetic AFDB fixture",
+    }
+    row["hit"].update(
+        provider="afdb_exact",
+        target_id="AF-P12345-F1",
+        target_chain_or_entity="AF-P12345-F1",
+        pdb_id=None,
+        identifier_namespace="alphafold_db_model_entity",
+        model_key="afdb:AF-P12345-F1:v6",
+        sequence_identity=1.0,
+        query_coverage=1.0,
+        target_coverage=1.0,
+        raw_metrics={
+            "accession": "P12345",
+            "coordinate_sha256": digest,
+            "latest_version": 6,
+            "model_entity_id": "AF-P12345-F1",
+        },
+    )
+    atomic_write_json(root / "plan.json", document)
+    return root, validate_plan(root, allowed_mtz_root=tmp_path)

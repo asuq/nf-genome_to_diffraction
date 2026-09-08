@@ -6,15 +6,28 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.hpc.identification_inputs import execution_cases
-from tests.support.identification_fixture import materialise_identification_fixture
+from tests.support.identification_fixture import (
+    materialise_afdb_identification_fixture,
+    materialise_identification_fixture,
+)
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
-def test_identification_nextflow_fans_out_only_ready_cases(tmp_path: Path) -> None:
-    root, plan = materialise_identification_fixture(tmp_path)
+@pytest.mark.parametrize("predicted_model", [False, True])
+def test_identification_nextflow_fans_out_only_ready_cases(
+    tmp_path: Path, predicted_model: bool
+) -> None:
+    factory = (
+        materialise_afdb_identification_fixture
+        if predicted_model
+        else materialise_identification_fixture
+    )
+    root, plan = factory(tmp_path)
     selected = tmp_path / "execution_cases.json"
     atomic_write_json(
         selected, [c.model_dump(mode="json") for c in execution_cases(plan)]
@@ -60,7 +73,7 @@ def test_identification_nextflow_fans_out_only_ready_cases(tmp_path: Path) -> No
             "--cache_root",
             str(tmp_path / "cache"),
         ],
-        cwd=REPOSITORY,
+        cwd=tmp_path,
         env=environment,
         capture_output=True,
         text=True,
@@ -76,10 +89,28 @@ def test_identification_nextflow_fans_out_only_ready_cases(tmp_path: Path) -> No
     prep = json.loads(
         (out / "prepared" / case.case_id / "preparation.json").read_text()
     )
-    assert prep["status"] == "prepared"
+    assert prep["status"] == ("stub_not_scientific" if predicted_model else "prepared")
+    if predicted_model:
+        assert not (out / "prepared" / case.case_id / "model.pdb").exists()
     trace = list(
         csv.DictReader((out / "pipeline_info/trace.tsv").open(), delimiter="\t")
     )
     assert len(trace) == 2
     assert all(row["status"] == "COMPLETED" and row["exit"] == "0" for row in trace)
     assert len(list((out / "mr").iterdir())) == 1
+    if predicted_model:
+        (tmp_path / "unused_stub_manifest.json").write_text('{"changed":true}\n')
+        changed = subprocess.run(
+            [*result.args, "-resume"],
+            cwd=tmp_path,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        assert changed.returncode == 0, changed.stdout + changed.stderr
+        with (out / "pipeline_info/trace.tsv").open() as handle:
+            changed_trace = list(csv.DictReader(handle, delimiter="\t"))
+        assert len(changed_trace) == 2
+        assert all(row["status"] == "COMPLETED" for row in changed_trace)
