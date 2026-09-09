@@ -124,6 +124,14 @@ for execution. Funnel validation, partner/component eligibility and sequence
 review use the corrected meaning; content/task identities advance together.
 Explicit access to non-top deferred states still requires the RF-G2 route.
 
+The RF-G2 factor-reporting increment now preserves unweighted density, empirical
+copy frequency, product, occurrence/population counts, resolution-selected
+reference count and backend/checksum provenance in current hypotheses and review
+outputs. Schema arithmetic/status checks and production rederivation distinguish
+unobserved-copy zeros, zero density, historical missing evidence and unsupported
+estimators. The explicit reviewer-selected execution route remains the next step;
+factor visibility alone does not make deferred hypotheses executable.
+
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new
   behaviour; several historical expectations must intentionally change.

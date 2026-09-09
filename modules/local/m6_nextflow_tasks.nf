@@ -204,7 +204,7 @@ process M6_PREPARE_ACTIVE_CASE {
 
     script:
     """
-    # Scientific output contract: asu_sequence_mass_physical_volume_v2
+    # Scientific output contract: matthews-prior-factor-evidence-v1
     genome-to-diffraction --no-progress --log-format json \
         benchmark run-m6-case-task \
         --task '${item[1]}' \
@@ -234,7 +234,7 @@ process M6_PREPARE_EARLY_CASE {
 
     script:
     """
-    # Scientific output contract: asu_sequence_mass_physical_volume_v2
+    # Scientific output contract: matthews-prior-factor-evidence-v1
     genome-to-diffraction --no-progress --log-format json \
         benchmark run-m6-case-task \
         --task '${item[1]}' \

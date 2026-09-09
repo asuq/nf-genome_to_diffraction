@@ -1,9 +1,11 @@
 """Focused Matthews JSONL identity and coverage contract tests."""
 
+import csv
 import hashlib
 import json
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 from genome_to_diffraction.ids import canonical_json_text
@@ -12,7 +14,9 @@ from genome_to_diffraction.matthews.enumerate import (
     MatthewsRequest,
     enumerate_matthews,
 )
+from genome_to_diffraction.matthews.probability import PRIOR_FACTOR_FIELDS
 from genome_to_diffraction.schemas.results import (
+    MatthewsHypothesis,
     MtzPreflightRecord,
     PreflightDecision,
     SequenceGroupRecord,
@@ -256,6 +260,34 @@ def test_exact_coverage_preserves_distinct_loci_in_one_sequence_group(
         duplicated_locus_group.sequence_group_id,
         other_group.sequence_group_id,
     }
+    with result.tsv_path.open(encoding="utf-8", newline="") as handle:
+        tsv_rows = tuple(csv.DictReader(handle, delimiter="\t"))
+    parquet_rows = pl.read_parquet(result.parquet_path).to_dicts()
+    assert len(tsv_rows) == len(parquet_rows) == len(result.hypotheses)
+    for record, tsv, parquet in zip(
+        result.hypotheses, tsv_rows, parquet_rows, strict=True
+    ):
+        for field in PRIOR_FACTOR_FIELDS:
+            assert tsv[field] == str(getattr(record, field))
+            assert parquet[field] == getattr(record, field)
+
+    document = result.hypotheses[0].model_dump(mode="json")
+    with pytest.raises(ValueError, match="factor evidence must be complete"):
+        MatthewsHypothesis.model_validate(
+            {**document, "relative_solvent_density": None}
+        )
+    with pytest.raises(ValueError, match="factor arithmetic differs"):
+        MatthewsHypothesis.model_validate(
+            {**document, "matthews_prior": document["matthews_prior"] + 1e-6}
+        )
+    historical = MatthewsHypothesis.model_validate(
+        {
+            key: value
+            for key, value in document.items()
+            if key not in PRIOR_FACTOR_FIELDS
+        }
+    )
+    assert all(getattr(historical, field) is None for field in PRIOR_FACTOR_FIELDS)
 
 
 @pytest.mark.parametrize(

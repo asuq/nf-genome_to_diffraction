@@ -19,7 +19,7 @@ process BUILD_EXACT_PREDICTED_FUNNEL {
 
     script:
     """
-    # Scientific output contract: exact-predicted-funnel-v2-physical-range
+    # Scientific output contract: exact-predicted-funnel-v3-prior-factors
     genome-to-diffraction \
         --no-progress \
         --log-format json \

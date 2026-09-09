@@ -15788,3 +15788,24 @@ with a collapsed combined parent or a guessed command.
   Next implement RF-G2's checksum-bound explicit deferred selection and factor-
   level prior reporting, then RF-G4 production/M6 parity and the named full
   integration milestone. Do not restart the cancelled identification programme.
+
+## 2026-09-09 - RF-G2 factor evidence local increment
+
+- Exposed the unchanged Matthews prior as separate solvent density and empirical
+  copy frequency with occurrence/population counts, resolution-selected reference
+  count and checksum/backend provenance. JSONL/TSV/Parquet and MR-review outputs
+  distinguish zero density, unobserved copy frequency and historical missing
+  evidence. Unsupported resolution estimators still fail explicitly.
+- Added complete-factor arithmetic/status validation and production rederivation;
+  advanced hypothesis and funnel/review task identities. Reference data and
+  numerical estimator policy are unchanged. Corrected one regression assumption:
+  the native KDE is nonzero at zero solvent, so the zero-density test uses an
+  explicitly negative-solvent diagnostic, not an invented boundary value.
+- Local checks passed: 225 focused enumeration/funnel/reopening and repository/
+  typed-contract tests, 100 initial focused passes including MR review, and eight
+  collector tests. Ruff, ty, documentation links and Nextflow syntax passed.
+  The initial altered-prior test now verifies internally consistent but wrong
+  factors fail production rederivation; incomplete arithmetic fails earlier.
+- The explicit reviewer-selected execution route is still outstanding and is
+  next. This reporting increment does not close RF-G2 or authorise any seed,
+  remote scientific work, expanded identification or release publication.

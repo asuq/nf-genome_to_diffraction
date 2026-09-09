@@ -33,7 +33,10 @@ from genome_to_diffraction.checksums import (
 )
 from genome_to_diffraction.ids import canonical_digest, content_id
 from genome_to_diffraction.matthews.enumerate import COPY_RANGE_BACKEND
-from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
+from genome_to_diffraction.matthews.probability import (
+    PRIOR_BACKEND,
+    PRIOR_FACTOR_FIELDS,
+)
 from genome_to_diffraction.mr.policy import (
     LEGACY_SCORE_GATE_LLG,
     LEGACY_SCORE_GATE_TFZ,
@@ -68,7 +71,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v6-physical-window"
+_ADAPTER_VERSION = "mr-seed-review-v7-prior-factors"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
@@ -96,6 +99,7 @@ _TSV_COLUMNS = (
     "solvent_fraction",
     "matthews_prior",
     "matthews_prior_backend",
+    *PRIOR_FACTOR_FIELDS,
     "matthews_copy_range_complete",
     "matthews_physical_status",
     "configured_solvent_min",
@@ -465,7 +469,7 @@ def _join_candidates(
         request.funnel_manifest, label="funnel manifest"
     )
     if funnel_document.get("adapter_version") == (
-        "multi-source-first-copy-funnel-v8-physical-range"
+        "multi-source-first-copy-funnel-v9-prior-factors"
     ) and (
         funnel_document.get("matthews_prior_backend") != PRIOR_BACKEND
         or funnel_document.get("matthews_copy_range_backend") != COPY_RANGE_BACKEND
@@ -749,6 +753,12 @@ def _row(
         ),
         "matthews_prior": matthews.matthews_prior,
         "matthews_prior_backend": matthews.prior_backend,
+        **{
+            field: getattr(matthews, field)
+            if getattr(matthews, field) is not None
+            else ""
+            for field in PRIOR_FACTOR_FIELDS
+        },
         "matthews_copy_range_complete": features.get(
             "matthews_copy_range_complete", False
         ),
@@ -871,6 +881,7 @@ def _html_report(
         "solvent_fraction",
         "matthews_prior",
         "matthews_prior_backend",
+        *PRIOR_FACTOR_FIELDS,
         "matthews_physical_status",
         "configured_solvent_min",
         "configured_solvent_max",

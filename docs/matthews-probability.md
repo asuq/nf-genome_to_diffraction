@@ -17,8 +17,9 @@ visible factors:
    asymmetric unit.
 
 Their product is a review-ordering weight, not a calibrated probability of
-protein identity. The unweighted solvent density remains available in the
-runtime API and the MR review publishes an independent MR rank so disagreement
+protein identity. The unweighted solvent density and copy-frequency factor are
+published in every current Matthews row and MR review. The MR review also
+publishes an independent MR rank so disagreement
 cannot be hidden in one unexplained score.
 
 ## Reference and method
@@ -100,7 +101,16 @@ Inputs are the exact crystal manifest, pipeline configuration, MTZ preflight
 records, sequence groups, and source-protein records. Outputs are the complete
 Matthews JSONL, TSV, Parquet and Markdown inventories. Each hypothesis binds the
 preflight, sequence group, copy count, probability backend, and dynamic-range
-backend in its content identity.
+backend and `mattprob_factor_evidence_v1` evidence contract in its content identity.
+Each current row includes the relative solvent density, empirical copy frequency,
+their product, observed copy-count occurrences, copy-reference population size,
+resolution-selected density-reference count, density backend and reference SHA-256.
+`positive`/`zero` density and `observed`/`unobserved` copy frequency remain separate
+states. Historical records with no factor evidence retain null fields; partial
+factor records, inconsistent products/frequencies and mismatched status labels
+fail validation. Current production admission additionally rederives every
+factor and reference binding, so absent historical fields cannot qualify a new
+funnel. JSONL, TSV, Parquet and the review HTML/TSV expose these raw features.
 
 Malformed reference bytes, a checksum mismatch, unsupported backend metadata,
 insufficient resolution-conditioned observations, invalid mass/volume/solvent
@@ -123,6 +133,9 @@ dual Matthews/MR ranking, and installed-wheel resource parity. RF-G3 additionall
 covers both window tails, complete finite ranges, out-of-window funnel admission,
 and downstream copy-state eligibility. The 0.9 A insufficient-reference case
 fails explicitly rather than using a coarser resolution or a zero score.
+Factor reporting tests preserve exact and bounded products, distinguish empirical
+zeros from missing evidence, round-trip all raw fields through the tabular outputs,
+and reject altered factor evidence at the production funnel boundary.
 RF-G2's explicit selection route and the known-control RF-G4 comparison complete
 reachability and scientific qualification; historical unknown-crystal counts
 cannot substitute for those gates.

@@ -564,7 +564,7 @@ def materialise_unknown_pass1_public_fixture(
                     ),
                     (
                         "phase3_first_copy_funnel",
-                        "multi-source-first-copy-funnel-v8-physical-range",
+                        "multi-source-first-copy-funnel-v9-prior-factors",
                     ),
                     (
                         "phase3_mr_resources",

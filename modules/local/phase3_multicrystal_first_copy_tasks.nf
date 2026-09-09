@@ -178,7 +178,7 @@ process BUILD_PHASE3_MR_SEED_REVIEW {
         ? 'touch normalised_mr_results.jsonl'
         : "${resultStaging}\ncat ${resultJsonl} > normalised_mr_results.jsonl"
     """
-    # Scientific output contract: mr-seed-review-v6-physical-window
+    # Scientific output contract: mr-seed-review-v7-prior-factors
     ${resultCommand}
     genome-to-diffraction \
         --no-progress \

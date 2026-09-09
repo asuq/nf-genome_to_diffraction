@@ -27,22 +27,22 @@ REPOSITORY = Path(__file__).resolve().parents[2]
         (
             "enumerate_matthews",
             "ENUMERATE_MATTHEWS",
-            "asu_sequence_mass_physical_volume_v2",
+            "matthews-prior-factor-evidence-v1",
         ),
         (
             "build_exact_predicted_funnel",
             "BUILD_EXACT_PREDICTED_FUNNEL",
-            "exact-predicted-funnel-v2-physical-range",
+            "exact-predicted-funnel-v3-prior-factors",
         ),
         (
             "build_diverse_first_copy_funnel",
             "BUILD_DIVERSE_FIRST_COPY_FUNNEL",
-            "multi-source-first-copy-funnel-v2-physical-range",
+            "multi-source-first-copy-funnel-v3-prior-factors",
         ),
         (
             "build_phase3_diverse_first_copy_funnel",
             "BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL",
-            "multi-source-first-copy-funnel-v8-physical-range",
+            "multi-source-first-copy-funnel-v9-prior-factors",
         ),
         (
             "build_partner_plan",
@@ -62,12 +62,12 @@ REPOSITORY = Path(__file__).resolve().parents[2]
         (
             "m6_nextflow_tasks",
             "M6_PREPARE_ACTIVE_CASE",
-            "asu_sequence_mass_physical_volume_v2",
+            "matthews-prior-factor-evidence-v1",
         ),
         (
             "m6_nextflow_tasks",
             "M6_PREPARE_EARLY_CASE",
-            "asu_sequence_mass_physical_volume_v2",
+            "matthews-prior-factor-evidence-v1",
         ),
         (
             "m6_nextflow_tasks",
@@ -87,17 +87,17 @@ REPOSITORY = Path(__file__).resolve().parents[2]
         (
             "build_mr_seed_review",
             "BUILD_MR_SEED_REVIEW",
-            "mr-seed-review-v6-physical-window",
+            "mr-seed-review-v7-prior-factors",
         ),
         (
             "phase3_multicrystal_first_copy_tasks",
             "BUILD_PHASE3_MR_SEED_REVIEW",
-            "mr-seed-review-v6-physical-window",
+            "mr-seed-review-v7-prior-factors",
         ),
         (
             "phase3_no_a_tasks",
             "BUILD_PHASE3_NO_A_REVIEW",
-            "mr-seed-review-v6-physical-window",
+            "mr-seed-review-v7-prior-factors",
         ),
     ),
 )

@@ -142,6 +142,9 @@ def test_funnel_ranks_retained_rows_and_preserves_features(tmp_path: Path) -> No
     assert first.priority_features["coordinate_provider"] == "afdb"
     assert first.priority_features["model_retained_fraction"] == 1.0
     assert first.priority_features["matthews_physical_status"] == "plausible"
+    assert first.priority_features["solvent_density_status"] == "positive"
+    assert first.priority_features["copy_frequency_status"] == "observed"
+    assert first.priority_features["copy_count_occurrences"] == 5_440
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["candidate_count_before_global_cap"] == 3
     assert manifest["selected_hypothesis_count"] == 3
@@ -349,7 +352,7 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v8-physical-range"
+        "multi-source-first-copy-funnel-v9-prior-factors"
     )
     assert manifest["expected_copy_count_policy"] == (
         "dynamic_by_asu_sequence_mass_and_physical_volume"
@@ -440,8 +443,14 @@ def test_phase3_diverse_funnel_recomputes_the_empirical_matthews_prior(
         ).splitlines()
         if line
     ]
+    assert rows[0].relative_solvent_density is not None
+    assert rows[0].empirical_copy_frequency is not None
+    altered_density = rows[0].relative_solvent_density * 0.99
     rows[0] = rows[0].model_copy(
-        update={"matthews_prior": rows[0].matthews_prior + 1e-6}
+        update={
+            "relative_solvent_density": altered_density,
+            "matthews_prior": altered_density * rows[0].empirical_copy_frequency,
+        }
     )
     request.matthews_hypotheses_jsonl.write_text(
         "".join(f"{canonical_json_text(row)}\n" for row in rows),
@@ -453,7 +462,7 @@ def test_phase3_diverse_funnel_recomputes_the_empirical_matthews_prior(
         source_records_jsonl=STUBS / "source_records.jsonl",
     )
 
-    with pytest.raises(FunnelInputError, match="empirical prior differs"):
+    with pytest.raises(FunnelInputError, match="empirical factor evidence differs"):
         build_diverse_first_copy_funnel(
             replace(
                 request,

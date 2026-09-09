@@ -41,6 +41,9 @@ from genome_to_diffraction.matthews.enumerate import (
 )
 from genome_to_diffraction.matthews.probability import (
     PRIOR_BACKEND,
+    PRIOR_FACTOR_BACKEND,
+    PRIOR_FACTOR_FIELDS,
+    prior_factor_fields,
     probability_distribution,
 )
 from genome_to_diffraction.model_registry.all_eligible import (
@@ -80,9 +83,9 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
-_ADAPTER_VERSION = "exact-predicted-funnel-v2-physical-range"
-_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v2-physical-range"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v8-physical-range"
+_ADAPTER_VERSION = "exact-predicted-funnel-v3-prior-factors"
+_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v3-prior-factors"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v9-prior-factors"
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
@@ -373,6 +376,7 @@ def _complete_matthews_rows(
                     "copy_count": row.copy_count,
                     "prior_backend": PRIOR_BACKEND,
                     "copy_range_backend": COPY_RANGE_BACKEND,
+                    "prior_factor_backend": PRIOR_FACTOR_BACKEND,
                 },
             )
             if row.hypothesis_id != expected_id:
@@ -457,6 +461,14 @@ def _complete_matthews_rows(
                 )
             ):
                 raise FunnelInputError("Matthews configured solvent window differs")
+            expected_factors = prior_factor_fields(
+                distribution, row.copy_count, solvent_lower, solvent_upper
+            )
+            if any(
+                getattr(row, field) != expected_factors[field]
+                for field in PRIOR_FACTOR_FIELDS
+            ):
+                raise FunnelInputError("Matthews empirical factor evidence differs")
             if row.physical_status is not expected_status or not math.isclose(
                 row.matthews_prior,
                 expected_prior,
@@ -536,6 +548,7 @@ def _priority_features(
         "matthews_hypothesis_id": matthews.hypothesis_id,
         "matthews_prior": matthews.matthews_prior,
         "matthews_prior_backend": matthews.prior_backend,
+        **{field: getattr(matthews, field) for field in PRIOR_FACTOR_FIELDS},
         "matthews_copy_range_policy": (
             "dynamic_by_asu_sequence_mass_and_physical_volume"
         ),

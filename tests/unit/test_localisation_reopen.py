@@ -105,7 +105,7 @@ def _case(
     (funnel / "funnel_manifest.json").write_text(
         json.dumps(
             {
-                "adapter_version": ("multi-source-first-copy-funnel-v8-physical-range"),
+                "adapter_version": ("multi-source-first-copy-funnel-v9-prior-factors"),
                 "localisation_policy_id": policy.policy_id,
                 "mr_resource_plan_adapter": (
                     "phase3-mr-resource-allocation-v2-overprovisioned"

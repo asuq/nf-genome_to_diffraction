@@ -23,6 +23,19 @@ from numpy.typing import NDArray
 
 PRIOR_BACKEND = "mattprob_kde_2013_resolution_cumulative_pn_v1"
 SOLVENT_DENSITY_BACKEND = "mattprob_kde_2013_resolution_cumulative_v1"
+PRIOR_FACTOR_BACKEND = "mattprob_factor_evidence_v1"
+PRIOR_FACTOR_FIELDS = (
+    "relative_solvent_density",
+    "empirical_copy_frequency",
+    "solvent_density_status",
+    "copy_frequency_status",
+    "copy_count_occurrences",
+    "copy_frequency_reference_count",
+    "solvent_density_reference_count",
+    "solvent_density_backend",
+    "prior_reference_sha256",
+    "prior_factor_backend",
+)
 REFERENCE_RESOURCE = "data/protein_mattprob_2013.json.gz"
 REFERENCE_RESOURCE_SHA256 = (
     "4114691d739f79ade662dc9ee1df5bd5f0e89c0499d1175337c7295b0191d906"
@@ -256,6 +269,40 @@ def homooligomer_copy_probability(copy_count: int) -> float:
     return float(occurrences.get(copy_count, 0) / reference_count)
 
 
+def prior_factor_fields(
+    distribution: MatthewsProbabilityDistribution,
+    copy_count: int,
+    lower: float,
+    upper: float,
+) -> dict[str, Any]:
+    """Expose the unchanged product and its independently interpretable factors.
+
+    A point interval is the exact-mass case. Unobserved copy counts are empirical
+    zeros, not missing data or physical exclusion. An unsupported distribution
+    fails at construction and must never be represented by these numeric fields.
+    """
+
+    frequency = homooligomer_copy_probability(copy_count)
+    density = distribution.score_interval(lower, upper)
+    _, _, document = _reference()
+    occurrences = dict(document["homooligomer_copy_count_occurrences"])
+    return {
+        "matthews_prior": density * frequency,
+        "relative_solvent_density": density,
+        "empirical_copy_frequency": frequency,
+        "solvent_density_status": "positive" if density > 0 else "zero",
+        "copy_frequency_status": "observed" if frequency > 0 else "unobserved",
+        "copy_count_occurrences": occurrences.get(copy_count, 0),
+        "copy_frequency_reference_count": document[
+            "homooligomer_copy_count_reference_count"
+        ],
+        "solvent_density_reference_count": distribution.reference_record_count,
+        "solvent_density_backend": SOLVENT_DENSITY_BACKEND,
+        "prior_reference_sha256": REFERENCE_RESOURCE_SHA256,
+        "prior_factor_backend": PRIOR_FACTOR_BACKEND,
+    }
+
+
 def _oversmoothed_bandwidth(values: NDArray[np.float64]) -> float:
     count = len(values)
     if count < MINIMUM_REFERENCE_RECORDS:
@@ -322,10 +369,13 @@ def probability_distribution(
 
 __all__ = [
     "PRIOR_BACKEND",
+    "PRIOR_FACTOR_BACKEND",
+    "PRIOR_FACTOR_FIELDS",
     "SOLVENT_DENSITY_BACKEND",
     "MatthewsProbabilityDistribution",
     "MatthewsProbabilityError",
     "homooligomer_copy_probability",
+    "prior_factor_fields",
     "probability_distribution",
     "reference_metadata",
 ]

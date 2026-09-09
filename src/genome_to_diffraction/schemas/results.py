@@ -297,6 +297,16 @@ class MatthewsHypothesis(ContractModel):
     solvent_fraction_upper: float | None = None
     matthews_prior: float = Field(ge=0, le=1)
     prior_backend: NonEmptyString
+    relative_solvent_density: float | None = Field(default=None, ge=0, le=1)
+    empirical_copy_frequency: float | None = Field(default=None, ge=0, le=1)
+    solvent_density_status: Literal["positive", "zero"] | None = None
+    copy_frequency_status: Literal["observed", "unobserved"] | None = None
+    copy_count_occurrences: int | None = Field(default=None, ge=0)
+    copy_frequency_reference_count: PositiveInt | None = None
+    solvent_density_reference_count: PositiveInt | None = None
+    solvent_density_backend: NonEmptyString | None = None
+    prior_reference_sha256: Sha256Hex | None = None
+    prior_factor_backend: NonEmptyString | None = None
     rank_within_candidate: PositiveInt
     retained: bool
     physical_status: PhysicalStatus
@@ -312,6 +322,45 @@ class MatthewsHypothesis(ContractModel):
 
     @model_validator(mode="after")
     def _mass_representation_is_explicit(self) -> Self:
+        factors = (
+            self.relative_solvent_density,
+            self.empirical_copy_frequency,
+            self.solvent_density_status,
+            self.copy_frequency_status,
+            self.copy_count_occurrences,
+            self.copy_frequency_reference_count,
+            self.solvent_density_reference_count,
+            self.solvent_density_backend,
+            self.prior_reference_sha256,
+            self.prior_factor_backend,
+        )
+        if any(value is not None for value in factors):
+            if any(value is None for value in factors):
+                raise ValueError("Matthews prior factor evidence must be complete")
+            assert self.relative_solvent_density is not None
+            assert self.empirical_copy_frequency is not None
+            assert self.copy_count_occurrences is not None
+            assert self.copy_frequency_reference_count is not None
+            if self.copy_count_occurrences > self.copy_frequency_reference_count:
+                raise ValueError("copy occurrences exceed the reference population")
+            for observed, expected in (
+                (
+                    self.empirical_copy_frequency,
+                    self.copy_count_occurrences / self.copy_frequency_reference_count,
+                ),
+                (
+                    self.matthews_prior,
+                    self.relative_solvent_density * self.empirical_copy_frequency,
+                ),
+            ):
+                if not math.isclose(observed, expected, rel_tol=1e-12, abs_tol=0):
+                    raise ValueError("Matthews prior factor arithmetic differs")
+            if self.solvent_density_status != (
+                "positive" if self.relative_solvent_density > 0 else "zero"
+            ) or self.copy_frequency_status != (
+                "observed" if self.copy_count_occurrences > 0 else "unobserved"
+            ):
+                raise ValueError("Matthews prior factor status differs")
         window = (
             self.configured_solvent_min,
             self.configured_solvent_max,

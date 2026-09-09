@@ -20,7 +20,9 @@ from genome_to_diffraction.checksums import atomic_write_text
 from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.matthews.probability import (
     PRIOR_BACKEND,
+    PRIOR_FACTOR_BACKEND,
     MatthewsProbabilityDistribution,
+    prior_factor_fields,
     probability_distribution,
     reference_metadata,
 )
@@ -362,6 +364,7 @@ def enumerate_group(
             "copy_count": copy_count,
             "prior_backend": PRIOR_BACKEND,
             "copy_range_backend": COPY_RANGE_BACKEND,
+            "prior_factor_backend": PRIOR_FACTOR_BACKEND,
         }
         common: dict[str, object] = {
             "schema_version": "1.0",
@@ -383,7 +386,7 @@ def enumerate_group(
             coefficient = preflight.asu_volume_a3 / total_mass
             solvent = 1.0 - 1.23 / coefficient
             status = physical_status(solvent, solvent, minimum=minimum, maximum=maximum)
-            prior = empirical.single_component_prior(copy_count, solvent)
+            factors = prior_factor_fields(empirical, copy_count, solvent, solvent)
             row = MatthewsHypothesis.model_validate(
                 {
                     **common,
@@ -391,7 +394,7 @@ def enumerate_group(
                     "total_mass_da": total_mass,
                     "matthews_coefficient": coefficient,
                     "solvent_fraction": solvent,
-                    "matthews_prior": prior,
+                    **factors,
                     "physical_status": status,
                     "solvent_window_status": solvent_window_status(
                         solvent,
@@ -416,7 +419,8 @@ def enumerate_group(
                 minimum=minimum,
                 maximum=maximum,
             )
-            prior = empirical.single_component_interval_prior(
+            factors = prior_factor_fields(
+                empirical,
                 copy_count,
                 solvent_lower,
                 solvent_upper,
@@ -433,7 +437,7 @@ def enumerate_group(
                     "matthews_coefficient_upper": coefficient_upper,
                     "solvent_fraction_lower": solvent_lower,
                     "solvent_fraction_upper": solvent_upper,
-                    "matthews_prior": prior,
+                    **factors,
                     "physical_status": status,
                     "solvent_window_status": solvent_window_status(
                         solvent_lower,
@@ -534,6 +538,9 @@ def _write_outputs(
         f"Prior backend: `{PRIOR_BACKEND}`. This multiplies a resolution-conditioned",
         "relative solvent density by the published empirical ASU homooligomer-copy",
         "frequency. It is a soft ranking weight, not an identity probability.",
+        "The complete JSONL/TSV/Parquet inventory preserves both factors and their",
+        "reference counts. Zero density and unobserved copy frequency are distinct",
+        "from missing evidence; unsupported estimators fail without substitution.",
         f"Copy range backend: `{COPY_RANGE_BACKEND}`; no static copy ceiling.",
         f"Reference resource SHA-256: `{reference_metadata()['resource_sha256']}`.",
         "",
@@ -555,6 +562,10 @@ def _write_outputs(
             f"physical `{row.physical_status}`, configured solvent window "
             f"{row.configured_solvent_min}-{row.configured_solvent_max} "
             f"(`{row.solvent_window_status}`), SDS `{row.sds_page_prior_label}`"
+            f", density {row.relative_solvent_density:.6g} "
+            f"(`{row.solvent_density_status}`), copy frequency "
+            f"{row.empirical_copy_frequency:.6g} (`{row.copy_frequency_status}`), "
+            f"product {row.matthews_prior:.6g}"
         )
     atomic_write_text(report_path, "\n".join(lines) + "\n")
     return jsonl_path, tsv_path, parquet_path, report_path

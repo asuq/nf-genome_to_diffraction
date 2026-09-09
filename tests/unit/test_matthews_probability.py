@@ -14,6 +14,7 @@ from genome_to_diffraction.matthews.probability import (
     REFERENCE_RESOURCE_SHA256,
     SOLVENT_DENSITY_BACKEND,
     homooligomer_copy_probability,
+    prior_factor_fields,
     probability_distribution,
     reference_metadata,
 )
@@ -122,3 +123,38 @@ def test_invalid_solvent_intervals_fail(bounds: tuple[float, float]) -> None:
 def test_unsupported_high_resolution_is_not_a_zero_score_or_coarser_fallback() -> None:
     with pytest.raises(ValueError, match="too few empirical records"):
         probability_distribution(0.9)
+
+
+@pytest.mark.parametrize("bounds", ((0.5, 0.5), (0.45, 0.55), (-0.1, 0.2)))
+def test_factor_evidence_preserves_exact_and_bounded_products(
+    bounds: tuple[float, float],
+) -> None:
+    distribution = probability_distribution(1.42)
+    factors = prior_factor_fields(distribution, 4, *bounds)
+
+    assert factors["relative_solvent_density"] == distribution.score_interval(*bounds)
+    assert factors["copy_count_occurrences"] == 5_440
+    assert factors["copy_frequency_reference_count"] == 50_190
+    assert factors["solvent_density_reference_count"] == 3_941
+    assert factors["prior_reference_sha256"] == REFERENCE_RESOURCE_SHA256
+    assert factors["solvent_density_backend"] == SOLVENT_DENSITY_BACKEND
+    assert factors["copy_frequency_status"] == "observed"
+    assert factors["matthews_prior"] == distribution.single_component_interval_prior(
+        4, *bounds
+    )
+
+
+def test_zero_density_and_unobserved_copy_frequency_are_distinct() -> None:
+    distribution = probability_distribution(1.42)
+    unobserved = prior_factor_fields(distribution, 67, 0.5, 0.5)
+    # A negative-solvent diagnostic evaluates to zero density, not missing data.
+    zero_density = prior_factor_fields(distribution, 1, -0.1, -0.1)
+
+    assert unobserved["matthews_prior"] == zero_density["matthews_prior"] == 0
+    assert unobserved["relative_solvent_density"] > 0
+    assert unobserved["solvent_density_status"] == "positive"
+    assert unobserved["copy_frequency_status"] == "unobserved"
+    assert unobserved["copy_count_occurrences"] == 0
+    assert zero_density["empirical_copy_frequency"] > 0
+    assert zero_density["solvent_density_status"] == "zero"
+    assert zero_density["copy_frequency_status"] == "observed"
