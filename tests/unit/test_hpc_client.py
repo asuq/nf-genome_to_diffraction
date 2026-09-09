@@ -2280,8 +2280,8 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
         atomic_write_json(
             collected / "artifacts/qualification/m6-scientific-summary.json",
             {
-                "schema_version": "2.0",
-                "adapter_version": "m6-nextflow-run-v2",
+                "schema_version": "3.0",
+                "adapter_version": "m6-nextflow-run-v3-stages",
                 "track": "operational",
             },
         )

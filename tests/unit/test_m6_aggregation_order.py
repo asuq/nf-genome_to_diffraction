@@ -1,216 +1,45 @@
-"""Completion-order regressions for the active M6 case aggregation boundary."""
+"""Completion-order regression through real M6 review and receipt assembly."""
 
 import json
 from pathlib import Path
 
-from genome_to_diffraction.benchmarks.m6_nextflow import run_m6_assemble_case_task
-from genome_to_diffraction.checksums import sha256_file
-from genome_to_diffraction.ids import sequence_digest
+import pytest
 
-HASH = "a" * 64
-
-
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def _write_jsonl(path: Path, rows: list[object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "".join(f"{json.dumps(row, sort_keys=True)}\n" for row in rows),
-        encoding="utf-8",
-    )
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    run_m6_add_copy_task,
+    run_m6_assemble_case_task,
+    run_m6_select_finalists_task,
+    run_m6_select_seeds_task,
+)
+from genome_to_diffraction.benchmarks.public_control import PublicControlError
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from tests.unit.test_add_copy_phaser import NO_SOLUTION_LOG, STUBS, _fake_runtime
+from tests.unit.test_m6_admission import _prepared_case
+from tests.unit.test_m6_seed_selection import _attempts
 
 
-def _sequence_group(sequence: str) -> dict[str, object]:
-    digest = sequence_digest(sequence)
-    return {
-        "schema_version": "1.0",
-        "sequence_group_id": f"seq_{digest}",
-        "sha256": digest,
-        "sequence": sequence,
-        "length_aa": len(sequence),
-        "molecular_mass_da": 3500.0,
-        "molecular_mass_lower_da": None,
-        "molecular_mass_upper_da": None,
-        "mass_method": "test",
-        "residue_policy": "test",
-        "source_record_count": 1,
-        "quality_flags": [],
-    }
-
-
-def _write_case_bundle(root: Path) -> tuple[Path, tuple[dict[str, object], ...]]:
-    groups = (_sequence_group("A" * 50), _sequence_group("C" * 50))
-    hypotheses: list[dict[str, object]] = []
-    seed_rows: list[dict[str, object]] = []
-    for suffix, group in zip(("a", "b"), groups, strict=True):
-        hypothesis_id = f"hyp_{suffix}"
-        seed_id = f"sol_{suffix}"
-        group_id = str(group["sequence_group_id"])
-        hypotheses.append(
-            {
-                "schema_version": "1.0",
-                "hypothesis_id": hypothesis_id,
-                "crystal_id": "M6C001",
-                "sequence_group_id": group_id,
-                "model_id": f"model_{suffix}",
-                "copy_count_expected": 1,
-                "copy_number_to_search": 1,
-                "fixed_solution_id": None,
-                "space_group": "P 1",
-                "obs_labels": "F,SIGF",
-                "search_stage": "first_copy",
-                "resource_profile": "smoke",
-                "priority_features": {},
-                "status": "completed_hit",
-            }
-        )
-        seed_rows.append(
-            {
-                "schema_version": "1.0",
-                "case_id": "M6C001",
-                "seed_solution_id": seed_id,
-                "hypothesis_id": hypothesis_id,
-                "sequence_group_id": group_id,
-                "model_id": f"model_{suffix}",
-                "expected_copy_count": 1,
-                "first_copy_placed_count": 1,
-                "search_model_sha256": HASH,
-            }
-        )
-    _write_json(
-        root / "case_plan.json",
-        {
-            "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-case-v3-eligible-inventory",
-            "case_id": "M6C001",
-            "catalogue_key": HASH,
-            "early_outcome": None,
-            "hypothesis_count": 2,
-            "hypothesis_ids": ["hyp_a", "hyp_b"],
-        },
-    )
-    _write_json(
-        root / "case_task.json",
-        {
-            "schema_version": "1.0",
-            "case_id": "M6C001",
-            "track": "operational",
-            "catalogue_key": HASH,
-            "reflections_sha256": HASH,
-            "analysis_config_sha256": HASH,
-            "model_policy_sha256": HASH,
-            "fault_control_sha256": None,
-        },
-    )
-    _write_jsonl(root / "all_sequence_groups.jsonl", list(groups))
-    _write_jsonl(
-        root / "all_source_records.jsonl",
-        [
-            {
-                "schema_version": "1.0",
-                "source_record_id": f"src_{index}",
-                "catalogue_id": "stub",
-                "original_protein_id": f"protein_{index}",
-                "original_header": f"protein_{index}",
-                "sequence_group_id": group["sequence_group_id"],
-                "source_annotation_provider": "stub",
-            }
-            for index, group in enumerate(groups, start=1)
-        ],
-    )
-    for hypothesis in hypotheses:
-        _write_jsonl(
-            root
-            / "first-copy-funnel/hypotheses"
-            / f"{hypothesis['hypothesis_id']}.jsonl",
-            [hypothesis],
-        )
-    return root, tuple(seed_rows)
-
-
-def _write_finalist_bundle(
-    root: Path, seed_rows: tuple[dict[str, object], ...]
-) -> Path:
-    _write_json(
-        root / "finalist_plan.json",
-        {
-            "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-finalists-v1",
-            "case_id": "M6C001",
-            "finalist_count": 2,
-            "all_seed_parents_retained": True,
-        },
-    )
-    _write_jsonl(root / "seed_bundle/seed_tasks.jsonl", list(seed_rows))
-    _write_json(
-        root / "seed_bundle/seed_plan.json",
-        {
-            "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v3-production-review",
-            "case_id": "M6C001",
-            "selected_seed_count": 2,
-            "typed_outcome": None,
-        },
-    )
-    (root / "add-copy-results").mkdir(parents=True)
-    for seed in seed_rows:
-        hypothesis_id = str(seed["hypothesis_id"])
-        _write_json(
-            root
-            / "seed_bundle/first-copy-results"
-            / hypothesis_id
-            / "normalised_mr_result.json",
-            {
-                "schema_version": "1.0",
-                "hypothesis_id": hypothesis_id,
-                "tool_version": "test",
-                "execution_status": "completed_hit",
-                "llg": 100.0,
-                "tfz": 10.0,
-                "placed_copy_count": 1,
-                "packing_summary": {"top_solution_packed": True},
-                "raw_log_pointer": f"{hypothesis_id}.log",
-            },
-        )
-    return root
-
-
-def _write_refinement(root: Path, seed: dict[str, object]) -> Path:
-    seed_id = str(seed["seed_solution_id"])
-    group_id = str(seed["sequence_group_id"])
+def _write_refinement(root: Path, task: dict[str, object]) -> Path:
+    """Synthetic terminal T12 child, not a native refinement qualification."""
+    root.mkdir(parents=True)
+    (root / "t12").mkdir()
+    seed_id = str(task["seed_solution_id"])
     refinement_id = f"refine_{seed_id}"
-    _write_json(
-        root / "finalist_task.json",
-        {
-            "schema_version": "1.0",
-            "case_id": "M6C001",
-            "seed_solution_id": seed_id,
-            "sequence_group_id": group_id,
-            "input_copy_count": 1,
-            "parent_coordinate_sha256": HASH,
-            "parent_mtz_sha256": HASH,
-            "observation_labels": "F,SIGF",
-            "resolution": 2.0,
-        },
-    )
-    _write_json(
+    atomic_write_json(root / "finalist_task.json", task)
+    atomic_write_json(
         root / "t12/brief_refinement_result.json",
         {
             "schema_version": "1.0",
             "refinement_id": refinement_id,
             "seed_solution_id": seed_id,
-            "sequence_group_id": group_id,
-            "input_copy_count": 1,
+            "sequence_group_id": task["sequence_group_id"],
+            "input_copy_count": task["input_copy_count"],
             "tool_version": "test",
             "execution_status": "failed_tool_execution",
             "command_pointer": "refine.command.json",
             "raw_log_pointer": "refine.log",
         },
     )
-    _write_json(
+    atomic_write_json(
         root / "t12/sequence_map_result.json",
         {
             "schema_version": "1.0",
@@ -219,7 +48,7 @@ def _write_refinement(root: Path, seed: dict[str, object]) -> Path:
             "seed_solution_id": seed_id,
             "execution_status": "skipped_ineligible",
             "tool_version": "test",
-            "complete_catalogue_group_count": 2,
+            "complete_catalogue_group_count": 31,
             "scored_group_count": 0,
             "candidates": [],
             "command_pointer": "sequence.command.json",
@@ -238,26 +67,71 @@ def _tree_digest(root: Path) -> tuple[tuple[str, str], ...]:
 
 
 def test_case_assembly_is_byte_identical_under_refinement_completion_order(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    case, seed_rows = _write_case_bundle(tmp_path / "case")
-    finalists = _write_finalist_bundle(tmp_path / "finalists", seed_rows)
-    first = _write_refinement(tmp_path / "refinement-b", seed_rows[1])
-    second = _write_refinement(tmp_path / "refinement-a", seed_rows[0])
-
+    case = _prepared_case(tmp_path, monkeypatch)
+    atomic_write_json(
+        case / "policy_bundle/policy/model_policy_report.json",
+        {"schema_version": "1.0", "synthetic_fixture": True},
+    )
+    attempts = _attempts(case, tmp_path / "attempts")
+    seeds = run_m6_select_seeds_task(case, attempts, tmp_path / "seeds")
+    seed_rows = [
+        json.loads(line)
+        for line in (seeds / "seed_tasks.jsonl").read_text().splitlines()
+    ]
+    _fake_runtime(monkeypatch, log_text=NO_SOLUTION_LOG, write_solution=False)
+    children = tuple(
+        run_m6_add_copy_task(
+            case,
+            seeds,
+            seed["seed_solution_id"],
+            STUBS / "phenix_install_manifest.json",
+            tmp_path / f"copy_{index}",
+            threads=16,
+        )
+        for index, seed in enumerate(seed_rows)
+    )
+    finalists = run_m6_select_finalists_task(
+        case, seeds, children, tmp_path / "finalists"
+    )
+    tasks = [
+        json.loads(line)
+        for line in (finalists / "finalist_tasks.jsonl").read_text().splitlines()
+    ]
+    refinements = tuple(
+        _write_refinement(tmp_path / f"refinement_{index}", task)
+        for index, task in enumerate(tasks)
+    )
     forward = run_m6_assemble_case_task(
-        case,
-        finalists,
-        (first, second),
-        tmp_path / "forward",
+        case, finalists, refinements, tmp_path / "forward"
     )
     reverse = run_m6_assemble_case_task(
-        case,
-        finalists,
-        (second, first),
-        tmp_path / "reverse",
+        case, finalists, tuple(reversed(refinements)), tmp_path / "reverse"
     )
-
     assert _tree_digest(forward) == _tree_digest(reverse)
-    refinements = (forward / "refinement_results.jsonl").read_text(encoding="utf-8")
-    assert refinements.index("sol_a") < refinements.index("sol_b")
+    records = [
+        json.loads(line)
+        for line in (forward / "refinement_results.jsonl").read_text().splitlines()
+    ]
+    assert [row["seed_solution_id"] for row in records] == sorted(
+        task["seed_solution_id"] for task in tasks
+    )
+    case_record = json.loads((forward / "case_record.json").read_text())
+    stages = case_record["stage_inventory"]
+    assert stages["scheduled"]["hypothesis_tasks"] == 25
+    assert stages["advanced"]["hypothesis_tasks"] == 5
+    assert case_record["first_copy_attempt_count"] == 25
+    assert case_record["additional_copy_attempt_count"] == sum(
+        row["additional_copy_attempt_count"] for row in stages["rows"]
+    )
+    receipt = json.loads((forward / "case_evidence_manifest.json").read_text())
+    assert receipt["stage_inventory_sha256"] == sha256_file(
+        forward / "stage_inventory.json"
+    )
+    task_path = refinements[0] / "finalist_task.json"
+    changed = json.loads(task_path.read_text())
+    changed["input_copy_count"] += 1
+    atomic_write_json(task_path, changed)
+    with pytest.raises(PublicControlError, match="refinement task differs"):
+        run_m6_assemble_case_task(case, finalists, refinements, tmp_path / "tampered")

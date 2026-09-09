@@ -6,7 +6,7 @@ runner, database, Phenix, resource, resume, cache, identity-decision, and
 partial-output evidence, rehashes the leakage parent binding, and authenticates
 every shared truthless task against the operational child inventory before
 joining opaque case IDs and sequence digests to the approved protocol and
-private family truth. Corrected acceptance requires two identity-bearing v2
+private family truth. Corrected acceptance requires two stage-bearing v3
 tracks; legacy results remain independently verifiable but cannot enter this
 gate. The collector never changes runner ranks, LLG/TFZ annotations, candidate
 counts, or copy evidence.
@@ -58,6 +58,10 @@ from genome_to_diffraction.benchmarks.m6_protocol import (
 from genome_to_diffraction.benchmarks.m6_scientific import (
     M6ScientificTrack,
     m6_track_case_ids,
+)
+from genome_to_diffraction.benchmarks.m6_stages import (
+    M6StageInventory,
+    target_stage_ranks,
 )
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
@@ -458,7 +462,7 @@ def _load_track(
     cases_path = qualification / "m6-case-results.jsonl"
     rankings_path = qualification / "m6-candidate-rankings.jsonl.gz"
     cases = _jsonl(cases_path, "case results")
-    if summary.get("adapter_version") == "m6-nextflow-run-v2":
+    if summary.get("adapter_version") == "m6-nextflow-run-v3-stages":
         try:
             cases = tuple(
                 cast(
@@ -542,7 +546,7 @@ def _load_track(
             qualification / "m6-resume-cache-evidence.json",
             "resume-cache evidence",
         )
-        if summary.get("adapter_version") == "m6-nextflow-run-v2":
+        if summary.get("adapter_version") == "m6-nextflow-run-v3-stages":
             first_child_outputs = _verify_child_output_evidence(
                 qualification, track, resource_evidence, resume_cache
             )
@@ -701,6 +705,8 @@ def _edge_outcome_verified(
     case: M6CaseSpec,
     private_case: _M6PrivateCaseTruth,
     observations: tuple[M6EdgeObservation, ...],
+    stages: M6StageInventory,
+    first_copy_results: tuple[dict[str, object], ...],
 ) -> bool | None:
     """Truth-join only SDS/Matthews rows; all other edges stay runner-observed."""
 
@@ -751,9 +757,21 @@ def _edge_outcome_verified(
     expected_copy_count = private_case.expected_asu_copy_count
     if expected_copy_count is None:
         return False
-    return any(
+    retained_non_top = any(
         item.copy_count == expected_copy_count and item.rank_within_candidate > 1
         for item in target_summary.retained_hypotheses
+    )
+    completed = {
+        cast(dict[str, object], row["result"])["hypothesis_id"]
+        for row in first_copy_results
+        if cast(dict[str, object], row["result"]).get("execution_status")
+        in {"completed_hit", "completed_no_hit"}
+    }
+    return retained_non_top and any(
+        row.sequence_sha256 == target_digest
+        and row.expected_copy_count == expected_copy_count
+        and row.hypothesis_id in completed
+        for row in stages.rows
     )
 
 
@@ -855,7 +873,14 @@ def _positive_assessment(
     if len(matches) > 1:
         raise PublicControlError(f"M6 target ranking is duplicated: {case.case_id}")
     target_row = matches[0] if matches else None
-    group_id = None if target_row is None else target_row.get("sequence_group_id")
+    stages = M6StageInventory.model_validate(raw["stage_inventory"])
+    group_id = f"seq_{target.target_sequence_sha256}"
+    stage_ranks = target_stage_ranks(stages, target.target_sequence_sha256)
+    advanced_ids = {
+        row.solution_id for row in stages.rows if row.advanced_rank is not None
+    }
+    if target_row is not None and target_row.get("sequence_group_id") != group_id:
+        raise PublicControlError("M6 provider ranking target identity changed")
     seed_rows = raw.get("selected_seed_results", [])
     if not isinstance(seed_rows, list) or any(
         not isinstance(row, dict) for row in seed_rows
@@ -865,6 +890,7 @@ def _positive_assessment(
         cast(dict[str, object], row)
         for row in seed_rows
         if cast(dict[str, object], row).get("sequence_group_id") == group_id
+        and cast(dict[str, object], row).get("seed_solution_id") in advanced_ids
     ]
     supported = [
         cast(int, row["best_supported_copy_count"])
@@ -883,18 +909,27 @@ def _positive_assessment(
             "case_id": case.case_id,
             "execution_status": raw["execution_status"],
             "scientific_status": (
-                "candidate_evidence" if target_row is not None else "abstained"
+                "not_assessed"
+                if raw["execution_status"] == "failed"
+                else "candidate_evidence"
+                if stage_ranks["target_scheduled_rank"] is not None
+                else "abstained"
             ),
             "typed_outcome": (
-                "target_evidence_retained"
-                if target_row is not None
-                else "completed_no_target_evidence"
+                raw["typed_outcome"]
+                if raw["execution_status"] == "failed"
+                else "target_scheduled_evidence_retained"
+                if stage_ranks["target_scheduled_rank"] is not None
+                else "completed_no_scheduled_target_evidence"
             ),
             "failure_class": raw.get("failure_class"),
             "candidate_count": raw["candidate_count"],
             "retained_candidate_count": raw["retained_candidate_count"],
             "all_candidates_retained": raw["all_candidates_retained"],
-            "target_sequence_rank": (
+            "stage_inventory": stages,
+            "target_sequence_sha256": target.target_sequence_sha256,
+            **stage_ranks,
+            "target_provider_rank": (
                 None if target_row is None else target_row["rank"]
             ),
             "correct_family_model_retained": any(
@@ -929,6 +964,7 @@ def _assessment(
         "candidate_count": raw["candidate_count"],
         "retained_candidate_count": raw["retained_candidate_count"],
         "all_candidates_retained": raw["all_candidates_retained"],
+        "stage_inventory": raw["stage_inventory"],
         "runner_identity_decision": identity_decision,
         "exact_identity_sequence_sha256": _reported_identity_digest(identity_decision),
         "edge_observations": edge_observations,
@@ -936,6 +972,8 @@ def _assessment(
             case,
             private_cases[case.case_id],
             edge_observations,
+            M6StageInventory.model_validate(raw["stage_inventory"]),
+            tuple(cast(list[dict[str, object]], raw["first_copy_results"])),
         ),
     }
     if case.case_kind in {"operational_positive", "leakage_positive"}:
@@ -1072,12 +1110,12 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
     )
     tracks = (operational, leakage)
     if any(
-        track.summary.get("adapter_version") != "m6-nextflow-run-v2"
-        or track.summary.get("schema_version") != "2.0"
+        track.summary.get("adapter_version") != "m6-nextflow-run-v3-stages"
+        or track.summary.get("schema_version") != "3.0"
         for track in tracks
     ):
         raise PublicControlError(
-            "corrected M6 acceptance requires two identity-bearing v2 tracks"
+            "corrected M6 acceptance requires two stage-bearing v3 tracks"
         )
     if operational.run_id == leakage.run_id:
         raise PublicControlError("M6 requires two distinct scientific run IDs")
@@ -1135,7 +1173,7 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
     if pixi_version.startswith("pixi "):
         pixi_version = pixi_version.removeprefix("pixi ")
     evidence = M6CollectedEvidence(
-        schema_version="1.1",
+        schema_version="1.2",
         protocol_id=protocol.protocol_id,
         protocol_sha256=protocol_sha256,
         private_truth_map_sha256=sha256_file(private_truth_path),

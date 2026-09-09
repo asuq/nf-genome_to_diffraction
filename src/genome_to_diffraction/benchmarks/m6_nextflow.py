@@ -60,6 +60,11 @@ from genome_to_diffraction.benchmarks.m6_scientific import (
     m6_track_case_ids,
     verify_m6_scientific_output,
 )
+from genome_to_diffraction.benchmarks.m6_stages import (
+    M6StageInventory,
+    build_m6_stage_inventory,
+    verify_m6_stage_evidence,
+)
 from genome_to_diffraction.benchmarks.m6_verification import (
     M6RunnerCaseSpec,
     M6RunnerInventorySpec,
@@ -144,8 +149,8 @@ _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
 _COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v2-eligible-inventory"
 _CASE_ADAPTER = "m6-nextflow-case-v3-eligible-inventory"
 _SEED_ADAPTER = "m6-nextflow-seeds-v3-production-review"
-_CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
-_RUN_ADAPTER = "m6-nextflow-run-v2"
+_CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v3-stages"
+_RUN_ADAPTER = "m6-nextflow-run-v3-stages"
 _MATERIALISED_SUFFIX = {
     "application/json": ".json",
     "application/x-mtz": ".mtz",
@@ -264,8 +269,8 @@ class M6HypothesisGroupTask(ContractModel):
 class M6CaseEvidence(ContractModel):
     """One complete retain-all case record assembled from child tasks."""
 
-    schema_version: Literal["2.0"]
-    adapter_version: Literal["m6-nextflow-case-evidence-v2"]
+    schema_version: Literal["3.0"]
+    adapter_version: Literal["m6-nextflow-case-evidence-v3-stages"]
     case_id: str
     execution_status: Literal["completed", "failed"]
     scientific_status: str
@@ -287,9 +292,21 @@ class M6CaseEvidence(ContractModel):
     additional_copy_results: tuple[dict[str, object], ...]
     refinement_results: tuple[dict[str, object], ...]
     sequence_summaries: tuple[dict[str, object], ...]
+    stage_inventory: M6StageInventory
 
     @model_validator(mode="after")
     def _validate_retention_and_counts(self) -> Self:
+        stages = self.stage_inventory
+        if stages.case_id != self.case_id:
+            raise ValueError("M6 stage inventory belongs to another case")
+        if stages.scheduled.unique_proteins > self.candidate_count:
+            raise ValueError("M6 scheduled proteins exceed the retained catalogue")
+        verify_m6_stage_evidence(
+            stages,
+            self.first_copy_results,
+            self.selected_seed_results,
+            self.additional_copy_results,
+        )
         if self.identity_decision.case_id != self.case_id:
             raise ValueError("M6 identity decision belongs to another case")
         verify_m6_identity_decision_evidence(
@@ -2311,6 +2328,7 @@ def run_m6_select_finalists_task(
 
     case = case_bundle.resolve(strict=True)
     seeds = seed_bundle.resolve(strict=True)
+    build_m6_stage_inventory(case, seeds, add_copy_results)
     seed_plan = _json_object(seeds / "seed_plan.json", "seed plan")
     expected = _json_integer(seed_plan, "selected_seed_count", "seed plan")
     if len(add_copy_results) != expected:
@@ -2376,7 +2394,7 @@ def run_m6_select_finalists_task(
         output / "finalist_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-finalists-v1",
+            "adapter_version": "m6-nextflow-finalists-v2-receipts",
             "case_id": seed_plan["case_id"],
             "finalist_count": len(rows),
             "all_seed_parents_retained": True,
@@ -2392,6 +2410,7 @@ def run_m6_empty_finalists_task(
 
     case = case_bundle.resolve(strict=True)
     seeds = seed_bundle.resolve(strict=True)
+    build_m6_stage_inventory(case, seeds, ())
     seed_plan = _json_object(seeds / "seed_plan.json", "seed plan")
     if _json_integer(seed_plan, "selected_seed_count", "seed plan") != 0:
         raise PublicControlError("M6 empty-finalist branch received selected seeds")
@@ -2406,7 +2425,7 @@ def run_m6_empty_finalists_task(
         output / "finalist_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-finalists-v1",
+            "adapter_version": "m6-nextflow-finalists-v2-receipts",
             "case_id": seed_plan["case_id"],
             "finalist_count": 0,
             "all_seed_parents_retained": True,
@@ -2527,6 +2546,16 @@ def run_m6_assemble_case_task(
             )
     copy_rows: list[AdditionalCopyResult] = []
     add_root = finalists / "add-copy-results"
+    stage_inventory = build_m6_stage_inventory(
+        case,
+        seed_bundle,
+        tuple(sorted(path for path in add_root.iterdir() if path.is_dir())),
+    )
+    expected_seed_ids = {
+        row.solution_id for row in stage_inventory.rows if row.advanced_rank is not None
+    }
+    if expected_refinements != len(expected_seed_ids):
+        raise PublicControlError("M6 finalist count differs from executed continuation")
     if add_root.is_dir():
         for path in sorted(add_root.glob("*/additional_copy_series_results.jsonl")):
             copy_rows.extend(_jsonl(path, AdditionalCopyResult))
@@ -2538,12 +2567,35 @@ def run_m6_assemble_case_task(
         task_record = M6FinalistTask.model_validate_json(
             (root / "finalist_task.json").read_text(encoding="utf-8")
         )
+        if (
+            task_record.seed_solution_id not in expected_seed_ids
+            or task_record
+            != M6FinalistTask.model_validate_json(
+                (
+                    finalists
+                    / "finalist_tasks"
+                    / task_record.seed_solution_id
+                    / "task.json"
+                ).read_bytes()
+            )
+        ):
+            raise PublicControlError(
+                "M6 refinement task differs from its retained finalist"
+            )
         refinement = BriefRefinementResult.model_validate_json(
             (root / "t12/brief_refinement_result.json").read_text(encoding="utf-8")
         )
         sequence = SequenceMapResult.model_validate_json(
             (root / "t12/sequence_map_result.json").read_text(encoding="utf-8")
         )
+        if (
+            refinement.seed_solution_id != task_record.seed_solution_id
+            or refinement.sequence_group_id != task_record.sequence_group_id
+            or refinement.input_copy_count != task_record.input_copy_count
+            or sequence.seed_solution_id != task_record.seed_solution_id
+            or sequence.refinement_id != refinement.refinement_id
+        ):
+            raise PublicControlError("M6 refinement or sequence child identity changed")
         refinement_children.append((task_record, refinement, sequence, root))
     seed_ids = [item[0].seed_solution_id for item in refinement_children]
     if len(seed_ids) != len(set(seed_ids)):
@@ -2653,7 +2705,7 @@ def run_m6_assemble_case_task(
             },
         )
     case_record = M6CaseEvidence(
-        schema_version="2.0",
+        schema_version="3.0",
         adapter_version=_CASE_EVIDENCE_ADAPTER,
         case_id=case_id,
         execution_status=execution_status,
@@ -2682,6 +2734,10 @@ def run_m6_assemble_case_task(
         ),
         refinement_results=tuple(item.model_dump(mode="json") for item in refinements),
         sequence_summaries=tuple(sequence_summaries),
+        stage_inventory=stage_inventory,
+    )
+    atomic_write_json(
+        output / "stage_inventory.json", stage_inventory.model_dump(mode="json")
     )
     atomic_write_json(
         output / "identity_decision.json",
@@ -2721,12 +2777,13 @@ def run_m6_assemble_case_task(
     atomic_write_json(
         output / "case_evidence_manifest.json",
         {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "adapter_version": _CASE_EVIDENCE_ADAPTER,
             "case_id": case_id,
             "case_record_sha256": sha256_file(output / "case_record.json"),
             "identity_decision_sha256": sha256_file(output / "identity_decision.json"),
             "edge_observations_sha256": sha256_file(output / "edge_observations.jsonl"),
+            "stage_inventory_sha256": sha256_file(output / "stage_inventory.json"),
             "all_candidates_retained": True,
             "all_child_attempts_retained": True,
         },
@@ -2814,6 +2871,37 @@ def run_m6_aggregate_track_task(
         typed_record = M6CaseEvidence.model_validate_json(
             (root / "case_record.json").read_text(encoding="utf-8")
         )
+        manifest = _json_object(root / "case_evidence_manifest.json", "case evidence")
+        if (
+            manifest.get("schema_version") != "3.0"
+            or manifest.get("adapter_version") != _CASE_EVIDENCE_ADAPTER
+            or manifest.get("case_id") != typed_record.case_id
+            or manifest.get("case_record_sha256")
+            != sha256_file(root / "case_record.json")
+            or manifest.get("stage_inventory_sha256")
+            != sha256_file(root / "stage_inventory.json")
+            or M6StageInventory.model_validate_json(
+                (root / "stage_inventory.json").read_bytes()
+            )
+            != typed_record.stage_inventory
+        ):
+            raise PublicControlError("M6 case stage manifest changed")
+        raw_finalists = root / "raw/finalists"
+        stages = build_m6_stage_inventory(
+            root / "raw/case",
+            raw_finalists / "seed_bundle",
+            tuple(
+                sorted(
+                    path
+                    for path in (raw_finalists / "add-copy-results").iterdir()
+                    if path.is_dir()
+                )
+            ),
+        )
+        if stages != typed_record.stage_inventory:
+            raise PublicControlError(
+                "M6 case stages differ from raw execution receipts"
+            )
         record = cast(dict[str, object], typed_record.model_dump(mode="json"))
         case_id = typed_record.case_id
         if case_id in by_id:
@@ -2900,7 +2988,7 @@ def run_m6_aggregate_track_task(
     atomic_write_json(
         summary,
         {
-            "schema_version": "2.0",
+            "schema_version": "3.0",
             "adapter_version": _RUN_ADAPTER,
             "execution_model": "nextflow_dsl2_slurm_fanout",
             "protocol_id": "m6_independent_prokaryote_homomer_v1",

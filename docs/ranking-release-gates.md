@@ -146,8 +146,13 @@ records the complete production-ordered inventory, with at most five eligible
 recommendations under an explicit truth-blind benchmark authority. Child
 execution revalidates that evidence without fabricated human approval and uses
 the original prepared model, not a possibly coupled-tNCS parent, for the next
-single-copy search. Synthetic parity/continuation tests pass; stage-specific
-metrics and native four-arm qualification remain outstanding.
+single-copy search. Synthetic parity/continuation tests pass. The third increment
+now binds scheduled/recommended/advanced inventories to production order and
+actual continuation receipts, separates protein/model/copy/task counts and
+removes provider rank from top-k gates. Non-top-copy edge acceptance requires
+scheduled, completed execution rather than retention alone. Case/track schema
+3.0 and collected schema 1.2 reject stale acceptance inputs. Native four-arm
+qualification and the full integration milestone remain outstanding.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new

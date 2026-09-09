@@ -14,6 +14,7 @@ from genome_to_diffraction.benchmarks.m6_nextflow import (
     run_m6_add_copy_task,
     run_m6_select_seeds_task,
 )
+from genome_to_diffraction.benchmarks.m6_stages import build_m6_stage_inventory
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import canonical_json_text, content_id
@@ -193,6 +194,68 @@ def test_m6_duplicate_result_partition_fails_before_selection(
     with pytest.raises(PublicControlError, match="partitions differ"):
         run_m6_select_seeds_task(case, (*attempts[:-1], attempts[0]), tmp_path / "bad")
     assert not (tmp_path / "bad").exists()
+
+
+def test_stage_inventory_authenticates_executed_children(
+    tmp_path: Path,
+    seed_inputs: tuple[Path, tuple[Path, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case, attempts = seed_inputs
+    seeds = run_m6_select_seeds_task(case, attempts, tmp_path / "seeds")
+    authority = validate_m6_advancement(
+        seeds / "benchmark_advancement.json",
+        hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
+    )
+    _fake_runtime(monkeypatch, log_text=NO_SOLUTION_LOG, write_solution=False)
+    children = tuple(
+        run_m6_add_copy_task(
+            case,
+            seeds,
+            row.solution_id,
+            STUBS / "phenix_install_manifest.json",
+            tmp_path / f"child_{index}",
+            threads=16,
+        )
+        for index, row in enumerate(authority.manifest.recommended)
+    )
+    inventory = build_m6_stage_inventory(case, seeds, children)
+    assert inventory.scheduled.hypothesis_tasks == 25
+    assert (
+        inventory.recommended.hypothesis_tasks
+        == inventory.advanced.hypothesis_tasks
+        == 5
+    )
+    assert [row.scheduled_rank for row in inventory.rows] == list(range(1, 26))
+    hypotheses = [
+        json.loads(line)
+        for line in (case / "first-copy-funnel/mr_hypotheses.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert [row.hypothesis_id for row in inventory.rows] == [
+        row["hypothesis_id"] for row in hypotheses
+    ]
+    assert inventory.scheduled.unique_proteins == len(
+        {row["sequence_group_id"] for row in hypotheses}
+    )
+    assert inventory.scheduled.unique_models == len(
+        {row["model_id"] for row in hypotheses}
+    )
+    assert inventory.scheduled.expected_copy_states == len(
+        {(row["sequence_group_id"], row["copy_count_expected"]) for row in hypotheses}
+    )
+    assert build_m6_stage_inventory(case, seeds, tuple(reversed(children))) == inventory
+    with pytest.raises(ValueError, match="missing or foreign continuation"):
+        build_m6_stage_inventory(case, seeds, children[:-1])
+    with pytest.raises(ValueError, match="duplicate continuation"):
+        build_m6_stage_inventory(case, seeds, (*children[:-1], children[0]))
+    parent_path = children[0] / "best_parent.json"
+    parent = json.loads(parent_path.read_text())
+    parent["best_supported_copy_count"] += 1
+    atomic_write_json(parent_path, parent)
+    with pytest.raises(ValueError, match="retained parent or terminal state"):
+        build_m6_stage_inventory(case, seeds, children)
 
 
 def test_m6_no_credible_seed_retains_all_review_evidence(

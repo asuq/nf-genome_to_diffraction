@@ -504,8 +504,8 @@ def _m6_operational_precheck(
         or result.get("failure_class") != "success"
         or result.get("exit_code") != 0
         or summary.get("track") != "operational"
-        or summary.get("schema_version") != "2.0"
-        or summary.get("adapter_version") != "m6-nextflow-run-v2"
+        or summary.get("schema_version") != "3.0"
+        or summary.get("adapter_version") != "m6-nextflow-run-v3-stages"
     ):
         raise ValidationError(
             "M6 operational parent is not a collected successful exact track"

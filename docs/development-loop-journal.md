@@ -15887,3 +15887,35 @@ with a collapsed combined parent or a guessed command.
   as a scheduled or advanced target. Native known-control/four-arm evidence and
   the full RF integration milestone remain outstanding; do not restart the
   cancelled identification programme or reopen its accepted assessments.
+
+## 2026-09-10 - RF-G4 execution-stage metrics local increment
+
+- Replaced the provider-rank top-k surrogate with production scheduling order
+  for top-25/top-10 and authenticated executed continuation for top-five.
+  Recommendations and provider ranks remain separately labelled diagnostics.
+  The complete stage inventory distinguishes proteins, models, expected-copy
+  states and tasks and binds the catalogue digest independently of provider
+  ranking availability. Frozen thresholds, task budgets and truth isolation
+  are unchanged.
+- Continuation receipts authenticate original search models, diffraction,
+  parent-child transitions, native commands/parameters/logs/results and retained
+  assets. Zero-attempt continuation remains explicit. Missing/duplicate/foreign
+  receipts, changed raw first-copy evidence and mismatched refinement children
+  fail before aggregation. Non-top-Matthews edge acceptance now requires the
+  corresponding scheduled, completed first-copy result, not retention alone.
+- Current case/track schema 3.0 and collected/evaluator schema 1.2 advance with
+  rendered Nextflow, stub, smoke and operational-parent contracts. Historical
+  results remain archival-verifiable but cannot pass current acceptance. The
+  completion-order regression now exercises real production review and copy
+  adapters with simulated Phenix, retaining byte-identical assembly.
+- Local checks passed: 159 focused M6/contract tests before the final edge/raw
+  binding additions; 116 final stage/seed/aggregation/collection/raw-loader tests;
+  27 HPC client/dispatcher tests; M6 cache-mutation/resume stub; Nextflow syntax;
+  Ruff, formatting, ty, documentation links and diff checks. The new receipt
+  regression caught an incorrect review asset-role key, now corrected to the
+  existing normalised-result contract. No native qualification is claimed.
+- Next run the named full RF integration milestone, reconcile the known-control
+  four-arm qualification inputs/reference policies, then obtain the required
+  exact-source CI and native evidence under explicit external authority. No
+  source was pushed or scientific job submitted; the cancelled investigation
+  and deferred v0.4 scope remain unchanged.

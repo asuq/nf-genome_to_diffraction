@@ -28,6 +28,10 @@ from genome_to_diffraction.benchmarks.m6_protocol import (
     M6TrackCriteria,
     load_m6_protocol,
 )
+from genome_to_diffraction.benchmarks.m6_stages import (
+    M6StageInventory,
+    target_stage_ranks,
+)
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.schemas.base import (
@@ -38,7 +42,6 @@ from genome_to_diffraction.schemas.base import (
     PositiveInt,
     Sha256Hex,
 )
-from genome_to_diffraction.schemas.io import load_json_document
 
 NonNegativeInt = Annotated[int, Field(ge=0)]
 
@@ -106,7 +109,12 @@ class M6CaseAssessment(ContractModel):
     candidate_count: NonNegativeInt
     retained_candidate_count: NonNegativeInt
     all_candidates_retained: bool
-    target_sequence_rank: PositiveInt | None = None
+    stage_inventory: M6StageInventory
+    target_sequence_sha256: Sha256Hex | None = None
+    target_provider_rank: PositiveInt | None = None
+    target_scheduled_rank: PositiveInt | None = None
+    target_recommended_rank: PositiveInt | None = None
+    target_advanced_rank: PositiveInt | None = None
     correct_family_model_retained: bool | None = None
     credible_seed_recovered: bool | None = None
     supported_copy_count: PositiveInt | None = None
@@ -118,6 +126,25 @@ class M6CaseAssessment(ContractModel):
 
     @model_validator(mode="after")
     def _validate_counts_and_failure(self) -> Self:
+        if self.stage_inventory.case_id != self.case_id:
+            raise ValueError("M6 assessment stage inventory belongs to another case")
+        if any(
+            getattr(self, key) != value
+            for key, value in target_stage_ranks(
+                self.stage_inventory, self.target_sequence_sha256
+            ).items()
+        ):
+            raise ValueError("M6 assessment target ranks disagree with stage inventory")
+        if (
+            self.credible_seed_recovered is not None
+            and self.credible_seed_recovered != (self.target_advanced_rank is not None)
+        ):
+            raise ValueError("M6 credible target seed lacks executed stage evidence")
+        if (
+            self.supported_copy_count is not None
+            and self.credible_seed_recovered is not True
+        ):
+            raise ValueError("M6 supported target copies lack an executed seed")
         if self.retained_candidate_count > self.candidate_count:
             raise ValueError("retained candidate count exceeds the candidate count")
         if self.all_candidates_retained != (
@@ -163,7 +190,7 @@ class M6CaseAssessment(ContractModel):
 class M6CollectedEvidence(ContractModel):
     """Complete separately collected evidence for all 63 frozen cases."""
 
-    schema_version: Literal["1.1"]
+    schema_version: Literal["1.2"]
     protocol_id: OperatorIdentifier
     protocol_sha256: Sha256Hex
     private_truth_map_sha256: Sha256Hex
@@ -218,8 +245,7 @@ def load_m6_evidence(path: Path) -> M6CollectedEvidence:
 
     resolved = path.resolve(strict=True)
     try:
-        payload = load_json_document(resolved)
-        return M6CollectedEvidence.model_validate(payload)
+        return M6CollectedEvidence.model_validate_json(resolved.read_bytes())
     except (OSError, ValueError) as error:
         raise PublicControlError(f"invalid M6 evidence {resolved}: {error}") from error
 
@@ -236,16 +262,24 @@ def _positive_metrics(
     top_25 = 0
     top_10 = 0
     top_5 = 0
+    recommended_top_5 = 0
     correct_family = 0
     correct_family_denominator = 0
     credible_seed = 0
     true_copy = 0
     for case in selected:
         assessment = assessments[case.case_id]
-        rank = assessment.target_sequence_rank
+        rank = assessment.target_scheduled_rank
         top_25 += rank is not None and rank <= 25
         top_10 += rank is not None and rank <= 10
-        top_5 += rank is not None and rank <= 5
+        top_5 += (
+            assessment.target_advanced_rank is not None
+            and assessment.target_advanced_rank <= 5
+        )
+        recommended_top_5 += (
+            assessment.target_recommended_rank is not None
+            and assessment.target_recommended_rank <= 5
+        )
         family_eligible = (
             kind == "operational_positive"
             or truth[case.target_key].correct_family_model_eligible
@@ -262,6 +296,7 @@ def _positive_metrics(
         "top_25": top_25,
         "top_10": top_10,
         "top_5": top_5,
+        "recommended_top_5": recommended_top_5,
         "correct_family_model": correct_family,
         "correct_family_denominator": correct_family_denominator,
         "credible_seed": credible_seed,
@@ -477,7 +512,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
     )
     failed_gates = tuple(name for name, passed in gates.items() if not passed)
     report: dict[str, object] = {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "protocol_id": protocol.protocol_id,
         "protocol_sha256": evidence.protocol_sha256,
         "release_decision": "accept" if not failed_gates else "hold",
@@ -500,6 +535,30 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
         "leakage_close_family_attempts": leakage_close_attempts,
         "operational_metrics": operational_metrics,
         "leakage_controlled_metrics": leakage_metrics,
+        "metric_stage_binding": {
+            "top_25": "first production-scheduled target hypothesis within 25 tasks",
+            "top_10": "first production-scheduled target hypothesis within 10 tasks",
+            "top_5": (
+                "target seed with authenticated executed continuation "
+                "within five recommendations"
+            ),
+            "recommended_top_5": (
+                "production recommendation only; not the advanced-five gate"
+            ),
+            "provider_rank": "diagnostic only; never used for top-k gates",
+        },
+        "case_stage_counts": [
+            {
+                "case_id": item.case_id,
+                **{
+                    stage: getattr(item.stage_inventory, stage).model_dump(mode="json")
+                    for stage in ("scheduled", "recommended", "advanced")
+                },
+                "target_provider_rank": item.target_provider_rank,
+                **target_stage_ranks(item.stage_inventory, item.target_sequence_sha256),
+            }
+            for item in sorted(assessments.values(), key=lambda item: item.case_id)
+        ],
         "gates": gates,
         "failed_gates": list(failed_gates),
         "provenance": evidence.provenance.model_dump(mode="json"),

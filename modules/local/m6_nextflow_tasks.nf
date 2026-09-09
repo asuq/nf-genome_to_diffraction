@@ -382,6 +382,7 @@ process M6_SELECT_FINALISTS {
     script:
     def resultArgs = item[3].collect { Path result -> "--add-copy-result '${result}'" }.join(' ')
     """
+    # Scientific output contract: m6-nextflow-finalists-v2-receipts
     genome-to-diffraction --no-progress --log-format json \
         benchmark select-m6-finalists \
         --case-bundle '${item[1]}' \
@@ -409,6 +410,7 @@ process M6_EMPTY_FINALISTS {
 
     script:
     """
+    # Scientific output contract: m6-nextflow-finalists-v2-receipts
     genome-to-diffraction --no-progress --log-format json \
         benchmark empty-m6-finalists \
         --case-bundle '${item[1]}' \
@@ -464,6 +466,7 @@ process M6_ASSEMBLE_CASE {
     script:
     def resultArgs = item[3].collect { Path result -> "--refinement-result '${result}'" }.join(' ')
     """
+    # Scientific output contract: m6-nextflow-case-evidence-v3-stages
     genome-to-diffraction --no-progress --log-format json \
         benchmark assemble-m6-case \
         --case-bundle '${item[1]}' \
@@ -491,6 +494,7 @@ process M6_ASSEMBLE_EMPTY_CASE {
 
     script:
     """
+    # Scientific output contract: m6-nextflow-case-evidence-v3-stages
     genome-to-diffraction --no-progress --log-format json \
         benchmark assemble-m6-case \
         --case-bundle '${item[1]}' \
@@ -524,6 +528,7 @@ process M6_AGGREGATE_TRACK {
     script:
     def caseArgs = case_evidence.collect { Path result -> "--case-evidence '${result}'" }.join(' ')
     """
+    # Scientific output contract: m6-nextflow-run-v3-stages
     genome-to-diffraction --no-progress --log-format json \
         benchmark aggregate-m6-track \
         ${caseArgs} \

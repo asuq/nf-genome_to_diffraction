@@ -100,6 +100,27 @@ REPOSITORY = Path(__file__).resolve().parents[2]
             "phenix-add-copy-mr-v9-m6-truth-blind",
         ),
         (
+            "m6_nextflow_tasks",
+            "M6_SELECT_FINALISTS",
+            "m6-nextflow-finalists-v2-receipts",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_EMPTY_FINALISTS",
+            "m6-nextflow-finalists-v2-receipts",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_ASSEMBLE_CASE",
+            "m6-nextflow-case-evidence-v3-stages",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_ASSEMBLE_EMPTY_CASE",
+            "m6-nextflow-case-evidence-v3-stages",
+        ),
+        ("m6_nextflow_tasks", "M6_AGGREGATE_TRACK", "m6-nextflow-run-v3-stages"),
+        (
             "phase3_multicrystal_first_copy_tasks",
             "RUN_PHASE3_FIRST_COPY_PHASER",
             "phenix-first-copy-mr-v13-selected-evidence",

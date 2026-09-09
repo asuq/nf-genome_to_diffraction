@@ -94,6 +94,11 @@ from genome_to_diffraction.benchmarks.m6_scientific import (
     m6_track_case_ids,
     verify_m6_scientific_output,
 )
+from genome_to_diffraction.benchmarks.m6_stages import (
+    M6StageInventory,
+    M6StageRow,
+    stage_counts,
+)
 from genome_to_diffraction.benchmarks.m6_verification import (
     M6RunnerVerificationRequest,
     verify_m6_runner_bundle,
@@ -123,7 +128,11 @@ MARMIC_EXECUTION_POLICY = (
 HASH = "a" * 64
 
 
-def _identity_decision(case_id: str, digest: str | None = None) -> M6IdentityDecision:
+def _identity_decision(
+    case_id: str,
+    digest: str | None = None,
+    selected: dict[str, object] | None = None,
+) -> M6IdentityDecision:
     """Build one valid runner decision for truth-side unit fixtures."""
 
     if digest is None:
@@ -132,10 +141,14 @@ def _identity_decision(case_id: str, digest: str | None = None) -> M6IdentityDec
             selected_seed_results=(),
             sequence_groups=(),
         )
-    selected_row = {
-        "seed_solution_id": f"seed_{case_id}",
-        "sequence_group_id": f"seq_{digest}",
-    }
+    selected_row = (
+        selected
+        if selected is not None
+        else {
+            "seed_solution_id": f"seed_{case_id}",
+            "sequence_group_id": f"seq_{digest}",
+        }
+    )
     pointer_payload = {
         "role": "selected_seed",
         "seed_solution_id": selected_row["seed_solution_id"],
@@ -144,7 +157,7 @@ def _identity_decision(case_id: str, digest: str | None = None) -> M6IdentityDec
     pointer = M6IdentityEvidencePointer(
         role="selected_seed",
         record_id=content_id("m6idevidence_", pointer_payload),
-        seed_solution_id=selected_row["seed_solution_id"],
+        seed_solution_id=cast(str, selected_row["seed_solution_id"]),
         record_sha256=pointer_payload["record_sha256"],
     )
     candidate = M6IdentityCandidate(
@@ -188,6 +201,7 @@ def _assessment(
         "retained_candidate_count": 3,
         "all_candidates_retained": True,
         "runner_identity_decision": _identity_decision(case.case_id),
+        "stage_inventory": _stage_inventory(case.case_id),
         "exact_identity_sequence_sha256": None,
     }
     edge_kinds = {
@@ -211,7 +225,14 @@ def _assessment(
         common.update(
             scientific_status="candidate_evidence",
             typed_outcome="target_evidence_retained",
-            target_sequence_rank=1,
+            target_provider_rank=1,
+            target_sequence_sha256=target.target_sequence_sha256,
+            target_scheduled_rank=1,
+            target_recommended_rank=1,
+            target_advanced_rank=1,
+            stage_inventory=_stage_inventory(
+                case.case_id, target.target_sequence_sha256
+            ),
             correct_family_model_retained=True,
             family_model_evidence=(
                 M6FamilyModelEvidence(
@@ -276,7 +297,7 @@ def _assessment(
 
 def _evidence(protocol: M6BenchmarkProtocol) -> M6CollectedEvidence:
     return M6CollectedEvidence(
-        schema_version="1.1",
+        schema_version="1.2",
         protocol_id=protocol.protocol_id,
         protocol_sha256=sha256_file(PROTOCOL),
         private_truth_map_sha256=HASH,
@@ -425,6 +446,40 @@ def test_m6_scientific_tracks_partition_all_opaque_cases() -> None:
     )
 
 
+def _stage_inventory(case_id: str, digest: str | None = None) -> M6StageInventory:
+    """Explicit synthetic compact evidence; no native execution claim."""
+    rows = (
+        ()
+        if digest is None
+        else (
+            M6StageRow(
+                hypothesis_id=f"hyp_{case_id}",
+                sequence_group_id=f"seq_{digest}",
+                sequence_sha256=digest,
+                model_id=f"model_{case_id}",
+                expected_copy_count=1,
+                scheduled_rank=1,
+                solution_id=f"seed_{case_id}",
+                review_priority_rank=1,
+                recommendation_rank=1,
+                recommended=True,
+                advanced_rank=1,
+                continuation_receipt_sha256=HASH,
+                additional_copy_attempt_count=0,
+            ),
+        )
+    )
+    return M6StageInventory(
+        case_id=case_id,
+        hypotheses_sha256=HASH if rows else None,
+        benchmark_advancement_sha256=HASH if rows else None,
+        rows=rows,
+        scheduled=stage_counts(rows),
+        recommended=stage_counts(rows),
+        advanced=stage_counts(rows),
+    )
+
+
 def _raw_m6_case(case_id: str) -> dict[str, object]:
     return {
         "schema_version": "1.0",
@@ -440,6 +495,7 @@ def _raw_m6_case(case_id: str) -> dict[str, object]:
         "first_copy_results": [],
         "identity_decision": _identity_decision(case_id).model_dump(mode="json"),
         "edge_observations": [],
+        "stage_inventory": _stage_inventory(case_id).model_dump(mode="json"),
     }
 
 
@@ -666,22 +722,26 @@ def _measured_edge_observation(
     )
 
 
-def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
+def test_m6_truth_join_separates_provider_and_stage_ranks() -> None:
     protocol = load_m6_protocol(PROTOCOL)
     case = next(item for item in protocol.cases if item.case_id == "M6C002")
     target = next(item for item in protocol.positives if item.target_key == "T02")
     raw = _raw_m6_case(case.case_id)
     raw["selected_seed_results"] = [
         {
-            "sequence_group_id": "seq_target",
+            "seed_solution_id": f"seed_{case.case_id}",
+            "sequence_group_id": f"seq_{target.target_sequence_sha256}",
             "best_supported_copy_count": target.expected_asu_copy_count,
         }
     ]
+    raw["stage_inventory"] = _stage_inventory(
+        case.case_id, target.target_sequence_sha256
+    ).model_dump(mode="json")
     raw["first_copy_results"] = [
         {
             "hypothesis": {
                 "hypothesis_id": "mrhyp_family",
-                "sequence_group_id": "seq_target",
+                "sequence_group_id": f"seq_{target.target_sequence_sha256}",
                 "model_id": "model_family",
                 "priority_features": {"pdb_id": "3G14", "pdb_entity_id": 1},
             },
@@ -692,7 +752,7 @@ def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
         {
             "case_id": case.case_id,
             "sequence_sha256": target.target_sequence_sha256,
-            "sequence_group_id": "seq_target",
+            "sequence_group_id": f"seq_{target.target_sequence_sha256}",
             "rank": 4,
             "accepted_model_hit_count": 1,
         },
@@ -707,11 +767,32 @@ def test_m6_truth_join_uses_retained_rank_and_copy_evidence() -> None:
         {case.case_id: _private_case(protocol, case.case_id)},
     )
 
-    assert assessment.target_sequence_rank == 4
+    assert assessment.target_provider_rank == 4
+    assert (
+        assessment.target_scheduled_rank
+        == assessment.target_recommended_rank
+        == assessment.target_advanced_rank
+        == 1
+    )
     assert assessment.correct_family_model_retained is True
     assert assessment.credible_seed_recovered is True
     assert assessment.supported_copy_count == 2
     assert assessment.exact_identity_sequence_sha256 is None
+    without_provider = _truth_assessment(
+        protocol,
+        case,
+        raw,
+        (),
+        {target.target_key: _private_family(protocol, target.target_key)},
+        {case.case_id: _private_case(protocol, case.case_id)},
+    )
+    assert without_provider.target_provider_rank is None
+    assert (
+        without_provider.target_scheduled_rank
+        == without_provider.target_advanced_rank
+        == 1
+    )
+    assert without_provider.correct_family_model_retained is True
 
 
 def test_m6_truth_join_does_not_count_an_off_family_accepted_hit() -> None:
@@ -723,7 +804,7 @@ def test_m6_truth_join_does_not_count_an_off_family_accepted_hit() -> None:
         {
             "hypothesis": {
                 "hypothesis_id": "mrhyp_off_family",
-                "sequence_group_id": "seq_target",
+                "sequence_group_id": f"seq_{target.target_sequence_sha256}",
                 "model_id": "model_off_family",
                 "priority_features": {"pdb_id": "9ZZZ", "pdb_entity_id": 1},
             },
@@ -734,7 +815,7 @@ def test_m6_truth_join_does_not_count_an_off_family_accepted_hit() -> None:
         {
             "case_id": case.case_id,
             "sequence_sha256": target.target_sequence_sha256,
-            "sequence_group_id": "seq_target",
+            "sequence_group_id": f"seq_{target.target_sequence_sha256}",
             "rank": 1,
             "accepted_model_hit_count": 99,
         },
@@ -765,7 +846,7 @@ def test_m6_leakage_truth_excludes_a_close_70_percent_cluster_model() -> None:
         {
             "hypothesis": {
                 "hypothesis_id": "mrhyp_close",
-                "sequence_group_id": "seq_target",
+                "sequence_group_id": f"seq_{target.target_sequence_sha256}",
                 "model_id": "model_close",
                 "priority_features": {"pdb_id": "2GPJ", "pdb_entity_id": 1},
             },
@@ -776,7 +857,7 @@ def test_m6_leakage_truth_excludes_a_close_70_percent_cluster_model() -> None:
         {
             "case_id": case.case_id,
             "sequence_sha256": target.target_sequence_sha256,
-            "sequence_group_id": "seq_target",
+            "sequence_group_id": f"seq_{target.target_sequence_sha256}",
             "rank": 1,
             "accepted_model_hit_count": 1,
         },
@@ -852,21 +933,55 @@ def _synthetic_scientific_output(
             "refinement_results": [],
             "sequence_summaries": [],
         }
-        if adapter_version == "m6-nextflow-run-v2":
+        if adapter_version == "m6-nextflow-run-v3-stages":
             row.update(
-                schema_version="2.0",
-                adapter_version="m6-nextflow-case-evidence-v2",
+                schema_version="3.0",
+                adapter_version="m6-nextflow-case-evidence-v3-stages",
             )
             reported_digest = (reported_identity_by_case or {}).get(case_id)
             if reported_digest is not None:
-                selected = {
+                selected: dict[str, object] = {
                     "seed_solution_id": f"seed_{case_id}",
                     "sequence_group_id": f"seq_{reported_digest}",
+                    "hypothesis_id": f"hyp_{case_id}",
+                    "model_id": f"model_{case_id}",
+                    "expected_copy_count": 1,
+                    "first_copy_placed_count": 1,
+                    "best_supported_copy_count": 1,
                 }
                 row["selected_seed_results"] = [selected]
                 row["identity_decision"] = _identity_decision(
+                    case_id, reported_digest, selected
+                ).model_dump(mode="json")
+                row["stage_inventory"] = _stage_inventory(
                     case_id, reported_digest
                 ).model_dump(mode="json")
+                row["first_copy_attempt_count"] = 1
+                row["first_copy_results"] = [
+                    {
+                        "hypothesis": {
+                            "schema_version": "1.0",
+                            "hypothesis_id": f"hyp_{case_id}",
+                            "crystal_id": case_id,
+                            "sequence_group_id": f"seq_{reported_digest}",
+                            "model_id": f"model_{case_id}",
+                            "copy_count_expected": 1,
+                            "copy_number_to_search": 1,
+                            "space_group": "P 1",
+                            "search_stage": "first_copy",
+                            "resource_profile": "smoke",
+                            "status": "completed_hit",
+                        },
+                        "result": {
+                            "schema_version": "1.0",
+                            "hypothesis_id": f"hyp_{case_id}",
+                            "tool_version": "synthetic",
+                            "execution_status": "completed_hit",
+                            "placed_copy_count": 1,
+                            "raw_log_pointer": "synthetic.log",
+                        },
+                    }
+                ]
             edge_observation = (edge_observation_by_case or {}).get(case_id)
             if edge_observation is not None:
                 row["edge_observations"] = [edge_observation.model_dump(mode="json")]
@@ -879,7 +994,7 @@ def _synthetic_scientific_output(
     rankings = tuple(
         {
             "schema_version": (
-                "2.0" if adapter_version == "m6-nextflow-run-v2" else "1.0"
+                "2.0" if adapter_version == "m6-nextflow-run-v3-stages" else "1.0"
             ),
             "case_id": case_id,
             "rank": 1,
@@ -923,6 +1038,13 @@ def _synthetic_scientific_output(
         "sequence_summary",
     ):
         (output / files[key]).write_text("", encoding="utf-8")
+    (output / files["first_copy_results"]).write_text(
+        "".join(
+            json.dumps(item["result"], sort_keys=True) + "\n"
+            for row in case_rows
+            for item in cast(list[dict[str, object]], row["first_copy_results"])
+        )
+    )
     output_sha256 = {key: sha256_file(output / value) for key, value in files.items()}
     input_sha256 = {
         "runner_manifest": "1" * 64,
@@ -934,7 +1056,7 @@ def _synthetic_scientific_output(
         output / "m6_scientific_summary.json",
         {
             "schema_version": (
-                "2.0" if adapter_version == "m6-nextflow-run-v2" else "1.0"
+                "3.0" if adapter_version == "m6-nextflow-run-v3-stages" else "1.0"
             ),
             "adapter_version": adapter_version,
             "track": track,
@@ -954,11 +1076,14 @@ def _synthetic_scientific_output(
             "maximum_concurrent_phenix_attempts": 4,
             "execution_model": (
                 "nextflow_dsl2_slurm_fanout"
-                if adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
+                if adapter_version
+                in {"m6-nextflow-run-v1", "m6-nextflow-run-v3-stages"}
                 else None
             ),
             "phenix_release": "Phenix 2.1-6048",
-            "first_copy_attempt_count": 0,
+            "first_copy_attempt_count": sum(
+                cast(int, row["first_copy_attempt_count"]) for row in case_rows
+            ),
             "additional_copy_attempt_count": 0,
             "refinement_attempt_count": 0,
             "sequence_assessment_count": 0,
@@ -1049,7 +1174,7 @@ def _synthetic_collection(
     )
     profile = f"m6-{track}"
     run_id = f"gtd-{profile}-20260817T000000Z-{commit[:12]}-01234567"
-    nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v2"}
+    nextflow = adapter_version in {"m6-nextflow-run-v1", "m6-nextflow-run-v3-stages"}
     resume_record: dict[str, object] = {
         "deterministic_replay_equivalent": True,
         "resume_equivalent": True,
@@ -1281,7 +1406,7 @@ def test_m6_collection_rejects_legacy_tracks_for_corrected_acceptance(
         protocol_path=protocol_path,
     )
 
-    with pytest.raises(PublicControlError, match="identity-bearing v2 tracks"):
+    with pytest.raises(PublicControlError, match="stage-bearing v3 tracks"):
         collect_m6_evidence(
             M6CollectionRequest(
                 protocol=protocol_path,
@@ -1307,7 +1432,7 @@ def test_m6_collection_revalidates_leakage_operational_parent(
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
         shared_task_hash=(
@@ -1317,7 +1442,7 @@ def test_m6_collection_revalidates_leakage_operational_parent(
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
     )
@@ -1417,7 +1542,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=controller_stage,
@@ -1426,7 +1551,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=controller_stage,
@@ -1463,7 +1588,7 @@ def test_m6_collection_rejects_mixed_source_commits(tmp_path: Path) -> None:
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=True,
@@ -1472,7 +1597,7 @@ def test_m6_collection_rejects_mixed_source_commits(tmp_path: Path) -> None:
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="b" * 40,
         protocol_path=protocol_path,
         controller_stage=True,
@@ -1500,7 +1625,7 @@ def test_m6_collection_rejects_tracks_from_different_reviewed_sites(
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=True,
@@ -1509,7 +1634,7 @@ def test_m6_collection_rejects_tracks_from_different_reviewed_sites(
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="b" * 40,
         protocol_path=protocol_path,
         controller_stage=True,
@@ -1539,7 +1664,7 @@ def test_m6_collection_refuses_incomplete_cached_child_evidence(
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
         controller_stage=True,
@@ -1547,7 +1672,7 @@ def test_m6_collection_refuses_incomplete_cached_child_evidence(
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="b" * 40,
         protocol_path=protocol_path,
         controller_stage=True,
@@ -1587,7 +1712,7 @@ def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         reported_identity_by_case={"M6C025": HASH},
         protocol_path=protocol_path,
@@ -1595,7 +1720,7 @@ def test_collect_then_evaluate_holds_on_reported_wrong_open_set_identity(
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
     )
@@ -1660,14 +1785,14 @@ def test_collect_then_evaluate_holds_when_edge_descriptor_lacks_matching_evidenc
     operational = _synthetic_collection(
         tmp_path,
         track="operational",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         protocol_path=protocol_path,
     )
     leakage = _synthetic_collection(
         tmp_path,
         track="leakage",
-        adapter_version="m6-nextflow-run-v2",
+        adapter_version="m6-nextflow-run-v3-stages",
         commit="a" * 40,
         edge_observation_by_case={case.case_id: contradictory},
         protocol_path=protocol_path,

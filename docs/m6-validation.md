@@ -133,7 +133,45 @@ Synthetic tests exercise production-order parity and permutation stability,
 packing/copy-state exclusions, exact result partitioning, unchanged human gates,
 authority tampering and an additional-copy adapter call with only the external
 Phenix invocation simulated. Native known-control/four-arm qualification and
-stage-specific scheduled/recommended/advanced metrics remain outstanding.
+the full integration milestone remain outstanding.
+
+`stage_inventory.json` now records the production-ordered scheduled hypotheses,
+their catalogue digests, review/recommendation ranks and authenticated executed
+continuations. Each stage reports unique proteins, unique model IDs,
+sequence/expected-copy states and hypothesis tasks separately. A seed at its
+expected count has an explicit executed continuation receipt with zero native
+additional-copy attempts. Missing, duplicate, foreign or changed receipts fail;
+they cannot silently become advanced seeds. Native command, parameter, log,
+result and supported-child assets are checksum-bound, including the original
+model, parent chain and diffraction input. Refinement children must match their
+retained finalist tasks. Case aggregation rederives stages from retained raw
+evidence before export.
+
+The frozen numerical thresholds and 25-task/five-seed scope are unchanged.
+Their corrected stage bindings are:
+
+| Metric | Evidence counted |
+| --- | --- |
+| `top_25`, `top_10` | Earliest target hypothesis in production scheduling order, within 25 or 10 tasks |
+| `recommended_top_5` | Target membership in the bounded production recommendation; separately reported |
+| `top_5` | Target with an authenticated executed continuation among the five recommendations |
+| `target_provider_rank` | Earlier provider diagnostic only; never a top-k gate |
+
+The truth-side target join uses catalogue sequence digests even when no provider
+ranking row exists. The non-top-Matthews edge requires the corresponding
+sequence/expected-copy state in scheduled, completed first-copy evidence;
+retention alone or an execution failure does not pass it. A completed scientific
+no-hit demonstrates execution reachability, not identity or correct copy count.
+
+Current cases/tracks use schema 3.0 and
+`m6-nextflow-case-evidence-v3-stages`/`m6-nextflow-run-v3-stages`; finalist receipt
+validation is `m6-nextflow-finalists-v2-receipts`. Collected evidence and evaluator
+reports use schema 1.2. Older tracks remain archival-verifiable but cannot enter
+corrected acceptance. Rendered task identities, local stubs and the maintained
+HPC smoke/parent contracts advance together. Synthetic regressions cover stage
+separation, count conservation, receipt tampering, zero-attempt continuation,
+non-top-copy execution and byte-identical assembly under completion reordering;
+these are not native scientific qualification.
 
 The blind search tasks do not receive target truth or the protocol. The
 query-relative filter consumes only normalised amino-acid metrics plus the

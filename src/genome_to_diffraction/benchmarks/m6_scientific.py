@@ -21,9 +21,13 @@ from genome_to_diffraction.benchmarks.m6_identity import (
     M6IdentityDecision,
     verify_m6_identity_decision_evidence,
 )
+from genome_to_diffraction.benchmarks.m6_stages import (
+    M6StageInventory,
+    verify_m6_stage_evidence,
+)
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
-from genome_to_diffraction.ids import canonical_digest
+from genome_to_diffraction.ids import canonical_digest, canonical_json_text
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_json_document,
@@ -34,17 +38,20 @@ M6ScientificTrack = Literal["operational", "leakage"]
 _LEGACY_ADAPTER_VERSION = "m6-scientific-run-v3"
 _NEXTFLOW_V1_ADAPTER_VERSION = "m6-nextflow-run-v1"
 _NEXTFLOW_V2_ADAPTER_VERSION = "m6-nextflow-run-v2"
+_NEXTFLOW_V3_ADAPTER_VERSION = "m6-nextflow-run-v3-stages"
 _VERIFIABLE_ADAPTER_VERSIONS = frozenset(
     {
         _LEGACY_ADAPTER_VERSION,
         _NEXTFLOW_V1_ADAPTER_VERSION,
         _NEXTFLOW_V2_ADAPTER_VERSION,
+        _NEXTFLOW_V3_ADAPTER_VERSION,
     }
 )
 _SUMMARY_SCHEMA_BY_ADAPTER = {
     _LEGACY_ADAPTER_VERSION: "1.0",
     _NEXTFLOW_V1_ADAPTER_VERSION: "1.0",
     _NEXTFLOW_V2_ADAPTER_VERSION: "2.0",
+    _NEXTFLOW_V3_ADAPTER_VERSION: "3.0",
 }
 
 _TRACK_CASES: dict[M6ScientificTrack, tuple[str, ...]] = {
@@ -155,10 +162,17 @@ def verify_m6_scientific_output(
         rankings_by_case[cast(str, row.get("case_id"))].append(row)
     for case in cases:
         case_id = cast(str, case["case_id"])
-        if adapter_version == _NEXTFLOW_V2_ADAPTER_VERSION:
-            if (
-                case.get("schema_version") != "2.0"
-                or case.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+        if adapter_version in {
+            _NEXTFLOW_V2_ADAPTER_VERSION,
+            _NEXTFLOW_V3_ADAPTER_VERSION,
+        }:
+            current = adapter_version == _NEXTFLOW_V3_ADAPTER_VERSION
+            if case.get("schema_version") != ("3.0" if current else "2.0") or case.get(
+                "adapter_version"
+            ) != (
+                "m6-nextflow-case-evidence-v3-stages"
+                if current
+                else "m6-nextflow-case-evidence-v2"
             ):
                 raise PublicControlError(
                     f"M6 identity-bearing case contract changed: {case_id}"
@@ -204,6 +218,23 @@ def verify_m6_scientific_output(
                 raise PublicControlError(
                     f"M6 case edge evidence changed: {case_id}"
                 ) from error
+            if current:
+                try:
+                    stages = M6StageInventory.model_validate_json(
+                        canonical_json_text(case.get("stage_inventory"))
+                    )
+                    if stages.case_id != case_id:
+                        raise ValueError("M6 stage inventory belongs to another case")
+                    verify_m6_stage_evidence(
+                        stages,
+                        cast(list[dict[str, object]], case["first_copy_results"]),
+                        cast(list[dict[str, object]], selected_seed_results),
+                        cast(list[dict[str, object]], case["additional_copy_results"]),
+                    )
+                except (ValueError, KeyError, TypeError) as error:
+                    raise PublicControlError(
+                        f"M6 stage evidence changed: {case_id}"
+                    ) from error
         rows = rankings_by_case.get(case_id, [])
         expects_ranking = case.get("candidate_ranking_path") is not None
         if expects_ranking:

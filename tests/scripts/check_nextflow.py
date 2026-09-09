@@ -1890,10 +1890,10 @@ def check_stubs() -> None:
         summary_path = summary_paths[0]
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         if (
-            summary.get("schema_version") != "2.0"
-            or summary.get("adapter_version") != "m6-nextflow-run-v2"
+            summary.get("schema_version") != "3.0"
+            or summary.get("adapter_version") != "m6-nextflow-run-v3-stages"
         ):
-            raise RuntimeError("M6 stub did not publish the v2 aggregate contract")
+            raise RuntimeError("M6 stub did not publish the v3 aggregate contract")
         case_records = tuple(
             json.loads(line)
             for line in (summary_path.parent / "m6_case_results.jsonl")
@@ -1902,13 +1902,14 @@ def check_stubs() -> None:
             if line
         )
         if len(case_records) != 2 or any(
-            record.get("schema_version") != "2.0"
-            or record.get("adapter_version") != "m6-nextflow-case-evidence-v2"
+            record.get("schema_version") != "3.0"
+            or record.get("adapter_version") != "m6-nextflow-case-evidence-v3-stages"
             or not isinstance(record.get("identity_decision"), dict)
             or not isinstance(record.get("edge_observations"), list)
+            or not isinstance(record.get("stage_inventory"), dict)
             for record in case_records
         ):
-            raise RuntimeError("M6 stub did not retain v2 identity/edge evidence")
+            raise RuntimeError("M6 stub did not retain v3 identity/edge/stage evidence")
         m6_files = sorted(path for path in m6_out.rglob("*") if path.is_file())
         before_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()

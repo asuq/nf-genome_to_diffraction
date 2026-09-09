@@ -1884,7 +1884,9 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
         input_data=contract_script.encode(),
     )
     contract = json.loads(contract_output.read_text(encoding="utf-8"))
-    assert contract["aggregate_contract"]["adapter_version"] == ("m6-nextflow-run-v2")
+    assert contract["aggregate_contract"]["adapter_version"] == (
+        "m6-nextflow-run-v3-stages"
+    )
     assert [row["case_id"] for row in contract["case_contracts"]] == [
         "M6C001",
         "M6C057",
