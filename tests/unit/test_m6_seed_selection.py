@@ -1,133 +1,285 @@
-"""Focused regression for truthless M6 seed advancement."""
+"""Real production review/admission parity with explicitly synthetic MR assets."""
 
-from itertools import permutations
+import json
+from dataclasses import replace
 from pathlib import Path
 
-from genome_to_diffraction.benchmarks.m6_nextflow import (
-    _m6_seed_advancement_rows,
-    _select_m6_seed_candidates,
+import pytest
+
+from genome_to_diffraction.benchmarks.m6_advancement import (
+    M6AdvancementManifest,
+    validate_m6_advancement,
 )
-from genome_to_diffraction.ids import canonical_json_text
-from genome_to_diffraction.mr.phaser import PhaserRunOutput
-from genome_to_diffraction.schemas.manifests import PrototypeProfile
+from genome_to_diffraction.benchmarks.m6_nextflow import (
+    run_m6_add_copy_task,
+    run_m6_select_seeds_task,
+)
+from genome_to_diffraction.benchmarks.public_control import PublicControlError
+from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.model_registry import load_all_eligible_model_registry
+from genome_to_diffraction.mr.add_copy import (
+    AddCopyRunRequest,
+    run_additional_copy_phaser,
+)
+from genome_to_diffraction.mr.phaser import PhaserInputError
+from genome_to_diffraction.review.mr_seed import (
+    MrSeedReviewRequest,
+    build_mr_seed_review,
+)
 from genome_to_diffraction.schemas.results import (
     MrHypothesis,
-    MrHypothesisStatus,
-    MrSearchStage,
     NormalisedMrResult,
+    SelectedMrSolutionEvidence,
 )
 from genome_to_diffraction.status import ExecutionStatus
+from tests.unit.test_add_copy_phaser import NO_SOLUTION_LOG, STUBS, _fake_runtime
+from tests.unit.test_m6_admission import _prepared_case
 
 
-def _candidate(
-    hypothesis_id: str,
-    sequence_group_id: str,
-    model_id: str,
-    copy_count: int,
-    llg: float,
-    tfz: float,
-) -> tuple[PhaserRunOutput, MrHypothesis]:
-    hypothesis = MrHypothesis(
-        schema_version="1.0",
-        hypothesis_id=hypothesis_id,
-        crystal_id="M6C001",
-        sequence_group_id=sequence_group_id,
-        model_id=model_id,
-        copy_count_expected=copy_count,
-        copy_number_to_search=copy_count,
-        space_group="P 1",
-        obs_labels="F,SIGF",
-        search_stage=MrSearchStage.FIRST_COPY,
-        resource_profile=PrototypeProfile.PILOT,
-        status=MrHypothesisStatus.COMPLETED_HIT,
+def _attempts(case: Path, output: Path) -> tuple[Path, ...]:
+    hypotheses = tuple(
+        MrHypothesis.model_validate_json(line)
+        for line in (case / "first-copy-funnel/mr_hypotheses.jsonl")
+        .read_text()
+        .splitlines()
     )
-    result = NormalisedMrResult(
-        schema_version="1.0",
-        hypothesis_id=hypothesis_id,
-        tool_version="test",
-        execution_status=ExecutionStatus.COMPLETED_HIT,
-        llg=llg,
-        tfz=tfz,
-        placed_copy_count=copy_count,
-        packing_summary={"top_solution_packed": True},
-        raw_log_pointer=f"{hypothesis_id}.log",
+    registry = load_all_eligible_model_registry(
+        case / "first-copy-funnel/model_registry/all_model_registry.json"
     )
-    attempt = PhaserRunOutput(
-        result=result,
-        result_json=Path(f"{hypothesis_id}.json"),
-        result_jsonl=Path(f"{hypothesis_id}.jsonl"),
-        command_json=Path(f"{hypothesis_id}.command.json"),
-    )
-    return attempt, hypothesis
-
-
-def test_seed_advancement_uses_evidence_not_largest_copy_count() -> None:
-    smaller_stronger = _candidate(
-        "hyp_same_model_two",
-        "seq_same_model",
-        "model_same",
-        2,
-        120.0,
-        12.0,
-    )
-    larger_weaker = _candidate(
-        "hyp_same_model_four",
-        "seq_same_model",
-        "model_same",
-        4,
-        10.0,
-        3.0,
-    )
-    candidates = (
-        smaller_stronger,
-        _candidate("hyp_other_1", "seq_1", "model_1", 1, 110.0, 11.0),
-        _candidate("hyp_other_2", "seq_2", "model_2", 3, 100.0, 10.0),
-        _candidate("hyp_other_3", "seq_3", "model_3", 4, 90.0, 9.0),
-        _candidate("hyp_other_4", "seq_4", "model_4", 1, 80.0, 8.0),
-        larger_weaker,
-    )
-    candidate_rank = {
-        "seq_same_model": 1,
-        "seq_1": 2,
-        "seq_2": 3,
-        "seq_3": 4,
-        "seq_4": 5,
-    }
-    observed_outputs: set[str] = set()
-
-    for permuted in permutations(candidates):
-        eligible, selected = _select_m6_seed_candidates(permuted, candidate_rank)
-        selected_ids = {hypothesis.hypothesis_id for _, hypothesis in selected}
-        rows = _m6_seed_advancement_rows(
-            "M6C001",
-            eligible,
-            selected_ids,
-            candidate_rank,
+    paths: list[Path] = []
+    for index, hypothesis in enumerate(hypotheses):
+        root = output / hypothesis.hypothesis_id
+        root.mkdir(parents=True)
+        coordinate = root / "PHASER.1.pdb"
+        coordinate.write_text(f"REMARK synthetic MR fixture {index}\nEND\n")
+        (root / "PHASER.1.mtz").write_bytes(b"synthetic MR MTZ")
+        (root / "PHASER.log").write_text("synthetic first-copy result\n")
+        count = 2 if index in {8, 9} else 1
+        clashes = 1 if index == 7 else 0
+        selected = (
+            None
+            if index == 6
+            else SelectedMrSolutionEvidence(
+                coordinate_sha256=sha256_file(coordinate),
+                placed_copy_count=count,
+                annotation="synthetic fixture",
+                packing_clash_count=clashes,
+                tncs_annotation_present=index == 9,
+            )
         )
-        observed_outputs.add("".join(canonical_json_text(row) for row in rows))
+        result = NormalisedMrResult(
+            schema_version="1.0",
+            hypothesis_id=hypothesis.hypothesis_id,
+            tool_version="synthetic-test-not-native",
+            execution_status=ExecutionStatus.COMPLETED_HIT
+            if index < 10
+            else ExecutionStatus.COMPLETED_NO_HIT,
+            llg=200.0 - index if index < 6 else 500.0 + index,
+            tfz=12.0,
+            placed_copy_count=count,
+            packing_summary={"top_solution_packed": True},
+            selected_solution=selected,
+            solution_coordinate_path=coordinate.name,
+            solution_coordinate_sha256=sha256_file(coordinate),
+            output_mtz_path="PHASER.1.mtz",
+            output_mtz_sha256=sha256_file(root / "PHASER.1.mtz"),
+            raw_log_pointer="PHASER.log",
+        )
+        atomic_write_json(
+            root / "normalised_mr_result.json", result.model_dump(mode="json")
+        )
+        (root / "normalised_mr_result.jsonl").write_text(
+            canonical_json_text(result) + "\n"
+        )
+        model = next(
+            row
+            for row in registry.lookup(hypothesis.sequence_group_id).models
+            if row.model_id == hypothesis.model_id
+        )
+        atomic_write_json(
+            root / "phaser_command.json",
+            {
+                "model_sha256": model.model_sha256,
+                "model_identity_percent": 100.0,
+            },
+        )
+        paths.append(root)
+    return tuple(paths)
 
-    assert len(observed_outputs) == 1
-    eligible, selected = _select_m6_seed_candidates(candidates, candidate_rank)
-    eligible_ids = [hypothesis.hypothesis_id for _, hypothesis in eligible]
-    selected_ids = {hypothesis.hypothesis_id for _, hypothesis in selected}
-    rows = _m6_seed_advancement_rows(
-        "M6C001",
-        eligible,
-        selected_ids,
-        candidate_rank,
+
+@pytest.fixture
+def seed_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, tuple[Path, ...]]:
+    case = _prepared_case(tmp_path, monkeypatch)
+    return case, _attempts(case, tmp_path / "attempts")
+
+
+def test_m6_uses_production_review_order_and_original_single_model(
+    tmp_path: Path,
+    seed_inputs: tuple[Path, tuple[Path, ...]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case, attempts = seed_inputs
+    seeds = run_m6_select_seeds_task(case, attempts, tmp_path / "seeds")
+    validated = validate_m6_advancement(
+        seeds / "benchmark_advancement.json",
+        hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
+    )
+    manifest = validated.manifest
+    assert len(manifest.rows) == 25
+    assert len(manifest.recommended) == 5
+    assert sum(row.recommendation_rank is not None for row in manifest.rows) == 7
+    assert manifest.recommended[0].copy_state == "tncs_coupled_pair"
+    assert manifest.human_approval_granted is False
+    assert not tuple(seeds.rglob("mr_seed_approval.json"))
+    assert (seeds / "review/approved_mr_seeds.tsv").read_text().count("\n") == 1
+    by_id = {row.hypothesis_id: row for row in manifest.rows}
+    for index in (6, 7, 8, 10):
+        assert by_id[attempts[index].name].advancement_disposition == "ineligible"
+    production = build_mr_seed_review(
+        MrSeedReviewRequest(
+            hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
+            results_jsonl=seeds / "first_copy_results.jsonl",
+            result_root=seeds / "first-copy-results",
+            funnel_manifest=case / "first-copy-funnel/funnel_manifest.json",
+            sequence_groups_jsonl=case / "eligible-candidates/sequence_groups.jsonl",
+            source_records_jsonl=case / "eligible-candidates/source_records.jsonl",
+            matthews_hypotheses_jsonl=case / "matthews/matthews_hypotheses.jsonl",
+            pipeline_config=case / "analysis_config.json",
+            output_directory=tmp_path / "production_review",
+            progress=False,
+        )
+    )
+    review = json.loads(production.manifest_json.read_text())
+    assert [row.solution_id for row in manifest.rows] == [
+        row["solution_id"] for row in review["items"]
+    ]
+    reversed_seeds = run_m6_select_seeds_task(
+        case, tuple(reversed(attempts)), tmp_path / "reversed"
+    )
+    reversed_manifest = M6AdvancementManifest.model_validate_json(
+        (reversed_seeds / "benchmark_advancement.json").read_bytes()
+    )
+    assert reversed_manifest.rows == manifest.rows
+    # Run the real continuation adapter; simulate only the external Phenix call.
+    _fake_runtime(monkeypatch, log_text=NO_SOLUTION_LOG, write_solution=False)
+    seed = manifest.recommended[0]
+    child = run_m6_add_copy_task(
+        case,
+        seeds,
+        seed.solution_id,
+        STUBS / "phenix_install_manifest.json",
+        tmp_path / "child",
+        threads=16,
+    )
+    summary = json.loads((child / "additional_copy_series_summary.json").read_text())
+    command = json.loads((child / "series/phaser_command.json").read_text())
+    assert summary["attempt_count"] == 1
+    assert summary["best_supported_copy_count"] == 2
+    assert summary["human_approval_granted"] is False
+    assert command["adapter_version"] == "phenix-add-copy-mr-v9-m6-truth-blind"
+    assert command["benchmark_advancement_id"] == manifest.advancement_id
+    assert command["search_model_sha256"] == command["original_first_copy_model_sha256"]
+    assert command["search_model_sha256"] != command["parent_coordinate_sha256"]
+    assert command["parent_copy_count"] == 2
+
+
+def test_m6_duplicate_result_partition_fails_before_selection(
+    tmp_path: Path, seed_inputs: tuple[Path, tuple[Path, ...]]
+) -> None:
+    case, attempts = seed_inputs
+    with pytest.raises(PublicControlError, match="partitions differ"):
+        run_m6_select_seeds_task(case, (*attempts[:-1], attempts[0]), tmp_path / "bad")
+    assert not (tmp_path / "bad").exists()
+
+
+def test_m6_no_credible_seed_retains_all_review_evidence(
+    tmp_path: Path, seed_inputs: tuple[Path, tuple[Path, ...]]
+) -> None:
+    case, attempts = seed_inputs
+    for attempt in attempts:
+        result = NormalisedMrResult.model_validate_json(
+            (attempt / "normalised_mr_result.json").read_bytes()
+        ).model_copy(update={"execution_status": ExecutionStatus.COMPLETED_NO_HIT})
+        atomic_write_json(
+            attempt / "normalised_mr_result.json", result.model_dump(mode="json")
+        )
+        (attempt / "normalised_mr_result.jsonl").write_text(
+            canonical_json_text(result) + "\n"
+        )
+    seeds = run_m6_select_seeds_task(case, attempts, tmp_path / "seeds")
+    authority = validate_m6_advancement(
+        seeds / "benchmark_advancement.json",
+        hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
+    )
+    assert len(authority.manifest.rows) == 25
+    assert not authority.manifest.recommended
+    assert (seeds / "seed_tasks.jsonl").read_text() == ""
+    assert json.loads((seeds / "seed_plan.json").read_text())["typed_outcome"] == (
+        "completed_no_credible_seed"
     )
 
-    assert eligible_ids == [
-        "hyp_same_model_two",
-        "hyp_other_1",
-        "hyp_other_2",
-        "hyp_other_3",
-        "hyp_other_4",
-        "hyp_same_model_four",
-    ]
-    assert len(rows) == len(candidates)
-    assert rows[0]["expected_copy_count"] == 2
-    assert rows[0]["advancement_disposition"] == "selected"
-    assert rows[-1]["expected_copy_count"] == 4
-    assert rows[-1]["advancement_disposition"] == "deferred_seed_cap"
-    assert all(row["eligible_hypothesis_retained"] is True for row in rows)
+
+@pytest.mark.parametrize(
+    "mutation", ["stale_checksum", "fabricated_selection", "cap", "human_approval"]
+)
+def test_benchmark_authority_rejects_tampering(
+    tmp_path: Path, seed_inputs: tuple[Path, tuple[Path, ...]], mutation: str
+) -> None:
+    case, attempts = seed_inputs
+    seeds = run_m6_select_seeds_task(case, attempts, tmp_path / "seeds")
+    path = seeds / "benchmark_advancement.json"
+    document = json.loads(path.read_text())
+    if mutation == "stale_checksum":
+        document["review_manifest_sha256"] = "0" * 64
+    elif mutation == "fabricated_selection":
+        document["rows"][-1]["advancement_disposition"] = "recommended"
+    elif mutation == "cap":
+        document["seed_cap"] = 6
+    else:
+        document["human_approval_granted"] = True
+    document["advancement_id"] = content_id(
+        "m6advance_",
+        {key: value for key, value in document.items() if key != "advancement_id"},
+    )
+    atomic_write_json(path, document)
+    with pytest.raises(ValueError):
+        validate_m6_advancement(
+            path, hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl"
+        )
+
+
+def test_benchmark_does_not_bypass_default_human_gate_or_accept_model_override(
+    tmp_path: Path, seed_inputs: tuple[Path, tuple[Path, ...]]
+) -> None:
+    case, attempts = seed_inputs
+    seeds = run_m6_select_seeds_task(case, attempts, tmp_path / "seeds")
+    document = M6AdvancementManifest.model_validate_json(
+        (seeds / "benchmark_advancement.json").read_bytes()
+    )
+    seed = document.recommended[0]
+    request = AddCopyRunRequest(
+        review_validation_json=None,
+        review_package_manifest=None,
+        seed_solution_id=seed.solution_id,
+        hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
+        sequence_groups_jsonl=case / "eligible-candidates/sequence_groups.jsonl",
+        preflight_jsonl=case / "preflight_bundle/preflight/mtz_preflight.jsonl",
+        mtz=case / "reflections.mtz",
+        search_model=seeds / "seed_tasks" / seed.solution_id / "search_model.pdb",
+        phenix_manifest=STUBS / "phenix_install_manifest.json",
+        output_directory=tmp_path / "blocked",
+        progress=False,
+    )
+    with pytest.raises(PhaserInputError, match="requires its approval pair"):
+        run_additional_copy_phaser(request)
+    with pytest.raises(PhaserInputError, match="rejects human/staged-model overrides"):
+        run_additional_copy_phaser(
+            replace(
+                request,
+                benchmark_advancement_manifest=seeds / "benchmark_advancement.json",
+                expected_search_model_sha256="0" * 64,
+            )
+        )

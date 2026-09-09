@@ -100,8 +100,40 @@ registration, model preparation, Matthews enumerator and production funnel.
 It retains 31 eligible proteins/93 model records and admits a provider-rank-31
 candidate while scheduling exactly 25 one-copy tasks, with the same hypothesis
 IDs as direct production admission. This is local code-path qualification, not
-native MR evidence or completion of the remaining RF-G4 review/metric/control
-requirements.
+native MR evidence or completion of RF-G4.
+
+M6 now builds the actual production MR-seed review package for every scheduled
+hypothesis. `seed_advancement.jsonl` retains all scheduled results in shared
+review-priority order, including ineligible and cap-deferred states. Provider
+rank does not order continuation. The fixed truth-blind policy recommends at
+most five inspectable `completed_hit` states with selected zero-clash packing
+and either literal one-copy or explicitly evidenced coupled-tNCS placement,
+never more placed copies than the retained expectation. No new numerical score
+threshold is introduced; the completed-hit classification remains the existing
+adapter's output.
+
+`benchmark_advancement.json` is explicit benchmark-only execution authority,
+not human approval. It binds the production review, exact hypotheses, Matthews
+evidence, complete recommendations, 25-hypothesis/five-seed caps and policy
+identity. Copy children revalidate assets, joins, the shared ordering and the
+selected inventory. The production approval template stays empty. Ordinary
+additional-copy and Phase III workflows still require their own human gates;
+there is no general CLI bypass. M6's search copy uses the original prepared
+model, not a possibly two-copy placed parent. The fixed parent remains separate.
+
+Cache identities are `m6-nextflow-seeds-v3-production-review` and
+`phenix-add-copy-mr-v9-m6-truth-blind`. Commands and series/parent receipts record
+`execution_authority_kind=truth_blind_m6_benchmark`, the advancement ID/checksum
+and `human_approval_granted=false`. In the existing additional-copy result
+contract, `review_id` carries this `m6advance_...` audit ID for benchmark runs;
+it must not be reported as a human decision. Already-at-expectation states emit
+a zero-attempt child receipt only after the same authority/model checks.
+
+Synthetic tests exercise production-order parity and permutation stability,
+packing/copy-state exclusions, exact result partitioning, unchanged human gates,
+authority tampering and an additional-copy adapter call with only the external
+Phenix invocation simulated. Native known-control/four-arm qualification and
+stage-specific scheduled/recommended/advanced metrics remain outstanding.
 
 The blind search tasks do not receive target truth or the protocol. The
 query-relative filter consumes only normalised amino-acid metrics plus the

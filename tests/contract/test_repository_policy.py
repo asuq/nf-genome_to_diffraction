@@ -85,6 +85,21 @@ REPOSITORY = Path(__file__).resolve().parents[2]
             "phenix-first-copy-mr-v9-selected-evidence",
         ),
         (
+            "m6_nextflow_tasks",
+            "M6_SELECT_SEEDS",
+            "m6-nextflow-seeds-v3-production-review",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_EMPTY_SEEDS",
+            "m6-nextflow-seeds-v3-production-review",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_ADDITIONAL_COPY",
+            "phenix-add-copy-mr-v9-m6-truth-blind",
+        ),
+        (
             "phase3_multicrystal_first_copy_tasks",
             "RUN_PHASE3_FIRST_COPY_PHASER",
             "phenix-first-copy-mr-v13-selected-evidence",

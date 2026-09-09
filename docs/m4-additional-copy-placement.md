@@ -16,6 +16,13 @@ Otherwise the parent remains the best supported state. Numeric LLG/TFZ values
 and their raw delta are retained but are not a calibrated acceptance
 probability.
 
+M6 has an explicit [truth-blind benchmark continuation boundary](m6-validation.md),
+separate from both human-approved routes below. It consumes production review
+evidence with a fixed five-seed cap, never fabricates a reviewer decision, and
+searches the original prepared model while retaining the placed parent. This
+benchmark-only authority is labelled in command and series/parent provenance;
+it does not approve an experimental candidate or bypass ordinary human gates.
+
 The normal `main.nf` workflow now reaches this operation through
 `--analysis_stage additional_copy`. It accepts an explicit
 `--approved_mr_seeds` TSV only; it never edits or fills the decision file. The

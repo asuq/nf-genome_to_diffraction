@@ -15862,3 +15862,28 @@ with a collapsed combined parent or a guessed command.
   M6's separate seed ordering and fabricated human approval with production
   review plus explicit truth-blind benchmark advancement, then stage-specific
   metrics and native/four-arm qualification before the full RF integration gate.
+
+## 2026-09-09 - RF-G4 production-review continuation local increment
+
+- Removed M6's separate LLG/TFZ/provider seed sorter and fabricated human
+  approval files. The real production review now supplies the complete ordered
+  first-copy inventory. An explicit truth-blind benchmark authority recommends
+  at most five eligible hypotheses and rederives ordering, selected packing,
+  literal/explicit-tNCS copy state, joins and checksums before continuation.
+- Ordinary and Phase III human approval routes remain distinct. Benchmark
+  commands and receipts explicitly identify non-human authority. Search copies
+  now use the original prepared model, keeping a coupled-tNCS placed parent
+  separate. Duplicate/missing result partitions, model overrides and stale or
+  fabricated recommendations fail before native execution. Content identities,
+  rendered task contracts, stub task schema and documentation advance together.
+- Local checks passed: 154 focused M6/admission/additional-copy/repository tests,
+  followed by eight seed-route tests including the all-no-hit retained-inventory
+  branch; repository lint/formatting, ty, documentation links, Nextflow syntax
+  and M6 resume/cache-mutation stub. The continuation regression runs the actual
+  adapter with only external Phenix execution simulated; no native scientific
+  qualification is claimed. No source was pushed or HPC job submitted.
+- Next implement stage-specific scheduled/recommended/actually-advanced metrics
+  and receipt conservation. Provider rank must remain diagnostic, never count
+  as a scheduled or advanced target. Native known-control/four-arm evidence and
+  the full RF integration milestone remain outstanding; do not restart the
+  cancelled identification programme or reopen its accepted assessments.

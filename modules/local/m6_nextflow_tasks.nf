@@ -298,6 +298,7 @@ process M6_SELECT_SEEDS {
     script:
     def resultArgs = item[2].collect { Path result -> "--first-copy-result '${result}'" }.join(' ')
     """
+    # Scientific output contract: m6-nextflow-seeds-v3-production-review
     genome-to-diffraction --no-progress --log-format json \
         benchmark select-m6-seeds \
         --case-bundle '${item[1]}' \
@@ -324,6 +325,7 @@ process M6_EMPTY_SEEDS {
 
     script:
     """
+    # Scientific output contract: m6-nextflow-seeds-v3-production-review
     genome-to-diffraction --no-progress --log-format json \
         benchmark empty-m6-seeds \
         --case-bundle '${item[1]}' \
@@ -349,6 +351,7 @@ process M6_ADDITIONAL_COPY {
 
     script:
     """
+    # Scientific output contract: phenix-add-copy-mr-v9-m6-truth-blind
     genome-to-diffraction --no-progress --log-format json \
         benchmark run-m6-add-copy-task \
         --case-bundle '${item[3]}' \

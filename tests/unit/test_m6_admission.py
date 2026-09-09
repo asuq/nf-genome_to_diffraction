@@ -173,9 +173,7 @@ def test_eligible_inputs_reject_changed_policy_hits(tmp_path: Path) -> None:
         _write_eligible_inputs(catalogue, policy, tmp_path)
 
 
-def test_m6_uses_complete_coordinate_inventory_and_production_admission(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _prepared_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     # The sole simulated external response is a tiny, explicit coordinate file.
     # Registration, model preparation, Matthews enumeration and both funnels run.
     structure = gemmi.read_pdb_string(_source_pdb())
@@ -217,6 +215,9 @@ def test_m6_uses_complete_coordinate_inventory_and_production_admission(
     case_task = tmp_path / "case_task"
     case_task.mkdir()
     (case_task / "reflections.mtz").write_bytes(b"synthetic preflight-only fixture")
+    preflight_document = json.loads(base.mtz_preflight_jsonl.read_text())
+    preflight_document["mtz_sha256"] = sha256_file(case_task / "reflections.mtz")
+    _jsonl(base.mtz_preflight_jsonl, (preflight_document,))
     atomic_write_json(
         case_task / "analysis_config.json",
         yaml.safe_load(base.pipeline_config.read_text()),
@@ -349,3 +350,10 @@ def test_m6_uses_complete_coordinate_inventory_and_production_admission(
         )
     )
     assert {h.hypothesis_id for h in production.hypotheses} == set(plan.hypothesis_ids)
+    return case
+
+
+def test_m6_uses_complete_coordinate_inventory_and_production_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _prepared_case(tmp_path, monkeypatch)

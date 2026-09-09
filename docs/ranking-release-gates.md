@@ -141,7 +141,12 @@ mapping cuts. All leakage-policy-accepted model candidates reach preparation;
 only the production funnel imposes the unchanged 25-MR-hypothesis cap. A real
 registration/preparation/enumeration/funnel regression with synthetic inputs
 retains a provider-rank-31 candidate and matches direct production admission.
-Shared review ordering, explicitly truth-blind advancement, stage-specific
+The second increment now builds the actual production review package and
+records the complete production-ordered inventory, with at most five eligible
+recommendations under an explicit truth-blind benchmark authority. Child
+execution revalidates that evidence without fabricated human approval and uses
+the original prepared model, not a possibly coupled-tNCS parent, for the next
+single-copy search. Synthetic parity/continuation tests pass; stage-specific
 metrics and native four-arm qualification remain outstanding.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews

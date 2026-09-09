@@ -11,6 +11,12 @@ An opt-in Phase III selection additionally binds the exact observation dataset,
 crystal symmetry, low/high resolution, immutable hypothesis, and source MTZ.
 Historical schema-v1 commands and identities remain unchanged without it.
 
+M6 alone may instead supply a checksum-bound truth-blind advancement manifest.
+Its production review order and fixed seed cap are revalidated without human
+approval, and only the original first-copy model may be searched. Commands and
+series receipts explicitly label this authority; the historical result field
+``review_id`` then holds the distinct ``m6advance_...`` audit identifier.
+
 The cache identity is the review/seed identity plus parent, model, sequence, MTZ,
 Phenix-manifest, and command-policy checksums. Unit tests cover command assembly,
 packed/no-solution semantics, and checksum failures; real-runtime qualification is
@@ -77,6 +83,7 @@ from genome_to_diffraction.time import utc_now_iso
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.add_copy")
 _ADAPTER_VERSION = "phenix-add-copy-mr-v6"
 _PHASE3_ADAPTER_VERSION = "phenix-add-copy-mr-v8-resource-plan"
+_M6_ADAPTER_VERSION = "phenix-add-copy-mr-v9-m6-truth-blind"
 _ROOT = "PHASER"
 _PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
 _FIXED_PARENT_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+fixed_parent(?:\s|$)", re.M)
@@ -130,6 +137,7 @@ class AddCopyRunRequest:
     timeout_seconds: float | None = None
     progress: bool = True
     phase3_seed_stage_manifest: Path | None = None
+    benchmark_advancement_manifest: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -173,6 +181,7 @@ class _Resolved:
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_command_binding: DiffractionCommandBinding | None = None
     resource_plan: MrResourcePlan | None = None
+    benchmark_advancement_sha256: str | None = None
 
 
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
@@ -229,7 +238,43 @@ def _owned(root: Path, relative: object, *, label: str) -> Path:
 
 def _resolve(request: AddCopyRunRequest) -> _Resolved:
     phase3_source: dict[str, object] | None = None
-    if request.phase3_seed_stage_manifest is None:
+    benchmark_sha: str | None = None
+    if request.benchmark_advancement_manifest is not None:
+        from genome_to_diffraction.benchmarks.m6_advancement import (
+            validate_m6_advancement,
+        )
+
+        if (
+            request.phase3_seed_stage_manifest is not None
+            or request.review_validation_json is not None
+            or request.review_package_manifest is not None
+            or request.diffraction_selection_json is not None
+            or request.expected_search_model_sha256 is not None
+        ):
+            raise PhaserInputError(
+                "M6 benchmark authority rejects human/staged-model overrides"
+            )
+        try:
+            benchmark = validate_m6_advancement(
+                request.benchmark_advancement_manifest,
+                hypotheses_jsonl=request.hypotheses_jsonl,
+            )
+        except (OSError, ValueError) as error:
+            raise PhaserInputError(
+                f"invalid M6 benchmark advancement: {error}"
+            ) from error
+        if request.seed_solution_id not in {
+            row.solution_id for row in benchmark.manifest.recommended
+        }:
+            raise PhaserInputError("seed is not recommended by the M6 benchmark policy")
+        manifest_path = benchmark.review_manifest
+        manifest = benchmark.review_document
+        root = manifest_path.parent
+        # Historical result field name; the explicit benchmark ID is an audit
+        # authority, not a human review or an invented approval decision.
+        review_id = benchmark.manifest.advancement_id
+        benchmark_sha = sha256_file(request.benchmark_advancement_manifest)
+    elif request.phase3_seed_stage_manifest is None:
         if (
             request.review_validation_json is None
             or request.review_package_manifest is None
@@ -349,6 +394,8 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         request.hypotheses_jsonl, MrHypothesis, label="MR hypotheses"
     )
     hypothesis = _one(hypotheses, hypothesis_id, "hypothesis_id", "hypothesis")
+    if root_result.hypothesis_id != hypothesis.hypothesis_id:
+        raise PhaserInputError("root result belongs to another hypothesis")
     if (request.parent_result_jsonl is None) != (request.parent_coordinate is None):
         raise PhaserInputError(
             "sequential parent result and coordinate must be supplied together"
@@ -510,6 +557,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         phase3_hypothesis=phase3_hypothesis,
         diffraction_command_binding=diffraction_binding,
         resource_plan=resource_plan,
+        benchmark_advancement_sha256=benchmark_sha,
     )
 
 
@@ -629,9 +677,13 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         parameters, _parameters(resolved, sequence_fasta, request.threads)
     )
     adapter_version = (
-        _PHASE3_ADAPTER_VERSION
-        if resolved.diffraction_selection is not None
-        else _ADAPTER_VERSION
+        _M6_ADAPTER_VERSION
+        if resolved.benchmark_advancement_sha256
+        else (
+            _PHASE3_ADAPTER_VERSION
+            if resolved.diffraction_selection is not None
+            else _ADAPTER_VERSION
+        )
     )
     attempt_identity: dict[str, object] = {
         "adapter_version": adapter_version,
@@ -650,6 +702,17 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         ),
         "parameters_sha256": sha256_file(parameters),
     }
+    if resolved.benchmark_advancement_sha256 is not None:
+        attempt_identity.update(
+            {
+                "execution_authority_kind": "truth_blind_m6_benchmark",
+                "benchmark_advancement_id": resolved.review_id,
+                "benchmark_advancement_manifest_sha256": (
+                    resolved.benchmark_advancement_sha256
+                ),
+                "human_approval_granted": False,
+            }
+        )
     if (
         resolved.diffraction_selection is not None
         and resolved.phase3_hypothesis is not None
@@ -895,13 +958,26 @@ def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutpu
     summary = root / "additional_copy_series_summary.json"
     series_identity = {
         "adapter_version": (
-            _PHASE3_ADAPTER_VERSION
+            _M6_ADAPTER_VERSION
+            if request.benchmark_advancement_manifest is not None
+            else _PHASE3_ADAPTER_VERSION
             if request.diffraction_selection_json is not None
             else _ADAPTER_VERSION
         ),
         "seed_solution_id": request.seed_solution_id,
         "attempt_ids": [item.result.attempt_id for item in attempts],
     }
+    if request.benchmark_advancement_manifest is not None:
+        series_identity.update(
+            {
+                "execution_authority_kind": "truth_blind_m6_benchmark",
+                "benchmark_advancement_id": attempts[0].result.review_id,
+                "benchmark_advancement_manifest_sha256": sha256_file(
+                    request.benchmark_advancement_manifest
+                ),
+                "human_approval_granted": False,
+            }
+        )
     final = attempts[-1].result
     atomic_write_json(
         summary,

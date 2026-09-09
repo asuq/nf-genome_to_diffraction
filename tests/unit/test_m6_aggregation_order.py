@@ -149,7 +149,7 @@ def _write_finalist_bundle(
         root / "seed_bundle/seed_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-seeds-v2",
+            "adapter_version": "m6-nextflow-seeds-v3-production-review",
             "case_id": "M6C001",
             "selected_seed_count": 2,
             "typed_outcome": None,
