@@ -15836,3 +15836,29 @@ with a collapsed combined parent or a guessed command.
   including removal of benchmark-only preselection and separation of truth-blind
   advancement from human approval, then the named full integration milestone.
   Native known-control/four-arm evidence and exact-source CI remain required.
+
+## 2026-09-09 - RF-G4 local admission-parity increment
+
+- Removed M6's provider-ranked top-25 protein and coordinate-mapping cuts.
+  The unchanged leakage-filtered eligible inventory now reaches production
+  preparation and admission; only the production funnel imposes the frozen
+  25-initial-MR-task budget. Offline coordinate materialisation remains finite,
+  bounded by the observed inventory and three hits per group, with no network
+  fallback. The shared registration bound accepts positive integers above
+  1,000 while preserving its ordinary 25-mapping default and storage checks.
+- Bound accepted hits to their trusted policy checksum, checked catalogue joins
+  and duplicate task IDs, advanced adapter/rendered cache contracts and renamed
+  current preparation inputs to eligible-candidates. Updated the missing-model
+  verifier after the focused test caught its remaining superseded path.
+- The synthetic coordinate regression runs real registration, model preparation,
+  Matthews enumeration and production admission. It retains 31 eligible proteins
+  and 93 model records, admits a provider-rank-31 candidate, schedules exactly
+  25 one-copy hypotheses and matches an independent production-funnel invocation.
+  No native MR or real-control validation is claimed.
+- Local checks passed: 166 focused admission, registration, M6, funnel, provider-
+  staging and repository-contract tests; M6 Nextflow resume/cache-mutation stub;
+  Nextflow syntax; Ruff, formatting, ty, documentation links and diff checks.
+  No source was pushed and no scientific HPC job was submitted. Next replace
+  M6's separate seed ordering and fabricated human approval with production
+  review plus explicit truth-blind benchmark advancement, then stage-specific
+  metrics and native/four-arm qualification before the full RF integration gate.

@@ -84,7 +84,7 @@ def _write_case_bundle(root: Path) -> tuple[Path, tuple[dict[str, object], ...]]
         root / "case_plan.json",
         {
             "schema_version": "1.0",
-            "adapter_version": "m6-nextflow-case-v2",
+            "adapter_version": "m6-nextflow-case-v3-eligible-inventory",
             "case_id": "M6C001",
             "catalogue_key": HASH,
             "early_outcome": None,

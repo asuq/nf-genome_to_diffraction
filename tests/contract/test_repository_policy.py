@@ -61,13 +61,23 @@ REPOSITORY = Path(__file__).resolve().parents[2]
         ),
         (
             "m6_nextflow_tasks",
+            "M6_STAGE_COORDINATES",
+            "m6-coordinate-stage-v2-eligible-inventory",
+        ),
+        (
+            "register_pdb_coordinates",
+            "REGISTER_PDB_COORDINATES",
+            "pdb-coordinate-registration-v3-explicit-bound",
+        ),
+        (
+            "m6_nextflow_tasks",
             "M6_PREPARE_ACTIVE_CASE",
-            "matthews-prior-factor-evidence-v1",
+            "m6-nextflow-case-v3-eligible-inventory",
         ),
         (
             "m6_nextflow_tasks",
             "M6_PREPARE_EARLY_CASE",
-            "matthews-prior-factor-evidence-v1",
+            "m6-nextflow-case-v3-eligible-inventory",
         ),
         (
             "m6_nextflow_tasks",

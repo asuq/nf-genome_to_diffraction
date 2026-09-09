@@ -136,6 +136,14 @@ A-checkpoint tasks. Local synthetic and real-Nextflow stub checks exercise
 non-top zero-frequency states and fail-closed dispatch; native qualification is
 still pending. This route does not change automatic zero-pack reopening.
 
+The first RF-G4 local increment removes M6's pre-funnel top-25 protein and
+mapping cuts. All leakage-policy-accepted model candidates reach preparation;
+only the production funnel imposes the unchanged 25-MR-hypothesis cap. A real
+registration/preparation/enumeration/funnel regression with synthetic inputs
+retains a provider-rank-31 candidate and matches direct production admission.
+Shared review ordering, explicitly truth-blind advancement, stage-specific
+metrics and native four-arm qualification remain outstanding.
+
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new
   behaviour; several historical expectations must intentionally change.

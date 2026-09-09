@@ -299,6 +299,39 @@ def test_registration_reserves_sequence_diversity_and_reuses_cache(
     ]
 
 
+def test_registration_supports_an_explicit_large_inventory_bound(
+    tmp_path: Path,
+) -> None:
+    hit_path, groups, manifest, hits = _inputs(tmp_path)
+    candidates = tuple(
+        hits[0].model_copy(
+            update={"hit_id": f"hit_{index}", "sequence_group_id": f"seq_{index}"}
+        )
+        for index in range(1001)
+    )
+    selected = pdb_coordinates_module._select_hits(
+        candidates,
+        replace(_request(tmp_path, hit_path, groups, manifest), maximum_mappings=1001),
+    )
+    assert len(selected) == len(candidates)
+    assert {hit.hit_id for hit in selected} == {hit.hit_id for hit in candidates}
+
+
+@pytest.mark.parametrize("bound", [0, -1, True, 1.5])
+def test_registration_rejects_invalid_mapping_bounds(
+    tmp_path: Path, bound: object
+) -> None:
+    hit_path, groups, manifest, hits = _inputs(tmp_path)
+    with pytest.raises(ValueError, match="maximum_mappings must be a positive integer"):
+        pdb_coordinates_module._select_hits(
+            hits,
+            replace(
+                _request(tmp_path, hit_path, groups, manifest),
+                maximum_mappings=bound,
+            ),
+        )
+
+
 def test_offline_registration_refuses_cache_miss_and_reuses_staged_objects(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

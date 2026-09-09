@@ -76,6 +76,33 @@ policy exclusion and post-policy cap deferral remains a deterministic retained
 annotation; an all-excluded candidate produces a typed
 `completed_no_model` policy result.
 
+After that unchanged policy, M6 retains every accepted model-bearing sequence
+group in `eligible-candidates/`, with all catalogue groups and source records
+preserved separately in the case bundle. Provider rank is diagnostic: there is
+no preliminary top-25 protein or coordinate-mapping cut. Offline registration
+uses the observed finite mapping count, with the existing maximum of three
+coordinate hits per group. The production first-copy funnel then applies the
+unchanged 25-hypothesis execution budget; one hypothesis is one initial-copy
+task, not necessarily a unique protein or coordinate file.
+
+The coordinate stage binds the accepted-hit checksum to the trusted model-policy
+bundle and fails on changed joins or unavailable qualified cache objects. The
+case task verifies the same policy, eligible-input and registration checksums
+before model preparation. Cache contracts are
+`m6-coordinate-stage-v2-eligible-inventory` and
+`m6-nextflow-case-v3-eligible-inventory`. Shared PDB registration now accepts a
+positive explicit finite mapping bound, including inventories above 1,000;
+its ordinary default of 25 is unchanged. Storage limits and offline failure
+semantics still apply.
+
+Local RF-G4 admission regression uses synthetic coordinates and the real
+registration, model preparation, Matthews enumerator and production funnel.
+It retains 31 eligible proteins/93 model records and admits a provider-rank-31
+candidate while scheduling exactly 25 one-copy tasks, with the same hypothesis
+IDs as direct production admission. This is local code-path qualification, not
+native MR evidence or completion of the remaining RF-G4 review/metric/control
+requirements.
+
 The blind search tasks do not receive target truth or the protocol. The
 query-relative filter consumes only normalised amino-acid metrics plus the
 existing checksum-bound runner model-policy object. The separately existing

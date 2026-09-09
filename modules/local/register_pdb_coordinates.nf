@@ -25,6 +25,7 @@ process REGISTER_PDB_COORDINATES {
 
     script:
     """
+    # Scientific output contract: pdb-coordinate-registration-v3-explicit-bound
     args=(
         --structural-hits '${structural_hits}'
         --sequence-groups '${sequence_groups}'

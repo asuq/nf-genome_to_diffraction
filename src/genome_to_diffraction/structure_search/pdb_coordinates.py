@@ -61,7 +61,7 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_coordinates")
-_ADAPTER_VERSION = "pdb-coordinate-registration-v2"
+_ADAPTER_VERSION = "pdb-coordinate-registration-v3-explicit-bound"
 _PDB_COORDINATE_URL = "https://files.rcsb.org/download/{pdb_id}.cif.gz"
 _DIRECT_PROVIDER = "pdb_sequence_mmseqs"
 _PROSTT5_PROVIDER = "foldseek_prostt5_pdb"
@@ -311,10 +311,12 @@ def _hit_sort_key(hit: StructuralSearchHit) -> tuple[object, ...]:
 def _select_hits(
     hits: Sequence[StructuralSearchHit], request: PdbCoordinateRegistrationRequest
 ) -> tuple[StructuralSearchHit, ...]:
-    if request.maximum_hits_per_sequence_group < 1:
-        raise ValueError("maximum_hits_per_sequence_group must be positive")
-    if request.maximum_mappings < 1 or request.maximum_mappings > 1000:
-        raise ValueError("maximum_mappings must be between 1 and 1000")
+    for name, bound in (
+        ("maximum_hits_per_sequence_group", request.maximum_hits_per_sequence_group),
+        ("maximum_mappings", request.maximum_mappings),
+    ):
+        if type(bound) is not int or bound < 1:
+            raise ValueError(f"{name} must be a positive integer")
     requested = tuple(request.hit_ids)
     if len(set(requested)) != len(requested):
         raise PdbCoordinateInputError("hit selection contains duplicates")

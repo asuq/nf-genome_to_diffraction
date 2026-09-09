@@ -135,8 +135,8 @@ _PDB_ADAPTER = "m6-nextflow-pdb-search-v2"
 _FOLDSEEK_ADAPTER = "m6-nextflow-foldseek-search-v2"
 _MODEL_POLICY_ADAPTER = "m6-nextflow-model-policy-v2"
 _PREFLIGHT_ADAPTER = "m6-nextflow-preflight-v1"
-_COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v1"
-_CASE_ADAPTER = "m6-nextflow-case-v2"
+_COORDINATE_STAGE_ADAPTER = "m6-coordinate-stage-v2-eligible-inventory"
+_CASE_ADAPTER = "m6-nextflow-case-v3-eligible-inventory"
 _SEED_ADAPTER = "m6-nextflow-seeds-v2"
 _CASE_EVIDENCE_ADAPTER = "m6-nextflow-case-evidence-v2"
 _M6_SEED_CAP = 5
@@ -234,7 +234,7 @@ class M6HypothesisGroupTask(ContractModel):
     """One case-local dynamically sized hypothesis group for Nextflow."""
 
     schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-nextflow-case-v2"]
+    adapter_version: Literal["m6-nextflow-case-v3-eligible-inventory"]
     case_id: str
     catalogue_key: Sha256Hex
     early_outcome: str | None = None
@@ -245,6 +245,8 @@ class M6HypothesisGroupTask(ContractModel):
     def _validate_hypothesis_group(self) -> Self:
         if self.hypothesis_count != len(self.hypothesis_ids):
             raise ValueError("M6 hypothesis-group count changed")
+        if len(set(self.hypothesis_ids)) != self.hypothesis_count:
+            raise ValueError("M6 hypothesis-group contains duplicate IDs")
         if self.hypothesis_count and self.early_outcome is not None:
             raise ValueError("runnable M6 hypothesis group has an early outcome")
         if not self.hypothesis_count and self.early_outcome is None:
@@ -1486,43 +1488,71 @@ def _jsonl[T](path: Path, model: type[T]) -> tuple[T, ...]:
     )
 
 
-def _write_selected_inputs(
+def _write_eligible_inputs(
     catalogue: Path,
     policy: Path,
     output: Path,
 ) -> tuple[Path, Path, Path]:
-    ranking = _jsonl_dicts(policy / "policy/candidate_ranking.jsonl", required=True)
-    selected_ids = {cast(str, row["sequence_group_id"]) for row in ranking[:25]}
+    """Retain every leakage-filtered model candidate before production admission.
+
+    Provider ranking is diagnostic, not a protein-level admission budget.
+    The production funnel alone applies the frozen 25-hypothesis MR cap.
+    """
+
+    policy_manifest = M6BundleManifest.model_validate_json(
+        (policy / "bundle_manifest.json").read_bytes()
+    )
+    hits_path = policy / "policy/accepted_structural_hits.jsonl"
+    if (
+        policy_manifest.adapter_version != _MODEL_POLICY_ADAPTER
+        or policy_manifest.task_kind != "trusted_model_policy"
+        or policy_manifest.output_sha256.get("accepted_hits") != sha256_file(hits_path)
+    ):
+        raise PublicControlError("M6 accepted hits are not bound to the trusted policy")
     groups = _jsonl(catalogue / "catalogue/sequence_groups.jsonl", SequenceGroupRecord)
     sources = _jsonl(catalogue / "catalogue/source_records.jsonl", SourceProteinRecord)
-    hits = _jsonl(policy / "policy/accepted_structural_hits.jsonl", StructuralSearchHit)
-    selected = output / "selected-candidates"
-    selected.mkdir()
-    groups_path = selected / "sequence_groups.jsonl"
-    sources_path = selected / "source_records.jsonl"
-    hits_path = selected / "accepted_structural_hits.jsonl"
+    hits = _jsonl(hits_path, StructuralSearchHit)
+    group_ids = {item.sequence_group_id for item in groups}
+    eligible_ids = {item.sequence_group_id for item in hits}
+    if len(group_ids) != len(groups) or len({hit.hit_id for hit in hits}) != len(hits):
+        raise PublicControlError("M6 eligible inputs contain duplicate groups or hits")
+    if not eligible_ids <= group_ids:
+        raise PublicControlError("M6 accepted hit is foreign to the catalogue")
+    source_counts = Counter(item.sequence_group_id for item in sources)
+    if (
+        len({item.source_record_id for item in sources}) != len(sources)
+        or set(source_counts) != group_ids
+        or any(
+            source_counts[g.sequence_group_id] != g.source_record_count for g in groups
+        )
+    ):
+        raise PublicControlError("M6 catalogue source/group mapping changed")
+    eligible = output / "eligible-candidates"
+    eligible.mkdir()
+    groups_path = eligible / "sequence_groups.jsonl"
+    sources_path = eligible / "source_records.jsonl"
+    hits_path = eligible / "accepted_structural_hits.jsonl"
     atomic_write_text(
         groups_path,
         "".join(
             f"{canonical_json_text(item)}\n"
-            for item in groups
-            if item.sequence_group_id in selected_ids
+            for item in sorted(groups, key=lambda item: item.sequence_group_id)
+            if item.sequence_group_id in eligible_ids
         ),
     )
     atomic_write_text(
         sources_path,
         "".join(
             f"{canonical_json_text(item)}\n"
-            for item in sources
-            if item.sequence_group_id in selected_ids
+            for item in sorted(sources, key=lambda item: item.source_record_id)
+            if item.sequence_group_id in eligible_ids
         ),
     )
     atomic_write_text(
         hits_path,
         "".join(
             f"{canonical_json_text(item)}\n"
-            for item in hits
-            if item.sequence_group_id in selected_ids
+            for item in sorted(hits, key=lambda item: item.hit_id)
         ),
     )
     return groups_path, sources_path, hits_path
@@ -1541,7 +1571,7 @@ def run_m6_coordinate_stage_task(
     database_manifest: Path,
     output_directory: Path,
 ) -> Path:
-    """Resolve one bounded hit set before offline M6 case preparation."""
+    """Resolve the eligible hit inventory before offline M6 case preparation."""
 
     case_root, task = _load_case_task(case_task_directory)
     catalogue, catalogue_task = _load_catalogue_bundle(catalogue_bundle)
@@ -1556,7 +1586,7 @@ def run_m6_coordinate_stage_task(
     database = database_manifest.resolve(strict=True)
     output = output_directory.resolve()
     output.mkdir(parents=True, exist_ok=False)
-    groups, sources, hits = _write_selected_inputs(catalogue, policy, output)
+    groups, sources, hits = _write_eligible_inputs(catalogue, policy, output)
     registration_root = output / "registration"
     stimulus = edge_stimulus(_fault(case_root, task))
     stage_outcome = _coordinate_stage_outcome(stimulus, hits)
@@ -1569,6 +1599,14 @@ def run_m6_coordinate_stage_task(
             {"schema_version": "1.0", "status": "completed_no_model"},
         )
     else:
+        # The finite observed inventory bounds materialisation; MR task budgets
+        # belong to the production funnel, not coordinate acquisition.
+        mapping_bound = sum(
+            min(3, count)
+            for count in Counter(
+                hit.sequence_group_id for hit in _jsonl(hits, StructuralSearchHit)
+            ).values()
+        )
         register_pdb_coordinates(
             PdbCoordinateRegistrationRequest(
                 structural_hits_jsonl=hits,
@@ -1576,7 +1614,7 @@ def run_m6_coordinate_stage_task(
                 database_manifest=database,
                 output_directory=registration_root,
                 maximum_hits_per_sequence_group=3,
-                maximum_mappings=25,
+                maximum_mappings=mapping_bound,
                 materialise_coordinate_objects=True,
                 allow_network_acquisition=False,
                 progress=False,
@@ -1592,9 +1630,9 @@ def run_m6_coordinate_stage_task(
             "catalogue": catalogue / "bundle_manifest.json",
             "policy": policy / "bundle_manifest.json",
             "database_manifest": database,
-            "selected_sequence_groups": groups,
-            "selected_source_records": sources,
-            "selected_structural_hits": hits,
+            "eligible_sequence_groups": groups,
+            "eligible_source_records": sources,
+            "eligible_structural_hits": hits,
         },
         outputs={
             "coordinate_sources": registration_root / "coordinate_sources.jsonl",
@@ -1678,7 +1716,7 @@ def run_m6_prepare_case_task(
     if policy_bundle is None:
         raise PublicControlError("active M6 case lacks a trusted policy bundle")
     policy = policy_bundle.resolve(strict=True)
-    groups_path, sources_path, hits_path = _write_selected_inputs(
+    groups_path, sources_path, hits_path = _write_eligible_inputs(
         catalogue, policy, output
     )
     fault = _fault(case_root, task)
@@ -1695,15 +1733,17 @@ def run_m6_prepare_case_task(
         if (
             stage_manifest.adapter_version != _COORDINATE_STAGE_ADAPTER
             or stage_manifest.task_id != task.case_id
+            or stage_manifest.input_sha256.get("policy")
+            != sha256_file(policy / "bundle_manifest.json")
         ):
             raise PublicControlError("M6 coordinate stage identity changed")
-        for name, selected in (
-            ("selected_sequence_groups", groups_path),
-            ("selected_source_records", sources_path),
-            ("selected_structural_hits", hits_path),
+        for name, eligible in (
+            ("eligible_sequence_groups", groups_path),
+            ("eligible_source_records", sources_path),
+            ("eligible_structural_hits", hits_path),
         ):
-            if stage_manifest.input_sha256.get(name) != sha256_file(selected):
-                raise PublicControlError("M6 coordinate stage selected inputs changed")
+            if stage_manifest.input_sha256.get(name) != sha256_file(eligible):
+                raise PublicControlError("M6 coordinate stage eligible inputs changed")
         stage_sources = stage_root / "registration/coordinate_sources.jsonl"
         stage_mappings = stage_root / "registration/coordinate_hit_mappings.jsonl"
         stage_registration = stage_root / "registration/registration_manifest.json"
@@ -2172,7 +2212,7 @@ def run_m6_add_copy_task(
                 seed_solution_id=seed_solution_id,
                 hypotheses_jsonl=case / "first-copy-funnel/mr_hypotheses.jsonl",
                 sequence_groups_jsonl=case
-                / "selected-candidates/sequence_groups.jsonl",
+                / "eligible-candidates/sequence_groups.jsonl",
                 preflight_jsonl=case / "preflight_bundle/preflight/mtz_preflight.jsonl",
                 mtz=case / "reflections.mtz",
                 search_model=review / "assets/solution.pdb",

@@ -830,7 +830,7 @@ def observe_missing_model(
     models = root / "processed_models.jsonl"
     inputs = manifest.get("input_sha256")
     outputs = manifest.get("output_sha256")
-    source_hits = case_bundle / "selected-candidates/accepted_structural_hits.jsonl"
+    source_hits = case_bundle / "eligible-candidates/accepted_structural_hits.jsonl"
     accepted_hits = root / "accepted_hits.jsonl"
     if (
         manifest.get("adapter_version") != _MODEL_EXHAUSTION_ADAPTER
