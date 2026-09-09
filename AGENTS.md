@@ -121,6 +121,19 @@ commit/push/deployment, and a three-crystal smoke followed by the remaining
 exact-model cohort. This approval does not change the deferred v0.4 scope or
 the A-review boundary.
 
+On 2026-09-09 the user cancelled the expanded identification programme,
+including further AlphaFold/AFDB work, and explicitly accepted all three
+candidate assessments as complete after supervisor confirmation that each
+rank-one candidate was correct. Preserve that external confirmation separately
+from computed MR, refinement and sequence evidence; do not invent unperformed
+analyses or decision artefacts. Do not launch the remaining supplied-model
+cohort or re-open the accepted assessments as a prerequisite for development.
+The user directed work to RF-G1 through RF-G4 and then continuation through the
+remaining planned v0.3 programme. The documented ranking-gate plan is the next
+scientific scope; broader v0.4/GPU work remains deferred. Preserve cancelled-run
+evidence, and stop only at genuinely required human decisions or new external
+authority. This is not automatic permission to publish a release.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

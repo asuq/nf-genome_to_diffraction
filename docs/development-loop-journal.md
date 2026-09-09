@@ -15715,3 +15715,30 @@ with a collapsed combined parent or a guessed command.
   preparation/MR records, distinguish genuine hit/no-hit from failures, and
   qualify the smoke before staging the remaining supplied models without
   duplicate work. No remaining-cohort launch has occurred yet.
+
+## 2026-09-09 - Investigation closed by operator; ranking gates prioritised
+
+- The user cancelled further expanded/AFDB screening and accepted all three
+  candidate assessments following supervisor confirmation of the rank-one
+  candidates. Recorded that completion separately from computational evidence;
+  no unperformed refinement, map-based sequence analysis or workflow decision
+  was fabricated. The cancelled full-screen gate is not claimed as exhaustive
+  coverage. RF-G1-RF-G4 are now the active priority.
+- Raven access recovered. The reviewed cancellation command exposed a missing
+  process-handle API before signalling. A separately approved termination of
+  the ownership-verified controller reached the existing handler; controller
+  and child accounting are terminal. Collected evidence is checksum-verified,
+  with completed no-hit, parser-failed and aborted outcomes kept distinct.
+  The remaining cohort was never submitted. PH3-P1-91 records the unresolved
+  cancellation-source defect independently of this successful recovery.
+- Source audit confirmed prior-dominant review ordering and its protecting
+  regression, aggregate rather than selected-solution packing, solvent-window
+  exclusion/copy-range clipping, zero-pack-only reopening, and separate M6
+  preselection/advancement/metric paths. A read-only solvent/range probe
+  reproduced the clipping; the pre-change focused baseline passed 70 tests.
+- The user directed continuation through the planned work. The source-audited
+  ranking plan follows RF-G1, RF-G3, RF-G2, then RF-G4, with fixed scientific
+  settings, known-control qualification and explicit release evidence. Next
+  implement shared MR-led review and its selected-solution/copy-state evidence
+  boundary. Deferred v0.4/GPU scope, private evidence and release authority
+  remain unchanged; no ranking implementation is claimed by this planning entry.
