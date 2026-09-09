@@ -163,13 +163,28 @@ alone do not close these release gates.
 The operator has approved code-only CI publication and reviewed Marmic RF/M6
 qualification after that local milestone. Historical local M6 bundles predate
 current analysis and family-truth contracts and cannot supply current acceptance.
-Recover and verify the exact frozen source inputs before preparing a new runner;
-do not substitute current cluster snapshots or mutate archived bundles.
-The 2026-09-10 recovery check found that both public snapshot downloads differ
-from their frozen sizes/checksums. Four of the 12 target 30% family lines also
-changed, including changes in leakage-safe family-model counts. Production
-verification rejects the downloads. Original source recovery is required;
-changing the frozen protocol instead would need explicit scientific review.
+The operator subsequently approved an in-place reference refresh, superseding
+the missing-original-snapshot hold. Both refreshed RCSB snapshots now pass the
+production family verifier for all 12 targets. Four target 30% family bindings
+and model counts changed; all 70% target lines remain unchanged. Rederivation
+from the checksum-verified M5 source coordinates confirms 11 distinct M5
+positive families, disjoint from all 12 M6 families in the refreshed snapshot.
+Case identities, acceptance thresholds and leakage rules remain unchanged.
+All 32 coordinate/reflection files, 15 catalogues and 21 declared target protein
+identities now verify. Trusted preparation and independent runner verification
+pass for all 63 cases and 65 content-addressed objects. Real source conversion
+exposed and corrected two MTZ sanitisation defects: standard base-dataset
+Free-R placement and preservation of unassigned flags on wholly unmeasured
+rows. Schema 1.1 records exact presence without imputing flags or dropping HKLs.
+The focused M6 suite passes 126 tests. Keep all benchmark
+sources, preparation outputs, truth evidence and archives under repository
+`.untracked/`, not `/tmp`; do not mutate archived prepared bundles. The refreshed
+input integration milestone now passes the complete locked gate: 1,564 unit,
+185 contract and 103 integration tests plus all workflow/cache and packaging
+checks. All tracked inputs remained unchanged during the captured gate.
+Exact-source CI and reviewed Marmic input qualification are next. Native
+scientific search additionally awaits the requested correction to the current
+16-GB memory policy; no increased allocation or native acceptance is implied.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new

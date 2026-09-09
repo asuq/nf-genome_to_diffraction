@@ -16013,3 +16013,93 @@ with a collapsed combined parent or a guessed command.
   remaining RF limitations. M6 operational/mutation/leakage evidence, RG closure,
   pass-2/composition and human reviews, reports/package/atlas and release gates
   remain outstanding. Do not claim native acceptance from the green CI run.
+
+## 2026-09-10 - Operator-approved M6 reference refresh started
+
+- The operator explicitly approved refreshing the benchmark references in
+  place and retaining benchmark files under repository `.untracked/`, not
+  `/tmp`. This supersedes the original-snapshot recovery requirement above;
+  no separate historical protocol copy is required.
+- Updated the two snapshot checksums/sizes, four changed target-family
+  bindings/counts and four changed M5 family bindings. All 12 target families
+  pass the production snapshot verifier. M5 entity IDs were derived from the
+  checksum-verified panel coordinate files; its 11 distinct positive families
+  remain disjoint from all 12 M6 positive families in the current snapshot.
+- Case identities, acceptance thresholds, leakage rules and scientific model
+  priors are unchanged. This working refresh is not committed or native-
+  qualified; the earlier green CI applies to the previously published source.
+- Next obtain and verify 32 coordinate/reflection files and two RefSeq source
+  bundles, rebuild the current truth-isolated inputs and runner, and run focused
+  qualification before committing/publishing the refreshed benchmark. Reviewed
+  Marmic RF/M6 qualification remains authorised. No scientific job was launched.
+
+## 2026-09-10 - Refreshed M6 runner qualified locally
+
+- Downloaded and verified 32 RCSB coordinate/reflection resources and two RefSeq
+  bundles containing 15 catalogues. The refreshed sources preserve all 21
+  declared target protein identifiers, lengths and sequence digests. One
+  coordinate file and one catalogue changed; the 8AI1 construct, two protein
+  chains, 2.40 A resolution and coordinate/reflection cell/symmetry still match.
+  The refreshed 29 catalogue objects contain 70,870 distinct raw sequences.
+- Real preparation exposed two sanitisation defects hidden by synthetic MTZ
+  layouts. Accepted Gemmi's standard shared base-dataset Free-R column while
+  continuing to reject flags scoped to an unrelated observation dataset.
+  Preserved 5E0K's 2,122 wholly unmeasured rows with unassigned flags rather
+  than imputing flags or dropping reflections. Sanitisation schema 1.1,
+  contract v2 and a presence-aware digest distinguish missing from every raw
+  flag; assigned/unassigned counts conserve the full HKL inventory.
+- All 63 cases prepare successfully and the blind 65-object runner passes
+  independent input verification. The focused M6 suite passes 126 checks;
+  Ruff and ty pass. Sources, private truth, the runner and the earlier failed
+  preparation evidence remain under ignored repository storage.
+- The user extended continuation through the qualified v0.4 release, including
+  during their absence, and permitted worktrees but prohibited subagents.
+  Updated the existing hourly follow-up in this task. The cancelled
+  identification programme remains closed, and scientific decisions, suitable
+  GPU resources and command permissions remain real boundaries.
+- Next refresh the deterministic atlas, run the complete integration milestone,
+  commit/publish checked exact source for CI, and qualify the runner through
+  the reviewed Marmic input profile before native RF/M6 execution. Local input
+  success is neither M6 scientific acceptance nor release qualification.
+
+## 2026-09-10 - Full input milestone exposed shared lazy-map race
+
+- The complete gate passed 1,564 unit, 185 contract and 103 integration checks,
+  schemas, panel, docs/atlas, syntax, main workflow and heteromer stubs, and M6
+  cache mutation. Composition fan-out then failed before task submission:
+  concurrent task-input normalisation tried to materialise the same nested
+  Groovy LazyMap. The original stack trace is retained with ignored evidence.
+- Changed only the composition inventory's parser to eager ordinary maps
+  before broadcasting shared parent/diffraction records. Removed the focused
+  check's former concurrent-modification retry. The 25-task fan-out, exact
+  identities, fully cached resume and zero-task no-model path now pass on the
+  first attempt; no scientific values, budgets or task dependencies changed.
+- Marmic basic staging readiness passes. Before native M6 searches, a separate
+  resource decision is required: the current policy caps jobs at 16 GB, below
+  the observed 64.6 GiB of a qualified 128-query production Foldseek batch.
+  Asked to adopt the existing 32-CPU/192-GB production allocation with bounded
+  128-query batches and a small native known-control qualification. No resource
+  policy has been changed and no scientific job has been submitted.
+- Next refresh the atlas and rerun the complete integration milestone, then
+  publish for exact-source CI and qualify the existing 4-GB M6 input profile.
+  Native scientific search remains held pending the resource-policy decision;
+  continue independent in-scope work without guessing that approval.
+
+## 2026-09-10 - Refreshed M6 input integration milestone passed
+
+- The captured complete locked gate passed: 1,564 unit, 185 contract and 103
+  integration tests; schema, public-panel, documentation, deterministic atlas
+  and action checks; all Nextflow syntax, fan-out, resume, cache-mutation and
+  resource-retry checks; offline wheel installation and wrapper syntax.
+  All 1,167 tracked file inputs remained unchanged throughout the gate. The
+  corrected composition fan-out and resume passed without an engine retry.
+- The refreshed 63-case, 65-object runner remains locally qualified with exact
+  source, target-family independence, observation and Free-R preservation
+  evidence retained separately from blind inputs. This closes the local input
+  integration milestone, not native RF or M6 scientific acceptance.
+- Next commit and publish this checked milestone for exact-source CI, then
+  deploy and qualify the runner through the reviewed Marmic input-only profile.
+  The separate native-search memory-policy question remains unanswered; do not
+  submit scientific searches under the known-inadequate 16-GB policy or assume
+  permission to increase it. Four-arm controls and subsequent release gates
+  remain outstanding; the cancelled identification programme stays closed.

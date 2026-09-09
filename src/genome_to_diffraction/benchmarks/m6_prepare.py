@@ -58,7 +58,7 @@ M6MtzVariation = Literal[
 M6ObservationType = Literal["intensity", "amplitude"]
 
 _M6_HKL_DIGEST_DOMAIN = b"nf-gtd/m6/sanitised-hkl/v1\0"
-_M6_FREE_R_DIGEST_DOMAIN = b"nf-gtd/m6/sanitised-hkl-free-r/v1\0"
+_M6_FREE_R_DIGEST_DOMAIN = b"nf-gtd/m6/sanitised-hkl-free-r-presence/v2\0"
 _FREE_R_LABELS = frozenset(
     {
         "FREE",
@@ -80,12 +80,14 @@ _M6_MTZ_VARIATION_BY_CASE_KIND: dict[str, M6MtzVariation] = {
 class M6MtzSanitisationRecord(ContractModel):
     """Path-free proof that one ordinary runner MTZ contains only safe arrays."""
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     sanitisation_id: str = Field(pattern=r"^m6mtz_[a-f0-9]{64}$")
-    contract: Literal["ordinary_observations_free_r_only_v1"]
+    contract: Literal["ordinary_observations_free_r_only_v2"]
     output_mtz_sha256: Sha256Hex
     output_mtz_size_bytes: PositiveInt
     reflection_count: PositiveInt
+    assigned_free_r_reflection_count: PositiveInt
+    unassigned_free_r_reflection_count: int = Field(ge=0)
     output_column_labels: tuple[NonEmptyString, ...] = Field(min_length=6)
     observation_dataset_id: PositiveInt
     observation_labels: tuple[NonEmptyString, ...] = Field(min_length=2, max_length=4)
@@ -108,6 +110,12 @@ class M6MtzSanitisationRecord(ContractModel):
             )
         if self.free_r_dataset_id != self.observation_dataset_id:
             raise ValueError("ordinary M6 observations and Free-R must share a dataset")
+        if (
+            self.assigned_free_r_reflection_count
+            + self.unassigned_free_r_reflection_count
+            != self.reflection_count
+        ):
+            raise ValueError("ordinary M6 Free-R presence counts do not conserve HKLs")
         return self
 
 
@@ -540,9 +548,11 @@ def _free_r_column(
     selected = recognised[0]
     if selected.type != "I":
         raise PublicControlError("ordinary M6 Free-R array must use MTZ type I")
-    if selected.dataset_id != observation_dataset_id:
+    # Gemmi's CIF-to-MTZ specification places shared Free-R flags in HKL_base
+    # (dataset 0), while measured observations belong to dataset 1.
+    if selected.dataset_id not in (0, observation_dataset_id):
         raise PublicControlError(
-            "ordinary M6 Free-R and observations belong to different MTZ datasets"
+            "ordinary M6 Free-R belongs to an unrelated observation dataset"
         )
     return selected
 
@@ -562,24 +572,49 @@ def _hkl_free_r_digests(
         raise PublicControlError(
             "ordinary M6 Free-R array is missing or ambiguous after selection"
         )
-    flags = _exact_integer_array(
-        np.asarray(matching[0].array),
+    raw_flags = np.asarray(matching[0].array)
+    unassigned = np.isnan(raw_flags)
+    known_flags = _exact_integer_array(
+        raw_flags[~unassigned],
         label="Free-R array",
     )
-    if len(np.unique(flags)) < 2:
+    if len(np.unique(known_flags)) < 2:
         raise PublicControlError("ordinary M6 Free-R array is constant")
+    if np.any(unassigned):
+        observation, _, _ = select_observations(mtz, None)
+        if observation is None:
+            raise PublicControlError("M6 unassigned Free-R lacks observation selection")
+        observed_values = np.column_stack(
+            [
+                _column_in_dataset(
+                    mtz, dataset_id=observation.dataset_id, label=label
+                ).array
+                for label in observation.labels
+            ]
+        )
+        if not np.all(np.isnan(observed_values[unassigned])):
+            raise PublicControlError(
+                "M6 unassigned Free-R flag accompanies a measured observation"
+            )
     hkl = _exact_integer_array(
         np.asarray(mtz.make_miller_array()),
         label="Miller indices",
     )
     if hkl.ndim != 2 or hkl.shape[1] != 3:
         raise PublicControlError("ordinary M6 Miller indices do not have H,K,L shape")
-    if len(hkl) != len(flags) or len(flags) != mtz.nreflections:
+    if len(hkl) != len(raw_flags) or len(raw_flags) != mtz.nreflections:
         raise PublicControlError(
             "ordinary M6 HKL and Free-R arrays cover different reflections"
         )
-    mapping = np.column_stack((hkl, flags)).astype(np.int64, copy=False)
-    order = np.lexsort((mapping[:, 3], mapping[:, 2], mapping[:, 1], mapping[:, 0]))
+    # The explicit presence column makes unassigned distinct from every raw
+    # integer flag. The zero payload for absent entries is only digest encoding;
+    # source/output arrays retain NaN without generating or imputing any flags.
+    flag_payload = np.zeros(len(raw_flags), dtype=np.int64)
+    flag_payload[~unassigned] = known_flags
+    mapping = np.column_stack((hkl, ~unassigned, flag_payload)).astype(
+        np.int64, copy=False
+    )
+    order = np.lexsort((mapping[:, 2], mapping[:, 1], mapping[:, 0]))
     sorted_mapping = mapping[order]
     if len(sorted_mapping) > 1 and np.any(
         np.all(sorted_mapping[1:, :3] == sorted_mapping[:-1, :3], axis=1)
@@ -754,6 +789,15 @@ def verify_m6_ordinary_mtz_sanitisation(
         record.free_r_label,
     ):
         raise PublicControlError("ordinary M6 prepared MTZ changed its Free-R identity")
+    unassigned_count = int(np.isnan(np.asarray(free_r.array)).sum())
+    if (
+        mtz.nreflections - unassigned_count,
+        unassigned_count,
+    ) != (
+        record.assigned_free_r_reflection_count,
+        record.unassigned_free_r_reflection_count,
+    ):
+        raise PublicControlError("ordinary M6 prepared MTZ changed Free-R presence")
     hkl_sha256, membership_sha256 = _hkl_free_r_digests(
         mtz,
         free_r_dataset_id=free_r.dataset_id,
@@ -971,12 +1015,20 @@ def write_m6_mtz_variant(
         raise PublicControlError(
             "ordinary M6 sanitised MTZ changed HKL/Free-R membership on disk"
         )
+    free_r_values = np.asarray(
+        _column_in_dataset(
+            written, dataset_id=output_dataset_id, label=free_r_label
+        ).array
+    )
+    unassigned_count = int(np.isnan(free_r_values).sum())
     identity = {
-        "schema_version": "1.0",
-        "contract": "ordinary_observations_free_r_only_v1",
+        "schema_version": "1.1",
+        "contract": "ordinary_observations_free_r_only_v2",
         "output_mtz_sha256": sha256_file(output),
         "output_mtz_size_bytes": output.stat().st_size,
         "reflection_count": written.nreflections,
+        "assigned_free_r_reflection_count": written.nreflections - unassigned_count,
+        "unassigned_free_r_reflection_count": unassigned_count,
         "output_column_labels": written_labels,
         "observation_dataset_id": output_dataset_id,
         "observation_labels": observation_labels,
@@ -987,12 +1039,14 @@ def write_m6_mtz_variant(
         "hkl_to_free_r_membership_sha256": written_membership_sha256,
     }
     return M6MtzSanitisationRecord(
-        schema_version="1.0",
+        schema_version="1.1",
         sanitisation_id=content_id("m6mtz_", identity),
-        contract="ordinary_observations_free_r_only_v1",
+        contract="ordinary_observations_free_r_only_v2",
         output_mtz_sha256=sha256_file(output),
         output_mtz_size_bytes=output.stat().st_size,
         reflection_count=written.nreflections,
+        assigned_free_r_reflection_count=written.nreflections - unassigned_count,
+        unassigned_free_r_reflection_count=unassigned_count,
         output_column_labels=written_labels,
         observation_dataset_id=output_dataset_id,
         observation_labels=observation_labels,

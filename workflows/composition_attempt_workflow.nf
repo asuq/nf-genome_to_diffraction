@@ -19,7 +19,9 @@ workflow COMPOSITION_ATTEMPT_WORKFLOW {
 
     main:
     selected_rows = attempt_inventory.flatMap { Path inventory ->
-        def document = new groovy.json.JsonSlurper().parse(inventory.toFile())
+        // Parent/diffraction maps are shared by concurrent task inputs.
+        // Parse eagerly: LazyMap materialisation mutates even during reads.
+        def document = new groovy.json.JsonSlurperClassic().parse(inventory.toFile())
         document.attempts.collect { attempt ->
             def parentState = document.parent_states.find { state ->
                 state.state_id == attempt.parent_state_id

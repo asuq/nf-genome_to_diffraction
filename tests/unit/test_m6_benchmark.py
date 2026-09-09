@@ -79,6 +79,7 @@ from genome_to_diffraction.benchmarks.m6_prepare import (
     M6MtzVariation,
     _write_opaque_catalogue,
     anonymise_m6_catalogue,
+    verify_m6_ordinary_mtz_sanitisation,
     write_m6_mtz_variant,
 )
 from genome_to_diffraction.benchmarks.m6_protocol import (
@@ -3217,6 +3218,7 @@ def _m6_source_mtz(
     target_derived_scale: float = 1.0,
     include_observations: bool = True,
     free_r_mode: str = "valid",
+    free_r_dataset_id: int = 0,
 ) -> gemmi.Mtz:
     mtz = gemmi.Mtz(with_base=True)
     mtz.spacegroup = gemmi.find_spacegroup_by_name("P 21 21 21")
@@ -3238,7 +3240,11 @@ def _m6_source_mtz(
         )
     )
     for label, column_type in columns:
-        mtz.add_column(label, column_type)
+        mtz.add_column(
+            label,
+            column_type,
+            dataset_id=free_r_dataset_id if column_type == "I" else 1,
+        )
     rows: list[list[float]] = []
     for index in range(1, 11):
         values: dict[str, float] = {
@@ -3296,10 +3302,12 @@ def test_m6_mtz_variants_are_sanitised_and_typed(
     assert all("8GKV" not in item.dataset_name for item in mtz.datasets)
 
 
+@pytest.mark.parametrize("free_r_dataset_id", (0, 1))
 def test_m6_ordinary_mtz_whitelists_runner_arrays_and_is_deterministic(
     tmp_path: Path,
+    free_r_dataset_id: int,
 ) -> None:
-    source = _m6_source_mtz()
+    source = _m6_source_mtz(free_r_dataset_id=free_r_dataset_id)
     source_hkl = np.asarray(source.make_miller_array()).copy()
     source_fp = np.asarray(source.column_with_label("FP").array).copy()
     source_sigfp = np.asarray(source.column_with_label("SIGFP").array).copy()
@@ -3329,6 +3337,7 @@ def test_m6_ordinary_mtz_whitelists_runner_arrays_and_is_deterministic(
 
     assert first_record is not None
     assert first_record == second_record == changed_record
+    assert first_record.observation_dataset_id == first_record.free_r_dataset_id == 1
     assert first.read_bytes() == second.read_bytes() == changed_extras.read_bytes()
     output = gemmi.read_mtz_file(str(first))
     assert tuple(column.label for column in output.columns) == (
@@ -3391,6 +3400,117 @@ def test_m6_ordinary_mtz_selects_equivalent_arrays_and_refuses_conflicts(
             tmp_path / "refused.mtz",
             opaque_id="M6C060",
             variation="ordinary",
+        )
+
+
+def test_m6_ordinary_mtz_rejects_free_r_from_an_unrelated_dataset(
+    tmp_path: Path,
+) -> None:
+    source = _m6_source_mtz()
+    unrelated_dataset = source.add_dataset("unrelated observations")
+    source.column_with_label("FreeR_flag").dataset_id = unrelated_dataset.id
+
+    with pytest.raises(PublicControlError, match="unrelated observation dataset"):
+        write_m6_mtz_variant(
+            source,
+            tmp_path / "invalid.mtz",
+            opaque_id="M6C001",
+            variation="ordinary",
+        )
+
+
+def test_m6_ordinary_mtz_preserves_excluded_unmeasured_cif_rows(
+    tmp_path: Path,
+) -> None:
+    document = gemmi.cif.read_string(
+        """data_excluded_reflection_fixture
+_cell.length_a 50
+_cell.length_b 60
+_cell.length_c 70
+_cell.angle_alpha 90
+_cell.angle_beta 90
+_cell.angle_gamma 90
+_symmetry.space_group_name_H-M 'P 1'
+loop_
+_refln.index_h
+_refln.index_k
+_refln.index_l
+_refln.status
+_refln.F_meas_au
+_refln.F_meas_sigma_au
+_refln.F_calc
+_refln.phase_calc
+1 1 1 o 10 1 8 45
+2 1 1 f 20 2 9 90
+3 1 1 x ? ? 12 180
+"""
+    )
+    source = gemmi.CifToMtz().convert_block_to_mtz(gemmi.as_refln_blocks(document)[0])
+    assert source.column_with_label("FreeR_flag").dataset_id == 0
+    assert np.isnan(source.column_with_label("FreeR_flag").array[-1])
+    output_path = tmp_path / "preserved.mtz"
+    record = write_m6_mtz_variant(
+        source, output_path, opaque_id="M6C046", variation="ordinary"
+    )
+
+    assert record is not None
+    assert record.schema_version == "1.1"
+    assert record.contract == "ordinary_observations_free_r_only_v2"
+    assert record.reflection_count == 3
+    assert record.assigned_free_r_reflection_count == 2
+    assert record.unassigned_free_r_reflection_count == 1
+    verify_m6_ordinary_mtz_sanitisation(output_path, record)
+    output = gemmi.read_mtz_file(str(output_path))
+    assert np.array_equal(output.make_miller_array(), source.make_miller_array())
+    for label in ("FP", "SIGFP", "FreeR_flag"):
+        assert np.array_equal(
+            source.column_with_label(label).array,
+            output.column_with_label(label).array,
+            equal_nan=True,
+        )
+    assert "FC" not in output.column_labels()
+    assert "PHIC" not in output.column_labels()
+
+    output.column_with_label("FreeR_flag").array[-1] = 0
+    assigned_record = write_m6_mtz_variant(
+        output, tmp_path / "assigned.mtz", opaque_id="M6C046", variation="ordinary"
+    )
+    assert assigned_record is not None
+    assert assigned_record.unassigned_free_r_reflection_count == 0
+    assert assigned_record.hkl_set_sha256 == record.hkl_set_sha256
+    assert (
+        assigned_record.hkl_to_free_r_membership_sha256
+        != record.hkl_to_free_r_membership_sha256
+    )
+
+
+@pytest.mark.parametrize("observation_label", ("FP", "SIGFP"))
+def test_m6_ordinary_mtz_rejects_unassigned_flag_for_measured_values(
+    tmp_path: Path, observation_label: str
+) -> None:
+    source = _m6_source_mtz()
+    source.column_with_label("FreeR_flag").array[0] = np.nan
+    source.column_with_label("FP").array[0] = np.nan
+    source.column_with_label("SIGFP").array[0] = np.nan
+    source.column_with_label(observation_label).array[0] = 1.0
+
+    with pytest.raises(PublicControlError, match="measured observation"):
+        write_m6_mtz_variant(
+            source, tmp_path / "invalid.mtz", opaque_id="M6C046", variation="ordinary"
+        )
+
+
+def test_m6_ordinary_mtz_rejects_infinite_flags_even_without_observations(
+    tmp_path: Path,
+) -> None:
+    source = _m6_source_mtz()
+    source.column_with_label("FreeR_flag").array[0] = np.inf
+    source.column_with_label("FP").array[0] = np.nan
+    source.column_with_label("SIGFP").array[0] = np.nan
+
+    with pytest.raises(PublicControlError, match="non-finite"):
+        write_m6_mtz_variant(
+            source, tmp_path / "invalid.mtz", opaque_id="M6C046", variation="ordinary"
         )
 
 

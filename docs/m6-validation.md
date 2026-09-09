@@ -132,8 +132,10 @@ a zero-attempt child receipt only after the same authority/model checks.
 Synthetic tests exercise production-order parity and permutation stability,
 packing/copy-state exclusions, exact result partitioning, unchanged human gates,
 authority tampering and an additional-copy adapter call with only the external
-Phenix invocation simulated. Native known-control/four-arm qualification and
-the full integration milestone remain outstanding.
+Phenix invocation simulated. The refreshed input integration milestone passes
+the complete locked gate, including 1,852 Python tests and all workflow/cache
+and packaging checks. Exact-source CI, reviewed-site input qualification and
+native known-control/four-arm qualification remain outstanding.
 
 `stage_inventory.json` now records the production-ordered scheduled hypotheses,
 their catalogue digests, review/recommendation ranks and authenticated executed
@@ -194,10 +196,13 @@ checksums are fixed.
 For ordinary cases, the trusted preparer applies a strict Gemmi whitelist
 before the reflection object reaches the runner. It reuses the deterministic
 preflight observation selection, retains only `H,K,L`, that selected
-value/sigma pair (or anomalous quartet), and exactly one recognised integral,
-non-constant Free-R array from the same MTZ dataset. Missing or conflicting
-observations, missing or ambiguous Free-R columns, non-finite/non-integral or
-constant flags, duplicate HKLs, and changed HKL-to-flag membership abort
+value/sigma pair (or anomalous quartet), and exactly one recognised Free-R
+array from that observation dataset or the shared base dataset 0. Assigned
+flags must be integral and non-constant. Unassigned flags are preserved only
+where every selected observation value/sigma is also absent. Missing or
+conflicting observation selections, missing or ambiguous Free-R columns,
+infinite/non-integral or constant assigned flags, missing flags on measured
+rows, duplicate HKLs, and changed HKL-to-flag membership abort
 preparation. FWT/PHWT, FC/PHIC, other map/phase columns, and all other source
 columns are therefore absent from ordinary runner objects and cannot affect the
 runner archive/cache identity. The two frozen `map_only_mtz` edge cases remain
@@ -206,8 +211,14 @@ handling; they are not ordinary scientific inputs.
 
 Each ordinary local preparation case must carry a content-addressed, path-free
 sanitisation record binding the output MTZ checksum, exact retained labels,
-reflection count, selected observation identity, and sorted HKL and
-HKL-to-Free-R digests. The runner builder requires and independently validates
+reflection count, assigned/unassigned flag counts, selected observation
+identity, and sorted HKL and HKL-to-Free-R digests. Schema 1.1 and contract v2
+encode flag presence explicitly in the membership digest, keeping absent
+distinct from numeric zero without changing the MTZ values. For example,
+5E0K includes 2,122 rows with no measured observations and source status `x`
+([unreliable, unused measurements](https://mmcif.wwpdb.org/dictionaries/mmcif_pdbx_v50.dic/Items/_refln.status.html));
+their unassigned flags remain unassigned. The runner builder requires and
+independently validates
 that record against the prepared reflection object but deliberately does not
 serialise it into the blind runner manifest. Original coordinate and
 structure-factor resource checksums,
@@ -236,7 +247,20 @@ Trusted source preparation verifies the frozen RCSB coordinate, reflection,
 30%/70% cluster-snapshot, and RefSeq files. It verifies target cluster-line
 checksums and frozen 30%-minus-70% family counts, strips coordinate and
 catalogue identifiers from runner-visible inputs, and keeps the schema-1.1
-private case/family truth map outside the runner bundle:
+private case/family truth map outside the runner bundle.
+
+The operator approved an in-place reference refresh on 2026-09-10. Current
+snapshot/family bindings and RefSeq bundle checksums supersede the original
+August source requirements; case identities, thresholds and leakage rules are
+unchanged. Retain downloads, preparation outputs, private truth, runner archives
+and verification records under repository `.untracked/`, not `/tmp`.
+
+Trusted MTZ sanitisation accepts one Free-R array either in the selected
+observation dataset or the shared base dataset 0, as produced by
+[Gemmi's CIF-to-MTZ conversion specification](https://gemmi.readthedocs.io/en/stable/program.html#cif2mtz).
+Flags scoped to another observation dataset remain an error. The canonical
+runner MTZ places observations and flags together while proving unchanged HKL,
+observation values and exact HKL-to-Free-R membership; no flags are regenerated.
 
 ```bash
 pixi run --locked genome-to-diffraction benchmark prepare-m6-inputs \
@@ -254,7 +278,7 @@ model-policy or fault-control objects carry only runner-visible behaviour:
 ```bash
 pixi run --locked genome-to-diffraction benchmark build-m6-runner \
   --protocol benchmarks/m6/protocol.yaml \
-  --preparation-manifest .untracked/m6/preparation.json \
+  --preparation-manifest .untracked/m6/prepared/preparation.json \
   --outdir .untracked/m6/runner \
   --archive .untracked/m6/runner.tar
 ```
@@ -393,8 +417,10 @@ other child jobs retain smaller allocations. The ceiling is 24 hours per Slurm
 job, not a tool timeout. Slurm controls aggregate and Phenix concurrency, which
 are measured rather than capped.
 
-The 29 frozen catalogues are imported independently and deduplicated to 70,864
-unique sequences. MMseqs2 searches one batch capped at 100,000 sequences/30
+The refreshed 29 catalogue objects are imported independently and contain
+70,870 distinct raw sequences before import filtering (the historical source
+contained 70,864). Qualification records bind the actual imported/searchable
+inventory rather than assuming a historical count. MMseqs2 searches one batch capped at 100,000 sequences/30
 million residues. Foldseek searches deterministic batches capped at 10,000
 sequences/3 million residues. This avoids reloading the target database and
 ProstT5 model once per sample while retaining every catalogue candidate.

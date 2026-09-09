@@ -141,6 +141,26 @@ source, frozen-input, truth-isolation and fixed-profile requirements. This does
 not restart the cancelled crystal/AFDB investigation, approve human scientific
 decisions, extend M6 to Raven, or authorise release publication.
 
+The user then explicitly approved refreshing the M6 benchmark references in
+place; preserving a separate original protocol is not required. Keep the same
+case identities, acceptance thresholds and leakage rules, and rederive the
+snapshot checksums, target-family bindings and M5 independence checks together.
+Save downloaded sources, prepared benchmark inputs, truth-side evidence and
+runner archives persistently under repository `.untracked/`, not `/tmp`.
+Requalify the refreshed inputs before native execution; the former missing-
+August-snapshot hold no longer blocks this approved refresh.
+
+The user subsequently directed continued work through the release of v0.4,
+including during their absence, and explicitly prohibited subagents. Worktrees
+are permitted when useful. Complete the canonical v0.3 qualification and release
+sequence, then the approved v0.4 WP0-WP5 programme, including BR01, AF01 and AF02.
+This supersedes the earlier general deferral of v0.4 development, not the need
+for suitable GPU resources, explicit scientific decisions, supported fixed-HPC
+profiles or command permissions. The release request authorises publication
+only after all corresponding acceptance gates genuinely pass. Do not restart
+the cancelled operator-crystal identification/AFDB investigation or fabricate
+human approvals to advance unattended work.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

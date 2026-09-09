@@ -1,6 +1,6 @@
 schema_version: "1.0"
 protocol_id: m6_independent_prokaryote_homomer_v1
-frozen_at: "2026-08-17T00:00:00Z"
+frozen_at: "2026-09-09T16:39:17Z"
 intended_use: >-
   Independent internal engineering validation of the single-component
   prokaryotic monomer/homomer prototype under truth isolation.
@@ -11,10 +11,10 @@ excluded_operator_crystals:
   - CD6QS2P2G1_5
 
 catalogue_bundles:
-  - bundle_id: ncbi-refseq-m6-core-20260816
+  - bundle_id: ncbi-refseq-m6-core-20260909
     request_url: "https://api.ncbi.nlm.nih.gov/datasets/v2/genome/accession/GCF_000005845.2,GCF_000007565.2,GCF_000009045.1,GCF_000011065.1,GCF_000015005.1,GCF_000162015.1,GCF_000175595.1,GCF_000264555.1,GCF_002216875.1,GCF_002994615.1,GCF_010548435.1/download?include_annotation_type=PROT_FASTA"
-    sha256: 15d4b76d6e4c3afc1cce0427b0c853b12c0c0b5a22397025696bd8cee329c736
-    size_bytes: 12469663
+    sha256: ef3c764eb51387614590c635c4fb2ef91ca5d7da7a4d4f2ec6e2c226a869f04f
+    size_bytes: 12472800
     assembly_accessions:
       - GCF_000005845.2
       - GCF_000007565.2
@@ -27,9 +27,9 @@ catalogue_bundles:
       - GCF_002216875.1
       - GCF_002994615.1
       - GCF_010548435.1
-  - bundle_id: ncbi-refseq-m6-assumptions-20260817
+  - bundle_id: ncbi-refseq-m6-assumptions-20260909
     request_url: "https://api.ncbi.nlm.nih.gov/datasets/v2/genome/accession/GCF_000008545.1,GCF_000007305.1,GCF_000021045.1,GCF_000007345.1/download?include_annotation_type=PROT_FASTA"
-    sha256: 60115a0cd4680d81a9aca333f51523e5a9e17e60b95250981afd9793fa428b40
+    sha256: 1357fe1015ebc5fe408b5053bb693d24778a239368bb19c5fc05f0ac1da704e9
     size_bytes: 2644025
     assembly_accessions:
       - GCF_000008545.1
@@ -40,91 +40,91 @@ catalogue_bundles:
 catalogues:
   - catalogue_id: cat-ecoli
     assembly_accession: GCF_000005845.2
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 9b8d21ea8ea5180bd9a96d7895dba9b5789002f43c6f421f2a7cdd1b141aa129
     protein_fasta_size_bytes: 1750878
   - catalogue_id: cat-pputida
     assembly_accession: GCF_000007565.2
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 646e5e9dd7dd19ae7930b727a804e56366110239c113c1d268d9318b0b964ed0
     protein_fasta_size_bytes: 2235807
   - catalogue_id: cat-bsubtilis
     assembly_accession: GCF_000009045.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: c0b6f56f434d113c4c71ba619f9916dd24eef1834b77bd972e77edd7ea05eec8
     protein_fasta_size_bytes: 1678330
   - catalogue_id: cat-btheta
     assembly_accession: GCF_000011065.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 1e75de82fbff1c56b7f8d816fc7bd87bbc3deaf3e9b0c7fbb5ed4f2e4d5a7ab1
     protein_fasta_size_bytes: 2212565
   - catalogue_id: cat-msmegmatis
     assembly_accession: GCF_000015005.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 7705920353188364445c3e7a155ded73f9d40fdd87d32f4f2773efe6dc38aeca
     protein_fasta_size_bytes: 2611069
   - catalogue_id: cat-fduncaniae
     assembly_accession: GCF_000162015.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 3e4edc824a5a57846b0665cce7ca78a751344c33e54a226864c82dc123579128
     protein_fasta_size_bytes: 1108795
   - catalogue_id: cat-ccarboxidivorans
     assembly_accession: GCF_000175595.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 7021e23b8065615a9eb02b9e87063ab229c17f9186e98fb34fe77fdb20c74450
     protein_fasta_size_bytes: 1925664
   - catalogue_id: cat-pchlororaphis
     assembly_accession: GCF_000264555.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 9226c621e8fbde49cc9d768b0865ac52fd4357a19b259d9021267c5484e43afb
     protein_fasta_size_bytes: 2530823
   - catalogue_id: cat-shewanella
     assembly_accession: GCF_002216875.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 316c0028fc8c6f47ba475ccf351de19062186675a3894d831fd10d619a8b3cd0
     protein_fasta_size_bytes: 1753587
   - catalogue_id: cat-esalina
     assembly_accession: GCF_002994615.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
-    protein_fasta_sha256: 257a5eefa1a094f1334e594c431845ed5af8980476a22e1c2c63f8aa6100259c
-    protein_fasta_size_bytes: 3148309
+    protein_fasta_sha256: 5c6c8e487620587c9f3efacc592736a3c55dd217e429dcee6e7fee6aa7fb748b
+    protein_fasta_size_bytes: 3153993
   - catalogue_id: cat-streptomyces
     assembly_accession: GCF_010548435.1
-    bundle_id: ncbi-refseq-m6-core-20260816
+    bundle_id: ncbi-refseq-m6-core-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 9e06a6e4011d44147e76942223b8214cb56b69b6c3539e51139958621f55d5fe
     protein_fasta_size_bytes: 2936714
   - catalogue_id: cat-pfuriosus
     assembly_accession: GCF_000007305.1
-    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    bundle_id: ncbi-refseq-m6-assumptions-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: b03e5087d5599defdbd0a80fed847aa96b7d061799d898237b9be7f7d1130d7c
     protein_fasta_size_bytes: 722138
   - catalogue_id: cat-macetivorans
     assembly_accession: GCF_000007345.1
-    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    bundle_id: ncbi-refseq-m6-assumptions-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 2eb0af39dece3e0c30bc673d4e10fab5888de221f8b4db6c71b658053062e6a2
     protein_fasta_size_bytes: 1752636
   - catalogue_id: cat-tmaritima
     assembly_accession: GCF_000008545.1
-    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    bundle_id: ncbi-refseq-m6-assumptions-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 2b26a553a56e5d030365a6909ba66dce62912a6b598095193349144eb172bfc2
     protein_fasta_size_bytes: 729424
   - catalogue_id: cat-avinelandii
     assembly_accession: GCF_000021045.1
-    bundle_id: ncbi-refseq-m6-assumptions-20260817
+    bundle_id: ncbi-refseq-m6-assumptions-20260909
     annotation_provider: NCBI RefSeq
     protein_fasta_sha256: 7dd1608f83a43609fb2016904bd267befacd700c4c960638f4ee6222f415a2cd
     protein_fasta_size_bytes: 1894393
@@ -161,9 +161,9 @@ positives:
     construct_sequence_length: 180
     expected_asu_copy_count: 2
     resolution_angstrom: 2.20
-    rcsb_30_cluster_line_sha256: 58ac28dd6a6314b696675718f4712f03284d6a02c244b54949cbc03433133be0
+    rcsb_30_cluster_line_sha256: 95f15cc46054023c05e295eea789af8be9f0321886c5433689d25fcd04d5fa09
     rcsb_70_cluster_line_sha256: 1cf21633746baf2cc25d6b99d67fe70ea2cfee5910d47665bb32eec663413cf0
-    allowed_30_to_70_model_count: 12
+    allowed_30_to_70_model_count: 11
   - target_key: T03
     source:
       pdb_id: 8C4L
@@ -178,9 +178,9 @@ positives:
     construct_sequence_length: 251
     expected_asu_copy_count: 2
     resolution_angstrom: 1.86
-    rcsb_30_cluster_line_sha256: 708c5d2cf6d13770e6c64deda904ba2d45b97aa068d14013d78d5ec1bc2ed793
+    rcsb_30_cluster_line_sha256: cb06f3be7e877cb2fa76e3fe85426e9c9e09937c724987a666e2af046b8a7c44
     rcsb_70_cluster_line_sha256: 5f6efa7e514d9ea494f8b4bfd60c840ab233055beb140531c39369004b979f7e
-    allowed_30_to_70_model_count: 14
+    allowed_30_to_70_model_count: 10
   - target_key: T04
     source:
       pdb_id: 8EJU
@@ -219,7 +219,7 @@ positives:
     source:
       pdb_id: 8AI1
       pdb_entity_ids: [1]
-      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8AI1.cif", sha256: 571681e9fbf66cdabb229a0fe31356244c272690604e93ad4d006948fc41ca72, size_bytes: 1197239}
+      coordinates: {role: coordinates, url: "https://files.rcsb.org/download/8AI1.cif", sha256: 360fd8a512c4226ea365c12f70a0ded2837d375c411adc9267476dd9d547c927, size_bytes: 1210058}
       structure_factors: {role: structure_factors, url: "https://files.rcsb.org/download/8AI1-sf.cif", sha256: a3739384fee30f816039550f635721dfaaeac46749395d10a29139cf970b5577, size_bytes: 7317387}
     organism: Bacillus subtilis subsp. subtilis str. 168
     catalogue_id: cat-bsubtilis
@@ -247,9 +247,9 @@ positives:
     construct_sequence_length: 352
     expected_asu_copy_count: 1
     resolution_angstrom: 1.28
-    rcsb_30_cluster_line_sha256: 8bb0eca51f042120ed59de5deb21c1462453ec83edeadf037950bfcf750effa6
+    rcsb_30_cluster_line_sha256: 766e460b5489a7c24b2bd977b85e52e087aed580f63e19d25b63109b255250af
     rcsb_70_cluster_line_sha256: 62a33b94d3028b2378538e2c721143e74203a1de702864a60a641c34604cc110
-    allowed_30_to_70_model_count: 36
+    allowed_30_to_70_model_count: 37
   - target_key: T08
     source:
       pdb_id: 8EFZ
@@ -264,9 +264,9 @@ positives:
     construct_sequence_length: 497
     expected_asu_copy_count: 2
     resolution_angstrom: 2.38
-    rcsb_30_cluster_line_sha256: fa4019aea575f3a8ca9e6353d9c84c63b678af1ae854f4fff6b0c3a6551c6e80
+    rcsb_30_cluster_line_sha256: 0d62cb8e5fc9bb127d5741e781031d870593c5c5e5573ac8c6735b48705b57fe
     rcsb_70_cluster_line_sha256: c893f80c255df5fac267991f83192bf52b5b59f9a251e117b59da815fe15c142
-    allowed_30_to_70_model_count: 6
+    allowed_30_to_70_model_count: 8
   - target_key: T09
     source:
       pdb_id: 21JH
@@ -419,23 +419,23 @@ leakage_policy:
   rcsb_30_snapshot:
     role: cluster_snapshot
     url: "https://cdn.rcsb.org/resources/sequence/clusters/clusters-by-entity-30.txt"
-    sha256: 2ffcb403da7de2e365d7c300a7548c6dcbdadac98b6ac5eb923abb71fdbe403d
-    size_bytes: 22498096
+    sha256: c83714a03611dcda740ff22a7bda2268b33697fb8510d7f3cd4b59bbc0861b8d
+    size_bytes: 22529184
   rcsb_70_snapshot:
     role: cluster_snapshot
     url: "https://cdn.rcsb.org/resources/sequence/clusters/clusters-by-entity-70.txt"
-    sha256: dd4990122e5c1c6b8bb2a4ffbce9cfc3dabe5a52a265dab94757f9a512a699c8
-    size_bytes: 22498096
+    sha256: 01ebd6284788c61490e2bae4e72f1a1a1d35f9f10dfc3f6dbe2825219294c650
+    size_bytes: 22529184
   m5_positive_30_cluster_line_sha256:
     - f48d1fd4ffe5bbc8a7f3d6ec54939783b1e00d3ec4d919d6b6c84e1a25da3854
     - 99b04fc33cd081a47a3f22ea7578d4f618aa6107bc9f14c00fb2f5fba9b48382
-    - 1480d13a0c580090e67b16d632e166de601b7f2ae1d79a0783f55fa0054922a7
-    - 5fde6ea3ba5d50a464584483534626df18cf54f639deb62758131133a35b6a4b
+    - 9d1044f4fd2fc96ab31cc399ef5fd3ca29de3ce32bcd510ed4b4bf163183632f
+    - 9c317e8c04d4b15c40f2f443e5f4e725b56e6e0e573377d3e3a8c68e63b1ecad
     - 43b370e7de1c88e2688f622fdd8850f70fcb3070e223aa95f73567fbf3939fcc
     - 3e8014def813c3834adbaf62238da52f2c2f5bae532606681ae66e2963de855c
     - 62e026fd317e773ec7f451e4f398c2f47bddf9339ca6c791f3da468762580a68
-    - 758422e55694802b9c0945a8957080ee6d8bc37b74881a121b960bfb0f70df18
-    - 7d74fba46442bfaf30c76c2f3d626e4dce2797bf6622efbf2e13d9c10eafc96e
+    - bd9aa46228f71316aa6a2d5d7cb5a3e6a3a4a951c8b31b65090057f9f6c22e4c
+    - d32535fffaed4110eda1b67050cacc3f0b32507c21a995a1336d5012b18882d5
     - 5e1e48f6f5474752ce9c7b9d6690883b38c1d7e2841a41aa0fa22438f7d87b88
     - acda9a4f4234f9996d3e882d55788cd99b5a9075ab6f6e5139ce9a7a3c4bb347
 

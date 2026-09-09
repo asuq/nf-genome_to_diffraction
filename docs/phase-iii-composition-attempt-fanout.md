@@ -77,6 +77,13 @@ independent consumable singleton queues. Each Nextflow item therefore carries
 its attempt row plus the complete parent, candidate/model-resolution,
 diffraction, Free-R, registry, and execution-identity context.
 
+The inventory is parsed eagerly into ordinary maps before fan-out. Groovy's
+default JSON parser returns lazy maps whose first read mutates their internal
+state; sharing nested parent/diffraction records across concurrent task-input
+normalisation caused an observed pre-submission failure. The eager parser
+preserves the same values and IDs without that shared lazy state. The focused
+first/resume check performs no engine-error retry.
+
 `RUN_PHASE3_COMPOSITION_ATTEMPT` receives each item plus the run-owned fixed
 coordinate root, all-model registry, sequence groups, preflight, MTZ, Phenix
 manifest, and complete execution identity. A real run independently validates
