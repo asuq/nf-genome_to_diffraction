@@ -155,14 +155,21 @@ scheduled, completed execution rather than retention alone. Case/track schema
 integration milestone now passes on source `0b434487`: 1,558 unit, 185 contract
 and 103 integration tests, all workflow/cache stubs, and the offline package
 gate. It also includes the reference-window comparison and import-order fixes
-exposed by earlier gate attempts. Native four-arm qualification and exact-source
-CI remain outstanding; the local gate alone does not close these release gates.
+exposed by earlier gate attempts. All six exact-source CI lanes subsequently
+passed for the documentation/atlas successor `af741a95` in run `34375884493`.
+Native four-arm qualification remains outstanding; local and CI integration
+alone do not close these release gates.
 
 The operator has approved code-only CI publication and reviewed Marmic RF/M6
 qualification after that local milestone. Historical local M6 bundles predate
 current analysis and family-truth contracts and cannot supply current acceptance.
 Recover and verify the exact frozen source inputs before preparing a new runner;
 do not substitute current cluster snapshots or mutate archived bundles.
+The 2026-09-10 recovery check found that both public snapshot downloads differ
+from their frozen sizes/checksums. Four of the 12 target 30% family lines also
+changed, including changes in leakage-safe family-model counts. Production
+verification rejects the downloads. Original source recovery is required;
+changing the frozen protocol instead would need explicit scientific review.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new

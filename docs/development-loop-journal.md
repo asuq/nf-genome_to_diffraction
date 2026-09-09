@@ -15989,3 +15989,27 @@ with a collapsed combined parent or a guessed command.
   documentation/atlas successor for exact-source CI, recover and checksum-verify
   frozen source inputs, then freeze the four-arm control evidence and qualify
   native execution. No remote scientific job has been submitted in this loop.
+
+## 2026-09-10 - RF exact-source CI passed; frozen M6 sources required
+
+- Published the approved code/documentation successor `af741a95` to `main`.
+  All six lanes of exact-source CI `34375884493` passed, following the complete
+  local RF gate. Built the current immutable HPC controller locally; no remote
+  deployment, native scientific submission, release or cancelled-screen restart
+  was performed.
+- The two public RCSB cluster downloads each contain 22,529,184 bytes rather
+  than the protocol-frozen 22,498,096 bytes, and both SHA-256 values differ.
+  The production source verifier rejects them before family qualification.
+  A separately labelled non-accepting diagnostic also found four changed 30%
+  target-family lines: leakage-safe model counts change from 12 to 11, 14 to
+  10, 36 to 37, and 6 to 8. This is not merely a metadata refresh.
+- Preserved the archived bundles and unaccepted downloads without changing
+  the frozen protocol, thresholds or truth policy. The original snapshot files
+  were not located in the inspected project/source-cache locations. Asked the
+  operator for the original frozen source archive; current files cannot be
+  substituted without a separately reviewed scientific-policy change.
+- Resume from source recovery, current trusted input/runner preparation and a
+  representative Marmic qualification, then the frozen four-arm controls and
+  remaining RF limitations. M6 operational/mutation/leakage evidence, RG closure,
+  pass-2/composition and human reviews, reports/package/atlas and release gates
+  remain outstanding. Do not claim native acceptance from the green CI run.
