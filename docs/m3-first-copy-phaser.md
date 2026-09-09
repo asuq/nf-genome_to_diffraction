@@ -134,6 +134,25 @@ insufficient and is classified as a parse failure. Exact terminal matching
 deliberately excludes `No solution with all components`, which Phaser can use
 when partial solutions exist.
 
+First-copy adapters `phenix-first-copy-mr-v9-selected-evidence` and
+`phenix-first-copy-mr-v13-selected-evidence` additionally bind a typed
+`selected_solution` record to the primary PDB checksum and placement count.
+Its annotation supplies the final PAK clash count and explicit `+TNCS` marker.
+Zero clashes independently establishes clash-free packing. A positive count
+does not by itself establish acceptance or rejection; missing packing stays
+unavailable. Neither case inherits acceptance from aggregate log counts.
+Malformed PAK tokens fail parsing. The normalised primary LLG and TFZ come from
+that PDB, with search TFZ distinguished from refined TFZ-equivalent; missing
+primary scores are not replaced with log maxima. Log maxima remain separately
+labelled raw observations.
+
+These annotation meanings follow the [Phenix Phaser manual](https://phenix-online.org/version_docs/1.17-3637/reference/phaser.html#annotation).
+Its tNCS description also explains coupled searches, but a tNCS annotation is
+not proof of correct placement or identity. The current review policy recognises
+an explicitly annotated two-copy pair from a requested one-copy search only
+when the composition expectation permits two copies. It labels this separately
+from a literal placement; other mismatches remain unexplained.
+
 The normalised result preserves LLG, LLGI, TFZ, accepted/packed counts, placed
 copy count, output coordinate and MTZ checksums, warnings, raw-log pointer, and
 the preliminary review class. A solution enters the user-defined higher-priority
@@ -313,10 +332,16 @@ The operation publishes:
   hypothesis, normalised result, funnel, command, log, and result-asset
   checksums.
 
-Ranking is deterministic and inspectable: Coot-inspectable asset availability,
-completed-hit/no-hit/failure class, the strict raw `LLG > 50` or `TFZ > 5`
-screen, packing, searched-copy agreement, raw LLG, raw TFZ, and immutable funnel
-order. Primary and extended labels apply to the first 10 and 25 distinct
+The shared `review/priority.py` policy orders Coot-inspectable completed results,
+selected-solution zero-clash packing, literal or explicitly coupled-tNCS copy
+interpretation, the strict raw `LLG > 50` or `TFZ > 5` screen, and raw LLG/TFZ.
+Only when that MR evidence ties does Matthews physical status, prior and
+within-candidate rank break the tie, followed by immutable sequence/model/
+hypothesis IDs. Independent MR and Matthews ranks and their discordance remain
+visible. Historical aggregate-only packing cannot fill missing selected-PDB
+evidence. The report/cache policy is `selected-packing-copy-mr-matthews-v1`
+and the review adapter is `mr-seed-review-v5-selected-mr-led`.
+Primary and extended labels apply to the first 10 and 25 distinct
 sequence-equivalence groups from the resolved configuration. They allocate
 review attention; they are not posterior probabilities or automatic biological
 assignments. Every parsed solution's PDB, MTZ, command, normalised result, and

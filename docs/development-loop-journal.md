@@ -15742,3 +15742,26 @@ with a collapsed combined parent or a guessed command.
   implement shared MR-led review and its selected-solution/copy-state evidence
   boundary. Deferred v0.4/GPU scope, private evidence and release authority
   remain unchanged; no ranking implementation is claimed by this planning entry.
+
+## 2026-09-09 - RF-G1 local MR-led review increment
+
+- Implemented a shared typed first-copy review key: inspectable completed
+  evidence, selected-PDB packing and explicit copy interpretation, MR metrics,
+  Matthews tie-breaking, then immutable IDs. Independent MR/Matthews ranks and
+  the complete review inventory remain available; ranking grants no approval.
+- Added checksum/count-bound selected-solution annotation evidence. Aggregate
+  packing cannot promote another solution, positive clashes retain unresolved
+  acceptance, and missing primary scores are not filled with log maxima.
+  Explicit paired tNCS is labelled separately from literal copy agreement.
+- Advanced first-copy/review adapter identities and rendered Nextflow task
+  contracts, updated the bounded collector and current documentation. The
+  new counterexample uses the real Matthews enumerator at equal solvent volume.
+- Local checks passed: 108 parser/review tests, 18 policy/collector tests,
+  157 repository/typed-contract tests, and a final 69 parser/policy tests after
+  the missing-score regression. Ruff, ty, documentation links, diff checks and
+  Nextflow syntax passed. No native scientific job was launched and no release
+  gate is closed solely by these tests. Native-control qualification, M6 use of
+  the shared policy and the full RF integration gate remain outstanding.
+- Next implement RF-G3 physical validity versus configured solvent preference,
+  then the explicit RF-G2 recovery route and RF-G4 production/M6 parity. The
+  cancelled AFDB investigation and accepted candidate assessments stay closed.

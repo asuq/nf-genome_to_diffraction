@@ -15,6 +15,7 @@ import pytest
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.cli import main
 from genome_to_diffraction.ids import canonical_json_text, content_id
+from genome_to_diffraction.matthews.enumerate import enumerate_group
 from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.mr.stage_add_copy import (
     LiveAddCopyStageRequest,
@@ -50,15 +51,21 @@ from genome_to_diffraction.review.mr_seed import (
     validate_mr_seed_review_evidence,
 )
 from genome_to_diffraction.schemas.io import load_contract
-from genome_to_diffraction.schemas.manifests import PrototypeProfile
+from genome_to_diffraction.schemas.manifests import (
+    CrystalEntry,
+    PipelineConfig,
+    PrototypeProfile,
+)
 from genome_to_diffraction.schemas.results import (
     MatthewsHypothesis,
     MrHypothesis,
     MrHypothesisStatus,
     MrSearchStage,
+    MtzPreflightRecord,
     NormalisedMrResult,
     PhysicalStatus,
     ReviewDecisionManifest,
+    SelectedMrSolutionEvidence,
     SequenceGroupRecord,
     SourceProteinRecord,
 )
@@ -580,7 +587,9 @@ def test_builds_content_bound_review_and_schema_valid_empty_template(
     assert template.decisions == ()
 
 
-def test_review_priority_does_not_let_mr_only_rank_override_matthews() -> None:
+def test_review_priority_does_not_let_matthews_override_selected_packing_and_mr() -> (
+    None
+):
     group = SequenceGroupRecord.model_validate_json(
         (STUBS / "sequence_groups.jsonl").read_text(encoding="utf-8").splitlines()[0]
     )
@@ -595,19 +604,50 @@ def test_review_priority_does_not_let_mr_only_rank_override_matthews() -> None:
         },
         file_sha256={},
     )
+    config = load_contract(REPOSITORY / "examples/config.yaml", "pipeline-config")
+    assert isinstance(config, PipelineConfig)
+    preflight = MtzPreflightRecord.model_validate_json(
+        (STUBS / "mtz_preflight.jsonl").read_bytes()
+    ).model_copy(update={"asu_volume_a3": 250_000.0, "resolution_high_a": 2.0})
+    crystal = CrystalEntry(
+        crystal_id=preflight.crystal_id, mtz="fixture.mtz", catalogue_id="fixture"
+    )
+    large = group.model_copy(update={"molecular_mass_da": 50_000.0})
+    small = group.model_copy(update={"molecular_mass_da": 5_000.0})
+    two = next(
+        row
+        for row in enumerate_group(large, crystal, preflight, config)
+        if row.copy_count == 2
+    )
+    twenty = next(
+        row
+        for row in enumerate_group(small, crystal, preflight, config)
+        if row.copy_count == 20
+    )
+    assert two.solvent_fraction == twenty.solvent_fraction == pytest.approx(0.508)
+    assert two.matthews_prior > twenty.matthews_prior
+    selected = SelectedMrSolutionEvidence(
+        coordinate_sha256="a" * 64,
+        placed_copy_count=1,
+        annotation="PAK=0",
+        packing_clash_count=0,
+        tncs_annotation_present=False,
+    )
     mr_only = _Candidate(
-        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "1" * 64),
-        result=_result(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
-            update={"llg": 120.0, "tfz": 12.0}
+        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
+            update={"copy_count_expected": 20}
         ),
-        sequence_group=group,
-        sources=(source,),
-        matthews=_matthews().model_copy(
+        result=_result(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
             update={
-                "matthews_prior": 0.01,
-                "physical_status": PhysicalStatus.REVIEW,
+                "llg": 120.0,
+                "tfz": 12.0,
+                "selected_solution": selected,
+                "solution_coordinate_sha256": "a" * 64,
             }
         ),
+        sequence_group=small,
+        sources=(source,),
+        matthews=twenty,
         funnel_entry={},
         funnel_order=1,
         bundle=bundle,
@@ -615,18 +655,20 @@ def test_review_priority_does_not_let_mr_only_rank_override_matthews() -> None:
         solution_identity={},
     )
     asu_supported = _Candidate(
-        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "2" * 64),
-        result=_result(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
-            update={"llg": 60.0, "tfz": 7.0}
+        hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
+            update={"copy_count_expected": 2}
         ),
-        sequence_group=group,
-        sources=(source,),
-        matthews=_matthews().model_copy(
+        result=_result(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
             update={
-                "matthews_prior": 0.95,
-                "physical_status": PhysicalStatus.PLAUSIBLE,
+                "llg": 20.0,
+                "tfz": 3.0,
+                "selected_solution": None,
+                "packing_summary": {"top_solution_packed": False},
             }
         ),
+        sequence_group=large,
+        sources=(source,),
+        matthews=two,
         funnel_entry={},
         funnel_order=2,
         bundle=bundle,
@@ -636,7 +678,11 @@ def test_review_priority_does_not_let_mr_only_rank_override_matthews() -> None:
 
     assert sorted((mr_only, asu_supported), key=_mr_sort_key)[0] is mr_only
     assert sorted((mr_only, asu_supported), key=_matthews_sort_key)[0] is asu_supported
-    assert sorted((mr_only, asu_supported), key=_candidate_sort_key)[0] is asu_supported
+    assert sorted((mr_only, asu_supported), key=_candidate_sort_key)[0] is mr_only
+    assert sorted((asu_supported, mr_only), key=_candidate_sort_key) == [
+        mr_only,
+        asu_supported,
+    ]
 
 
 def test_no_model_funnel_emits_an_honest_empty_mr_seed_review(

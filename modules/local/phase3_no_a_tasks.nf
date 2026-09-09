@@ -21,6 +21,7 @@ process RUN_PHASE3_NO_A_FIRST_COPY {
     def outputName = "first_copy_phaser_${item[1]}"
     def registryRoot = item[4].parent
     """
+    # Scientific output contract: phenix-first-copy-mr-v13-selected-evidence
     genome-to-diffraction --no-progress --log-format json \
         mr first-copy \
         --hypotheses '${item[2]}/mr_hypotheses.jsonl' \
@@ -67,6 +68,7 @@ process BUILD_PHASE3_NO_A_REVIEW {
         .collect { result -> "'${result}/normalised_mr_result.jsonl'" }
         .join(' ')
     """
+    # Scientific output contract: mr-seed-review-v5-selected-mr-led
     cat ${resultJsonl} > normalised_mr_results.jsonl
     genome-to-diffraction --no-progress --log-format json \
         review build-mr-seed \

@@ -4066,6 +4066,7 @@ def _review_asset_expectations(
             "mr-seed-review-v2",
             "mr-seed-review-v3",
             "mr-seed-review-v4-matthews-dual-rank",
+            "mr-seed-review-v5-selected-mr-led",
         }
         or manifest.get("score_gate") != expected_gate
         or summary.get("run_id") != record.run_id
@@ -4077,6 +4078,7 @@ def _review_asset_expectations(
     if adapter_version in {
         "mr-seed-review-v3",
         "mr-seed-review-v4-matthews-dual-rank",
+        "mr-seed-review-v5-selected-mr-led",
     } and (
         manifest.get("numeric_screen_excludes_candidates") is not False
         or manifest.get("approval_requires_explicit_human_decision") is not True
@@ -4089,6 +4091,7 @@ def _review_asset_expectations(
     if adapter_version in {
         "mr-seed-review-v3",
         "mr-seed-review-v4-matthews-dual-rank",
+        "mr-seed-review-v5-selected-mr-led",
     }:
         inspectable = [
             item
@@ -4108,9 +4111,13 @@ def _review_asset_expectations(
     if adapter_version in {
         "mr-seed-review-v3",
         "mr-seed-review-v4-matthews-dual-rank",
+        "mr-seed-review-v5-selected-mr-led",
     } and (manifest.get("inspectable_solution_count") != len(inspectable)):
         raise ValidationError("inspectable review count differs from the manifest")
-    if adapter_version == "mr-seed-review-v4-matthews-dual-rank":
+    if adapter_version in {
+        "mr-seed-review-v4-matthews-dual-rank",
+        "mr-seed-review-v5-selected-mr-led",
+    }:
         independent = manifest.get("independent_rankings")
         if (
             manifest.get("matthews_prior_backend") != PRIOR_BACKEND
@@ -4128,6 +4135,10 @@ def _review_asset_expectations(
             for item in items
         ):
             raise ValidationError("MR review dual-rank inventory is incomplete")
+    if adapter_version == "mr-seed-review-v5-selected-mr-led" and (
+        manifest.get("review_priority_policy") != "selected-packing-copy-mr-matthews-v1"
+    ):
+        raise ValidationError("MR-led review priority policy differs")
 
     expectations = {
         _REVIEW_MANIFEST_RELATIVE.as_posix(): manifest_sha256,

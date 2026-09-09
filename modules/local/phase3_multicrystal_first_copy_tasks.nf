@@ -107,6 +107,7 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
     script:
     def outputName = "phase3_first_copy_${item[1]}_${item[13].baseName}"
     """
+    # Scientific output contract: phenix-first-copy-mr-v13-selected-evidence
     genome-to-diffraction \
         --no-progress \
         --log-format json \
@@ -177,6 +178,7 @@ process BUILD_PHASE3_MR_SEED_REVIEW {
         ? 'touch normalised_mr_results.jsonl'
         : "${resultStaging}\ncat ${resultJsonl} > normalised_mr_results.jsonl"
     """
+    # Scientific output contract: mr-seed-review-v5-selected-mr-led
     ${resultCommand}
     genome-to-diffraction \
         --no-progress \

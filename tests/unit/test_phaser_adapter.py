@@ -29,6 +29,7 @@ from genome_to_diffraction.mr import (
     read_phaser_solution_metrics,
     run_first_copy_phaser,
 )
+from genome_to_diffraction.mr.phaser import read_selected_solution_evidence
 from genome_to_diffraction.mr_resources import build_mr_resource_plan
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
@@ -312,7 +313,7 @@ def _fake_runtime(
     returncode: int = 0,
     write_solution: bool = False,
     pdb_llg: float = 1622.879,
-    pdb_tfz: float = 49.7,
+    pdb_tfz: float | None = 49.7,
     pdb_pak: float | None = 0.0,
     placement_count: int = 1,
     corrupt_evidence: str | None = None,
@@ -343,10 +344,11 @@ def _fake_runtime(
                 for _ in range(placement_count)
             )
             packing = "" if pdb_pak is None else f"PAK={pdb_pak:g} "
+            tfz_annotation = "" if pdb_tfz is None else f"TFZ=={pdb_tfz}"
             (working_directory / "PHASER.1.pdb").write_text(
                 "REMARK Log-Likelihood Gain: "
                 f"{pdb_llg}\n"
-                f"REMARK {packing}LLG={pdb_llg} TFZ=={pdb_tfz}\n"
+                f"REMARK {packing}LLG={pdb_llg} {tfz_annotation}\n"
                 f"{placements}"
                 "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  "
                 "1.00 20.00           C\n",
@@ -544,8 +546,82 @@ def test_adapter_runs_exact_composition_and_emits_credible_hit(
     assert "phaser.keywords.general.jobs=4" in command
     assert "phaser.keywords.sgalternative.select=none" in command
     record = json.loads(output.command_json.read_text(encoding="utf-8"))
-    assert record["adapter_version"] == "phenix-first-copy-mr-v8"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v9-selected-evidence"
     assert record["model_uncertainty_source"].startswith("phenix.process")
+
+
+@pytest.mark.parametrize("clashes", (None, 0.0, 3.0))
+def test_selected_packing_does_not_inherit_another_packed_solution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    clashes: float | None,
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch, log_text=POSITIVE_LOG, write_solution=True, pdb_pak=clashes
+    )
+
+    result = run_first_copy_phaser(request).result
+
+    assert result.execution_status == "completed_hit"
+    assert result.packing_summary["packed_solution_count"] == 2
+    assert result.packing_summary["top_solution_packed"] is (
+        True if clashes == 0 else None
+    )
+    assert result.selected_solution is not None
+    assert result.selected_solution.packing_clash_count == clashes
+    assert (
+        result.selected_solution.coordinate_sha256 == result.solution_coordinate_sha256
+    )
+
+
+@pytest.mark.parametrize("token", ("-1", "NaN", "inf", "", "0bad", "0.5"))
+def test_selected_packing_rejects_malformed_annotation(
+    tmp_path: Path, token: str
+) -> None:
+    coordinate = tmp_path / "PHASER.1.pdb"
+    coordinate.write_text(
+        f"REMARK RFZ=8 TFZ=12 +TNCS PAK={token} LLG=120\n"
+        "REMARK ENSEMBLE ense_1 EULER 0 0 0 FRAC 0 0 0\n",
+        encoding="ascii",
+    )
+    with pytest.raises(PhaserParseError, match="malformed packing"):
+        read_selected_solution_evidence(coordinate)
+
+
+def test_selected_annotation_uses_final_pak_and_explicit_tncs(tmp_path: Path) -> None:
+    coordinate = tmp_path / "PHASER.1.pdb"
+    coordinate.write_text(
+        "REMARK RFZ=20.8 TFZ=19.3 +TNCS PAK=3 LLG=3508 PAK=0\n"
+        "REMARK ENSEMBLE ense_1 EULER 0 0 0 FRAC 0 0 0\n"
+        "REMARK ENSEMBLE ense_1 EULER 0 0 0 FRAC 0.5 0.5 0\n",
+        encoding="ascii",
+    )
+    selected = read_selected_solution_evidence(coordinate)
+    assert selected.packing_clash_count == 0
+    assert selected.placed_copy_count == 2
+    assert selected.tncs_annotation_present is True
+
+
+def test_selected_score_missing_does_not_inherit_log_maximum(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = _inputs(tmp_path)
+    _fake_runtime(
+        monkeypatch,
+        log_text=POSITIVE_LOG,
+        write_solution=True,
+        pdb_tfz=None,
+        pdb_llg=20,
+    )
+    result = run_first_copy_phaser(request).result
+    assert result.execution_status == "completed_hit"
+    assert result.tfz is None
+    assert result.llg == 20
+    assert result.packing_summary["log_top_tfz"] == 49.7
+    assert result.packing_summary["tfz_source"] == "unavailable"
+    assert result.packing_summary["score_gate_passed"] is False
 
 
 def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
@@ -561,7 +637,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     binding = record["diffraction_command_binding"]
     selection = record["diffraction_selection"]
     assert record["schema_version"] == "2.0"
-    assert record["adapter_version"] == "phenix-first-copy-mr-v12-resource-plan"
+    assert record["adapter_version"] == "phenix-first-copy-mr-v13-selected-evidence"
     assert record["phase3_hypothesis_id"] == request.phase3_hypothesis_id
     assert record["phase3_command_id"].startswith("phasercmd_")
     command_identity = {
@@ -584,7 +660,7 @@ def test_phase3_adapter_verifies_and_records_dataset_qualified_selection(
     assert content_id("phasercmd_", command_identity) == record["phase3_command_id"]
     previous_identity = {
         **command_identity,
-        "adapter_version": "phenix-first-copy-mr-v9-phase3-diffraction",
+        "adapter_version": "phenix-first-copy-mr-v12-resource-plan",
     }
     assert content_id("phasercmd_", previous_identity) != record["phase3_command_id"]
     assert selection["observation_dataset_id"] == 1

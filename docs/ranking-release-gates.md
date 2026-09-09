@@ -108,6 +108,14 @@ decoy and open-set cases without inserting unknown-crystal truth into runners.
 
 ## Validation and completion discipline
 
+RF-G1 local implementation now uses the shared typed review policy and selected
+PDB packing/copy evidence. The prior-dominance regression is replaced by the
+real-enumerator equal-solvent example. Missing or positive-clash packing is not
+promoted by aggregate packed counts, and missing selected TFZ is not filled from
+log maxima. Parser/review/collector contracts and rendered Nextflow cache
+identities advance together. Native known-control qualification and M6 adoption
+remain required; this local increment alone does not close RF-G1 or RF-G4.
+
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new
   behaviour; several historical expectations must intentionally change.

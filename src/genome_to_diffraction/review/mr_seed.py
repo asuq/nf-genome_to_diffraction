@@ -43,6 +43,13 @@ from genome_to_diffraction.mr.policy import (
     SCORE_GATE_TFZ,
     passes_provisional_score_gate,
 )
+from genome_to_diffraction.review.priority import (
+    REVIEW_PRIORITY_POLICY,
+    FirstCopyReviewEvidence,
+    matthews_evidence_key,
+    mr_evidence_key,
+    review_priority_key,
+)
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_contract,
@@ -61,7 +68,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v4-matthews-dual-rank"
+_ADAPTER_VERSION = "mr-seed-review-v5-selected-mr-led"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
@@ -98,6 +105,8 @@ _TSV_COLUMNS = (
     "tfz",
     "score_gate_passed",
     "top_solution_packed",
+    "selected_packing_state",
+    "copy_state",
     "placed_copy_count_matches",
     "inspectable_solution",
     "execution_status",
@@ -574,11 +583,6 @@ def _join_candidates(
     return config, funnel_id, input_sha256, tuple(candidates)
 
 
-def _boolean_feature(result: NormalisedMrResult, name: str) -> bool:
-    value = result.packing_summary.get(name)
-    return value is True
-
-
 def _score_gate(result: NormalisedMrResult) -> bool:
     raw_gate = passes_provisional_score_gate(llg=result.llg, tfz=result.tfz)
     recorded = result.packing_summary.get("score_gate_passed")
@@ -620,53 +624,29 @@ def _inspectable_solution(candidate: _Candidate) -> bool:
     )
 
 
-def _descending(value: float | None) -> float:
-    return float("inf") if value is None else -value
+def _review_evidence(candidate: _Candidate) -> FirstCopyReviewEvidence:
+    return FirstCopyReviewEvidence(
+        hypothesis=candidate.hypothesis,
+        result=candidate.result,
+        matthews=candidate.matthews,
+        inspectable=_inspectable_solution(candidate),
+    )
 
 
 def _mr_sort_key(candidate: _Candidate) -> tuple[object, ...]:
-    status_rank = {
-        ExecutionStatus.COMPLETED_HIT: 0,
-        ExecutionStatus.COMPLETED_NO_HIT: 1,
-    }.get(candidate.result.execution_status, 2)
-    return (
-        0 if _inspectable_solution(candidate) else 1,
-        status_rank,
-        0 if _score_gate(candidate.result) else 1,
-        0 if _boolean_feature(candidate.result, "top_solution_packed") else 1,
-        0
-        if candidate.result.placed_copy_count
-        == candidate.hypothesis.copy_number_to_search
-        else 1,
-        _descending(candidate.result.llg),
-        _descending(candidate.result.tfz),
-        candidate.funnel_order,
-    )
+    evidence = _review_evidence(candidate)
+    return (*mr_evidence_key(evidence), *evidence.stable_id)
 
 
 def _matthews_sort_key(candidate: _Candidate) -> tuple[object, ...]:
-    physical_rank = {
-        "plausible": 0,
-        "review": 1,
-        "impossible": 2,
-    }[candidate.matthews.physical_status.value]
-    return (
-        physical_rank,
-        -candidate.matthews.matthews_prior,
-        candidate.matthews.rank_within_candidate,
-        candidate.funnel_order,
-    )
+    evidence = _review_evidence(candidate)
+    return (*matthews_evidence_key(evidence), *evidence.stable_id)
 
 
 def _candidate_sort_key(candidate: _Candidate) -> tuple[object, ...]:
-    """Order review priority by physical ASU support before MR tie-breakers."""
+    """Use the shared MR-led policy; Matthews cannot overrule stronger MR."""
 
-    return (
-        *_mr_sort_key(candidate)[:2],
-        *_matthews_sort_key(candidate)[:-1],
-        *_mr_sort_key(candidate)[2:-1],
-        candidate.funnel_order,
-    )
+    return review_priority_key(_review_evidence(candidate))
 
 
 def _source_locus(source: SourceProteinRecord) -> str:
@@ -774,9 +754,11 @@ def _row(
         "llgi": candidate.result.llgi if candidate.result.llgi is not None else "",
         "tfz": candidate.result.tfz if candidate.result.tfz is not None else "",
         "score_gate_passed": _score_gate(candidate.result),
-        "top_solution_packed": _boolean_feature(
-            candidate.result, "top_solution_packed"
+        "top_solution_packed": (
+            True if _review_evidence(candidate).packing_state == "zero_clashes" else ""
         ),
+        "selected_packing_state": _review_evidence(candidate).packing_state,
+        "copy_state": _review_evidence(candidate).copy_state,
         "placed_copy_count_matches": (
             candidate.result.placed_copy_count
             == candidate.hypothesis.copy_number_to_search
@@ -873,6 +855,8 @@ def _html_report(
         "llg",
         "tfz",
         "top_solution_packed",
+        "selected_packing_state",
+        "copy_state",
         "inspectable_solution",
         "warnings",
         "solution_coordinate",
@@ -917,9 +901,11 @@ code{overflow-wrap:anywhere}.note{max-width:75rem}
 <p><strong>Package:</strong> <code>PACKAGE_ID</code></p>
 <p class="note">Every tested hypothesis is retained. Every parsed solution with
 coordinate and MTZ assets is available for Coot inspection. Review priority
-orders inspectable execution evidence, physical ASU status, and the
-resolution/copy-weighted empirical Matthews prior before using the provisional
-LLG/TFZ screen, packing, copy agreement, raw LLG, and raw TFZ as tie-breakers.
+orders inspectable execution evidence, selected-PDB zero-clash packing and
+explicit copy-state interpretation, then the provisional LLG/TFZ screen and raw
+LLG/TFZ. Matthews is a tie-breaker only after that MR evidence is tied.
+Positive clash counts have unverified acceptance; absent packing stays missing.
+Explicit coupled-tNCS pairs remain distinct from literal one-copy placements.
 Independent Matthews and MR ranks plus their absolute discordance are shown.
 The screen does not exclude candidates or grant approval.
 This ranking is not a calibrated probability of identity; human map and packing
@@ -1030,6 +1016,8 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "sequence_group_rank": group_rank,
                 "shortlist": row["shortlist"],
                 "inspectable_solution": row["inspectable_solution"],
+                "selected_packing_state": row["selected_packing_state"],
+                "copy_state": row["copy_state"],
                 "solution_identity": candidate.solution_identity,
                 "source_bundle": candidate.bundle.directory_name,
                 "source_bundle_sha256": dict(
@@ -1081,24 +1069,25 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
             "package_identity": package_identity,
             "created_at": created_at,
             "checkpoint": "mr_seed",
+            "review_priority_policy": REVIEW_PRIORITY_POLICY,
             "ordering_policy": [
                 "inspectable_solution",
                 "execution_status",
+                "selected_solution_zero_clashes",
+                "literal_or_explicit_tncs_coupled_copy_state",
+                "mr_score_gate",
+                "mr_llg_descending",
+                "mr_tfz_descending",
                 "matthews_physical_status",
                 "resolution_copy_weighted_matthews_prior_descending",
                 "matthews_rank_within_candidate",
-                "mr_score_gate_tiebreaker",
-                "mr_packing_tiebreaker",
-                "mr_placed_copy_match_tiebreaker",
-                "mr_llg_tiebreaker",
-                "mr_tfz_tiebreaker",
-                "immutable_funnel_order",
+                "immutable_sequence_model_hypothesis_ids",
             ],
             "independent_rankings": {
                 "matthews_rank": (
                     "physical_status_then_resolution_copy_weighted_prior"
                 ),
-                "mr_rank": ("score_gate_packing_copy_match_llg_tfz"),
+                "mr_rank": ("selected_packing_copy_state_score_gate_llg_tfz"),
                 "rank_discordance": "absolute_position_difference",
             },
             "matthews_prior_backend": PRIOR_BACKEND,

@@ -16,6 +16,62 @@ from genome_to_diffraction.schemas.results import ProcessedModelRecord
 REPOSITORY = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.parametrize(
+    ("module", "process", "version"),
+    (
+        (
+            "run_first_copy_phaser",
+            "RUN_FIRST_COPY_PHASER",
+            "phenix-first-copy-mr-v9-selected-evidence",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_FIRST_COPY",
+            "phenix-first-copy-mr-v9-selected-evidence",
+        ),
+        (
+            "phase3_multicrystal_first_copy_tasks",
+            "RUN_PHASE3_FIRST_COPY_PHASER",
+            "phenix-first-copy-mr-v13-selected-evidence",
+        ),
+        (
+            "phase3_no_a_tasks",
+            "RUN_PHASE3_NO_A_FIRST_COPY",
+            "phenix-first-copy-mr-v13-selected-evidence",
+        ),
+        (
+            "build_mr_seed_review",
+            "BUILD_MR_SEED_REVIEW",
+            "mr-seed-review-v5-selected-mr-led",
+        ),
+        (
+            "phase3_multicrystal_first_copy_tasks",
+            "BUILD_PHASE3_MR_SEED_REVIEW",
+            "mr-seed-review-v5-selected-mr-led",
+        ),
+        (
+            "phase3_no_a_tasks",
+            "BUILD_PHASE3_NO_A_REVIEW",
+            "mr-seed-review-v5-selected-mr-led",
+        ),
+    ),
+)
+def test_selected_solution_semantics_invalidate_rendered_task_cache(
+    module: str,
+    process: str,
+    version: str,
+) -> None:
+    text = (REPOSITORY / "modules/local" / f"{module}.nf").read_text(encoding="utf-8")
+    body = text.split(f"process {process} {{", 1)[1].split("\nprocess ", 1)[0]
+    script = body.split('"""', 1)[1].split('"""', 1)[0]
+    assert f"# Scientific output contract: {version}" in script
+    old_script = script.replace(version, "superseded-scientific-output")
+    assert (
+        hashlib.sha256(script.encode()).digest()
+        != hashlib.sha256(old_script.encode()).digest()
+    )
+
+
 def test_parallel_ci_lanes_cover_every_complete_gate_leaf_once() -> None:
     with (REPOSITORY / "pixi.toml").open("rb") as handle:
         tasks = tomllib.load(handle)["tasks"]

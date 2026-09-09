@@ -260,6 +260,7 @@ process M6_FIRST_COPY {
 
     script:
     """
+    # Scientific output contract: phenix-first-copy-mr-v9-selected-evidence
     genome-to-diffraction --no-progress --log-format json \
         mr first-copy \
         --hypotheses '${item[3]}' \

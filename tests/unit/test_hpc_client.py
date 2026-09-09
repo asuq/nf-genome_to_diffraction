@@ -40,6 +40,7 @@ from genome_to_diffraction.hpc.models import (
 from genome_to_diffraction.hpc.unknown_inputs import (
     UNKNOWN_DISCOVERY_SPEC_RELATIVE,
 )
+from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from tests.support.unknown_pass1_fixture import (
     materialise_neutral_localisation_fixture,
     materialise_unknown_pass1_public_fixture,
@@ -471,7 +472,11 @@ def _write_review_evidence(
     }
     manifest = {
         "schema_version": "1.0",
-        "adapter_version": "mr-seed-review-v3",
+        "adapter_version": "mr-seed-review-v5-selected-mr-led",
+        "review_priority_policy": "selected-packing-copy-mr-matthews-v1",
+        "matthews_prior_backend": PRIOR_BACKEND,
+        "matthews_copy_range_requirement": "complete_dynamic_range",
+        "independent_rankings": {"rank_discordance": "absolute_position_difference"},
         "package_id": package_id,
         "numeric_screen_excludes_candidates": False,
         "approval_requires_explicit_human_decision": True,
@@ -486,6 +491,9 @@ def _write_review_evidence(
         "items": [
             {
                 "inspectable_solution": True,
+                "mr_rank": 1,
+                "matthews_rank": 1,
+                "rank_discordance": 0,
                 "solution_id": solution_id,
                 "copied_assets": copied_assets,
                 "copied_asset_sha256": copied_sha256,

@@ -80,6 +80,7 @@ from genome_to_diffraction.schemas.results import (
     NormalisedMrResult,
     PreflightDecision,
     ProcessedModelRecord,
+    SelectedMrSolutionEvidence,
     SequenceGroupRecord,
 )
 from genome_to_diffraction.schemas.v2.diffraction import (
@@ -96,8 +97,8 @@ from genome_to_diffraction.status import (
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.mr.phaser")
-_ADAPTER_VERSION = "phenix-first-copy-mr-v8"
-_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v12-resource-plan"
+_ADAPTER_VERSION = "phenix-first-copy-mr-v9-selected-evidence"
+_PHASE3_ADAPTER_VERSION = "phenix-first-copy-mr-v13-selected-evidence"
 _ROOT = "PHASER"
 _VERSION = re.compile(r"PHENIX:\s+Phaser\s+([0-9]+(?:\.[0-9]+){2})", re.I)
 _TOP_LLG = re.compile(r"Top LLG \(packs\)\s*=\s*(-?[0-9]+(?:\.[0-9]+)?)")
@@ -124,8 +125,12 @@ _PDB_LLG = re.compile(
     re.M,
 )
 _PDB_TFZ = re.compile(r"\bTFZ==(-?[0-9]+(?:\.[0-9]+)?)")
+_PDB_SEARCH_TFZ = re.compile(r"\bTFZ=(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PAK = re.compile(r"\bPAK=(-?[0-9]+(?:\.[0-9]+)?)")
 _PDB_PLACEMENT = re.compile(r"^REMARK ENSEMBLE\s+", re.M)
+_PDB_ANNOTATION = re.compile(
+    r"^REMARK\s+((?:RFZ=|TFZ=|PAK=|LLG=|\+TNCS\b)[^\n]*)$", re.M
+)
 
 
 class PhaserInputError(InputContractError):
@@ -865,6 +870,37 @@ def read_phaser_solution_metrics(
     return llg, tfz, placed_count, pak
 
 
+def read_selected_solution_evidence(
+    coordinate_path: Path,
+) -> SelectedMrSolutionEvidence:
+    """Bind packing and explicit tNCS history to one selected native PDB.
+
+    The last PAK token in its annotation is the final clash count, not an
+    acceptance threshold. Never use an aggregate packed count or another
+    solution's annotation to fill missing selected-solution evidence.
+    """
+
+    text = read_phaser_evidence_text(coordinate_path)
+    annotation = " ".join(_PDB_ANNOTATION.findall(text)) or None
+    pak_tokens = re.findall(r"\bPAK=([^\s)]+)", annotation or "")
+    if any(re.fullmatch(r"[0-9]+(?:\.0+)?", token) is None for token in pak_tokens):
+        raise PhaserParseError("selected Phaser PDB has malformed packing evidence")
+    if annotation and annotation.count("PAK=") != len(pak_tokens):
+        raise PhaserParseError("selected Phaser PDB has malformed packing evidence")
+    placed_count = len(_PDB_PLACEMENT.findall(text))
+    if placed_count < 1:
+        raise PhaserParseError("selected Phaser PDB lacks ensemble placements")
+    return SelectedMrSolutionEvidence(
+        coordinate_sha256=sha256_file(coordinate_path, progress=False),
+        placed_copy_count=placed_count,
+        annotation=annotation,
+        packing_clash_count=int(pak_tokens[-1].split(".", 1)[0])
+        if pak_tokens
+        else None,
+        tncs_annotation_present=re.search(r"\+TNCS\b", annotation or "") is not None,
+    )
+
+
 def _normalised_success(
     *,
     resolved: _ResolvedInput,
@@ -902,17 +938,26 @@ def _normalised_success(
         )
     if not coordinate.is_file() or not output_mtz.is_file():
         raise PhaserParseError("Phaser solution is missing PDB or MTZ output")
-    llg, tfz, placed_count, pak = read_phaser_solution_metrics(parsed, coordinate)
-    if llg is None or tfz is None or placed_count < 1:
+    selected = read_selected_solution_evidence(coordinate)
+    pdb_text = read_phaser_evidence_text(coordinate)
+    llg = _last_match_float(_PDB_LLG, pdb_text)
+    tfz = _last_match_float(_PDB_TFZ, selected.annotation or "")
+    tfz_source = "primary_pdb_refined_equivalent"
+    if tfz is None:
+        tfz = _last_match_float(_PDB_SEARCH_TFZ, selected.annotation or "")
+        tfz_source = "primary_pdb_search" if tfz is not None else "unavailable"
+    if llg is None and tfz is None:
         raise PhaserParseError("Phaser solution files lack final placement metrics")
+    placed_count = selected.placed_copy_count
+    pak = selected.packing_clash_count
     score_gate = passes_provisional_score_gate(llg=llg, tfz=tfz)
-    top_packed = parsed.packed_solution_count > 0
+    top_packed = True if selected.packing_clash_count == 0 else None
     placed_expected = placed_count == resolved.hypothesis.copy_number_to_search
     advisories: list[str] = []
     if not score_gate:
         advisories.append("provisional_llg_or_tfz_screen_not_met")
-    if not top_packed:
-        advisories.append("final_packing_not_accepted")
+    if top_packed is None:
+        advisories.append("selected_solution_packing_acceptance_unverified")
     if not placed_expected:
         advisories.append("placed_copy_count_mismatch")
     coordinate_sha256 = sha256_file(coordinate)
@@ -926,12 +971,17 @@ def _normalised_success(
         llgi=parsed.llgi,
         tfz=tfz,
         placed_copy_count=placed_count,
+        selected_solution=selected,
         packing_summary={
             "solution_count": parsed.solution_count,
             "accepted_solution_count": parsed.accepted_solution_count,
             "packed_solution_count": parsed.packed_solution_count,
             "top_solution_packed": top_packed,
             "top_solution_pak": pak,
+            "llg_source": "primary_pdb" if llg is not None else "unavailable",
+            "tfz_source": tfz_source,
+            "log_top_llg": parsed.llg,
+            "log_top_tfz": parsed.tfz,
             "score_gate_llg_strictly_greater_than": SCORE_GATE_LLG,
             "score_gate_tfz_strictly_greater_than": SCORE_GATE_TFZ,
             "score_gate_operator": SCORE_GATE_OPERATOR,

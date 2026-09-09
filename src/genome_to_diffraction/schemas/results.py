@@ -550,6 +550,22 @@ class MrHypothesis(ContractModel):
     status: MrHypothesisStatus
 
 
+class SelectedMrSolutionEvidence(ContractModel):
+    """Packing/copy evidence from the exact selected Phaser PDB, not log maxima.
+
+    A positive clash count is not an engine rejection: the allowed packing
+    threshold is not inferred here. Only zero clashes independently establishes
+    a clash-free selected placement. Missing annotation stays unavailable.
+    """
+
+    backend: Literal["phaser_primary_pdb_v1"] = "phaser_primary_pdb_v1"
+    coordinate_sha256: Sha256Hex
+    placed_copy_count: PositiveInt
+    annotation: str | None
+    packing_clash_count: int | None = Field(ge=0)
+    tncs_annotation_present: bool
+
+
 class NormalisedMrResult(ContractModel):
     """Normalised MR result that does not conflate no-hit with failure."""
 
@@ -562,6 +578,7 @@ class NormalisedMrResult(ContractModel):
     tfz: float | None = None
     placed_copy_count: int = Field(ge=0)
     packing_summary: dict[str, JsonValue] = Field(default_factory=dict)
+    selected_solution: SelectedMrSolutionEvidence | None = None
     solution_coordinate_path: str | None = None
     solution_coordinate_sha256: Sha256Hex | None = None
     solution_file_path: str | None = None
@@ -572,6 +589,19 @@ class NormalisedMrResult(ContractModel):
     raw_log_pointer: NonEmptyString
     preliminary_credibility_class: str | None = None
     rejection_reason: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_selected_solution(self) -> Self:
+        selected = self.selected_solution
+        if selected is not None and (
+            self.solution_coordinate_sha256 != selected.coordinate_sha256
+            or self.placed_copy_count != selected.placed_copy_count
+            or self.solution_coordinate_path is None
+        ):
+            raise ValueError(
+                "selected solution does not bind the result coordinate/count"
+            )
+        return self
 
 
 class AdditionalCopyResult(ContractModel):
