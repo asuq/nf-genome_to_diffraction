@@ -15954,3 +15954,17 @@ with a collapsed combined parent or a guessed command.
 - Next preserve the pinned 0.9 A unsupported-estimator diagnostics, refresh the
   atlas and complete the RF gate. Exact-source CI and RF/M6 native qualification
   still require external authority; the cancelled investigation remains closed.
+
+## 2026-09-10 - Preserve unsupported Matthews estimator evidence
+
+- Reproduced the approved limitation against the checksum-pinned reference:
+  resolution 0.9 A selects 117 observations, below the unchanged minimum of 200.
+  The former generic exception omitted those diagnostic values.
+- The explicit unsupported-estimator error now preserves resolution, observed
+  and minimum counts, backend and reference checksum in typed attributes and
+  diagnostic text. Invalid resolution/reference failures remain distinct. No
+  estimator, threshold, reference, numerical result or fallback changed.
+- All 49 focused Matthews/reference/input and copy-report checks pass, including
+  the exact 117/200 regression. Ruff and ty pass. Next refresh the atlas and run
+  the complete RF integration gate; native/CI qualification and the other
+  pre-release scientific limitations remain separate completion requirements.

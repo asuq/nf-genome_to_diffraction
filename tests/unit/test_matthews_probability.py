@@ -13,6 +13,7 @@ from genome_to_diffraction.matthews.probability import (
     PRIOR_BACKEND,
     REFERENCE_RESOURCE_SHA256,
     SOLVENT_DENSITY_BACKEND,
+    UnsupportedMatthewsEstimatorError,
     homooligomer_copy_probability,
     prior_factor_fields,
     probability_distribution,
@@ -121,8 +122,25 @@ def test_invalid_solvent_intervals_fail(bounds: tuple[float, float]) -> None:
 
 
 def test_unsupported_high_resolution_is_not_a_zero_score_or_coarser_fallback() -> None:
-    with pytest.raises(ValueError, match="too few empirical records"):
+    with pytest.raises(UnsupportedMatthewsEstimatorError) as caught:
         probability_distribution(0.9)
+    error = caught.value
+    assert error.status == "unsupported_estimator"
+    assert error.resolution_high_a == 0.9
+    assert error.reference_record_count == 117
+    assert error.minimum_reference_records == 200
+    assert error.backend_id == SOLVENT_DENSITY_BACKEND
+    assert error.reference_sha256 == REFERENCE_RESOURCE_SHA256
+    message = str(error)
+    for field in (
+        "unsupported_estimator",
+        "resolution_high_a=0.9",
+        "reference_record_count=117",
+        "minimum_reference_records=200",
+        SOLVENT_DENSITY_BACKEND,
+        REFERENCE_RESOURCE_SHA256,
+    ):
+        assert field in message
 
 
 @pytest.mark.parametrize("bounds", ((0.5, 0.5), (0.45, 0.55), (-0.1, 0.2)))

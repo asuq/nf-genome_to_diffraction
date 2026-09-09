@@ -55,6 +55,26 @@ class MatthewsProbabilityError(ValueError):
     """The empirical reference or requested probability is invalid."""
 
 
+class UnsupportedMatthewsEstimatorError(MatthewsProbabilityError):
+    """Valid resolution has insufficient pinned reference support, not no-hit."""
+
+    status = "unsupported_estimator"
+
+    def __init__(self, *, resolution_high_a: float, reference_record_count: int):
+        self.resolution_high_a = resolution_high_a
+        self.reference_record_count = reference_record_count
+        self.minimum_reference_records = MINIMUM_REFERENCE_RECORDS
+        self.backend_id = SOLVENT_DENSITY_BACKEND
+        self.reference_sha256 = REFERENCE_RESOURCE_SHA256
+        super().__init__(
+            f"{self.status}: too few empirical records at the requested resolution; "
+            f"resolution_high_a={resolution_high_a:g}; "
+            f"reference_record_count={reference_record_count}; "
+            f"minimum_reference_records={self.minimum_reference_records}; "
+            f"backend_id={self.backend_id}; reference_sha256={self.reference_sha256}"
+        )
+
+
 @dataclass(frozen=True)
 class MatthewsProbabilityDistribution:
     """One cumulative-resolution solvent-fraction density estimate."""
@@ -305,10 +325,6 @@ def prior_factor_fields(
 
 def _oversmoothed_bandwidth(values: NDArray[np.float64]) -> float:
     count = len(values)
-    if count < MINIMUM_REFERENCE_RECORDS:
-        raise MatthewsProbabilityError(
-            "too few empirical records at the requested resolution"
-        )
     variance = float(np.var(values, ddof=1))
     if not math.isfinite(variance) or variance <= 0:
         raise MatthewsProbabilityError("empirical solvent variance is invalid")
@@ -338,6 +354,11 @@ def probability_distribution(
         raise MatthewsProbabilityError("high-resolution limit must be positive")
     resolutions, solvents, _ = _reference()
     selected = solvents[resolutions <= resolution_high_a]
+    if len(selected) < MINIMUM_REFERENCE_RECORDS:
+        raise UnsupportedMatthewsEstimatorError(
+            resolution_high_a=resolution_high_a,
+            reference_record_count=len(selected),
+        )
     bandwidth = _oversmoothed_bandwidth(selected)
     grid = np.linspace(0.0, 1.0, KDE_GRID_SIZE, dtype=np.float64)
     counts = _linear_bin(selected, KDE_GRID_SIZE)
@@ -374,6 +395,7 @@ __all__ = [
     "SOLVENT_DENSITY_BACKEND",
     "MatthewsProbabilityDistribution",
     "MatthewsProbabilityError",
+    "UnsupportedMatthewsEstimatorError",
     "homooligomer_copy_probability",
     "prior_factor_fields",
     "probability_distribution",

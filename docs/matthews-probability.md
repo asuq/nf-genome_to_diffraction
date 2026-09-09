@@ -131,8 +131,13 @@ kernel values, empirical copy frequencies, dynamic ranges beyond 16, invalid
 inputs, high-copy small-protein demotion without filtering, funnel identities,
 dual Matthews/MR ranking, and installed-wheel resource parity. RF-G3 additionally
 covers both window tails, complete finite ranges, out-of-window funnel admission,
-and downstream copy-state eligibility. The 0.9 A insufficient-reference case
-fails explicitly rather than using a coarser resolution or a zero score.
+and downstream copy-state eligibility. At 0.9 A the pinned reference provides
+117 records, below the unchanged 200-record minimum. The typed
+`UnsupportedMatthewsEstimatorError` retains the requested resolution, observed
+and minimum counts, density backend and reference checksum in both its fields
+and diagnostic text. Its `unsupported_estimator` status is neither invalid
+diffraction nor a scientific no-hit. No coarser resolution, zero score or changed
+estimator is substituted.
 Factor reporting tests preserve exact and bounded products, distinguish empirical
 zeros from missing evidence, round-trip all raw fields through the tabular outputs,
 and reject altered factor evidence at the production funnel boundary.
