@@ -15936,3 +15936,21 @@ with a collapsed combined parent or a guessed command.
   Lint, ty and documentation checks pass. The complete RF gate must be rerun;
   no native or CI acceptance, push, deployment or scientific submission is
   implied. Refresh the deterministic atlas before that rerun.
+
+## 2026-09-10 - RF integration exposed import-order cycle
+
+- The next full gate passed 1,558 unit and 180 contract tests, then failed while
+  collecting the HPC dispatcher integration module. The new reviewed-selection
+  import eagerly loaded review packages while composition/ranking modules were
+  only partially initialised; unit collection order had hidden the cycle.
+- Kept the request as a type-only dependency and load its validator at the
+  explicit selection boundary. No scientific policy, authority or cache meaning
+  changes. Added isolated fresh-interpreter probes for the affected public entry
+  modules. Updated the finding ledger's superseded M6 seed/order descriptions.
+- All 118 import-boundary, reviewed-selection and HPC dispatcher integration
+  checks pass. Ruff, formatting, ty, documentation links and diff checks pass.
+  The complete locked gate still needs rerunning; neither a native Phenix nor
+  scheduler qualification is established by the simulated integration suite.
+- Next preserve the pinned 0.9 A unsupported-estimator diagnostics, refresh the
+  atlas and complete the RF gate. Exact-source CI and RF/M6 native qualification
+  still require external authority; the cancelled investigation remains closed.

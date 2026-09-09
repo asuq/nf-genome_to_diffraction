@@ -17,7 +17,7 @@ import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, JsonValue, ValidationError
 from tqdm import tqdm
@@ -56,10 +56,6 @@ from genome_to_diffraction.mr_resources import (
     build_mr_resource_plan,
     count_polymer_atoms,
 )
-from genome_to_diffraction.review.reconsideration import (
-    FirstCopySelectionRequest,
-    validate_first_copy_selection,
-)
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_contract,
@@ -85,6 +81,9 @@ from genome_to_diffraction.schemas.results import (
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
+
+if TYPE_CHECKING:
+    from genome_to_diffraction.review.reconsideration import FirstCopySelectionRequest
 
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v3-prior-factors"
@@ -1577,6 +1576,12 @@ def build_diverse_first_copy_funnel(
     source_input_sha256 = _diverse_input_digests(request)
     reviewed = None
     if request.review_selection is not None:
+        # Review packages depend on execution/ranking; load this boundary only
+        # when validating an explicit selection, after package initialisation.
+        from genome_to_diffraction.review.reconsideration import (
+            validate_first_copy_selection,
+        )
+
         if not phase3_screen:
             raise FunnelInputError(
                 "reviewed selection requires the Phase III input contract"
