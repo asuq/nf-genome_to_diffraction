@@ -223,6 +223,11 @@ from genome_to_diffraction.review import (
     build_sequence_checkpoint,
     validate_mr_seed_approvals,
 )
+from genome_to_diffraction.review.reconsideration import (
+    FirstCopySelectionRequest,
+    ReviewedFirstCopyExecutionRequest,
+    validate_reviewed_first_copy_execution,
+)
 from genome_to_diffraction.schema_check import validate_repository
 from genome_to_diffraction.schemas.io import (
     ContractError,
@@ -1345,6 +1350,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="optional additional hard cap applied after configured profile limits",
     )
     diverse_parser.add_argument("--localisation-bundle", type=Path)
+    diverse_parser.add_argument("--review-selection", type=Path)
+    diverse_parser.add_argument("--confirmed-review-selection-sha256")
+    diverse_parser.add_argument("--owned-parent-registry", type=Path)
+    diverse_parser.add_argument("--parent-funnel", type=Path)
+    diverse_parser.add_argument("--parent-a-decisions", type=Path)
     diverse_parser.add_argument(
         "--require-localisation-policy",
         action="store_true",
@@ -1845,6 +1855,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "review", help="build and validate file-based human checkpoints"
     )
     review_actions = review_parser.add_subparsers(dest="review_action", required=True)
+    reviewed_execution_parser = review_actions.add_parser(
+        "validate-reviewed-execution",
+        help="bind a confirmed reviewed funnel to the shared first-copy executor",
+    )
+    for argument in (
+        "funnel-directory",
+        "sequence-groups",
+        "source-records",
+        "matthews-hypotheses",
+        "mtz-preflight",
+        "pipeline-config",
+        "crystal-directory",
+        "execution-identity",
+        "phenix-manifest",
+        "output-json",
+    ):
+        reviewed_execution_parser.add_argument(
+            f"--{argument}", type=Path, required=True
+        )
+    reviewed_execution_parser.add_argument("--confirmed-funnel-sha256", required=True)
     crystallographic_stage_parser = review_actions.add_parser(
         "validate-crystallographic-stages",
         help="bind three owned proceed/hold stages before Phase III A searches",
@@ -3420,6 +3450,30 @@ def _run_ranking(args: argparse.Namespace) -> int:
         )
         return 0
     if args.ranking_action == "diverse-first-copy-funnel":
+        review_inputs = (
+            args.review_selection,
+            args.confirmed_review_selection_sha256,
+            args.owned_parent_registry,
+            args.parent_funnel,
+            args.parent_a_decisions,
+        )
+        if any(value is not None for value in review_inputs) and any(
+            value is None for value in review_inputs
+        ):
+            raise ValueError(
+                "reviewed selection requires all five ownership/selection arguments"
+            )
+        review_selection = (
+            FirstCopySelectionRequest(
+                selection_json=args.review_selection,
+                confirmed_selection_sha256=args.confirmed_review_selection_sha256,
+                owned_run_registry=args.owned_parent_registry,
+                parent_funnel_directory=args.parent_funnel,
+                parent_decisions=args.parent_a_decisions,
+            )
+            if args.review_selection is not None
+            else None
+        )
         diverse_result = build_diverse_first_copy_funnel(
             DiverseFirstCopyFunnelRequest(
                 coordinate_sources_jsonl=tuple(args.coordinate_sources),
@@ -3436,6 +3490,7 @@ def _run_ranking(args: argparse.Namespace) -> int:
                 maximum_first_copy_jobs=args.maximum_first_copy_jobs,
                 localisation_bundle=args.localisation_bundle,
                 require_localisation_policy=args.require_localisation_policy,
+                review_selection=review_selection,
                 progress=not args.no_progress,
             )
         )
@@ -3825,6 +3880,24 @@ def _run_mr(args: argparse.Namespace) -> int:
 
 
 def _run_review(args: argparse.Namespace) -> int:
+    if args.review_action == "validate-reviewed-execution":
+        result = validate_reviewed_first_copy_execution(
+            ReviewedFirstCopyExecutionRequest(
+                funnel_directory=args.funnel_directory,
+                confirmed_funnel_sha256=args.confirmed_funnel_sha256,
+                sequence_groups=args.sequence_groups,
+                source_records=args.source_records,
+                matthews_hypotheses=args.matthews_hypotheses,
+                mtz_preflight=args.mtz_preflight,
+                pipeline_config=args.pipeline_config,
+                crystal_directory=args.crystal_directory,
+                execution_identity=args.execution_identity,
+                phenix_manifest=args.phenix_manifest,
+                output_json=args.output_json,
+            )
+        )
+        print(f"Validated {result['selected_count']} reviewed first-copy tasks")
+        return 0
     if args.review_action == "validate-crystallographic-stages":
         output = publish_unknown_pass1_crystallographic_review_routes(
             review_stage_index=args.stage_index,

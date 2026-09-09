@@ -15809,3 +15809,30 @@ with a collapsed combined parent or a guessed command.
 - The explicit reviewer-selected execution route is still outstanding and is
   next. This reporting increment does not close RF-G2 or authorise any seed,
   remote scientific work, expanded identification or release publication.
+
+## 2026-09-09 - RF-G2 reviewed execution local increment
+
+- Implemented a content/checksum-bound reviewer selection after a completed
+  rejected or deferred A result. Exact source, owned parent, package, decisions,
+  model/Matthews targets and finite budget are validated by the production
+  funnel. Failed parents cannot stand in for scientific negatives; duplicate
+  scheduling, missing models, stale/foreign authority and truncation fail.
+- The dedicated typed entry point authenticates selected hypothesis/resource
+  inventories, model and diffraction bytes, parent execution identity and Phenix
+  declarations, then reuses the existing Phase III first-copy, MR-review and
+  owned A-checkpoint tasks. No automatic copy completion, human approval or
+  broadening of automatic zero-pack reopening was added. Conservation and
+  completed/incomplete/adapter-attempt counts remain separately labelled.
+- The synthetic real-enumerator/adapter test reaches a non-retained 67-copy,
+  zero-frequency expectation after a packed rejection or deferral while still
+  searching one copy. Local checks passed: 57 selection/staging/funnel tests,
+  25 selection plus real-Nextflow stub tests and 222 broader review/reopening/
+  repository/typed-contract tests. Ruff, ty, documentation links, diff checks
+  and Nextflow syntax passed. The new stub caught a path-with-spaces quoting
+  error in the gate; the corrected test passes and wrong confirmation prevents
+  all MR fan-out. Test mutation inputs are private temporary copies.
+- No native Phenix qualification or full RF gate is claimed, and no source was
+  pushed or scientific job launched. Next implement RF-G4 production/M6 parity,
+  including removal of benchmark-only preselection and separation of truth-blind
+  advancement from human approval, then the named full integration milestone.
+  Native known-control/four-arm evidence and exact-source CI remain required.

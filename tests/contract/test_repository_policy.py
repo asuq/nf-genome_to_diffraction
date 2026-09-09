@@ -146,7 +146,23 @@ def test_root_nextflow_surface_has_only_intentional_owners() -> None:
         "phase3_application.nf",
         "prepare_databases.nf",
         "qualification.nf",
+        "reviewed_first_copy.nf",
     }
+
+
+def test_reviewed_first_copy_reuses_the_canonical_executor_and_a_checkpoint() -> None:
+    text = (REPOSITORY / "reviewed_first_copy.nf").read_text(encoding="utf-8")
+    gate = text.split("process VALIDATE_REVIEWED_FIRST_COPY_EXECUTION {", 1)[1].split(
+        "\nworkflow {", 1
+    )[0]
+    assert "cache 'deep'" in gate
+    assert "reviewed-first-copy-execution-gate-v1" in gate
+    assert "stub:" not in gate
+    assert "RUN_PHASE3_FIRST_COPY_PHASER(selected)" in text
+    assert "BUILD_PHASE3_MR_SEED_REVIEW(reviewInputs)" in text
+    assert "BUILD_PHASE3_OWNED_A_REVIEW_PACKAGE(ownedInputs)" in text
+    assert "ADDITIONAL_COPY" not in text
+    assert "PLAN_PHASE3_LOCALISATION_REOPEN" not in text
 
 
 def test_operational_documentation_is_tracked_separately_from_handoff() -> None:

@@ -67,6 +67,7 @@ from genome_to_diffraction.schemas.results import (
     SequenceGroupRecord,
     SourceProteinRecord,
 )
+from genome_to_diffraction.schemas.v2.reconsideration import ReviewedFirstCopySelection
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
@@ -468,9 +469,10 @@ def _join_candidates(
     funnel_document = _load_json_object(
         request.funnel_manifest, label="funnel manifest"
     )
-    if funnel_document.get("adapter_version") == (
-        "multi-source-first-copy-funnel-v9-prior-factors"
-    ) and (
+    if funnel_document.get("adapter_version") in {
+        "multi-source-first-copy-funnel-v9-prior-factors",
+        "reviewed-first-copy-funnel-v1",
+    } and (
         funnel_document.get("matthews_prior_backend") != PRIOR_BACKEND
         or funnel_document.get("matthews_copy_range_backend") != COPY_RANGE_BACKEND
         or funnel_document.get("matthews_copy_range_complete") is not True
@@ -479,6 +481,34 @@ def _join_candidates(
     ):
         raise MrSeedReviewError("funnel Matthews range authority is incomplete")
     funnel_id, entries = _funnel_entries(funnel_document, hypotheses)
+    if funnel_document.get("adapter_version") == "reviewed-first-copy-funnel-v1":
+        selection = ReviewedFirstCopySelection.model_validate(
+            funnel_document.get("review_selection")
+        )
+        expected = {
+            (row.sequence_group_id, row.model_id, row.matthews_hypothesis_id)
+            for row in selection.targets
+        }
+        if any(
+            not isinstance(row.priority_features.get("matthews_hypothesis_id"), str)
+            for row in hypotheses
+        ):
+            raise MrSeedReviewError("reviewed target lacks its Matthews identity")
+        observed = {
+            (
+                row.sequence_group_id,
+                row.model_id,
+                row.priority_features.get("matthews_hypothesis_id"),
+            )
+            for row in hypotheses
+        }
+        if observed != expected or any(
+            row.crystal_id != selection.crystal_id
+            or row.priority_features.get("review_selection_id")
+            != selection.selection_id
+            for row in hypotheses
+        ):
+            raise MrSeedReviewError("reviewed selection and executed inventory differ")
     input_paths = {
         "hypotheses": request.hypotheses_jsonl,
         "results": request.results_jsonl,
@@ -973,6 +1003,36 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
         for rank, candidate in enumerate(matthews_ranked, start=1)
     }
     ranked = tuple(sorted(joined, key=_candidate_sort_key))
+    selection_outcomes: dict[str, object] = {}
+    selection_values = tuple(
+        row.hypothesis.priority_features.get("review_selection_id") for row in joined
+    )
+    if any(
+        value is not None and not isinstance(value, str) for value in selection_values
+    ):
+        raise MrSeedReviewError("review selection ID must be a string")
+    selection_ids = set(selection_values)
+    if selection_ids and None not in selection_ids:
+        if len(selection_ids) != 1:
+            raise MrSeedReviewError("review cannot mix explicit selection operations")
+        completed = sum(
+            row.result.execution_status
+            in {ExecutionStatus.COMPLETED_HIT, ExecutionStatus.COMPLETED_NO_HIT}
+            for row in joined
+        )
+        selection_outcomes["reviewed_selection_outcomes"] = {
+            "selection_id": next(iter(selection_ids)),
+            "selected_count": len(joined),
+            "attempted_adapter_count": len(joined),
+            "completed_mr_count": completed,
+            "incomplete_mr_count": len(joined) - completed,
+            "no_hit_count": sum(
+                row.result.execution_status is ExecutionStatus.COMPLETED_NO_HIT
+                for row in joined
+            ),
+            "a_seed_approval_granted": False,
+            "attempt_count_scope": "adapter_result_records_not_native_process_success",
+        }
     created_at = utc_now_iso()
     if request.output_directory.is_symlink():
         raise MrSeedReviewError(
@@ -1136,6 +1196,7 @@ def build_mr_seed_review(request: MrSeedReviewRequest) -> MrSeedReviewOutput:
                 "operator": SCORE_GATE_OPERATOR,
             },
             "candidate_count": len(rows),
+            **selection_outcomes,
             "inspectable_solution_count": sum(
                 1 for row in rows if row["inspectable_solution"] is True
             ),

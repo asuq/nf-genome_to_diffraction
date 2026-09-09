@@ -47,6 +47,7 @@ from genome_to_diffraction.schemas.results import (
     StructuralSearchHit,
     StructuralSearchResult,
 )
+from genome_to_diffraction.schemas.v2.reconsideration import ReviewedFirstCopySelection
 from genome_to_diffraction.schemas.v2.review import (
     PhaseIIIReviewDecision,
     PhaseIIIReviewDecisionFile,
@@ -388,6 +389,7 @@ CONTRACTS: dict[str, ContractSpec] = {
         _review_tsv,
         ("checkpoint", "item_id", "decision", "reviewer", "reviewed_at"),
     ),
+    "reviewed-first-copy-selection": ContractSpec(ReviewedFirstCopySelection),
     "phase3-review-decisions": ContractSpec(
         PhaseIIIReviewDecisionFile,
         tsv_adapter=_phase3_review_tsv,

@@ -15,7 +15,7 @@ import io
 import logging
 import math
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import cast
 
@@ -56,6 +56,10 @@ from genome_to_diffraction.mr_resources import (
     build_mr_resource_plan,
     count_polymer_atoms,
 )
+from genome_to_diffraction.review.reconsideration import (
+    FirstCopySelectionRequest,
+    validate_first_copy_selection,
+)
 from genome_to_diffraction.schemas.io import (
     ContractLoadError,
     load_contract,
@@ -86,6 +90,7 @@ _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
 _ADAPTER_VERSION = "exact-predicted-funnel-v3-prior-factors"
 _DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v3-prior-factors"
 _PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v9-prior-factors"
+_REVIEWED_ADAPTER_VERSION = "reviewed-first-copy-funnel-v1"
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
@@ -147,6 +152,7 @@ class DiverseFirstCopyFunnelRequest:
     maximum_first_copy_jobs: int | None = None
     localisation_bundle: Path | None = None
     require_localisation_policy: bool = False
+    review_selection: FirstCopySelectionRequest | None = None
     progress: bool = True
 
 
@@ -1198,6 +1204,7 @@ def _join_diverse_candidates(
     crystal_ids: Sequence[str],
     build_resource_plans: bool,
     localisation_by_group: dict[str, BatchLocalisationGroupEvidence] | None,
+    selected_targets: frozenset[tuple[str, str]] | None = None,
 ) -> list[_Candidate]:
     coordinate_index = _unique_index(
         coordinates, lambda item: item.coordinate_id, label="coordinate ID"
@@ -1285,7 +1292,12 @@ def _join_diverse_candidates(
             (
                 row
                 for row in complete_rows
-                if row.retained and row.physical_status is not PhysicalStatus.IMPOSSIBLE
+                if row.physical_status is not PhysicalStatus.IMPOSSIBLE
+                and (
+                    row.retained
+                    if selected_targets is None
+                    else (model.model_id, row.hypothesis_id) in selected_targets
+                )
             ),
             key=lambda row: (
                 row.crystal_id,
@@ -1301,7 +1313,7 @@ def _join_diverse_candidates(
         per_crystal_counts: dict[str, int] = {}
         for row in applicable:
             used = per_crystal_counts.get(row.crystal_id, 0)
-            if used >= per_model_copy_cap:
+            if selected_targets is None and used >= per_model_copy_cap:
                 continue
             preflight = preflight_index[row.crystal_id]
             if preflight.decision is PreflightDecision.FAIL:
@@ -1562,6 +1574,24 @@ def build_diverse_first_copy_funnel(
     _unique_index(models, lambda item: item.model_id, label="model ID")
     localisation_policy = _load_diverse_localisation(request, groups)
     phase3_screen = request.require_localisation_policy
+    source_input_sha256 = _diverse_input_digests(request)
+    reviewed = None
+    if request.review_selection is not None:
+        if not phase3_screen:
+            raise FunnelInputError(
+                "reviewed selection requires the Phase III input contract"
+            )
+        reviewed = validate_first_copy_selection(
+            request.review_selection,
+            source_input_sha256=source_input_sha256,
+            preflights=tuple(preflights),
+        )
+        if request.crystal_ids and request.crystal_ids != (
+            reviewed.selection.crystal_id,
+        ):
+            raise FunnelInputError(
+                "reviewed selection must use its exact single crystal"
+            )
     localisation_by_group = (
         {row.sequence_group_id: row for row in localisation_policy.group_evidence}
         if localisation_policy is not None
@@ -1576,14 +1606,69 @@ def build_diverse_first_copy_funnel(
         groups=groups,
         matthews_rows=matthews_rows,
         preflights=preflights,
-        crystal_ids=request.crystal_ids,
+        crystal_ids=(reviewed.selection.crystal_id,)
+        if reviewed
+        else request.crystal_ids,
         build_resource_plans=phase3_screen,
         localisation_by_group=localisation_by_group,
+        selected_targets=(
+            frozenset(
+                (target.model_id, target.matthews_hypothesis_id)
+                for target in reviewed.selection.targets
+            )
+            if reviewed
+            else None
+        ),
     )
+    if reviewed is not None:
+        expected = {
+            (row.sequence_group_id, row.model_id, row.matthews_hypothesis_id)
+            for row in reviewed.selection.targets
+        }
+        observed = {
+            (
+                row.hypothesis.sequence_group_id,
+                row.model.model_id,
+                row.matthews.hypothesis_id,
+            )
+            for row in all_candidates
+        }
+        if observed != expected:
+            raise FunnelInputError(
+                "selected targets are foreign or physically ineligible"
+            )
+        if any(
+            row.hypothesis.hypothesis_id in reviewed.previous_hypothesis_ids
+            for row in all_candidates
+        ):
+            raise FunnelInputError(
+                "selected hypothesis was already scheduled; "
+                "implicit evidence reuse is forbidden"
+            )
+        all_candidates = [
+            replace(
+                row,
+                hypothesis=row.hypothesis.model_copy(
+                    update={
+                        "priority_features": {
+                            **row.hypothesis.priority_features,
+                            "funnel_adapter": _REVIEWED_ADAPTER_VERSION,
+                            "review_selection_id": reviewed.selection.selection_id,
+                            "reviewed_parent_package_id": (
+                                reviewed.selection.review_package_id
+                            ),
+                            "explicit_reviewed_alternative": True,
+                        }
+                    }
+                ),
+            )
+            for row in all_candidates
+        ]
     candidates = [
         candidate
         for candidate in all_candidates
-        if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
+        if reviewed is not None
+        or candidate.hypothesis.priority_features.get("localisation_wave_disposition")
         != "excluded"
     ]
     deferred_localisation = tuple(
@@ -1599,7 +1684,8 @@ def build_diverse_first_copy_funnel(
             }
         )
         for candidate in sorted(all_candidates, key=_diverse_candidate_sort_key)
-        if candidate.hypothesis.priority_features.get("localisation_wave_disposition")
+        if reviewed is None
+        and candidate.hypothesis.priority_features.get("localisation_wave_disposition")
         == "excluded"
     )
     selected, per_crystal_cap = _select_diverse_candidates(
@@ -1608,6 +1694,11 @@ def build_diverse_first_copy_funnel(
         request.maximum_first_copy_jobs,
         phase3_screen=phase3_screen,
     )
+    if reviewed is not None and len(selected) != len(reviewed.selection.targets):
+        raise FunnelInputError(
+            "explicit selection exceeds configured execution budget; "
+            "no truncation is permitted"
+        )
     selected_ids = {item.hypothesis.hypothesis_id for item in selected}
     deferred_cap = tuple(
         item.hypothesis.model_copy(
@@ -1669,7 +1760,16 @@ def build_diverse_first_copy_funnel(
                 plan_directory / f"{hypothesis_id}.json",
                 plan.model_dump(mode="json"),
             )
-    input_sha256 = _diverse_input_digests(request)
+    input_sha256 = dict(source_input_sha256)
+    if reviewed is not None:
+        input_sha256["review_selection"] = reviewed.selection_sha256
+        input_sha256["parent_decisions"] = reviewed.selection.parent_decisions_sha256
+        input_sha256["parent_funnel_manifest"] = (
+            reviewed.selection.parent_funnel_manifest_sha256
+        )
+        atomic_write_json(
+            output / "review_selection.json", reviewed.selection.model_dump(mode="json")
+        )
     registry_output, aggregate_paths = _publish_all_eligible_models(
         output,
         models=models,
@@ -1679,6 +1779,14 @@ def build_diverse_first_copy_funnel(
         groups=groups,
     )
     registry = registry_output.registry_directory
+    if (
+        reviewed is not None
+        and registry_output.registry.registry_id
+        != reviewed.model_registry.manifest.registry_id
+    ):
+        raise FunnelInputError(
+            "current prepared model universe differs from the owned parent"
+        )
     hypotheses_jsonl = output / "mr_hypotheses.jsonl"
     deferred_cap_jsonl = output / "deferred_cap_hypotheses.jsonl"
     deferred_localisation_jsonl = output / "deferred_localisation_hypotheses.jsonl"
@@ -1708,7 +1816,11 @@ def build_diverse_first_copy_funnel(
         crystal_id = item.hypothesis.crystal_id
         per_crystal_counts[crystal_id] = per_crystal_counts.get(crystal_id, 0) + 1
     adapter_version = (
-        _PHASE3_DIVERSE_ADAPTER_VERSION if phase3_screen else _DIVERSE_ADAPTER_VERSION
+        _REVIEWED_ADAPTER_VERSION
+        if reviewed is not None
+        else _PHASE3_DIVERSE_ADAPTER_VERSION
+        if phase3_screen
+        else _DIVERSE_ADAPTER_VERSION
     )
     phase3_copy_details = (
         {
@@ -1764,6 +1876,45 @@ def build_diverse_first_copy_funnel(
         "per_crystal_cap": per_crystal_cap,
         **phase3_copy_details,
     }
+    reviewed_details: dict[str, JsonValue] = {}
+    if reviewed is not None:
+        model_counts: dict[str, int] = {}
+        for model in models:
+            group_id = model.full_candidate_sequence_group_id
+            model_counts[group_id] = model_counts.get(group_id, 0) + 1
+        total_physical = sum(
+            model_counts.get(row.sequence_group_id, 0)
+            for row in matthews_rows
+            if row.crystal_id == reviewed.selection.crystal_id
+            and row.physical_status is not PhysicalStatus.IMPOSSIBLE
+        )
+        previous_count = len(reviewed.previous_hypothesis_ids)
+        remaining = total_physical - previous_count - len(selected)
+        if remaining < 0:
+            raise FunnelInputError(
+                "reviewed selection inventory does not conserve hypotheses"
+            )
+        reviewed_details = {
+            "review_selection": reviewed.selection.model_dump(mode="json"),
+            "mr_hypotheses_sha256": sha256_file(hypotheses_jsonl, progress=False),
+            "parent_execution_identity_id": reviewed.parent_execution_identity_id,
+            "source_input_sha256": source_input_sha256,
+            "reviewed_previous_hypothesis_ids": list(reviewed.previous_hypothesis_ids),
+            "reconsideration_inventory": {
+                "model_backed_physical_hypothesis_count": total_physical,
+                "previously_scheduled_count": previous_count,
+                "available_deferred_count": total_physical - previous_count,
+                "selected_count": len(selected),
+                "remaining_deferred_count": remaining,
+                "parent_completed_count": reviewed.parent_completed_count,
+                "parent_incomplete_count": reviewed.parent_incomplete_count,
+                "parent_selected_packed_count": reviewed.parent_selected_packed_count,
+                "new_attempted_count": 0,
+                "new_execution_status": "not_executed",
+                "a_seed_approval_granted": False,
+            },
+        }
+        manifest_identity.update(reviewed_details)
     manifest_path = output / "funnel_manifest.json"
     atomic_write_json(
         manifest_path,
@@ -1785,6 +1936,7 @@ def build_diverse_first_copy_funnel(
             "requested_execution_cap": request.maximum_first_copy_jobs,
             "per_model_copy_cap": _copy_cap(config),
             **phase3_copy_details,
+            **reviewed_details,
             "diversity_buckets": [
                 "sequence_group_id",
                 "coordinate_provider",

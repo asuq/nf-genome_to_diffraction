@@ -129,8 +129,12 @@ copy frequency, product, occurrence/population counts, resolution-selected
 reference count and backend/checksum provenance in current hypotheses and review
 outputs. Schema arithmetic/status checks and production rederivation distinguish
 unobserved-copy zeros, zero density, historical missing evidence and unsupported
-estimators. The explicit reviewer-selected execution route remains the next step;
-factor visibility alone does not make deferred hypotheses executable.
+estimators. The [reviewer-selected execution route](reviewed-first-copy.md) now
+authenticates exact deferred targets after rejected/deferred A review, constructs
+them through the production funnel and uses the existing one-copy and owned
+A-checkpoint tasks. Local synthetic and real-Nextflow stub checks exercise
+non-top zero-frequency states and fail-closed dispatch; native qualification is
+still pending. This route does not change automatic zero-pack reopening.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new

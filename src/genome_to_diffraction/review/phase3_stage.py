@@ -291,6 +291,65 @@ def _canonical_json_bytes(decisions: PhaseIIIReviewDecisionFile) -> bytes:
     return f"{payload}\n".encode()
 
 
+def validate_phase3_review_decision_binding(
+    *,
+    parent: OwnedPhaseIIIParentRun,
+    checkpoint: PhaseIIIReviewCheckpoint,
+    package: PhaseIIIReviewPackageManifest,
+    package_sha256: str,
+    decisions: PhaseIIIReviewDecisionFile,
+) -> None:
+    """Validate parent, package, membership and chronology without publishing."""
+
+    _validate_parent(parent)
+    if package.owned_parent_run_id != parent.run_id:
+        raise PhaseIIIReviewStageError(
+            "review package belongs to a stale or different parent run"
+        )
+    if package.parent_profile != parent.profile:
+        raise PhaseIIIReviewStageError(
+            "review package profile differs from the owned parent profile"
+        )
+    if package.parent_phase != parent.phase:
+        raise PhaseIIIReviewStageError(
+            "review package phase differs from the owned parent phase"
+        )
+    if package.checkpoint is not checkpoint:
+        raise PhaseIIIReviewStageError(
+            "review package checkpoint differs from the requested checkpoint"
+        )
+    if decisions.owned_parent_run_id != parent.run_id:
+        raise PhaseIIIReviewStageError(
+            "decision file belongs to a stale or different parent run"
+        )
+    if decisions.checkpoint is not checkpoint:
+        raise PhaseIIIReviewStageError(
+            "decision file checkpoint differs from the requested checkpoint"
+        )
+    if decisions.review_package_id != package.review_package_id:
+        raise PhaseIIIReviewStageError("decision file names a different review package")
+    if decisions.review_package_manifest_sha256 != package_sha256:
+        raise PhaseIIIReviewStageError(
+            "decision file names a different review-package manifest checksum"
+        )
+
+    permitted = {
+        (target.crystal_id, target.item_id) for target in package.permitted_targets
+    }
+    for decision in decisions.decisions:
+        target = (decision.crystal_id, decision.item_id)
+        if target not in permitted:
+            raise PhaseIIIReviewStageError(
+                "decision file contains a target absent from the exact review "
+                f"package: {decision.crystal_id}/{decision.item_id}"
+            )
+        if decision.reviewed_at < package.created_at:
+            raise PhaseIIIReviewStageError(
+                "decision predates the exact review package: "
+                f"{decision.crystal_id}/{decision.item_id}"
+            )
+
+
 def stage_phase3_review_decisions(
     request: PhaseIIIReviewStageRequest,
 ) -> PhaseIIIReviewStageOutput:
@@ -326,53 +385,13 @@ def stage_phase3_review_decisions(
 
     package = _load_package(package_path)
     decisions = _load_decisions(decision_path)
-    if package.owned_parent_run_id != request.parent.run_id:
-        raise PhaseIIIReviewStageError(
-            "review package belongs to a stale or different parent run"
-        )
-    if package.parent_profile != request.parent.profile:
-        raise PhaseIIIReviewStageError(
-            "review package profile differs from the owned parent profile"
-        )
-    if package.parent_phase != request.parent.phase:
-        raise PhaseIIIReviewStageError(
-            "review package phase differs from the owned parent phase"
-        )
-    if package.checkpoint is not checkpoint:
-        raise PhaseIIIReviewStageError(
-            "review package checkpoint differs from the requested checkpoint"
-        )
-    if decisions.owned_parent_run_id != request.parent.run_id:
-        raise PhaseIIIReviewStageError(
-            "decision file belongs to a stale or different parent run"
-        )
-    if decisions.checkpoint is not checkpoint:
-        raise PhaseIIIReviewStageError(
-            "decision file checkpoint differs from the requested checkpoint"
-        )
-    if decisions.review_package_id != package.review_package_id:
-        raise PhaseIIIReviewStageError("decision file names a different review package")
-    if decisions.review_package_manifest_sha256 != package_sha256:
-        raise PhaseIIIReviewStageError(
-            "decision file names a different review-package manifest checksum"
-        )
-
-    permitted = {
-        (target.crystal_id, target.item_id) for target in package.permitted_targets
-    }
-    for decision in decisions.decisions:
-        target = (decision.crystal_id, decision.item_id)
-        if target not in permitted:
-            raise PhaseIIIReviewStageError(
-                "decision file contains a target absent from the exact review "
-                f"package: {decision.crystal_id}/{decision.item_id}"
-            )
-        if decision.reviewed_at < package.created_at:
-            raise PhaseIIIReviewStageError(
-                "decision predates the exact review package: "
-                f"{decision.crystal_id}/{decision.item_id}"
-            )
-
+    validate_phase3_review_decision_binding(
+        parent=request.parent,
+        checkpoint=checkpoint,
+        package=package,
+        package_sha256=package_sha256,
+        decisions=decisions,
+    )
     if (
         _sha256(
             package_path,
@@ -463,4 +482,5 @@ __all__ = [
     "PhaseIIIReviewStageOutput",
     "PhaseIIIReviewStageRequest",
     "stage_phase3_review_decisions",
+    "validate_phase3_review_decision_binding",
 ]
