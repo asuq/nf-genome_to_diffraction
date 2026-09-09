@@ -274,7 +274,7 @@ pixi run --locked genome-to-diffraction benchmark verify-m6-runner \
   --report .untracked/m6/input-qualification.json
 ```
 
-The reviewed Viper qualification profile streams only an explicitly confirmed
+The reviewed input-qualification profile streams only an explicitly confirmed
 archive below `.untracked/`, revalidates it on both sides of the transfer, and
 requests one CPU and 4 GB because it performs no search or Phenix work:
 
@@ -311,7 +311,8 @@ nf-gtd-hpc-test --no-progress m6-scientific-stage \
   --archive .untracked/m6/runner.tar \
   --confirm-archive-sha256 ARCHIVE_SHA256 \
   --source-branch main \
-  --track leakage
+  --track leakage \
+  --operational-parent-run-id OPERATIONAL_RUN_ID
 nf-gtd-hpc-test --no-progress submit m6-leakage --run-id RUN_ID
 ```
 
@@ -362,8 +363,9 @@ pixi run --locked genome-to-diffraction benchmark evaluate-m6 \
   --report .untracked/m6/evaluation.json
 ```
 
-The evidence contract carries both Viper run IDs; source, nf-helper, Pixi-lock,
-Phenix, database, runner-manifest, and runner-archive identifiers; bounded
+The evidence contract carries both owned selected-site run IDs; source,
+nf-helper, Pixi-lock, Phenix, database, runner-manifest, and runner-archive
+identifiers; bounded
 resource maxima; replay/resume/cache/partial-output/interface outcomes; and one
 assessment for every opaque case.
 

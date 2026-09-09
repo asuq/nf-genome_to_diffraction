@@ -151,8 +151,18 @@ now binds scheduled/recommended/advanced inventories to production order and
 actual continuation receipts, separates protein/model/copy/task counts and
 removes provider rank from top-k gates. Non-top-copy edge acceptance requires
 scheduled, completed execution rather than retention alone. Case/track schema
-3.0 and collected schema 1.2 reject stale acceptance inputs. Native four-arm
-qualification and the full integration milestone remain outstanding.
+3.0 and collected schema 1.2 reject stale acceptance inputs. The full local
+integration milestone now passes on source `0b434487`: 1,558 unit, 185 contract
+and 103 integration tests, all workflow/cache stubs, and the offline package
+gate. It also includes the reference-window comparison and import-order fixes
+exposed by earlier gate attempts. Native four-arm qualification and exact-source
+CI remain outstanding; the local gate alone does not close these release gates.
+
+The operator has approved code-only CI publication and reviewed Marmic RF/M6
+qualification after that local milestone. Historical local M6 bundles predate
+current analysis and family-truth contracts and cannot supply current acceptance.
+Recover and verify the exact frozen source inputs before preparing a new runner;
+do not substitute current cluster snapshots or mutate archived bundles.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new

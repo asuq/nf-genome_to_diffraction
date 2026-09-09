@@ -15968,3 +15968,24 @@ with a collapsed combined parent or a guessed command.
   the exact 117/200 regression. Ruff and ty pass. Next refresh the atlas and run
   the complete RF integration gate; native/CI qualification and the other
   pre-release scientific limitations remain separate completion requirements.
+
+## 2026-09-10 - Full local RF integration milestone passed
+
+- Exact scientific source `0b434487` passes the complete locked gate: 1,558 unit,
+  185 contract and 103 integration tests; schema, public-panel, documentation,
+  deterministic atlas and action checks; every Nextflow syntax, fan-out, cache,
+  mutation and resource-retry check; offline wheel installation and wrapper
+  syntax. The installed research wheel still exposes one public command and
+  ten schemas. This establishes local integration, not native acceptance.
+- Preserved both earlier gate failures and their focused fixes. Refreshed the
+  tracked atlas from current source and corrected the M6 leakage example to
+  require its owned operational parent, matching the existing execution contract.
+- The operator explicitly approved code-only push/CI and subsequent reviewed
+  Marmic RF/M6 qualification. Release publication, scientific human checkpoints,
+  the cancelled investigation and deferred v0.4 scope retain their boundaries.
+- The archived local M6 candidate bundle fails current input qualification on
+  its obsolete analysis configuration; its private truth map also predates the
+  required family contract. Preserve those files as history. Next push this
+  documentation/atlas successor for exact-source CI, recover and checksum-verify
+  frozen source inputs, then freeze the four-arm control evidence and qualify
+  native execution. No remote scientific job has been submitted in this loop.

@@ -134,6 +134,13 @@ scientific scope; broader v0.4/GPU work remains deferred. Preserve cancelled-run
 evidence, and stop only at genuinely required human decisions or new external
 authority. This is not automatic permission to publish a release.
 
+On 2026-09-10 the user explicitly approved a code-only push to the existing
+private remote for CI after the local gate passes, followed by RF/M6 known-
+control qualification through the reviewed Marmic workflow. Preserve exact-
+source, frozen-input, truth-isolation and fixed-profile requirements. This does
+not restart the cancelled crystal/AFDB investigation, approve human scientific
+decisions, extend M6 to Raven, or authorise release publication.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.
