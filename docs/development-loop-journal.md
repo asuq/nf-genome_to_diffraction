@@ -16103,3 +16103,26 @@ with a collapsed combined parent or a guessed command.
   submit scientific searches under the known-inadequate 16-GB policy or assume
   permission to increase it. Four-arm controls and subsequent release gates
   remain outstanding; the cancelled identification programme stays closed.
+
+## 2026-09-10 - Refreshed input CI passed; Marmic site setup required
+
+- Published milestone `8634c4c19c81c0a90653ead965fcb93fecdb7006` and verified
+  all six lanes of exact-source CI `34409995423`. The worktree was clean before
+  deployment. Checked remote controller/job tools deployed successfully through
+  the existing checksum-gated recovery path; no arbitrary transfer was used.
+- The first reviewed input-only stage failed with `environment_failure`:
+  `M6 runner staging requires its reviewed fixed site`. Owned status confirms
+  `remote run does not exist`; the check occurs before remote run creation,
+  benchmark attachment or scheduler submission. No scientific job was launched.
+- Source inspection identifies the missing explicit Marmic site-identity
+  record. The dispatcher requires an owned, mode-0600 single-line site record;
+  normal and recovery deployment do not create it. Preserve that fail-closed
+  check. This is an installation prerequisite, not an M6 scientific no-hit or
+  evidence that source ranking needs changing.
+- Requested approval for a narrow fixed-site setup operation, separately from
+  the still-unanswered native-search memory correction. Preserve the classified
+  attempt and local capability without retrying or inventing configuration
+  authority. Next resume with approved site setup and input qualification, then
+  a small native control and the four-arm/full M6 programme once its resources
+  are approved. The cancelled identification programme remains closed, and no
+  v0.3/v0.4 scientific acceptance or release is claimed.
