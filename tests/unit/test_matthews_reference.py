@@ -205,11 +205,19 @@ def test_reference_qualification_reports_method_only_and_cli_success(
         "mass_models_within_compatibility_bound": True,
         "phenix_best_guess_in_dynamic_copy_range": True,
         "pipeline_formula_consistent": True,
-        "plausible_copy_sets_match": True,
+        "configured_window_copy_sets_match": True,
         "probability_prior_order_matches": False,
         "reference_formula_consistent_with_printed_rounding": True,
     }
-    assert report["pipeline_plausible_copy_counts"] == [1, 2, 3]
+    assert report["schema_version"] == "2.0-local-qualification"
+    assert (
+        report["comparison_policy"]["version"]
+        == "matthews_reference_v3_physical_window"
+    )
+    assert report["reference_in_window_copy_counts"] == [1, 2, 3]
+    assert report["pipeline_in_window_copy_counts"] == [1, 2, 3]
+    assert report["pipeline_physical_copy_counts"] == [1, 2, 3, 4]
+    assert report["pipeline_out_of_window_copy_counts"] == [4]
     assert report["review_reasons"] == [
         "resolution_copy_weighted_prior_order_differs_from_phenix_overall_prior"
     ]

@@ -15919,3 +15919,20 @@ with a collapsed combined parent or a guessed command.
   exact-source CI and native evidence under explicit external authority. No
   source was pushed or scientific job submitted; the cancelled investigation
   and deferred v0.4 scope remain unchanged.
+
+## 2026-09-10 - RF integration exposed reference-window asymmetry
+
+- The first full locked RF gate stopped in unit tests: 1,557 passed and the
+  Matthews method-reference comparison failed its copy-set expectation. The
+  source compared configured-window Phenix rows with all physically admissible
+  pipeline rows after RF-G3, conflating two different inventories.
+- Corrected the method-only report to compare configured-window membership on
+  both sides while separately preserving full physical and out-of-window copy
+  counts. Advanced the comparison policy/content identity and report schema;
+  removed the ambiguous old field names. Historical qualification measurements
+  remain unchanged and do not establish a positive control.
+- The focused reference/input/probability suite passes 46 tests, including the
+  CLI regression showing physical counts 1-4 versus in-window counts 1-3.
+  Lint, ty and documentation checks pass. The complete RF gate must be rerun;
+  no native or CI acceptance, push, deployment or scientific submission is
+  implied. Refresh the deterministic atlas before that rerun.

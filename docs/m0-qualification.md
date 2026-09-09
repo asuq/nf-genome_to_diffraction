@@ -190,6 +190,14 @@ Marmic real-MTZ execution and scheduled P0 evidence remain required.
 
 ## Local Matthews method-reference probe
 
+The historical measurements below remain unchanged. The current RF-G3
+method-reference report uses `matthews_reference_v3_physical_window` and schema
+`2.0-local-qualification`: it compares membership in the same configured solvent
+window on both sides and separately reports the complete pipeline physical range
+and its out-of-window states. These are not interchangeable sets. This reporting
+correction does not reinterpret the historical probe as a positive control or
+authorise a new run on the accepted unknown crystals.
+
 The fixed `matthews reference-check` boundary was exercised with local Phenix
 2.1-6048 and the frozen `CD6QS2P2G1_5` MTZ. The selected catalogue group was the
 lexicographically first exact, unflagged 357-residue sequence group. That rule

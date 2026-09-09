@@ -68,7 +68,7 @@ _BEST_GUESS = re.compile(
 )
 MAXIMUM_MASS_MODEL_RELATIVE_DIFFERENCE = 0.05
 REFERENCE_FORMULA_ROUNDING_TOLERANCE = 0.005
-COMPARISON_POLICY_VERSION = "matthews_reference_v2"
+COMPARISON_POLICY_VERSION = "matthews_reference_v3_physical_window"
 
 
 class MatthewsReferenceInputError(InputContractError):
@@ -390,7 +390,7 @@ def _comparison_document(
             }
         )
 
-    reference_plausible_rows = tuple(
+    reference_in_window_rows = tuple(
         row
         for row in reference_rows
         if (
@@ -399,26 +399,34 @@ def _comparison_document(
             <= config.matthews.max_solvent_fraction
         )
     )
-    pipeline_plausible_rows = tuple(
+    pipeline_physical_rows = tuple(
         row
         for row in pipeline_rows
         if row.physical_status is not PhysicalStatus.IMPOSSIBLE
     )
-    reference_copy_set = sorted(row.copy_count for row in reference_plausible_rows)
-    pipeline_plausible_set = sorted(row.copy_count for row in pipeline_plausible_rows)
-    copy_sets_match = reference_copy_set == pipeline_plausible_set
-    reference_order = _reference_order(reference_plausible_rows)
-    matched_plausible_pipeline = tuple(
-        pipeline_by_copy[row.copy_count] for row in reference_plausible_rows
+    if any(row.solvent_window_status is None for row in pipeline_physical_rows):
+        raise MatthewsReferenceInputError(
+            "current pipeline rows lack solvent-window evidence"
+        )
+    pipeline_in_window_rows = tuple(
+        row for row in pipeline_physical_rows if row.solvent_window_status == "within"
     )
-    pipeline_order = _pipeline_order(matched_plausible_pipeline)
+    reference_copy_set = sorted(row.copy_count for row in reference_in_window_rows)
+    pipeline_in_window_set = sorted(row.copy_count for row in pipeline_in_window_rows)
+    pipeline_physical_set = sorted(row.copy_count for row in pipeline_physical_rows)
+    copy_sets_match = reference_copy_set == pipeline_in_window_set
+    reference_order = _reference_order(reference_in_window_rows)
+    matched_in_window_pipeline = tuple(
+        pipeline_by_copy[row.copy_count] for row in reference_in_window_rows
+    )
+    pipeline_order = _pipeline_order(matched_in_window_pipeline)
     ordering_matches = reference_order == pipeline_order
     best_guess_in_dynamic_range = parsed.best_guess_copy_count in pipeline_by_copy
     review_reasons: list[str] = []
     if not best_guess_in_dynamic_range:
         review_reasons.append("phenix_best_guess_outside_dynamic_copy_range")
     if not copy_sets_match:
-        review_reasons.append("plausible_copy_sets_differ")
+        review_reasons.append("configured_window_copy_sets_differ")
     if not ordering_matches:
         review_reasons.append(
             "resolution_copy_weighted_prior_order_differs_from_phenix_overall_prior"
@@ -462,7 +470,7 @@ def _comparison_document(
         "reference_formula_rounding_tolerance": (REFERENCE_FORMULA_ROUNDING_TOLERANCE),
     }
     return {
-        "schema_version": "1.0-local-qualification",
+        "schema_version": "2.0-local-qualification",
         "comparison_id": content_id("mref_", identity),
         "status": status,
         "execution_status": "completed_success",
@@ -516,9 +524,10 @@ def _comparison_document(
                 "engineering compatibility bound, not a fitted probability or "
                 "biological acceptance threshold"
             ),
-            "plausible_pipeline_statuses": ["plausible", "review"],
+            "physical_pipeline_statuses": ["plausible", "review"],
             "reference_copy_filter": (
-                "same dynamic solvent-overlap copy range as the pipeline"
+                "printed rows within the complete pipeline physical copy range; "
+                "compare configured-window membership separately on both sides"
             ),
             "ordering_interpretation": (
                 "reported for review; the pipeline conditions its empirical "
@@ -527,8 +536,12 @@ def _comparison_document(
             ),
         },
         "comparisons": comparisons,
-        "reference_plausible_copy_counts": reference_copy_set,
-        "pipeline_plausible_copy_counts": pipeline_plausible_set,
+        "reference_in_window_copy_counts": reference_copy_set,
+        "pipeline_in_window_copy_counts": pipeline_in_window_set,
+        "pipeline_physical_copy_counts": pipeline_physical_set,
+        "pipeline_out_of_window_copy_counts": sorted(
+            set(pipeline_physical_set) - set(pipeline_in_window_set)
+        ),
         "reference_order": list(reference_order),
         "pipeline_order": list(pipeline_order),
         "review_reasons": review_reasons,
@@ -536,7 +549,7 @@ def _comparison_document(
             "reference_formula_consistent_with_printed_rounding": True,
             "pipeline_formula_consistent": pipeline_formula_consistent,
             "phenix_best_guess_in_dynamic_copy_range": best_guess_in_dynamic_range,
-            "plausible_copy_sets_match": copy_sets_match,
+            "configured_window_copy_sets_match": copy_sets_match,
             "probability_prior_order_matches": ordering_matches,
             "mass_models_within_compatibility_bound": mass_model_compatible,
         },
@@ -599,7 +612,18 @@ def _markdown(document: dict[str, object]) -> str:
             "- Phenix best guess is inside the dynamic copy range: "
             f"`{checks['phenix_best_guess_in_dynamic_copy_range']}`"
         ),
-        f"- Plausible copy sets match: `{checks['plausible_copy_sets_match']}`",
+        (
+            "- Configured-window copy sets match: "
+            f"`{checks['configured_window_copy_sets_match']}`"
+        ),
+        (
+            "- Pipeline physical copy counts: "
+            f"`{document['pipeline_physical_copy_counts']}`"
+        ),
+        (
+            "- Pipeline out-of-window counts: "
+            f"`{document['pipeline_out_of_window_copy_counts']}`"
+        ),
         (
             "- Probability/prior order matches: "
             f"`{checks['probability_prior_order_matches']}`"
