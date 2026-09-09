@@ -25,6 +25,51 @@ REPOSITORY = Path(__file__).resolve().parents[2]
             "phenix-first-copy-mr-v9-selected-evidence",
         ),
         (
+            "enumerate_matthews",
+            "ENUMERATE_MATTHEWS",
+            "asu_sequence_mass_physical_volume_v2",
+        ),
+        (
+            "build_exact_predicted_funnel",
+            "BUILD_EXACT_PREDICTED_FUNNEL",
+            "exact-predicted-funnel-v2-physical-range",
+        ),
+        (
+            "build_diverse_first_copy_funnel",
+            "BUILD_DIVERSE_FIRST_COPY_FUNNEL",
+            "multi-source-first-copy-funnel-v2-physical-range",
+        ),
+        (
+            "build_phase3_diverse_first_copy_funnel",
+            "BUILD_PHASE3_DIVERSE_FIRST_COPY_FUNNEL",
+            "multi-source-first-copy-funnel-v8-physical-range",
+        ),
+        (
+            "build_partner_plan",
+            "BUILD_PARTNER_PLAN",
+            "catalogue-partner-plan-v3-physical-window",
+        ),
+        (
+            "build_live_sequence_checkpoint",
+            "BUILD_LIVE_SEQUENCE_CHECKPOINT",
+            "live-sequence-checkpoint-v4-physical-range",
+        ),
+        (
+            "build_live_sequence_checkpoint",
+            "BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT",
+            "live-sequence-checkpoint-v4-physical-range",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_PREPARE_ACTIVE_CASE",
+            "asu_sequence_mass_physical_volume_v2",
+        ),
+        (
+            "m6_nextflow_tasks",
+            "M6_PREPARE_EARLY_CASE",
+            "asu_sequence_mass_physical_volume_v2",
+        ),
+        (
             "m6_nextflow_tasks",
             "M6_FIRST_COPY",
             "phenix-first-copy-mr-v9-selected-evidence",
@@ -42,17 +87,17 @@ REPOSITORY = Path(__file__).resolve().parents[2]
         (
             "build_mr_seed_review",
             "BUILD_MR_SEED_REVIEW",
-            "mr-seed-review-v5-selected-mr-led",
+            "mr-seed-review-v6-physical-window",
         ),
         (
             "phase3_multicrystal_first_copy_tasks",
             "BUILD_PHASE3_MR_SEED_REVIEW",
-            "mr-seed-review-v5-selected-mr-led",
+            "mr-seed-review-v6-physical-window",
         ),
         (
             "phase3_no_a_tasks",
             "BUILD_PHASE3_NO_A_REVIEW",
-            "mr-seed-review-v5-selected-mr-led",
+            "mr-seed-review-v6-physical-window",
         ),
     ),
 )

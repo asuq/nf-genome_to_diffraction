@@ -43,7 +43,7 @@ from genome_to_diffraction.schemas.results import (
 from genome_to_diffraction.status import InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.matthews")
-COPY_RANGE_BACKEND = "asu_sequence_mass_solvent_overlap_v1"
+COPY_RANGE_BACKEND = "asu_sequence_mass_physical_volume_v2"
 MAXIMUM_SAFE_DYNAMIC_COPY_COUNT = 100_000
 _EXCLUDED_SEQUENCE_FLAGS = frozenset(
     {
@@ -216,14 +216,44 @@ def physical_status(
     minimum: float,
     maximum: float,
 ) -> PhysicalStatus:
-    if upper < minimum or lower > maximum:
+    """Separate mass/volume inconsistency from a configurable review preference.
+
+    Under Vsolvent = 1 - 1.23*M/V, non-negative solvent and positive protein
+    volume require 0 <= solvent < 1. The zero-solvent limiting state is retained
+    for review, not asserted to be a realistic protein crystal.
+    """
+
+    window_status = solvent_window_status(
+        lower, upper, minimum=minimum, maximum=maximum
+    )
+    if upper < 0 or lower >= 1:
         return PhysicalStatus.IMPOSSIBLE
-    if lower < minimum or upper > maximum:
+    if lower < 0 or upper >= 1 or window_status != "within":
         return PhysicalStatus.REVIEW
     boundary_margin = min(0.05, (maximum - minimum) / 4)
     if lower < minimum + boundary_margin or upper > maximum - boundary_margin:
         return PhysicalStatus.REVIEW
     return PhysicalStatus.PLAUSIBLE
+
+
+def solvent_window_status(
+    lower: float,
+    upper: float,
+    *,
+    minimum: float,
+    maximum: float,
+) -> Literal["within", "overlaps", "outside"]:
+    """Describe an analysis window without interpreting it as a physical limit."""
+
+    if not math.isfinite(lower) or not math.isfinite(upper) or lower > upper:
+        raise MatthewsInputError("Matthews solvent interval must be finite and ordered")
+    if not 0 <= minimum < maximum <= 1:
+        raise MatthewsInputError("Matthews solvent bounds do not span an interval")
+    if upper < minimum or lower > maximum:
+        return "outside"
+    if lower < minimum or upper > maximum:
+        return "overlaps"
+    return "within"
 
 
 def prior_score(
@@ -245,15 +275,16 @@ def dynamic_copy_counts(
     v_asu_a3: float,
     mass_lower_da: float,
     mass_upper_da: float,
-    minimum_solvent_fraction: float,
-    maximum_solvent_fraction: float,
 ) -> tuple[tuple[int, ...], tuple[str, ...]]:
-    """Derive the complete finite copy range that overlaps physical bounds."""
+    """Enumerate all positive copy counts with some non-negative solvent volume.
+
+    Analysis-window preferences never clip this range. If even one copy cannot
+    fit, retain exactly that impossible diagnostic row. The safety bound fails
+    explicitly rather than truncating a very large range.
+    """
 
     if not math.isfinite(v_asu_a3) or v_asu_a3 <= 0:
         raise MatthewsInputError("Matthews ASU volume must be finite and positive")
-    if not 0 <= minimum_solvent_fraction < maximum_solvent_fraction <= 1:
-        raise MatthewsInputError("Matthews solvent bounds do not span an interval")
     if (
         not math.isfinite(mass_lower_da)
         or not math.isfinite(mass_upper_da)
@@ -261,13 +292,17 @@ def dynamic_copy_counts(
         or mass_upper_da < mass_lower_da
     ):
         raise MatthewsInputError("Matthews sequence-mass bounds are invalid")
-    upper_real = v_asu_a3 * (1.0 - minimum_solvent_fraction) / (1.23 * mass_lower_da)
+    upper_real = v_asu_a3 / (1.23 * mass_lower_da)
+    if not math.isfinite(upper_real):
+        raise MatthewsInputError(
+            "dynamic Matthews copy range exceeds the fail-closed safety bound"
+        )
     first = 1
-    last = math.floor(upper_real + 1e-12)
+    last = math.floor(upper_real)
     warnings: tuple[str, ...] = ()
     if last < first:
         last = first
-        warnings = ("no_positive_copy_count_reaches_minimum_solvent_bound",)
+        warnings = ("no_positive_copy_count_has_nonnegative_solvent_volume",)
     if last > MAXIMUM_SAFE_DYNAMIC_COPY_COUNT:
         raise MatthewsInputError(
             "dynamic Matthews copy range exceeds the fail-closed safety bound"
@@ -319,8 +354,6 @@ def enumerate_group(
         v_asu_a3=preflight.asu_volume_a3,
         mass_lower_da=mass_lower,
         mass_upper_da=mass_upper,
-        minimum_solvent_fraction=minimum,
-        maximum_solvent_fraction=maximum,
     )
     for copy_count in copy_counts:
         identity = {
@@ -340,6 +373,8 @@ def enumerate_group(
             "prior_backend": PRIOR_BACKEND,
             "rank_within_candidate": 1,
             "retained": False,
+            "configured_solvent_min": minimum,
+            "configured_solvent_max": maximum,
             **_sds_fields(sds, crystal),
         }
         warnings = [*sds.warnings, *copy_range_warnings]
@@ -358,6 +393,12 @@ def enumerate_group(
                     "solvent_fraction": solvent,
                     "matthews_prior": prior,
                     "physical_status": status,
+                    "solvent_window_status": solvent_window_status(
+                        solvent,
+                        solvent,
+                        minimum=minimum,
+                        maximum=maximum,
+                    ),
                     "warnings": tuple(warnings),
                 }
             )
@@ -394,7 +435,22 @@ def enumerate_group(
                     "solvent_fraction_upper": solvent_upper,
                     "matthews_prior": prior,
                     "physical_status": status,
+                    "solvent_window_status": solvent_window_status(
+                        solvent_lower,
+                        solvent_upper,
+                        minimum=minimum,
+                        maximum=maximum,
+                    ),
                     "warnings": tuple(sorted(warnings)),
+                }
+            )
+        if row.solvent_window_status != "within":
+            row = row.model_copy(
+                update={
+                    "warnings": (
+                        *row.warnings,
+                        f"solvent_{row.solvent_window_status}_configured_window",
+                    ),
                 }
             )
         rows.append(row)
@@ -417,7 +473,8 @@ def enumerate_group(
         row.model_copy(
             update={
                 "rank_within_candidate": rank,
-                "retained": rank <= retained_count,
+                "retained": rank <= retained_count
+                and row.physical_status is not PhysicalStatus.IMPOSSIBLE,
             }
         )
         for rank, row in enumerate(ranked, start=1)
@@ -495,7 +552,9 @@ def _write_outputs(
         lines.append(
             f"- `{row.crystal_id}` / `{row.sequence_group_id}`: copy "
             f"{row.copy_count}, Vm {coefficient} A^3/Da, "
-            f"physical `{row.physical_status}`, SDS `{row.sds_page_prior_label}`"
+            f"physical `{row.physical_status}`, configured solvent window "
+            f"{row.configured_solvent_min}-{row.configured_solvent_max} "
+            f"(`{row.solvent_window_status}`), SDS `{row.sds_page_prior_label}`"
         )
     atomic_write_text(report_path, "\n".join(lines) + "\n")
     return jsonl_path, tsv_path, parquet_path, report_path

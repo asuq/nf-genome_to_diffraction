@@ -15765,3 +15765,26 @@ with a collapsed combined parent or a guessed command.
 - Next implement RF-G3 physical validity versus configured solvent preference,
   then the explicit RF-G2 recovery route and RF-G4 production/M6 parity. The
   cancelled AFDB investigation and accepted candidate assessments stay closed.
+
+## 2026-09-09 - RF-G3 local physical-range increment
+
+- Separated configured solvent-window preference from mathematical mass/volume
+  validity. Finite copy enumeration no longer takes window bounds, retains the
+  complete physical range and fails explicitly above its existing safety bound.
+  Zero solvent is a review-only limiting state; negative-volume diagnostics are
+  reported without retaining them for execution. Bounded masses preserve
+  partial physical overlap rather than inventing an exact mass.
+- Added configured-window fields/reasons to Matthews and review outputs, with
+  complete-window validation in the production funnel. Propagated the corrected
+  eligibility through partner/component planning and sequence review, and
+  advanced source/content and rendered task identities without altering the
+  empirical estimator, scientific task budgets or initial-copy semantics.
+- Local checks passed: 138 focused probability/enumeration/funnel/downstream
+  tests, 22 review/collector checks, 166 repository/typed contracts, and 53 final
+  physical tests including an impossible-mass non-retention regression. Ruff,
+  ty, documentation links, diff checks and Nextflow syntax passed. The added
+  out-of-window admission regression uses the actual production funnel.
+- These are local increments, not full RF closure or native-control evidence.
+  Next implement RF-G2's checksum-bound explicit deferred selection and factor-
+  level prior reporting, then RF-G4 production/M6 parity and the named full
+  integration milestone. Do not restart the cancelled identification programme.

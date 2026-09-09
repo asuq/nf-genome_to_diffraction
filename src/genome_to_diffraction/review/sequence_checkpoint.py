@@ -30,6 +30,7 @@ from genome_to_diffraction.matthews.enumerate import (
     dynamic_copy_counts,
     physical_status,
     prior_score,
+    solvent_window_status,
 )
 from genome_to_diffraction.matthews.probability import probability_distribution
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
@@ -48,8 +49,8 @@ from genome_to_diffraction.schemas.v2.diffraction import (
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.sequence_checkpoint")
-_ADAPTER_VERSION = "sequence-checkpoint-v3-mattprob"
-_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v3-mattprob"
+_ADAPTER_VERSION = "sequence-checkpoint-v4-physical-range"
+_LIVE_ADAPTER_VERSION = "live-sequence-checkpoint-v4-physical-range"
 _MATTHEWS_RETAINED_COUNT = 4
 _MATTHEWS_MIN_SOLVENT_FRACTION = 0.10
 _MATTHEWS_MAX_SOLVENT_FRACTION = 0.90
@@ -134,6 +135,9 @@ _MATTHEWS_COLUMNS = (
     "solvent_fraction_upper",
     "matthews_prior",
     "physical_status",
+    "configured_solvent_min",
+    "configured_solvent_max",
+    "solvent_window_status",
     "rank_within_candidate",
     "retained",
     "asu_volume_a3",
@@ -359,8 +363,6 @@ def _matthews_rows(
         v_asu_a3=preflight.asu_volume_a3,
         mass_lower_da=mass_lower,
         mass_upper_da=mass_upper,
-        minimum_solvent_fraction=_MATTHEWS_MIN_SOLVENT_FRACTION,
-        maximum_solvent_fraction=_MATTHEWS_MAX_SOLVENT_FRACTION,
     )
     empirical = probability_distribution(preflight.resolution_high_a)
     rows: list[dict[str, object]] = []
@@ -380,6 +382,8 @@ def _matthews_rows(
             "solvent_fraction_upper": "",
             "asu_volume_a3": preflight.asu_volume_a3,
             "space_group": preflight.space_group,
+            "configured_solvent_min": _MATTHEWS_MIN_SOLVENT_FRACTION,
+            "configured_solvent_max": _MATTHEWS_MAX_SOLVENT_FRACTION,
         }
         if group.molecular_mass_da is not None:
             coefficient = preflight.asu_volume_a3 / (
@@ -391,6 +395,12 @@ def _matthews_rows(
                     "sequence_mass_da": group.molecular_mass_da,
                     "matthews_coefficient": coefficient,
                     "solvent_fraction": solvent,
+                    "solvent_window_status": solvent_window_status(
+                        solvent,
+                        solvent,
+                        minimum=_MATTHEWS_MIN_SOLVENT_FRACTION,
+                        maximum=_MATTHEWS_MAX_SOLVENT_FRACTION,
+                    ),
                     "matthews_prior": prior_score(
                         solvent,
                         resolution_high_a=preflight.resolution_high_a,
@@ -424,6 +434,12 @@ def _matthews_rows(
                     "matthews_coefficient_upper": coefficient_upper,
                     "solvent_fraction_lower": solvent_lower,
                     "solvent_fraction_upper": solvent_upper,
+                    "solvent_window_status": solvent_window_status(
+                        solvent_lower,
+                        solvent_upper,
+                        minimum=_MATTHEWS_MIN_SOLVENT_FRACTION,
+                        maximum=_MATTHEWS_MAX_SOLVENT_FRACTION,
+                    ),
                     "matthews_prior": empirical.single_component_interval_prior(
                         copy_count,
                         solvent_lower,
@@ -450,7 +466,9 @@ def _matthews_rows(
     )
     for rank, row in enumerate(ranked, start=1):
         row["rank_within_candidate"] = rank
-        row["retained"] = rank <= _MATTHEWS_RETAINED_COUNT
+        row["retained"] = (
+            rank <= _MATTHEWS_RETAINED_COUNT and row["physical_status"] != "impossible"
+        )
     return ranked
 
 
@@ -1025,7 +1043,7 @@ def _publish_sequence_checkpoint(
         },
         "matthews_policy": {
             "prior_backend": PRIOR_BACKEND,
-            "copy_count_policy": "dynamic_by_asu_sequence_mass_and_solvent_bounds",
+            "copy_count_policy": "dynamic_by_asu_sequence_mass_and_physical_volume",
             "static_copy_count_ceiling": None,
             "retained_count": _MATTHEWS_RETAINED_COUNT,
             "min_solvent_fraction": _MATTHEWS_MIN_SOLVENT_FRACTION,

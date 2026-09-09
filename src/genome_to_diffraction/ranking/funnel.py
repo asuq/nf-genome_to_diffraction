@@ -37,6 +37,7 @@ from genome_to_diffraction.matthews.enumerate import (
     COPY_RANGE_BACKEND,
     dynamic_copy_counts,
     physical_status,
+    solvent_window_status,
 )
 from genome_to_diffraction.matthews.probability import (
     PRIOR_BACKEND,
@@ -79,9 +80,9 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.ranking.funnel")
-_ADAPTER_VERSION = "exact-predicted-funnel-v1"
-_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v1"
-_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v7-dynamic-matthews"
+_ADAPTER_VERSION = "exact-predicted-funnel-v2-physical-range"
+_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v2-physical-range"
+_PHASE3_DIVERSE_ADAPTER_VERSION = "multi-source-first-copy-funnel-v8-physical-range"
 _PHASE3_MAXIMUM_FIRST_COPY_JOBS = 25
 _COPY_CAPS: dict[PrototypeProfile, int | None] = {
     PrototypeProfile.SMOKE: 1,
@@ -343,8 +344,6 @@ def _complete_matthews_rows(
             v_asu_a3=preflight.asu_volume_a3,
             mass_lower_da=mass_lower,
             mass_upper_da=mass_upper,
-            minimum_solvent_fraction=config.matthews.min_solvent_fraction,
-            maximum_solvent_fraction=config.matthews.max_solvent_fraction,
         )
         observed_counts = tuple(sorted(row.copy_count for row in matching))
         if observed_counts != expected_counts:
@@ -382,6 +381,7 @@ def _complete_matthews_rows(
                 expected_total = group.molecular_mass_da * row.copy_count
                 expected_coefficient = preflight.asu_volume_a3 / expected_total
                 expected_solvent = 1.0 - 1.23 / expected_coefficient
+                solvent_lower = solvent_upper = expected_solvent
                 expected_status = physical_status(
                     expected_solvent,
                     expected_solvent,
@@ -409,6 +409,10 @@ def _complete_matthews_rows(
                 )
                 expected_solvent_lower = 1.0 - 1.23 / expected_coefficient_lower
                 expected_solvent_upper = 1.0 - 1.23 / expected_coefficient_upper
+                solvent_lower, solvent_upper = (
+                    expected_solvent_lower,
+                    expected_solvent_upper,
+                )
                 expected_status = physical_status(
                     expected_solvent_lower,
                     expected_solvent_upper,
@@ -441,6 +445,18 @@ def _complete_matthews_rows(
                 for observed, expected in exact_values
             ):
                 raise FunnelInputError("Matthews mass or physical metrics differ")
+            if (
+                row.configured_solvent_min != config.matthews.min_solvent_fraction
+                or row.configured_solvent_max != config.matthews.max_solvent_fraction
+                or row.solvent_window_status
+                != solvent_window_status(
+                    solvent_lower,
+                    solvent_upper,
+                    minimum=config.matthews.min_solvent_fraction,
+                    maximum=config.matthews.max_solvent_fraction,
+                )
+            ):
+                raise FunnelInputError("Matthews configured solvent window differs")
             if row.physical_status is not expected_status or not math.isclose(
                 row.matthews_prior,
                 expected_prior,
@@ -465,7 +481,10 @@ def _complete_matthews_rows(
         for rank, row in enumerate(expected_order, start=1):
             if row.rank_within_candidate != rank:
                 raise FunnelInputError("Matthews candidate rank differs")
-            should_retain = rank <= config.matthews.max_hypotheses_per_candidate
+            should_retain = (
+                rank <= config.matthews.max_hypotheses_per_candidate
+                and row.physical_status is not PhysicalStatus.IMPOSSIBLE
+            )
             if row.retained is not should_retain:
                 raise FunnelInputError("Matthews retention flag differs from rank")
         validated.extend(matching)
@@ -518,11 +537,14 @@ def _priority_features(
         "matthews_prior": matthews.matthews_prior,
         "matthews_prior_backend": matthews.prior_backend,
         "matthews_copy_range_policy": (
-            "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+            "dynamic_by_asu_sequence_mass_and_physical_volume"
         ),
         "matthews_copy_range_complete": True,
         "matthews_rank_within_candidate": matthews.rank_within_candidate,
         "matthews_physical_status": matthews.physical_status.value,
+        "configured_solvent_min": matthews.configured_solvent_min,
+        "configured_solvent_max": matthews.configured_solvent_max,
+        "solvent_window_status": matthews.solvent_window_status,
         "sds_page_prior_label": matthews.sds_page_prior_label,
         "sds_page_fractional_difference": matthews.sds_page_fractional_difference,
     }
@@ -1680,7 +1702,7 @@ def build_diverse_first_copy_funnel(
             "copy_search_mode": "single_copy_then_sequential_completion",
             "initial_searched_copy_count": 1,
             "expected_copy_count_policy": (
-                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+                "dynamic_by_asu_sequence_mass_and_physical_volume"
             ),
             "matthews_prior_backend": PRIOR_BACKEND,
             "matthews_copy_range_backend": COPY_RANGE_BACKEND,

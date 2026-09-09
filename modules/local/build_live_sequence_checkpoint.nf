@@ -21,6 +21,7 @@ process BUILD_LIVE_SEQUENCE_CHECKPOINT {
         .collect { result -> "--candidate-result '${result}'" }
         .join(' ')
     """
+    # Scientific output contract: live-sequence-checkpoint-v4-physical-range
     genome-to-diffraction \
         --no-progress \
         --log-format json \
@@ -89,6 +90,7 @@ process BUILD_PHASE3_CRYSTAL_SEQUENCE_CHECKPOINT {
         .collect { result -> "--candidate-result '${result}'" }
         .join(' ')
     """
+    # Scientific output contract: live-sequence-checkpoint-v4-physical-range
     genome-to-diffraction \
         --no-progress \
         --log-format json \

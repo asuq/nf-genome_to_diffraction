@@ -233,8 +233,6 @@ def copy_priors(
         v_asu_a3=crystal.asu_volume_a3,
         mass_lower_da=mass,
         mass_upper_da=mass,
-        minimum_solvent_fraction=0.10,
-        maximum_solvent_fraction=0.90,
     )
     if warnings or not counts:
         raise IdentificationInputError("candidate has no valid complete Matthews range")

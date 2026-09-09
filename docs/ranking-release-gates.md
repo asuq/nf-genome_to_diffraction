@@ -116,6 +116,14 @@ log maxima. Parser/review/collector contracts and rendered Nextflow cache
 identities advance together. Native known-control qualification and M6 adoption
 remain required; this local increment alone does not close RF-G1 or RF-G4.
 
+RF-G3 local implementation now uses mass/volume-only finite enumeration and
+separately reported configured solvent windows. Both 9% and 91% tails remain
+reviewable, and out-of-window rows can enter the unchanged first-copy funnel.
+Impossible one-copy diagnostics remain in the inventory but are not retained
+for execution. Funnel validation, partner/component eligibility and sequence
+review use the corrected meaning; content/task identities advance together.
+Explicit access to non-top deferred states still requires the RF-G2 route.
+
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new
   behaviour; several historical expectations must intentionally change.

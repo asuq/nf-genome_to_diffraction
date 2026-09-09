@@ -267,7 +267,7 @@ class ProcessedModelRecord(ContractModel):
 
 
 class PhysicalStatus(StrEnum):
-    """Physical plausibility class for an ASU composition."""
+    """Composition plausibility; only mass/volume inconsistency is impossible."""
 
     PLAUSIBLE = "plausible"
     IMPOSSIBLE = "impossible"
@@ -300,6 +300,9 @@ class MatthewsHypothesis(ContractModel):
     rank_within_candidate: PositiveInt
     retained: bool
     physical_status: PhysicalStatus
+    configured_solvent_min: float | None = Field(default=None, ge=0, le=1)
+    configured_solvent_max: float | None = Field(default=None, ge=0, le=1)
+    solvent_window_status: Literal["within", "overlaps", "outside"] | None = None
     sds_page_nearest_band_kda: PositiveFloat | None = None
     sds_page_absolute_difference_kda: float | None = Field(default=None, ge=0)
     sds_page_fractional_difference: float | None = Field(default=None, ge=0)
@@ -309,6 +312,21 @@ class MatthewsHypothesis(ContractModel):
 
     @model_validator(mode="after")
     def _mass_representation_is_explicit(self) -> Self:
+        window = (
+            self.configured_solvent_min,
+            self.configured_solvent_max,
+            self.solvent_window_status,
+        )
+        if any(value is not None for value in window) and any(
+            value is None for value in window
+        ):
+            raise ValueError("configured solvent window evidence must be complete")
+        if (
+            self.configured_solvent_min is not None
+            and self.configured_solvent_max is not None
+            and self.configured_solvent_min >= self.configured_solvent_max
+        ):
+            raise ValueError("configured solvent window must span an interval")
         exact = self.sequence_mass_da is not None
         bounded = (
             self.sequence_mass_lower_da is not None

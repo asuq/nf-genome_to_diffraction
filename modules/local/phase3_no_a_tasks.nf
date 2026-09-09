@@ -68,7 +68,7 @@ process BUILD_PHASE3_NO_A_REVIEW {
         .collect { result -> "'${result}/normalised_mr_result.jsonl'" }
         .join(' ')
     """
-    # Scientific output contract: mr-seed-review-v5-selected-mr-led
+    # Scientific output contract: mr-seed-review-v6-physical-window
     cat ${resultJsonl} > normalised_mr_results.jsonl
     genome-to-diffraction --no-progress --log-format json \
         review build-mr-seed \

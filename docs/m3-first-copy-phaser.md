@@ -340,7 +340,7 @@ within-candidate rank break the tie, followed by immutable sequence/model/
 hypothesis IDs. Independent MR and Matthews ranks and their discordance remain
 visible. Historical aggregate-only packing cannot fill missing selected-PDB
 evidence. The report/cache policy is `selected-packing-copy-mr-matthews-v1`
-and the review adapter is `mr-seed-review-v5-selected-mr-led`.
+and the review adapter is `mr-seed-review-v6-physical-window`.
 Primary and extended labels apply to the first 10 and 25 distinct
 sequence-equivalence groups from the resolved configuration. They allocate
 review attention; they are not posterior probabilities or automatic biological

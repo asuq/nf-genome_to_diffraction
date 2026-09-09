@@ -30,6 +30,7 @@ process BUILD_DIVERSE_FIRST_COPY_FUNNEL {
 
     script:
     """
+    # Scientific output contract: multi-source-first-copy-funnel-v2-physical-range
     genome-to-diffraction \
         --no-progress \
         --log-format json \

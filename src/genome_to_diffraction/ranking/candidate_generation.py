@@ -88,7 +88,7 @@ from genome_to_diffraction.schemas.v2.composition import (
 )
 from genome_to_diffraction.status import InputContractError
 
-_GENERATOR_VERSION = "phase3-component-candidate-generation-v2-mattprob"
+_GENERATOR_VERSION = "phase3-component-candidate-generation-v3-physical-window"
 _MATTHEWS_BACKEND = SOLVENT_DENSITY_BACKEND
 _SOLVENT_MASS_DENSITY_DA_PER_A3 = 1.23
 _COMPONENT_LABELS = ("A", "B", "C", "D", "E", "F")
@@ -354,9 +354,9 @@ class ComponentExpansionInputInventory(ContractModel):
     _identity_prefix: ClassVar[str] = "compinputgen_"
 
     schema_version: Literal["2.0"] = "2.0"
-    generator_version: Literal["phase3-component-candidate-generation-v2-mattprob"] = (
-        _GENERATOR_VERSION
-    )
+    generator_version: Literal[
+        "phase3-component-candidate-generation-v3-physical-window"
+    ] = _GENERATOR_VERSION
     inventory_id: NonEmptyString
     crystal_id: NonEmptyString
     diffraction_dataset_id: NonEmptyString

@@ -16,6 +16,7 @@ process ENUMERATE_MATTHEWS {
 
     script:
     """
+    # Scientific output contract: asu_sequence_mass_physical_volume_v2
     genome-to-diffraction \
         --no-progress \
         --log-format json \

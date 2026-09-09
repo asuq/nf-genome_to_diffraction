@@ -130,7 +130,7 @@ def _request(
     )
 
 
-def test_funnel_excludes_impossible_rows_and_preserves_features(tmp_path: Path) -> None:
+def test_funnel_ranks_retained_rows_and_preserves_features(tmp_path: Path) -> None:
     result = build_exact_predicted_funnel(_request(tmp_path))
 
     assert [item.copy_count_expected for item in result.hypotheses] == [4, 5, 3]
@@ -155,6 +155,51 @@ def test_funnel_excludes_impossible_rows_and_preserves_features(tmp_path: Path) 
     assert all(
         record.read_text(encoding="utf-8").count("\n") == 1 for record in records
     )
+
+
+def test_out_of_window_alternatives_are_enumerated_and_admitted(tmp_path: Path) -> None:
+    request = _request(tmp_path)
+    config = load_contract(request.pipeline_config, "pipeline-config", progress=False)
+    assert isinstance(config, PipelineConfig)
+    config = config.model_copy(
+        update={
+            "matthews": config.matthews.model_copy(
+                update={
+                    "min_solvent_fraction": 0.95,
+                    "max_solvent_fraction": 0.99,
+                }
+            )
+        }
+    )
+    request.pipeline_config.write_text(config.model_dump_json(), encoding="ascii")
+    group = SequenceGroupRecord.model_validate_json(
+        request.sequence_groups_jsonl.read_bytes()
+    )
+    preflight = MtzPreflightRecord.model_validate_json(
+        request.mtz_preflight_jsonl.read_bytes()
+    )
+    rows = enumerate_group(
+        group,
+        CrystalEntry(
+            crystal_id=preflight.crystal_id, mtz="fixture.mtz", catalogue_id="fixture"
+        ),
+        preflight,
+        config,
+    )
+    request.matthews_hypotheses_jsonl.write_text(
+        "".join(f"{canonical_json_text(row)}\n" for row in rows),
+        encoding="ascii",
+    )
+    assert {row.copy_count for row in rows} == set(range(1, 12))
+    assert all(row.physical_status == "review" for row in rows)
+    assert all(row.solvent_window_status == "outside" for row in rows)
+    result = build_exact_predicted_funnel(request)
+    assert len(result.hypotheses) == 3
+    assert all(
+        item.priority_features["solvent_window_status"] == "outside"
+        for item in result.hypotheses
+    )
+    assert all(item.copy_number_to_search == 1 for item in result.hypotheses)
 
 
 def test_funnel_applies_global_first_copy_cap_deterministically(tmp_path: Path) -> None:
@@ -304,10 +349,10 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     )
     manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
     assert manifest["adapter_version"] == (
-        "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        "multi-source-first-copy-funnel-v8-physical-range"
     )
     assert manifest["expected_copy_count_policy"] == (
-        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+        "dynamic_by_asu_sequence_mass_and_physical_volume"
     )
     assert manifest["matthews_prior_backend"] == PRIOR_BACKEND
     assert manifest["matthews_copy_range_backend"] == COPY_RANGE_BACKEND
@@ -345,7 +390,7 @@ def test_phase3_diverse_funnel_searches_one_copy_and_retains_expectations(
     assert manifest["copy_search_mode"] == ("single_copy_then_sequential_completion")
     assert manifest["initial_searched_copy_count"] == 1
     assert manifest["expected_copy_count_policy"] == (
-        "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+        "dynamic_by_asu_sequence_mass_and_physical_volume"
     )
     assert manifest["static_expected_copy_count_ceiling"] is None
     assert "maximum_joint_copy_count" not in manifest

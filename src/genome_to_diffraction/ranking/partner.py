@@ -53,7 +53,7 @@ from genome_to_diffraction.schemas.results import (
 )
 from genome_to_diffraction.status import ExecutionStatus, InputContractError
 
-_ADAPTER_VERSION = "catalogue-partner-plan-v2-mattprob"
+_ADAPTER_VERSION = "catalogue-partner-plan-v3-physical-window"
 _SELECTION_CAP = 25
 _CATALOGUE_INELIGIBLE_FLAGS = frozenset(
     {

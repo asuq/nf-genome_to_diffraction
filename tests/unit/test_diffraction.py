@@ -616,9 +616,23 @@ def test_matthews_known_cell_mass_and_copy_example() -> None:
     assert copy_two.matthews_coefficient == pytest.approx(2.5)
     assert copy_two.solvent_fraction == pytest.approx(0.508)
     assert copy_two.sds_page_prior_label == "strong"
-    assert {row.copy_count for row in rows} == {1, 2, 3}
+    assert {row.copy_count for row in rows} == {1, 2, 3, 4}
     assert copy_two.rank_within_candidate == 1
-    assert sum(row.retained for row in rows) == 3
+    assert sum(row.retained for row in rows) == 4
+
+
+def test_mass_exceeding_asu_stays_reported_but_never_retained() -> None:
+    rows = enumerate_group(
+        _sequence_group(exact_mass=300_000),
+        _crystal(Path("input.mtz")),
+        _preflight(),
+        _config(),
+    )
+    assert len(rows) == 1
+    assert rows[0].copy_count == 1
+    assert rows[0].physical_status == "impossible"
+    assert rows[0].solvent_fraction is not None and rows[0].solvent_fraction < 0
+    assert rows[0].retained is False
 
 
 def test_empirical_copy_prior_prevents_high_copy_small_protein_domination() -> None:
@@ -848,6 +862,6 @@ def test_cli_preflight_to_matthews_outputs_all_copy_counts(tmp_path: Path) -> No
         == 0
     )
     table = pl.read_parquet(matthews_output / "matthews_hypotheses.parquet")
-    assert table.height == 3
-    assert set(table["copy_count"].to_list()) == {1, 2, 3}
-    assert table.filter(pl.col("retained")).height == 3
+    assert table.height == 4
+    assert set(table["copy_count"].to_list()) == {1, 2, 3, 4}
+    assert table.filter(pl.col("retained")).height == 4

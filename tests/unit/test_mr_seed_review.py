@@ -1,6 +1,7 @@
 """Tests for the file-based first-copy MR checkpoint."""
 
 import csv
+import hashlib
 import json
 import os
 import subprocess
@@ -110,7 +111,7 @@ def _hypothesis(
             "matthews_hypothesis_id": "matthews_stub",
             "matthews_prior_backend": PRIOR_BACKEND,
             "matthews_copy_range_policy": (
-                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+                "dynamic_by_asu_sequence_mass_and_physical_volume"
             ),
             "matthews_copy_range_complete": True,
             "structural_source_class": "predicted",
@@ -612,8 +613,23 @@ def test_review_priority_does_not_let_matthews_override_selected_packing_and_mr(
     crystal = CrystalEntry(
         crystal_id=preflight.crystal_id, mtz="fixture.mtz", catalogue_id="fixture"
     )
-    large = group.model_copy(update={"molecular_mass_da": 50_000.0})
-    small = group.model_copy(update={"molecular_mass_da": 5_000.0})
+
+    # This is the specified mathematical mass example, not a mass-estimator test.
+    def mass_fixture(sequence: str, mass: float) -> SequenceGroupRecord:
+        digest = hashlib.sha256(sequence.encode("ascii")).hexdigest()
+        return group.model_copy(
+            update={
+                "sequence_group_id": f"seq_{digest}",
+                "sha256": digest,
+                "sequence": sequence,
+                "length_aa": len(sequence),
+                "molecular_mass_da": mass,
+                "mass_method": "synthetic_declared_test_mass",
+            }
+        )
+
+    large = mass_fixture("A" * 500, 50_000.0)
+    small = mass_fixture("A" * 50, 5_000.0)
     two = next(
         row
         for row in enumerate_group(large, crystal, preflight, config)
@@ -635,7 +651,10 @@ def test_review_priority_does_not_let_matthews_override_selected_packing_and_mr(
     )
     mr_only = _Candidate(
         hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
-            update={"copy_count_expected": 20}
+            update={
+                "copy_count_expected": 20,
+                "sequence_group_id": small.sequence_group_id,
+            }
         ),
         result=_result(hypothesis_id="mrhyp_" + "1" * 64).model_copy(
             update={
@@ -646,7 +665,9 @@ def test_review_priority_does_not_let_matthews_override_selected_packing_and_mr(
             }
         ),
         sequence_group=small,
-        sources=(source,),
+        sources=(
+            source.model_copy(update={"sequence_group_id": small.sequence_group_id}),
+        ),
         matthews=twenty,
         funnel_entry={},
         funnel_order=1,
@@ -656,7 +677,10 @@ def test_review_priority_does_not_let_matthews_override_selected_packing_and_mr(
     )
     asu_supported = _Candidate(
         hypothesis=_hypothesis(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
-            update={"copy_count_expected": 2}
+            update={
+                "copy_count_expected": 2,
+                "sequence_group_id": large.sequence_group_id,
+            }
         ),
         result=_result(hypothesis_id="mrhyp_" + "2" * 64).model_copy(
             update={
@@ -667,7 +691,9 @@ def test_review_priority_does_not_let_matthews_override_selected_packing_and_mr(
             }
         ),
         sequence_group=large,
-        sources=(source,),
+        sources=(
+            source.model_copy(update={"sequence_group_id": large.sequence_group_id}),
+        ),
         matthews=two,
         funnel_entry={},
         funnel_order=2,

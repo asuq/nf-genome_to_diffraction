@@ -472,7 +472,7 @@ def _write_review_evidence(
     }
     manifest = {
         "schema_version": "1.0",
-        "adapter_version": "mr-seed-review-v5-selected-mr-led",
+        "adapter_version": "mr-seed-review-v6-physical-window",
         "review_priority_policy": "selected-packing-copy-mr-matthews-v1",
         "matthews_prior_backend": PRIOR_BACKEND,
         "matthews_copy_range_requirement": "complete_dynamic_range",

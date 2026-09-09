@@ -29,7 +29,7 @@ process BUILD_MR_SEED_REVIEW {
         ? 'touch normalised_mr_results.jsonl'
         : "cat ${resultJsonl} > normalised_mr_results.jsonl"
     """
-    # Scientific output contract: mr-seed-review-v5-selected-mr-led
+    # Scientific output contract: mr-seed-review-v6-physical-window
     ${resultCommand}
     genome-to-diffraction \
         --no-progress \

@@ -583,10 +583,10 @@ def test_parent_specific_total_composition_copies_and_missing_mass_are_retained(
 
     assert b_rows[
         parents[0].state.state_id
-    ].component_input.physically_eligible_copy_counts == (2, 3, 4)
+    ].component_input.physically_eligible_copy_counts == (1, 2, 3, 4)
     assert b_rows[
         parents[1].state.state_id
-    ].component_input.physically_eligible_copy_counts == (1, 2, 3)
+    ].component_input.physically_eligible_copy_counts == (1, 2, 3, 4)
     assert all(
         row.component_input.sds_page_evidence is ExpansionEvidenceLevel.SUPPORTING
         and row.component_input.native_page_evidence
@@ -721,7 +721,6 @@ def test_generated_rows_plan_without_support_promotion(
     assert excluded
     assert {item.hypothesis.disposition for item in excluded} == {
         ExpansionDisposition.DEFERRED_LOCALISATION_WAVE,
-        ExpansionDisposition.EXCLUDED_PHYSICAL_IMPOSSIBLE,
     }
     assert mass_unavailable
     assert {item.hypothesis.disposition for item in mass_unavailable} == {

@@ -20,6 +20,7 @@ process BUILD_PARTNER_PLAN {
 
     script:
     """
+    # Scientific output contract: catalogue-partner-plan-v3-physical-window
     genome-to-diffraction \
         --no-progress \
         --log-format json \

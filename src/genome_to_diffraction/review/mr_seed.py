@@ -68,7 +68,7 @@ from genome_to_diffraction.status import ExecutionStatus, InputContractError
 from genome_to_diffraction.time import utc_now_iso
 
 _LOGGER = logging.getLogger("genome_to_diffraction.review.mr_seed")
-_ADAPTER_VERSION = "mr-seed-review-v5-selected-mr-led"
+_ADAPTER_VERSION = "mr-seed-review-v6-physical-window"
 _HYPOTHESIS_ID = re.compile(r"^mrhyp_[a-f0-9]{64}$")
 _SOLUTION_ID = re.compile(r"^sol_[a-f0-9]{64}$")
 _TSV_COLUMNS = (
@@ -98,6 +98,9 @@ _TSV_COLUMNS = (
     "matthews_prior_backend",
     "matthews_copy_range_complete",
     "matthews_physical_status",
+    "configured_solvent_min",
+    "configured_solvent_max",
+    "solvent_window_status",
     "sds_page_prior_label",
     "sds_page_fractional_difference",
     "llg",
@@ -462,7 +465,7 @@ def _join_candidates(
         request.funnel_manifest, label="funnel manifest"
     )
     if funnel_document.get("adapter_version") == (
-        "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        "multi-source-first-copy-funnel-v8-physical-range"
     ) and (
         funnel_document.get("matthews_prior_backend") != PRIOR_BACKEND
         or funnel_document.get("matthews_copy_range_backend") != COPY_RANGE_BACKEND
@@ -736,14 +739,31 @@ def _row(
         ),
         "copy_count_expected": candidate.hypothesis.copy_count_expected,
         "placed_copy_count": candidate.result.placed_copy_count,
-        "matthews_coefficient": matthews.matthews_coefficient or "",
-        "solvent_fraction": matthews.solvent_fraction or "",
+        "matthews_coefficient": (
+            matthews.matthews_coefficient
+            if matthews.matthews_coefficient is not None
+            else ""
+        ),
+        "solvent_fraction": (
+            matthews.solvent_fraction if matthews.solvent_fraction is not None else ""
+        ),
         "matthews_prior": matthews.matthews_prior,
         "matthews_prior_backend": matthews.prior_backend,
         "matthews_copy_range_complete": features.get(
             "matthews_copy_range_complete", False
         ),
         "matthews_physical_status": matthews.physical_status.value,
+        "configured_solvent_min": (
+            matthews.configured_solvent_min
+            if matthews.configured_solvent_min is not None
+            else ""
+        ),
+        "configured_solvent_max": (
+            matthews.configured_solvent_max
+            if matthews.configured_solvent_max is not None
+            else ""
+        ),
+        "solvent_window_status": matthews.solvent_window_status or "",
         "sds_page_prior_label": matthews.sds_page_prior_label,
         "sds_page_fractional_difference": (
             matthews.sds_page_fractional_difference
@@ -852,6 +872,9 @@ def _html_report(
         "matthews_prior",
         "matthews_prior_backend",
         "matthews_physical_status",
+        "configured_solvent_min",
+        "configured_solvent_max",
+        "solvent_window_status",
         "llg",
         "tfz",
         "top_solution_packed",

@@ -68,18 +68,31 @@ References:
 
 The workflow has no configured scientific copy ceiling. For each exact or
 bounded sequence mass it enumerates every positive integer copy count from one
-through the final count whose sequence-mass interval can still overlap the
-configured minimum solvent fraction. Low-copy, high-solvent states are retained
-and typed `review` or `impossible`; they are not silently omitted. A count of
+through the final count whose sequence-mass interval can still leave
+non-negative solvent volume: `floor(V_ASU / (1.23 * minimum_sequence_mass))`.
+The backend is `asu_sequence_mass_physical_volume_v2`. Configured solvent limits
+are analysis preferences and never clip that physical enumeration. Both low-
+and high-solvent tails, including 9% and 91% under a 10%-90% window, are
+reviewable. Each row publishes the configured limits and `within`, `overlaps`
+or `outside` window status separately from physical status. Under the declared
+positive-protein-volume model, intervals entirely below zero solvent or at/above
+one are inconsistent; an interval partially intersecting the valid range keeps
+its mass uncertainty. The zero-solvent limiting state is review-only, not a
+claim of realistic packing. A count of
 100,000 is only a fail-closed corruption/resource guard and must never truncate
 a valid analysis.
 
-The current frozen-input audit enumerates 76,767 hypotheses and reaches maxima
+The historical pre-RF audit enumerated 76,767 hypotheses and reached maxima
 of 72, 171, and 19 copies for `AD4QS1P4G2_18`, `CD4QS2P2G1_15`, and
 `CD6QS2P2G1_5`. The bounded funnel still emits exactly 25 candidates per
-crystal. High-copy small proteins remain visible, but the empirical `P(n)`
-weight moves them behind better-supported ASU multiplicities instead of
-silently deleting them.
+crystal. Those counts describe the superseded clipped window and are not
+qualification of the physical-volume backend. No new unknown-crystal run is
+required to validate this mathematical change.
+
+Exceptional solvent contents outside conventional ranges are documented by
+C. X. Weichenberger, P. V. Afonine, K. Kantardjieff and B. Rupp,
+"The solvent component of macromolecular crystals", *Acta Crystallographica D*
+71 (2015), 1023-1038, [doi:10.1107/S1399004715006045](https://doi.org/10.1107/S1399004715006045).
 
 ## Inputs, outputs, and failure semantics
 
@@ -92,7 +105,8 @@ backend in its content identity.
 Malformed reference bytes, a checksum mismatch, unsupported backend metadata,
 insufficient resolution-conditioned observations, invalid mass/volume/solvent
 bounds, or a dynamic range beyond the corruption guard fails the stage. A
-physically impossible hypothesis is a retained scientific state, not an
+physically impossible one-copy diagnostic remains reported but is not retained
+for execution; it is a scientific state, not an
 execution failure. An unobserved `P(n)` has a prior weight of zero but remains
 eligible for explicit review and later evidence.
 
@@ -105,6 +119,10 @@ and writes deterministic gzip bytes.
 Focused tests cover reference checksums, record counts, resolution selection,
 kernel values, empirical copy frequencies, dynamic ranges beyond 16, invalid
 inputs, high-copy small-protein demotion without filtering, funnel identities,
-dual Matthews/MR ranking, and installed-wheel resource parity. The frozen-input
-local audit must retain a 25/25/25 inventory before exact-source CI and a fresh
-fixed-HPC screen can qualify the revised candidate selection.
+dual Matthews/MR ranking, and installed-wheel resource parity. RF-G3 additionally
+covers both window tails, complete finite ranges, out-of-window funnel admission,
+and downstream copy-state eligibility. The 0.9 A insufficient-reference case
+fails explicitly rather than using a coarser resolution or a zero score.
+RF-G2's explicit selection route and the known-control RF-G4 comparison complete
+reachability and scientific qualification; historical unknown-crystal counts
+cannot substitute for those gates.

@@ -185,7 +185,7 @@ def plan_batch_localisation_reopen(
     if (
         not isinstance(manifest, dict)
         or manifest.get("adapter_version")
-        != "multi-source-first-copy-funnel-v7-dynamic-matthews"
+        != "multi-source-first-copy-funnel-v8-physical-range"
         or manifest.get("localisation_policy_id") != policy.policy_id
     ):
         raise BatchLocalisationReopenError(

@@ -614,7 +614,7 @@ def _prepare_heteromer_control(
             "matthews_hypothesis_id": matthews_id,
             "matthews_prior_backend": PRIOR_BACKEND,
             "matthews_copy_range_policy": (
-                "dynamic_by_asu_sequence_mass_and_solvent_bounds"
+                "dynamic_by_asu_sequence_mass_and_physical_volume"
             ),
             "matthews_copy_range_complete": False,
             "matthews_copy_range_exemption": "fixed_known_control",
