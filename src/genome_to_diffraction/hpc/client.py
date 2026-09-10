@@ -1617,7 +1617,7 @@ class SshTransport:
         arguments: Sequence[str],
         archive_path: Path,
     ) -> dict[str, str]:
-        """Stream one confirmed truth-isolated M6 runner archive to Viper."""
+        """Stream a bounded M6 payload to the selected reviewed site."""
 
         try:
             with archive_path.open("rb") as handle:
@@ -2564,6 +2564,58 @@ class HpcController:
             "local_record": str(local_path),
         }
 
+    def _stage_m6_runner(
+        self,
+        record: LocalRunRecord,
+        arguments: list[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Use one existing bounded source stream only for a classified mirror gap."""
+
+        if record.profile == "m6-inputs":
+            stage = self.transport.m6_inputs_stage
+        elif record.profile in {"m6-operational", "m6-leakage"}:
+            stage = self.transport.m6_scientific_stage
+        else:
+            raise ValidationError("source/runner staging requires a fixed M6 profile")
+        try:
+            return stage(arguments, archive_path)
+        except RemoteOperationError as error:
+            if not (
+                error.failure_class is FailureClass.FILESYSTEM_FAILURE
+                and str(error)
+                in {"bare Git mirror is absent", "configured Git mirror is not bare"}
+            ):
+                raise
+        self.logger.warning(
+            "using checksum-gated M6 source archive staging",
+            extra={
+                "commit": record.commit,
+                "profile": record.profile,
+                "run_id": record.run_id,
+            },
+        )
+        # Keep transient benchmark transport material in the owned local run
+        # directory; the authoritative confirmed runner archive stays intact.
+        with tempfile.TemporaryDirectory(
+            prefix="m6-source-stage-",
+            dir=self.config.local_state_root / record.run_id,
+        ) as temporary:
+            source_archive = Path(temporary) / "source.tar"
+            source_sha256, source_size, helper_commit = self.git.create_source_archive(
+                record.commit, source_archive
+            )
+            combined_archive = Path(temporary) / "source-and-runner.bin"
+            with combined_archive.open("wb") as output:
+                with source_archive.open("rb") as source:
+                    shutil.copyfileobj(source, output)
+                with archive_path.open("rb") as runner:
+                    shutil.copyfileobj(runner, output)
+            return stage(
+                [*arguments, source_sha256, str(source_size), helper_commit],
+                combined_archive,
+            )
+
     def m6_inputs_stage(
         self,
         revision: str,
@@ -2625,7 +2677,8 @@ class HpcController:
                 "object_count": object_count,
             },
         )
-        remote = self.transport.m6_inputs_stage(
+        remote = self._stage_m6_runner(
+            record,
             [
                 run_id,
                 commit,
@@ -2777,36 +2830,7 @@ class HpcController:
         ]
         if self.config.site_id == "marmic":
             arguments.extend(_fixed_heteromer_phenix_binding(self.config.repository))
-        try:
-            remote = self.transport.m6_scientific_stage(arguments, archive_path)
-        except RemoteOperationError as error:
-            if not (
-                error.failure_class is FailureClass.FILESYSTEM_FAILURE
-                and str(error)
-                in {"bare Git mirror is absent", "configured Git mirror is not bare"}
-            ):
-                raise
-            self.logger.warning(
-                "using checksum-gated M6 source archive staging",
-                extra={"commit": commit, "profile": profile, "run_id": run_id},
-            )
-            with tempfile.TemporaryDirectory(
-                prefix="nf-gtd-m6-stage-", dir="/tmp"
-            ) as temporary:
-                source_archive = Path(temporary) / "source.tar"
-                source_sha256, source_size, helper_commit = (
-                    self.git.create_source_archive(commit, source_archive)
-                )
-                combined_archive = Path(temporary) / "source-and-runner.bin"
-                with combined_archive.open("wb") as output:
-                    with source_archive.open("rb") as source:
-                        shutil.copyfileobj(source, output)
-                    with archive_path.open("rb") as runner:
-                        shutil.copyfileobj(runner, output)
-                remote = self.transport.m6_scientific_stage(
-                    [*arguments, source_sha256, str(source_size), helper_commit],
-                    combined_archive,
-                )
+        remote = self._stage_m6_runner(record, arguments, archive_path)
         if operational_parent is not None:
             assert operational_precheck_sha256 is not None
             bound = self.transport.run(

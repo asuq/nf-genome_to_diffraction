@@ -1527,20 +1527,23 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
 
 
 @pytest.mark.parametrize("source_archive", [False, True])
-def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
-    tmp_path: Path, source_archive: bool
+@pytest.mark.parametrize("input_only", (False, True))
+def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
+    tmp_path: Path, source_archive: bool, input_only: bool
 ) -> None:
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
     site_config = dispatcher.parent / "site.paths"
     site_config.write_text("marmic\n", encoding="ascii")
     site_config.chmod(0o600)
-    database_paths = _write_database_paths(remote_root)
-    database_manifest = Path(database_paths.read_text().splitlines()[2])
-    database_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
     phenix_manifest = tmp_path / "approved-phenix.json"
-    phenix_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
-    phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
+    phenix_sha256 = ""
+    if not input_only:
+        database_paths = _write_database_paths(remote_root)
+        database_manifest = Path(database_paths.read_text().splitlines()[2])
+        database_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+        phenix_manifest.write_text('{"schema_version":"1.0"}\n', encoding="ascii")
+        phenix_sha256 = hashlib.sha256(phenix_manifest.read_bytes()).hexdigest()
 
     object_bytes = b"bounded M6 object\n"
     object_sha256 = hashlib.sha256(object_bytes).hexdigest()
@@ -1570,8 +1573,10 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
             member.size = len(payload)
             archive.addfile(member, io.BytesIO(payload))
     archive_bytes = archive_buffer.getvalue()
+    run_id = M6_INPUTS_RUN_ID if input_only else M6_OPERATIONAL_RUN_ID
+    operation = "m6-inputs-stage" if input_only else "m6-scientific-stage"
     arguments = [
-        M6_OPERATIONAL_RUN_ID,
+        run_id,
         commit,
         _lock_checksum(tmp_path),
         OWNER_ID,
@@ -1580,21 +1585,23 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
         hashlib.sha256(manifest_bytes).hexdigest(),
         "63",
         "1",
-        "operational",
     ]
+    if not input_only:
+        arguments.append("operational")
+        rejected = _run(
+            [str(dispatcher), operation, *arguments],
+            cwd=tmp_path,
+            environment=environment,
+            input_data=archive_bytes,
+            success=False,
+        )
+        assert _decode_protocol(rejected.stdout)["message"] == (
+            "Marmic M6 requires its fixed Phenix binding"
+        )
 
-    rejected = _run(
-        [str(dispatcher), "m6-scientific-stage", *arguments],
-        cwd=tmp_path,
-        environment=environment,
-        input_data=archive_bytes,
-        success=False,
-    )
-    assert _decode_protocol(rejected.stdout)["message"] == (
-        "Marmic M6 requires its fixed Phenix binding"
-    )
-
-    stage_arguments = [*arguments, str(phenix_manifest), phenix_sha256]
+    stage_arguments = [*arguments]
+    if not input_only:
+        stage_arguments.extend([str(phenix_manifest), phenix_sha256])
     stage_payload = archive_bytes
     source_digest = ""
     if source_archive:
@@ -1605,16 +1612,28 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
             source_tar.add(source, arcname=".", recursive=True)
         source_bytes = source_buffer.getvalue()
         source_digest = hashlib.sha256(source_bytes).hexdigest()
-        stage_arguments.extend([source_digest, str(len(source_bytes)), helper_commit])
-        stage_payload = source_bytes + archive_bytes
         mirror = remote_root / "_cache/git/nf-genome_to_diffraction.git"
         mirror.rename(tmp_path / "unavailable-mirror")
+        rejected = _decode_protocol(
+            _run(
+                [str(dispatcher), operation, *stage_arguments],
+                cwd=tmp_path,
+                environment=environment,
+                input_data=archive_bytes,
+                success=False,
+            ).stdout
+        )
+        assert rejected["failure_class"] == "filesystem_failure"
+        assert rejected["message"] == "bare Git mirror is absent"
+        assert not (remote_root / "runs" / run_id).exists()
+        stage_arguments.extend([source_digest, str(len(source_bytes)), helper_commit])
+        stage_payload = source_bytes + archive_bytes
 
     staged = _decode_protocol(
         _run(
             [
                 str(dispatcher),
-                "m6-scientific-stage",
+                operation,
                 *stage_arguments,
             ],
             cwd=tmp_path,
@@ -1623,17 +1642,22 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
         ).stdout
     )
 
-    state = remote_root / "runs" / M6_OPERATIONAL_RUN_ID / "state"
+    state = remote_root / "runs" / run_id / "state"
     assert staged["site_id"] == "marmic"
     assert (state / "site-id").read_text().strip() == "marmic"
-    assert (state / "nextflow-profile").read_text().strip() == "marmic"
-    assert (state / "execution-policy-id").read_text().strip() == (
-        "m6_nextflow_slurm_marmic_v2"
-    )
-    assert (state / "phenix-manifest").read_text().strip() == str(phenix_manifest)
-    assert (state / "phenix-manifest-sha256").read_text().strip() == phenix_sha256
+    if input_only:
+        assert not (state / "phenix-manifest").exists()
+        assert not (state / "database-manifest").exists()
+    else:
+        assert (state / "nextflow-profile").read_text().strip() == "marmic"
+        assert (state / "execution-policy-id").read_text().strip() == (
+            "m6_nextflow_slurm_marmic_v2"
+        )
+        assert (state / "phenix-manifest").read_text().strip() == str(phenix_manifest)
+        assert (state / "phenix-manifest-sha256").read_text().strip() == phenix_sha256
     assert (state / "m6-runner-case-count").read_text().strip() == "63"
     assert (state / "phase").read_text().strip() == "staged"
+    assert not (tmp_path / "sbatch-args").exists()
     if source_archive:
         assert (state / "source-archive-sha256").read_text().strip() == source_digest
         assert not mirror.exists()

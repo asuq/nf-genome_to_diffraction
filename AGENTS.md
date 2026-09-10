@@ -170,6 +170,17 @@ validation, exact-source deployment, existing scientific task budgets,
 truth isolation and human-review gates; this does not authorise arbitrary
 configuration replacement, unrelated jobs or the cancelled investigation.
 
+The user subsequently reported Raven and Viper CPU available, but explicitly
+kept CPU validation on Marmic and clarified that this availability update is
+not for AF01. Do not infer AF01 GPU allocation or migrate the current M6 tracks.
+
+The user then explicitly overrode the site choice and directed the current test
+to Raven, reusing its existing setup. Qualify the corresponding fixed M6 route
+before execution; do not reinterpret this as AF01 GPU authority or restart the
+cancelled identification work. After the requested large test is submitted and
+Raven monitoring is scheduled, pause development for the user's laptop reboot
+and monitor only the owned Raven run until the user resumes development.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

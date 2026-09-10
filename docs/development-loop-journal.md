@@ -16186,3 +16186,102 @@ with a collapsed combined parent or a guessed command.
   Retry the existing input-only qualification before implementing and running
   the bounded positive/target-absent native control. Four-arm RF and complete M6
   scientific acceptance, subsequent reviews and both releases remain pending.
+
+## 2026-09-10 - Marmic site configured; input source-archive route corrected
+
+- Published `2d5a69dda9d781b43930ee23714812ba269ead3e`; all six lanes of CI
+  `34422051139` passed. Deployed its checksum-verified tools and successfully
+  created the approved canonical Marmic site identity through the new fixed
+  operation. No site guard was bypassed or unrelated configuration replaced.
+- The next input stage passed that guard and failed with `filesystem_failure`:
+  `bare Git mirror is absent`. Owned status confirms no remote run was created.
+  The input profile lacked the source-archive route already supported by
+  scientific M6 staging; no scheduler job or scientific result exists.
+- Reused one bounded source/runner staging implementation for both profiles.
+  Only the two existing classified mirror failures enable the source stream;
+  all other failures propagate unchanged. Source/runner byte counts and
+  checksums, pinned helper, ownership and profile checks remain intact. Temporary
+  transport files now stay under the owned ignored local run directory.
+- Ten focused checks pass, including real dispatcher staging with the mirror
+  absent, exact source-before-runner ordering, preservation of scientific
+  Phenix bindings, input-only independence from database/Phenix configuration,
+  and no retry for other failure classes. Ruff and ty pass. The complete
+  integration/CI milestone remains required before redeployment.
+- The user reported Raven and Viper CPU available but kept CPU validation on
+  Marmic and stated that this update is not for AF01. Do not infer GPU authority
+  or migrate the active qualification. Next finish this input-staging milestone
+  and obtain real input qualification, then the planned two-case native control.
+
+## 2026-09-10 - Raven selected; pause requested after large-test submission
+
+- The user overrode the earlier Marmic choice and directed the current test to
+  Raven using its existing setup. The saved setup records bind the CPU account,
+  locked environment and verified Phenix installation. Its original source and
+  `2d5a69dd` have identical tracked Pixi manifest/lock bytes. These saved records
+  do not establish current M6 database availability or native qualification.
+- The maintained Raven client currently controls only the case-specific
+  identification route. A separate fixed M6 path and its current database
+  bindings remain to qualify. Do not restart that cancelled investigation or
+  represent a small input check as the requested large native test.
+- The user requested a pause after submitting the large test and saving Raven
+  monitoring, to allow a laptop reboot. No Raven M6 job has been submitted.
+  The input-only one-off shortcut was proposed but was not approved; the user
+  clarified that they are waiting for the large test and requested an ETA.
+- The complete local HPC/client/dispatcher/contract subset passes 329 tests for
+  the pending bounded source-archive correction. Preserve these local changes
+  without further Marmic deployment. Next work only on the Raven qualification
+  and required small native control before the large run, then switch to
+  monitoring-only and pause development. GPU/AF01 authority remains unchanged.
+
+## 2026-09-10 - Read-only Raven readiness boundary implemented locally
+
+- A bounded existing-client status probe confirmed that Raven's endpoint is
+  reachable. It did not start or change a run, reuse cancelled scientific
+  evidence or establish M6 readiness.
+- Added a separate read-only readiness operation to the maintained Raven
+  client. It requires a clean published inspection source, uses the existing
+  runtime, binds its source/Pixi lock and saved Phenix manifest, and inventories
+  only bounded immediate entries in fixed project manifest/resource directories.
+  It accepts no run ID or caller-selected inspection script, installs nothing,
+  follows no inventory symlinks and submits no job.
+- The report explicitly withholds database and native-qualification claims.
+  Thirteen focused readiness/controller checks pass; Ruff and ty pass. The
+  existing tested source-archive correction remains preserved in this local
+  integration batch. Complete the local gate and exact-source CI before using
+  the new source-bound read-only operation on Raven.
+- Next inspect the real Raven bindings, then qualify the fixed M6 route and
+  small native control before the requested large submission. Pause development
+  and retain monitoring-only after that submission. No Raven M6 job exists yet.
+
+## 2026-09-10 - Installer fixtures grouped after recurrent launch timeouts
+
+- The next full gate again stopped at the unchanged 10-second temporary-script
+  execution probe, this time in a different Phenix installer test; 1,590 other
+  unit tests passed and all 1,171 source inputs remained unchanged. Preserve this
+  failed gate separately. The earlier full gate and isolated 18-test Phenix run
+  passed without changing the installer or its deadlines.
+- Grouped the complete installer test module under the existing pytest-xdist
+  `loadgroup` mechanism so these filesystem-heavy installer fixtures execute
+  serially within the otherwise parallel suite. No test is skipped or retried,
+  and no production probe, scientific timeout, API or result expectation changes.
+  This bounds test-fixture concurrency; it does not claim the launch delay's
+  operating-system cause has been established.
+- The grouped parallel installer/readiness/controller check passes all 31 tests.
+  Recheck the complete integration gate before publication.
+  Raven remains the requested target and the user confirmed it available again;
+  no new Raven M6 job or scientific acceptance is implied.
+
+## 2026-09-10 - Raven readiness/source-staging integration milestone passed
+
+- The complete locked gate passed: 1,591 unit, 185 contract and 110 integration
+  tests, all schema/documentation/atlas checks, Nextflow syntax and workflow
+  fan-out/resume/cache checks, offline installation and wrapper syntax. All
+  1,171 source inputs remained unchanged throughout the captured gate.
+- The grouped installer fixtures passed with their original probe deadlines
+  and assertions. Earlier timeout failures remain retained separately; no
+  native scientific qualification is inferred from these local checks.
+- Next publish this source for exact-source CI and run its bounded read-only
+  Raven readiness operation against the saved existing runtime and Phenix
+  binding. Resolve the actual database manifest before native qualification.
+  The large Raven test is not submitted; the requested pause-and-monitor-only
+  boundary still follows a genuine large-run submission.

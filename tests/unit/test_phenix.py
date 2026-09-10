@@ -32,6 +32,11 @@ from genome_to_diffraction.phenix.runtime import (
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 
+# These tests create and execute complete temporary installer trees. Repeated
+# full parallel gates hit launch-probe deadlines while isolated execution passed;
+# keep the installer fixtures serial without changing the probe or skipping tests.
+pytestmark = pytest.mark.xdist_group("phenix_installation")
+
 
 def _write_installer(
     path: Path,

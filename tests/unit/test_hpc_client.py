@@ -123,6 +123,7 @@ class FakeTransport:
     control_slice_archive: bytes = b""
     control_matrix_archive: bytes = b""
     m6_inputs_archive: bytes = b""
+    m6_inputs_stage_error: RemoteOperationError | None = None
     m6_scientific_archive: bytes = b""
     m6_scientific_stage_error: RemoteOperationError | None = None
     deploy_error: RemoteOperationError | None = None
@@ -388,6 +389,10 @@ class FakeTransport:
         self, arguments: Sequence[str], archive_path: Path
     ) -> dict[str, str]:
         self.calls.append(("m6-inputs-stage", tuple(arguments)))
+        if self.m6_inputs_stage_error is not None:
+            error = self.m6_inputs_stage_error
+            self.m6_inputs_stage_error = None
+            raise error
         self.m6_inputs_archive = archive_path.read_bytes()
         return {
             "run_id": arguments[0],
@@ -2392,8 +2397,12 @@ def test_m6_stage_rejects_the_retired_development_branch(
     "message",
     ["bare Git mirror is absent", "configured Git mirror is not bare"],
 )
-def test_m6_scientific_stage_streams_bounded_source_before_runner(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, message: str
+@pytest.mark.parametrize("input_only", (False, True))
+def test_m6_stage_streams_bounded_source_before_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    message: str,
+    input_only: bool,
 ) -> None:
     archive = tmp_path / ".untracked" / "m6-runner.tar"
     archive.parent.mkdir()
@@ -2414,36 +2423,81 @@ def test_m6_scientific_stage_streams_bounded_source_before_runner(
         "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
         lambda _repository: ("/approved/site/phenix/manifest.json", "a" * 64),
     )
-    transport = FakeTransport(
-        stage_site_id="marmic",
-        m6_scientific_stage_error=RemoteOperationError(
-            message, failure_class=FailureClass.FILESYSTEM_FAILURE
-        ),
-    )
+    transport = FakeTransport(stage_site_id="marmic")
+    error = RemoteOperationError(message, failure_class=FailureClass.FILESYSTEM_FAILURE)
+    if input_only:
+        transport.m6_inputs_stage_error = error
+    else:
+        transport.m6_scientific_stage_error = error
     controller = _controller(tmp_path, transport)
 
-    staged = controller.m6_scientific_stage(
-        "HEAD",
-        archive,
-        archive_sha256,
-        "operational",
-        source_branch="main",
+    staged = (
+        controller.m6_inputs_stage("HEAD", archive, archive_sha256)
+        if input_only
+        else controller.m6_scientific_stage(
+            "HEAD", archive, archive_sha256, "operational"
+        )
     )
 
     assert staged["site_id"] == "marmic"
+    operation = "m6-inputs-stage" if input_only else "m6-scientific-stage"
     assert [operation for operation, _ in transport.calls] == [
-        "m6-scientific-stage",
-        "m6-scientific-stage",
+        operation,
+        operation,
     ]
     first_arguments = transport.calls[0][1]
     fallback_arguments = transport.calls[1][1]
-    assert fallback_arguments[:12] == first_arguments
-    assert fallback_arguments[12:] == (
+    assert fallback_arguments[: len(first_arguments)] == first_arguments
+    assert fallback_arguments[len(first_arguments) :] == (
         hashlib.sha256(b"source archive").hexdigest(),
         "14",
         "2" * 40,
     )
-    assert transport.m6_scientific_archive == b"source archiveconfirmed M6 runner"
+    streamed = (
+        transport.m6_inputs_archive if input_only else transport.m6_scientific_archive
+    )
+    assert streamed == b"source archiveconfirmed M6 runner"
+    assert archive.read_bytes() == b"confirmed M6 runner"
+    assert list(controller.config.local_state_root.glob("*/m6-source-stage-*")) == []
+
+
+@pytest.mark.parametrize(
+    ("failure_class", "message"),
+    [
+        (FailureClass.FILESYSTEM_FAILURE, "unrelated filesystem failure"),
+        (FailureClass.TRANSFER_FAILURE, "bare Git mirror is absent"),
+    ],
+)
+def test_m6_input_source_stream_is_not_used_for_other_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_class: FailureClass,
+    message: str,
+) -> None:
+    archive = tmp_path / ".untracked/m6-runner.tar"
+    archive.parent.mkdir()
+    archive.write_bytes(b"confirmed M6 runner")
+    checksum = hashlib.sha256(archive.read_bytes()).hexdigest()
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._inspect_m6_runner_archive",
+        lambda candidate, **_kwargs: (
+            candidate,
+            checksum,
+            candidate.stat().st_size,
+            "9" * 64,
+            63,
+            64,
+        ),
+    )
+    transport = FakeTransport(
+        m6_inputs_stage_error=RemoteOperationError(message, failure_class=failure_class)
+    )
+    controller = _controller(tmp_path, transport)
+
+    with pytest.raises(RemoteOperationError, match=message):
+        controller.m6_inputs_stage("HEAD", archive, checksum)
+
+    assert len(transport.calls) == 1
 
 
 @pytest.mark.parametrize("profile", ["p0", "p1", "p2", "p2-diverse", "p2-control"])

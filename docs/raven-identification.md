@@ -55,6 +55,35 @@ failed/cancelled scientific caches remain non-reusable.
 
 ## Controller interface
 
+### Read-only setup inspection
+
+The same client has a separate read-only `readiness` operation for binding the
+existing Raven setup before a new M6 route is qualified. It accepts no run ID
+and cannot start, resume, cancel or change the identification programme:
+
+```text
+pixi run --locked nf-gtd-raven --config CONFIG readiness --revision FULL_COMMIT --runtime-source-commit EXISTING_RUNTIME_COMMIT --phenix-manifest-sha256 FROZEN_PHENIX_SHA256
+```
+
+The local worktree must be clean and the inspection source published on `main`.
+The client sends only the committed standard-library inspection program to the
+existing locked Python. The remote check requires an explicit Raven login node,
+the authenticated account's fixed `/ptmp` root, the exact runtime source commit,
+matching Pixi lock and frozen Phenix-manifest bytes. It records package versions
+and at most 128 immediate entries in each fixed manifest/resource directory.
+Symlinked inventory directories are reported but not followed; metadata limits,
+ownership and scope failures are explicit. No biological data is read, no
+software is installed, and no job or persistent remote state is created.
+
+This produces timestamped setup-inspection evidence, not a scientific cache.
+Both `database_binding_verified` and `native_qualification_verified` remain
+false. A matching runtime does not supply a missing database binding, qualify
+native M6 or authorise AF01 GPU work. Focused checks cover unchanged files,
+source/lock/Phenix/Python drift, symlink handling, inventory bounds and the
+source-bound transport response.
+
+### Owned identification runs
+
 The internal Pixi task reads a private mode-0600 client config containing
 `schema_version`, fixed `ssh_alias: raven`, `remote_root`, and an absolute
 `local_state_root`. Run ownership comes from the exact local run record, not

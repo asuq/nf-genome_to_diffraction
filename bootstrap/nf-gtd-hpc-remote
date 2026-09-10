@@ -3242,11 +3242,16 @@ m6_runner_stage_common() {
     local phenix_manifest expected_database_sha expected_phenix_sha
 
     if [[ "$operation" == m6-inputs-stage ]]; then
-        [[ "$#" -eq 12 ]] || \
-            fail wrapper_failure "M6 input staging received extra arguments"
+        [[ "$#" -eq 12 || "$#" -eq 15 ]] || \
+            fail wrapper_failure "M6 input staging received invalid source arguments"
         [[ "$profile" == m6-inputs && "$track" == qualification ]] || \
             fail wrapper_failure "invalid M6 input qualification profile"
         stage_log=m6-inputs-stage.log
+        if [[ "$#" -eq 15 ]]; then
+            source_archive_sha256="${13}"
+            source_archive_size="${14}"
+            source_helper_commit="${15}"
+        fi
     elif [[ "$operation" == m6-scientific-stage ]]; then
         [[ ( "$profile" == m6-operational && "$track" == operational ) || \
            ( "$profile" == m6-leakage && "$track" == leakage ) ]] || \
@@ -3453,8 +3458,8 @@ PY
 }
 
 m6_inputs_stage_run() {
-    [[ "$#" -eq 9 ]] || \
-        fail wrapper_failure "m6-inputs-stage expects nine fixed arguments"
+    [[ "$#" -eq 9 || "$#" -eq 12 ]] || \
+        fail wrapper_failure "m6-inputs-stage expects its fixed source/runner arguments"
     m6_runner_stage_common m6-inputs-stage m6-inputs qualification "$@"
 }
 

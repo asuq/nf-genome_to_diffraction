@@ -374,13 +374,17 @@ must be entirely `CACHED`. Final collection rehashes the operational precheck
 and requires every reused truthless task hash and complete child-file inventory
 to equal its operational parent.
 
-If the reviewed site has no usable bare Git mirror, the controller retries only
-that exact classified staging failure. It streams the existing checksum-bound,
+For both input-only qualification and scientific staging, if the reviewed site
+has no usable bare Git mirror, the controller retries only that exact classified
+staging failure. Both use the same existing checksum-bound,
 size-limited immutable source checkout first, followed by the independently
 confirmed M6 runner archive. The dispatcher verifies the exact commit, locked
 environment, pinned helper, source checksum, and runner inventory before the
 run becomes stageable; arbitrary uploads and broader transport retries are not
-enabled.
+enabled. Temporary transport files stay in the owned local run directory under
+repository `.untracked/`; the confirmed runner archive is unchanged. Input-only
+staging still requires no database or Phenix configuration and submits no job
+until the separate fixed-profile submit operation.
 
 Each track retains its full raw output remotely, emits compact case evidence
 and a deterministic gzip of every candidate rank, verifies all output
