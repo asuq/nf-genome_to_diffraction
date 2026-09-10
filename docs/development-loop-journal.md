@@ -16438,3 +16438,23 @@ with a collapsed combined parent or a guessed command.
   phase-independent local development-procedure note on each run. Routine
   state changes update that note, not the scheduled rule. The note stays
   outside Git and retains the permission, ownership and pause boundaries.
+
+## 2026-09-11 - CI-qualified login-node database continuation started
+
+- Exact-source CI `34496678923` passed all six lanes at
+  `d691807b3f2c6e70ab34aee1a42b5b93624854ee`. Its isolated scientific source
+  archive was staged without modifying the prior failed run or runtime.
+- The requested login-node continuation is now running with one thread and
+  kernel-enforced single-CPU affinity. Preflight passed, the prepared PDB and
+  ProstT5 resources were reused, and sequence normalisation retained the
+  missing-suffix record with an explicit unavailable-mapping warning.
+  MMseqs database creation completed; index creation remains in progress.
+- Preserve the recorded process identity and inspect only that owned run.
+  Native output-hash comparison, anchored full/functional verification and
+  collection remain pending. Do not infer database or M6 qualification from
+  successful startup, and do not repeat upload, staging or start.
+- The live procedure note now has a phase-independent name and remains the
+  scheduled rule's stable reference. Update the note for routine progress.
+  After database completion, end the database-only raw-SSH exception, restore
+  the preserved native-control-purpose work, and finish the reviewed Raven
+  M6 client/control qualification before the large test. No M6 run is submitted.
