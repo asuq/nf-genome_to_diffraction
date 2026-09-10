@@ -16357,3 +16357,34 @@ with a collapsed combined parent or a guessed command.
   existing functional/full-checksum verification code. Leave job `30126386`
   unchanged and wait for its frozen prepared manifest; this instruction does
   not authorise a second database build or general login-node scientific jobs.
+
+## 2026-09-10 - Login build requested; upstream SEQRES mapping decision required
+
+- The user subsequently requested that the build also run on the login node.
+  The queued job was no longer active when checked; accounting confirms job
+  `30126386` failed with exit 1 after 1m59s. No cancellation was issued. Preserve
+  its complete state and retained diagnostic evidence; do not resubmit Slurm.
+- The build prepared the PDB structure resource and ProstT5 weights, then
+  stopped during PDB-sequence normalisation with
+  `unsupported PDB SEQRES target identifier: '36za_'`. This was not a memory,
+  download or integrity failure. The complete database is not qualified.
+- A checksum-anchored source audit found 1,095,971 protein headers and exactly
+  one absent chain suffix, in the major capsid protein record from 36ZA. No
+  target contains whitespace. Source SHA-256 is
+  `71e6eb6e2a88871a4d985aeecc625a8fcef75fdd99e531f4e96d677a4ef4943b`.
+- The [RCSB entry](https://www.rcsb.org/structure/36ZA) is a real August 26
+  release. Its separately saved official Data API response contains no empty
+  author-chain instance among its 29 polymer entities. Therefore an absent
+  suffix cannot simply become a valid blank chain or a guessed chain ID.
+- Proposed disposition, not implemented or approved: preserve the record as
+  sequence evidence, explicitly mark its coordinate mapping unavailable and
+  prevent its admission as an MR model. This changes the current reference-
+  mapping contract and needs an explicit decision. One retained failed
+  sequence-staging directory also blocks a new build; recoverable archival of
+  that exact owned directory needs approval. Nothing has been deleted or moved.
+- Preserve the incomplete six-file native-control-purpose work separately.
+  Its existing 76 M6/identity unit tests pass, but new-purpose tests, workflow
+  checks, site policy/client integration, full gate and CI remain unfinished.
+  No native-control or large M6 run exists. Continue from the mapping decision,
+  then finish the approved login-node DB build/verification and use only the
+  reviewed Raven client for subsequent M6 work.

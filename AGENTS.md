@@ -205,6 +205,12 @@ prepared manifest and existing functional/full-checksum verification, and do not
 replace or cancel the already submitted build job. Verification is not a new
 database build and does not authorise general scientific work on login nodes.
 
+The user's latest direction also moves the database build itself to the login
+node. Use one CPU for this bounded preparation and verification. The prior
+database job has since failed and is terminal; preserve its evidence and do not
+resubmit it or infer that cancellation is needed. This login-node exception
+remains limited to database preparation, not M6 or other scientific workloads.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.
