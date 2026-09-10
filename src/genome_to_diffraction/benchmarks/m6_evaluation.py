@@ -21,7 +21,10 @@ from genome_to_diffraction.benchmarks.m6_edge import (
     M6EdgeObservation,
     verify_edge_observations,
 )
-from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
+from genome_to_diffraction.benchmarks.m6_execution import (
+    M6_POLICY_FILES,
+    load_m6_execution_policy,
+)
 from genome_to_diffraction.benchmarks.m6_identity import M6IdentityDecision
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
@@ -337,11 +340,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
     protocol_path = request.protocol.resolve(strict=True)
     protocol = load_m6_protocol(protocol_path)
     evidence = load_m6_evidence(request.evidence)
-    policy_names = {
-        "m6_nextflow_slurm_v1": "execution-nextflow-v1.yaml",
-        "m6_nextflow_slurm_marmic_v2": "execution-nextflow-marmic-v2.yaml",
-    }
-    policy_name = policy_names.get(evidence.execution_policy_id or "")
+    policy_name = M6_POLICY_FILES.get(evidence.execution_policy_id or "")
     execution_policy_path = (
         protocol_path.with_name(policy_name) if policy_name is not None else None
     )
@@ -505,7 +504,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
                 and evidence.maximum_cpu_count <= 8
             )
             or (
-                evidence.execution_policy_id in policy_names
+                evidence.execution_policy_id in M6_POLICY_FILES
                 and execution_policy is not None
                 and execution_policy.policy_id == evidence.execution_policy_id
                 and evidence.execution_policy_sha256 == expected_execution_policy_sha256

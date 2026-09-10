@@ -50,7 +50,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="inspect fixed remote prerequisites without staging or submitting",
     )
     readiness.add_argument(
-        "profile", choices=("p0", "p1", "p2", "p2-diverse", "p2-control")
+        "profile",
+        choices=(
+            "smoke",
+            "p0",
+            "p1",
+            "p2",
+            "p2-diverse",
+            "p2-control",
+            "m6-inputs",
+            "m6-nextflow-smoke",
+            "m6-operational",
+            "m6-leakage",
+            "database",
+        ),
     )
 
     marmic_site_configure = actions.add_parser(
@@ -58,6 +71,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="create only the missing fixed Marmic site-identity record",
     )
     marmic_site_configure.add_argument("--revision", required=True)
+    raven_site_configure = actions.add_parser(
+        "raven-site-configure",
+        help="bind the existing Raven runtime without replacing a site record",
+    )
+    raven_site_configure.add_argument("--revision", required=True)
+    raven_site_configure.add_argument("--runtime-source-commit", required=True)
+    raven_site_configure.add_argument("--phenix-manifest-sha256", required=True)
+    raven_database_import = actions.add_parser(
+        "raven-database-import",
+        help="read and collect the existing September login DB bootstrap",
+    )
+    raven_database_import.add_argument("--revision", required=True)
+    raven_database_import.add_argument("--launch-record", type=Path, required=True)
+    raven_database_import.add_argument("--controller-record", type=Path, required=True)
 
     p0_configure = actions.add_parser(
         "p0-configure",
@@ -279,6 +306,14 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.readiness(args.profile)
     if args.operation == "marmic-site-configure":
         return controller.marmic_site_configure(args.revision)
+    if args.operation == "raven-site-configure":
+        return controller.raven_site_configure(
+            args.revision, args.runtime_source_commit, args.phenix_manifest_sha256
+        )
+    if args.operation == "raven-database-import":
+        return controller.raven_database_import(
+            args.revision, args.launch_record, args.controller_record
+        )
     if args.operation == "p0-configure":
         return controller.p0_configure(
             args.paths_file,

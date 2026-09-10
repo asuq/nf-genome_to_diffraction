@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot checksum-gated recovery for the two fixed Marmic HPC tools.
+# One-shot checksum-gated recovery for the two fixed site-isolated HPC tools.
 
 set -euo pipefail
 umask 077
@@ -98,9 +98,16 @@ if [[ -e "$pixi_path" || -L "$pixi_path" ]]; then
 else
     [[ "${USER:-}" =~ ^[A-Za-z0-9._-]+$ ]] || \
         die "remote user name is unsafe"
-    pixi_executable="/home/${USER}/.local/bin/pixi"
-    if [[ ! -x "$pixi_executable" ]]; then
-        pixi_executable="$(command -v pixi || true)"
+    if [[ "$root" == "/ptmp/${USER}/nf-genome_to_diffraction" && \
+          "$(hostname -s)" =~ ^raven0[1-4]i?$ ]]; then
+        # Raven reuses its reviewed project-owned install; never bootstrap a
+        # second environment or select a home-directory runtime for this site.
+        pixi_executable="$root/software/pixi-0.76.2/pixi"
+    else
+        pixi_executable="/home/${USER}/.local/bin/pixi"
+        if [[ ! -x "$pixi_executable" ]]; then
+            pixi_executable="$(command -v pixi || true)"
+        fi
     fi
     [[ "$pixi_executable" =~ ^/[A-Za-z0-9._/-]+$ && \
        -x "$pixi_executable" ]] || \

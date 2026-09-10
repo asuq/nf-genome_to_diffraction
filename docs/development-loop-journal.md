@@ -16458,3 +16458,70 @@ with a collapsed combined parent or a guessed command.
   After database completion, end the database-only raw-SSH exception, restore
   the preserved native-control-purpose work, and finish the reviewed Raven
   M6 client/control qualification before the large test. No M6 run is submitted.
+
+## 2026-09-11 - Original-controller Raven consolidation, local contracts complete
+
+- The user approved extending the original `nf-gtd-hpc-test` cycle and retiring
+  parallel Raven entry points. New run records explicitly bind login-process
+  versus Slurm-job identity; shared status, wait, logs and terminal collection
+  preserve that distinction. Missing process completion is an error, not success.
+- Added an owned create-only Raven site binding and read-only runtime readiness.
+  Staging reuses the existing source/lock-bound environment and Phenix. The
+  source-owned internal supervisor runs the original shared body; Nextflow
+  remains responsible for scientific Slurm children. Fresh Raven database
+  builds and all Raven cleanup remain outside this qualified profile boundary.
+- Added the Raven M6 execution policy and propagated the site mapping through
+  collection/evaluation. Preserve 32 CPUs, 192 GB, 128-query Foldseek batches,
+  24-hour child jobs and maintained scheduler controls. Scientific case sets,
+  thresholds and truth isolation are unchanged. Leakage-parent checks bind the
+  original process identity as well as completion and scientific output hashes.
+- Added a bounded read-only import for the already launched database bootstrap.
+  It preserves the original records as explicitly non-managed historical
+  evidence, cannot execute or cancel the old helper, and checks the existing
+  terminal manifests without inventing absent exit or scheduler fields.
+- Removed the parallel Raven Pixi command, transport, dispatcher, identification
+  launcher/readiness modules and obsolete protocol tests. Historical Git, remote
+  source and scientific evidence are unchanged. Updated active runbooks to use
+  the original approved executable; the cancelled identification programme stays
+  closed.
+- The focused controller/process/import/M6 suite passed 313 tests before the
+  final cleanup guard, eight Raven dispatch/readiness tests passed, and an
+  earlier broader dispatcher/M6 run passed 216 tests. Lint, type, documentation
+  and format checks pass. Next run the named complete consolidation gate,
+  publish the clean commit for exact-source CI, then refresh/deploy the original
+  controller before importing database state and qualifying the native stub.
+  The small native-control-purpose work remains preserved separately. No new
+  remote operation, installation, deployment or M6 submission has occurred.
+- The first complete gate passed all 1,643 unit tests and 184 contract tests;
+  one contract assertion still expected the superseded Viper-only mount-alias
+  diagnostic. Updated it to assert both reviewed sites and Raven's fixed M6
+  resources. Separately, read-only review found the existing database-config
+  installer compared lexical and physical roots directly. Added confined
+  alias-aware validation and a fixed Raven runtime-only database binding that
+  preserves the original bootstrap capacity/reserve values; new builds remain
+  disabled. All eight focused binding/alias/site-policy tests pass. Rerun the
+  named full gate before publication; the first attempt is not a passed gate.
+- The recheck passed 1,646 unit, 185 contract and 120 integration tests plus
+  the Nextflow syntax/stub, scientific fan-out and cache/resume checks, but
+  failed offline wheel startup. The collected traceback identified the new
+  scientific collector's import from the intentionally undistributed internal
+  HPC package. Moved shared read-only process/result validation into the public
+  execution-evidence layer and updated every caller, preserving the internal
+  controller's packaging exclusion. Added a focused public-CLI import-boundary
+  regression. Recheck packaging and the complete milestone before publication;
+  no controller was installed or deployed from either failed gate.
+- The corrected complete gate passed with all 1,172 captured source inputs
+  unchanged: 1,647 unit, 185 contract and 120 integration tests, plus all schema,
+  documentation/atlas, Nextflow, scientific cache/fan-out/resume, offline wheel
+  and wrapper checks. Gate log SHA-256 is
+  `bb1174c2661392c1aefe1675730e8adc397c5858bab5f664a6d0bf708d451e34`.
+  Elapsed time was 24m57s. Commit this focused consolidation for exact-source CI;
+  installation, deployment, database import and native M6 qualification remain
+  pending.
+- While that gate ran, the user requested safe test parallelisation for the next
+  testing cycle. Inspection found that local gate groups run sequentially even
+  though pytest is parallel and CI already has six independent groups. Reuse
+  those groups behind the existing `pixi run --locked check` entry point, isolate
+  Nextflow history/cache/log state and bound worker/thread counts. Keep dependent
+  execution/resume checks sequential within their suites, preserve every gate
+  check, and validate/measure the new runner before claiming a speed improvement.

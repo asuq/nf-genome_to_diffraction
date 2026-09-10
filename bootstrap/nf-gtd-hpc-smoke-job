@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Fixed Slurm job body for the reviewed multi-site profiles, including
-# separately gated database-administration profiles.
+# Shared body for fixed Slurm jobs and source-owned Raven login controllers.
 
 set -euo pipefail
 umask 077
@@ -23,10 +22,20 @@ PROFILE="${3-}"
     printf 'run ID does not match the fixed profile\n' >&2
     exit 2
 }
-[[ "${SLURM_JOB_ID:-}" =~ $INTEGER_RE ]] || {
-    printf 'missing Slurm job ID\n' >&2
+CONTROLLER_KIND="${GTD_CONTROLLER_KIND:-slurm_job}"
+if [[ "$CONTROLLER_KIND" == login_process ]]; then
+    [[ -z "${SLURM_JOB_ID:-}" && \
+       "$PROFILE" =~ ^(m6-nextflow-smoke|m6-operational|m6-leakage)$ ]] || {
+        printf 'login controller cannot carry a Slurm allocation or unreviewed profile\n' >&2
+        exit 2
+    }
+    EXECUTION_ID="process-${BASHPID}"
+elif [[ "$CONTROLLER_KIND" == slurm_job && "${SLURM_JOB_ID:-}" =~ $INTEGER_RE ]]; then
+    EXECUTION_ID="$SLURM_JOB_ID"
+else
+    printf 'missing Slurm job ID or invalid controller kind\n' >&2
     exit 2
-}
+fi
 if [[ "$PROFILE" == database ]]; then
     if [[ "${SLURM_CPUS_PER_TASK:-}" != 4 ]]; then
         printf 'database build job requires exactly 4 allocated CPUs\n' >&2
@@ -58,11 +67,11 @@ RUN="$ROOT/runs/$RUN_ID"
 RESOLVED_ROOT="$(cd "$ROOT" && pwd -P)"
 if [[ "$RESOLVED_ROOT" != "$ROOT" ]]; then
     [[ -f "$RUN/state/site-id" && ! -L "$RUN/state/site-id" && \
-        "$(<"$RUN/state/site-id")" == viper-cpu ]] || {
-        printf 'managed run root is a non-Viper noncanonical path\n' >&2
+        "$(<"$RUN/state/site-id")" =~ ^(viper-cpu|raven)$ ]] || {
+        printf 'managed run root is not a reviewed site mount alias\n' >&2
         exit 2
     }
-    # Viper presents /ptmp through a site mount alias whose physical backing
+    # Viper/Raven present /ptmp through a site mount alias whose physical backing
     # path differs on compute nodes. Keep the reviewed lexical root so all
     # recorded paths remain site-stable; the owned immutable run anchors it.
 fi
@@ -70,6 +79,15 @@ fi
     printf 'recorded profile does not match the job request\n' >&2
     exit 2
 }
+if [[ "$CONTROLLER_KIND" == login_process ]]; then
+    [[ "$(<"$RUN/state/site-id")" == raven && \
+       "$(<"$RUN/state/controller-kind")" == login_process && \
+       "$(hostname -s)" == "$(<"$RUN/state/login-host")" && \
+       -f "$RUN/state/controller.json" && ! -L "$RUN/state/controller.json" ]] || {
+        printf 'login body requires an owned Raven supervisor identity\n' >&2
+        exit 2
+    }
+fi
 PIXI_BIN="$(<"$RUN/state/pixi-bin")"
 [[ "$PIXI_BIN" =~ $SAFE_PATH_RE && -x "$PIXI_BIN" ]] || {
     printf 'recorded Pixi executable is invalid\n' >&2
@@ -95,7 +113,7 @@ if [[ "$PROFILE" != database ]]; then
         printf 'Slurm scratch parent is not a safe absolute path\n' >&2
         exit 2
     }
-    SCRATCH="${SCRATCH_PARENT%/}/nf-gtd-${SLURM_JOB_ID}-${RUN_ID}"
+    SCRATCH="${SCRATCH_PARENT%/}/nf-gtd-${EXECUTION_ID}-${RUN_ID}"
     SOURCE="$SCRATCH/source"
 fi
 STARTED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
@@ -111,26 +129,27 @@ atomic_text() {
 
 finalise() {
     local exit_code="$?"
-    local failure_class scheduler_state ended_at result_tmp active_run="" active_job=""
+    local failure_class execution_state ended_at result_tmp active_run="" active_job=""
+    local result_name=job-result.json execution_fields
     local active_lock=""
     local cleanup_failed=false reports_json='[]' retained_json='[]'
     trap - EXIT TERM INT
     set +e
     if (( exit_code == 0 )); then
         failure_class=success
-        scheduler_state=COMPLETED
+        execution_state=COMPLETED
     elif [[ "$PHASE" == cancelled ]]; then
         failure_class=unknown_failure
-        scheduler_state=CANCELLED
+        execution_state=CANCELLED
     elif [[ "$PHASE" == environment || "$PHASE" == preflight ]]; then
         failure_class=environment_failure
-        scheduler_state=FAILED
+        execution_state=FAILED
     elif [[ "$PHASE" == test ]]; then
         failure_class=test_failure
-        scheduler_state=FAILED
+        execution_state=FAILED
     else
         failure_class=software_failure
-        scheduler_state=FAILED
+        execution_state=FAILED
     fi
     if (( exit_code != 0 )) && [[ "$PROFILE" == unknown-screen && "$PHASE" == test ]]; then
         if ! collect_unknown_screen_failure_evidence; then
@@ -163,7 +182,7 @@ finalise() {
         if (( exit_code == 0 )); then
             exit_code=6
             failure_class=filesystem_failure
-            scheduler_state=FAILED
+            execution_state=FAILED
         fi
     else
         printf 'scratch_cleanup_status=success\n'
@@ -236,26 +255,29 @@ finalise() {
     atomic_text "$RUN/state/exit-code" "$exit_code"
     atomic_text "$RUN/state/failure-class" "$failure_class"
     atomic_text "$RUN/state/phase" "completed"
-    result_tmp="$RUN/state/job-result.json.tmp.$$"
+    if [[ "$CONTROLLER_KIND" == login_process ]]; then
+        result_name=body-result.json
+        execution_fields="\"controller_kind\": \"login_process\", \"controller_state\": \"$execution_state\", \"standard_output\": \"logs/controller.log\", \"standard_error\": \"logs/controller.log\""
+    else
+        execution_fields="\"job_id\": \"$SLURM_JOB_ID\", \"scheduler_state\": \"$execution_state\", \"standard_output\": \"logs/slurm-${SLURM_JOB_ID}.out\", \"standard_error\": \"logs/slurm-${SLURM_JOB_ID}.out\""
+    fi
+    result_tmp="$RUN/state/$result_name.tmp.$$"
     cat > "$result_tmp" <<EOF
 {
   "schema_version": "1.0",
   "run_id": "$RUN_ID",
   "profile": "$PROFILE",
-  "job_id": "$SLURM_JOB_ID",
+  $execution_fields,
   "started_at": "$STARTED_AT",
   "completed_at": "$ended_at",
-  "scheduler_state": "$scheduler_state",
   "exit_code": $exit_code,
   "failure_class": "$failure_class",
-  "standard_output": "logs/slurm-${SLURM_JOB_ID}.out",
-  "standard_error": "logs/slurm-${SLURM_JOB_ID}.out",
   "application_log": "logs/${PROFILE}.log",
   "structured_test_reports": $reports_json,
   "retained_artifacts": $retained_json
 }
 EOF
-    mv -f -- "$result_tmp" "$RUN/state/job-result.json"
+    mv -f -- "$result_tmp" "$RUN/state/$result_name"
     printf '{"event":"job_completed","profile":"%s","timestamp":"%s"}\n' \
         "$PROFILE" "$ended_at" >> "$RUN/events.jsonl"
     exit "$exit_code"
@@ -334,7 +356,7 @@ site_resolved_path() {
         printf '%s\n' "$resolved"
         return 0
     fi
-    [[ "$(<"$RUN/state/site-id")" == viper-cpu && \
+    [[ "$(<"$RUN/state/site-id")" =~ ^(viper-cpu|raven)$ && \
         ( "$candidate" == "$ROOT" || "$candidate" == "$ROOT"/* ) ]] || return 1
     suffix="${candidate#"$ROOT"}"
     [[ "$resolved" == "$RESOLVED_ROOT$suffix" ]] || return 1
@@ -4022,6 +4044,10 @@ load_m6_smoke_site_contract() {
         expected_profile=marmic
         expected_policy_relative=benchmarks/m6/execution-nextflow-marmic-v2.yaml
         expected_policy_id=m6_nextflow_slurm_marmic_v2
+    elif [[ "$M6_SITE_ID" == raven ]]; then
+        expected_profile=raven
+        expected_policy_relative=benchmarks/m6/execution-nextflow-raven-v1.yaml
+        expected_policy_id=m6_nextflow_slurm_raven_v1
     else
         printf 'unsupported M6 smoke site identity\n' >&2
         return 1
@@ -4055,6 +4081,22 @@ load_m6_smoke_site_contract() {
         printf 'run-owned M6 Apptainer cache is unsafe\n' >&2
         return 1
     }
+}
+
+validate_m6_driver() {
+    if [[ "$CONTROLLER_KIND" == login_process ]]; then
+        [[ "$M6_SITE_ID" == raven && -z "${SLURM_JOB_ID:-}" && \
+           -z "${SLURM_CPUS_PER_TASK:-}" && -z "${SLURM_MEM_PER_NODE:-}" ]] || return 2
+        export HOSTNAME="$(hostname -s)"
+        export PYTHONPATH="$RUN/source/src" PYTHONDONTWRITEBYTECODE=1
+        # This is the JVM heap budget, not a claimed Slurm memory allocation.
+        export NXF_OPTS='-Xms256m -Xmx6g -XX:ActiveProcessorCount=2'
+    else
+        [[ "${SLURM_CPUS_PER_TASK:-0}" == 2 ]] || return 2
+        if [[ -n "${SLURM_MEM_PER_NODE:-}" ]]; then
+            [[ "$SLURM_MEM_PER_NODE" == 8192 ]] || return 2
+        fi
+    fi
 }
 
 run_m6_stub_nextflow() {
@@ -4102,10 +4144,7 @@ run_m6_nextflow_smoke() {
     load_m6_smoke_site_contract || return 2
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
-    [[ "${SLURM_CPUS_PER_TASK:-0}" == 2 ]] || return 2
-    if [[ -n "${SLURM_MEM_PER_NODE:-}" ]]; then
-        [[ "$SLURM_MEM_PER_NODE" == 8192 ]] || return 2
-    fi
+    validate_m6_driver || return 2
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
     JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
@@ -4575,10 +4614,7 @@ run_m6_scientific() {
        "$expected_phenix_sha" =~ $CHECKSUM_RE && \
        "$(sha256sum "$M6_PHENIX_MANIFEST" | awk '{print $1}')" == \
        "$expected_phenix_sha" ]] || return 2
-    [[ "${SLURM_CPUS_PER_TASK:-0}" == 2 ]] || return 2
-    if [[ -n "${SLURM_MEM_PER_NODE:-}" ]]; then
-        [[ "$SLURM_MEM_PER_NODE" == 8192 ]] || return 2
-    fi
+    validate_m6_driver || return 2
     GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
     NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
     JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
@@ -5356,13 +5392,22 @@ exec > "$RUN/logs/${PROFILE}.log" 2>&1
 
 printf 'run_id=%s\n' "$RUN_ID"
 printf 'profile=%s\n' "$PROFILE"
-printf 'job_id=%s\n' "$SLURM_JOB_ID"
+printf 'controller_kind=%s\n' "$CONTROLLER_KIND"
+if [[ "$CONTROLLER_KIND" == slurm_job ]]; then
+    printf 'job_id=%s\n' "$SLURM_JOB_ID"
+else
+    printf 'body_pid=%s\n' "$BASHPID"
+fi
 printf 'compute_host=%s\n' "$(hostname -f)"
 printf 'source_commit=%s\n' "$(<"$RUN/state/commit")"
 printf 'pixi_executable=%s\n' "$PIXI_BIN"
 "$PIXI_BIN" --version
 
 export PIXI_CACHE_DIR="$ROOT/_cache/pixi"
+if [[ "$(<"$RUN/state/site-id")" == raven ]]; then
+    export PYTHONPATH="$RUN/source/src" PYTHONDONTWRITEBYTECODE=1
+    export PIXI_HOME="$ROOT/software/pixi-home" XDG_CACHE_HOME="$RUN/cache/xdg"
+fi
 if [[ "$PROFILE" != database ]]; then
     export TMPDIR="$SCRATCH/tmp"
 fi

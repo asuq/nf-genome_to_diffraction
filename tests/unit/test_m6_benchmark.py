@@ -44,11 +44,13 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
     evaluate_m6,
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
+    M6_SITE_POLICIES,
     M6ChildOutputEvidenceRequest,
     M6ResourceEvidenceRequest,
     collect_m6_child_output_evidence,
     collect_m6_resource_evidence,
     load_m6_execution_policy,
+    m6_operational_precheck_paths,
 )
 from genome_to_diffraction.benchmarks.m6_identity import (
     M6IdentityCandidate,
@@ -126,6 +128,7 @@ EXECUTION_POLICY = ROOT / "benchmarks" / "m6" / "execution-nextflow-v1.yaml"
 MARMIC_EXECUTION_POLICY = (
     ROOT / "benchmarks" / "m6" / "execution-nextflow-marmic-v2.yaml"
 )
+RAVEN_EXECUTION_POLICY = ROOT / "benchmarks/m6/execution-nextflow-raven-v1.yaml"
 HASH = "a" * 64
 
 
@@ -561,6 +564,9 @@ def _synthetic_collection_protocol(tmp_path: Path) -> Path:
     (tmp_path / "execution-nextflow-v1.yaml").write_bytes(EXECUTION_POLICY.read_bytes())
     (tmp_path / "execution-nextflow-marmic-v2.yaml").write_bytes(
         MARMIC_EXECUTION_POLICY.read_bytes()
+    )
+    (tmp_path / RAVEN_EXECUTION_POLICY.name).write_bytes(
+        RAVEN_EXECUTION_POLICY.read_bytes()
     )
     load_m6_protocol(path)
     return path
@@ -1201,15 +1207,9 @@ def _synthetic_collection(
         "tool_runtime_timeouts": False,
     }
     if nextflow:
-        execution_policy_id = (
-            "m6_nextflow_slurm_marmic_v2"
-            if site_id == "marmic"
-            else "m6_nextflow_slurm_v1"
-        )
-        execution_policy_path = (
-            MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
-        )
-        search_memory_gb = 192.0 if site_id == "marmic" else 16.0
+        execution_policy_id, policy_name = M6_SITE_POLICIES[site_id]
+        execution_policy_path = PROTOCOL.with_name(policy_name)
+        search_memory_gb = 192.0 if site_id in {"marmic", "raven"} else 16.0
         runtime.update(
             execution_model="nextflow_dsl2_slurm_fanout",
             execution_policy=execution_policy_id,
@@ -1342,6 +1342,8 @@ def _synthetic_collection(
     _write_json(
         root / "manifest.json",
         {
+            "schema_version": "1.1" if site_id == "raven" else "1.0",
+            "controller_kind": "login_process" if site_id == "raven" else "slurm_job",
             "run_id": run_id,
             "site_id": site_id,
             "profile": profile,
@@ -1352,14 +1354,46 @@ def _synthetic_collection(
             "database_manifest_sha256": "3" * 64,
         },
     )
-    _write_json(
-        state / "job-result.json",
-        {
-            "scheduler_state": "COMPLETED",
-            "exit_code": 0,
-            "failure_class": "success",
-        },
-    )
+    if site_id == "raven":
+        identity = {
+            "schema_version": "1.0",
+            "run_id": run_id,
+            "site_id": site_id,
+            "profile": profile,
+            "source_commit": commit,
+            "controller_kind": "login_process",
+            "owner_id": "a" * 32,
+            "process": {
+                "host": "raven03",
+                "pid": 12345,
+                "start_ticks": "123456",
+                "boot_id": "01234567-89ab-cdef-0123-456789abcdef",
+            },
+            "started_at": "2026-09-11T00:00:00Z",
+        }
+        _write_json(state / "controller.json", identity)
+        _write_json(
+            state / "controller-result.json",
+            {
+                **identity,
+                "controller_state": "COMPLETED",
+                "completed_at": "2026-09-11T00:01:00Z",
+                "exit_code": 0,
+                "failure_class": "success",
+                "standard_output": "logs/controller.log",
+                "standard_error": "logs/controller.log",
+                "application_log": f"logs/{profile}.log",
+            },
+        )
+    else:
+        _write_json(
+            state / "job-result.json",
+            {
+                "scheduler_state": "COMPLETED",
+                "exit_code": 0,
+                "failure_class": "success",
+            },
+        )
     (state / "failure-class").write_text("success\n", encoding="ascii")
     (state / "exit-code").write_text("0\n", encoding="ascii")
     (state / "m6-runner-archive-sha256").write_text("5" * 64, encoding="ascii")
@@ -1369,12 +1403,7 @@ def _synthetic_collection(
         operational_manifest = json.loads(
             (operational / "manifest.json").read_text(encoding="utf-8")
         )
-        precheck_paths = (
-            "manifest.json",
-            "state/job-result.json",
-            "artifacts/qualification/m6-scientific-summary.json",
-            "artifacts/qualification/m6-scientific-checksums.sha256",
-        )
+        precheck_paths = m6_operational_precheck_paths(site_id)
         inventory = "".join(
             f"{sha256_file(operational / relative)}  {relative}\n"
             for relative in precheck_paths
@@ -1535,6 +1564,7 @@ def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
         ("viper-cpu", "m6_nextflow_slurm_v1", False),
         ("viper-cpu", "m6_nextflow_slurm_v1", True),
         ("marmic", "m6_nextflow_slurm_marmic_v2", True),
+        ("raven", "m6_nextflow_slurm_raven_v1", True),
     ],
 )
 def test_m6_collection_accepts_two_identity_bearing_tracks(
@@ -1574,10 +1604,12 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
 
     assert result.evidence.execution_policy_id == policy_id
     assert result.evidence.maximum_cpu_count == 32
-    assert result.evidence.maximum_memory_gb == (192.0 if site_id == "marmic" else 16.0)
+    assert result.evidence.maximum_memory_gb == (
+        192.0 if site_id in {"marmic", "raven"} else 16.0
+    )
     assert result.evidence.child_job_count == 2
     assert result.evidence.execution_policy_sha256 == sha256_file(
-        MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
+        PROTOCOL.with_name(M6_SITE_POLICIES[site_id][1])
     )
     assert result.evidence.private_truth_map_sha256 == sha256_file(truth)
     assert result.evidence.provenance.track_source_commits == {
@@ -2551,6 +2583,13 @@ def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
             30,
             "10/1s",
         ),
+        (
+            RAVEN_EXECUTION_POLICY,
+            "raven",
+            "m6_nextflow_slurm_raven_v1",
+            250,
+            "5/1s",
+        ),
     ],
 )
 def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
@@ -2562,7 +2601,7 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     submit_rate_limit: str,
 ) -> None:
     policy = load_m6_execution_policy(policy_path)
-    expected_memory = 192.0 if site_id == "marmic" else 16.0
+    expected_memory = 192.0 if site_id in {"marmic", "raven"} else 16.0
     trace = tmp_path / "trace.tsv"
     trace.write_text(
         "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\tcomplete\tpeak_rss\t%cpu\n"
@@ -2592,8 +2631,11 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     assert policy.search_batching.foldseek.cpus == 32
     assert policy.per_job.maximum_memory_gb == expected_memory
     assert policy.search_batching.foldseek.maximum_unique_sequences == (
-        128 if site_id == "marmic" else 10_000
+        128 if site_id in {"marmic", "raven"} else 10_000
     )
+    if site_id == "raven":
+        assert policy.driver.model_dump()["controller_kind"] == "login_process"
+        assert "maximum_scheduler_hours" not in policy.driver.model_dump()
     assert evidence.per_job_bounds_passed is True
     assert evidence.execution_policy_id == policy_id
     assert evidence.execution_policy_sha256 == sha256_file(policy_path)

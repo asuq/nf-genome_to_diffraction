@@ -147,6 +147,8 @@ class FakeTransport:
 
     def run(self, operation: str, arguments: Sequence[str]) -> dict[str, str]:
         self.calls.append((operation, tuple(arguments)))
+        if operation == "raven-site-configure" and self.site_setup_response is not None:
+            return self.site_setup_response
         if operation == "deploy-tools" and self.deploy_error is not None:
             raise self.deploy_error
         if operation == "stage" and self.stage_error is not None:
@@ -2792,6 +2794,43 @@ def test_database_runtime_configuration_is_create_only_and_checksum_confirmed(
         controller.database_runtime_configure(paths_file, checksum)
 
 
+@pytest.mark.parametrize("tampering", [None, "path", "capacity"])
+def test_raven_database_runtime_binding_preserves_original_settings(
+    tmp_path: Path,
+    tampering: str | None,
+) -> None:
+    transport = FakeTransport()
+    controller, _ = _login_controller(tmp_path, transport)
+    root = "/ptmp/testuser/nf-genome_to_diffraction"
+    controller.config = replace(
+        controller.config, remote_dispatcher=f"{root}/_tooling/nf-gtd-hpc-remote"
+    )
+    fields = [
+        root,
+        f"{root}/databases",
+        f"{root}/databases/database_manifest.json",
+        "100000000000",
+        "200000000000",
+        "50000000000",
+        "200000000000",
+    ]
+    if tampering == "path":
+        fields[1] = "/unrelated/databases"
+    elif tampering == "capacity":
+        fields[3] = "800000000000"
+    path = tmp_path / "database.paths"
+    path.write_text("\n".join(fields) + "\n")
+    path.chmod(0o600)
+    if tampering:
+        with pytest.raises(ValidationError, match="fixed database binding"):
+            controller.database_runtime_configure(path, sha256_file(path))
+        assert transport.calls == []
+    else:
+        result = controller.database_runtime_configure(path, sha256_file(path))
+        assert result["operation"] == "database-runtime-configure"
+        assert transport.calls[0][0] == "database-runtime-configure"
+
+
 def test_p0_input_staging_is_frozen_rewritten_and_checksum_gated(
     tmp_path: Path,
 ) -> None:
@@ -3081,6 +3120,265 @@ def test_wait_accepts_explicit_running_and_terminal_scheduler_evidence(
 
     assert result["scheduler_state"] == "COMPLETED"
     assert result["terminal"] == "true"
+
+
+def _login_controller(
+    tmp_path: Path, transport: FakeTransport
+) -> tuple[HpcController, str]:
+    """Install local ownership only; do not imply a qualified remote staging path."""
+
+    controller = _controller(tmp_path, transport)
+    controller.config = replace(controller.config, site_id="raven", ssh_alias="raven")
+    run_id = "gtd-m6-operational-20260911T000000Z-111111111111-01234567"
+    LocalRunRecord(
+        run_id=run_id,
+        site_id="raven",
+        commit=COMMIT,
+        owner_id="a" * 32,
+        profile="m6-operational",
+        iteration=1,
+        parent_run_id=None,
+    ).write(controller.config.local_state_root)
+    return controller, run_id
+
+
+def _login_status(state: str, terminal: str) -> dict[str, str]:
+    return {
+        "controller_kind": "login_process",
+        "controller_state": state,
+        "controller_host": "raven03",
+        "controller_pid": "12345",
+        "controller_start_ticks": "1234567",
+        "controller_boot_id": "01234567-89ab-cdef-0123-456789abcdef",
+        "terminal": terminal,
+    }
+
+
+def _owned_login_terminal_files(
+    controller: HpcController, run_id: str
+) -> dict[str, bytes]:
+    files = _owned_terminal_files(controller, run_id)
+    manifest = json.loads(files["manifest.json"])
+    manifest.update(schema_version="1.1", controller_kind="login_process")
+    files["manifest.json"] = json.dumps(manifest).encode()
+    del files["state/job-id"]
+    job_result = json.loads(files.pop("state/job-result.json"))
+    del job_result["job_id"]
+    state = job_result.pop("scheduler_state")
+    record = controller._owned_run(run_id)
+    identity = {
+        "schema_version": "1.0",
+        "run_id": run_id,
+        "owner_id": record.owner_id,
+        "site_id": "raven",
+        "profile": record.profile,
+        "source_commit": record.commit,
+        "controller_kind": "login_process",
+        "started_at": job_result["started_at"],
+        "process": {
+            "host": "raven03",
+            "pid": 12345,
+            "start_ticks": "1234567",
+            "boot_id": "01234567-89ab-cdef-0123-456789abcdef",
+        },
+    }
+    result = {
+        **job_result,
+        **identity,
+        "controller_state": state,
+        "standard_output": "logs/controller.log",
+        "standard_error": "logs/controller.log",
+    }
+    files["state/controller.json"] = json.dumps(identity).encode()
+    files["state/controller-result.json"] = json.dumps(result).encode()
+    return files
+
+
+def test_login_wait_uses_process_state_without_a_scheduler_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transport = FakeTransport(
+        status_responses=[
+            _login_status("RUNNING", "false"),
+            _login_status("COMPLETED", "true"),
+        ]
+    )
+    controller, run_id = _login_controller(tmp_path, transport)
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.time.sleep", lambda _: None)
+    result = controller.wait(run_id)
+    assert result["controller_state"] == "COMPLETED"
+    assert result["controller_kind"] == "login_process"
+    assert "scheduler_state" not in result and "job_id" not in result
+    assert all(operation != "cancel" for operation, _ in transport.calls)
+
+
+def test_raven_cleanup_is_not_inferred_from_missing_scheduler_id(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller, run_id = _login_controller(tmp_path, transport)
+    with pytest.raises(ValidationError, match="cleanup is outside"):
+        controller.clean(run_id, run_id)
+    assert transport.calls == []
+
+
+def test_raven_site_binding_uses_the_shared_reviewed_dispatcher(tmp_path: Path) -> None:
+    transport = FakeTransport()
+    controller, _ = _login_controller(tmp_path, transport)
+    controller.config = replace(
+        controller.config,
+        remote_dispatcher=(
+            "/ptmp/test/nf-genome_to_diffraction/_tooling/nf-gtd-hpc-remote"
+        ),
+    )
+    root = "/ptmp/test/nf-genome_to_diffraction"
+    dispatcher_sha = sha256_file(tmp_path / "bootstrap/nf-gtd-hpc-remote")
+    lock_sha = sha256_file(tmp_path / "pixi.lock")
+    site_text = "\n".join(
+        [
+            "raven",
+            root,
+            f"{root}/software/pixi-0.76.2/pixi",
+            COMMIT,
+            lock_sha,
+            "f" * 64,
+            "mmm_cpu",
+            "raven03",
+            "",
+        ]
+    )
+    transport.site_setup_response = {
+        "operation": "raven-site-configure",
+        "site_id": "raven",
+        "configured": "true",
+        "dispatcher_sha256": dispatcher_sha,
+        "runtime_source_commit": COMMIT,
+        "pixi_lock_sha256": lock_sha,
+        "phenix_manifest_sha256": "f" * 64,
+        "login_host": "raven03",
+        "site_config_sha256": hashlib.sha256(site_text.encode()).hexdigest(),
+    }
+    result = controller.raven_site_configure("HEAD", COMMIT, "f" * 64)
+    assert result["commit"] == COMMIT
+    assert transport.calls == [
+        ("raven-site-configure", (dispatcher_sha, COMMIT, lock_sha, "f" * 64))
+    ]
+    transport.site_setup_response["site_config_sha256"] = "a" * 64
+    with pytest.raises(RemoteOperationError, match="reviewed bindings"):
+        controller.raven_site_configure("HEAD", COMMIT, "f" * 64)
+
+
+@pytest.mark.parametrize(
+    "tampering",
+    [
+        "job_id",
+        "scheduler_state",
+        "controller_kind",
+        "controller_host",
+        "controller_pid",
+        "controller_start_ticks",
+        "controller_boot_id",
+        "terminal",
+        "controller_state",
+    ],
+)
+def test_login_status_rejects_mixed_or_incomplete_process_evidence(
+    tmp_path: Path, tampering: str
+) -> None:
+    response = _login_status("RUNNING", "false")
+    response[tampering] = "invalid"
+    transport = FakeTransport(status_responses=[response])
+    controller, run_id = _login_controller(tmp_path, transport)
+    with pytest.raises(RemoteOperationError):
+        controller.status(run_id)
+
+
+@pytest.mark.parametrize("success", [True, False])
+def test_login_collection_binds_owned_source_and_process_identity(
+    tmp_path: Path, success: bool
+) -> None:
+    transport = FakeTransport()
+    controller, run_id = _login_controller(tmp_path, transport)
+    files = _owned_login_terminal_files(controller, run_id)
+    if success:
+        result = json.loads(files["state/controller-result.json"])
+        result.update(
+            controller_state="COMPLETED", exit_code=0, failure_class="success"
+        )
+        files["state/controller-result.json"] = json.dumps(result).encode()
+        files["state/failure-class"] = b"success\n"
+    transport.archive = _archive(files)
+    collected = controller.collect(run_id)
+    assert (collected["failure_signature"] is None) == success
+    destination = Path(str(collected["destination"]))
+    assert (destination / "state/controller-result.json").is_file()
+    assert not (destination / "state/job-result.json").exists()
+
+
+@pytest.mark.parametrize(
+    "tampering",
+    [
+        "missing_identity",
+        "missing_result",
+        "scheduler_evidence",
+        "wrong_manifest_kind",
+        "wrong_owner",
+        "wrong_source",
+        "reused_pid",
+        "wrong_boot",
+        "wrong_host",
+        "success_nonzero",
+        "result_scheduler_state",
+        "invalid_process_identity",
+        "different_started_at",
+    ],
+)
+def test_login_collection_rejects_unbound_evidence_before_publication(
+    tmp_path: Path, tampering: str
+) -> None:
+    transport = FakeTransport()
+    controller, run_id = _login_controller(tmp_path, transport)
+    files = _owned_login_terminal_files(controller, run_id)
+    result = json.loads(files["state/controller-result.json"])
+    if tampering == "missing_identity":
+        del files["state/controller.json"]
+    elif tampering == "missing_result":
+        del files["state/controller-result.json"]
+    elif tampering == "scheduler_evidence":
+        files["state/job-id"] = b"12345\n"
+    elif tampering == "wrong_manifest_kind":
+        manifest = json.loads(files["manifest.json"])
+        manifest["controller_kind"] = "slurm_job"
+        files["manifest.json"] = json.dumps(manifest).encode()
+    elif tampering == "wrong_owner":
+        result["owner_id"] = "b" * 32
+    elif tampering == "wrong_source":
+        result["source_commit"] = "f" * 40
+    elif tampering == "reused_pid":
+        result["process"]["start_ticks"] = "1234568"
+    elif tampering == "wrong_boot":
+        result["process"]["boot_id"] = "f" * 36
+    elif tampering == "wrong_host":
+        result["process"]["host"] = "raven02"
+    elif tampering == "success_nonzero":
+        result.update(controller_state="COMPLETED", failure_class="success")
+    elif tampering == "result_scheduler_state":
+        result["scheduler_state"] = "FAILED"
+    elif tampering == "invalid_process_identity":
+        identity = json.loads(files["state/controller.json"])
+        identity["process"]["pid"] = True
+        result["process"]["pid"] = True
+        files["state/controller.json"] = json.dumps(identity).encode()
+    elif tampering == "different_started_at":
+        result["started_at"] = "2026-08-25T00:00:01Z"
+    else:
+        raise AssertionError(tampering)
+    if tampering != "missing_result":
+        files["state/controller-result.json"] = json.dumps(result).encode()
+    transport.archive = _archive(files)
+    with pytest.raises(RemoteOperationError):
+        controller.collect(run_id)
+    assert not (controller.config.local_state_root / run_id / "collected").exists()
 
 
 def test_collection_extracts_regular_whitelisted_payload_safely(tmp_path: Path) -> None:

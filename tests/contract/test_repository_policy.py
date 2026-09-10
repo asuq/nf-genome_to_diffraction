@@ -604,7 +604,7 @@ def test_nextflow_process_scripts_avoid_parameterised_runtime_casts() -> None:
         assert " as List<" not in module, module_path.relative_to(REPOSITORY)
 
 
-def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -> None:
+def test_nf_helper_submodule_exposes_reviewed_site_profiles() -> None:
     gitmodules = (REPOSITORY / ".gitmodules").read_text(encoding="utf-8")
     assert "path = external/nf-helper" in gitmodules
     assert "url = https://github.com/asuq/nf-helper.git" in gitmodules
@@ -681,8 +681,18 @@ def test_nf_helper_submodule_exposes_marmic_history_and_active_viper_profile() -
     )
     assert "scratch_parent_source=job_owned_ptmp" in database_job
     assert "/dev/shm" not in database_job
-    assert "managed run root is a non-Viper noncanonical path" in database_job
-    assert '"$(<"$RUN/state/site-id")" == viper-cpu' in database_job
+    assert "managed run root is not a reviewed site mount alias" in database_job
+    assert '"$(<"$RUN/state/site-id")" =~ ^(viper-cpu|raven)$' in database_job
+    raven_wrapper = (REPOSITORY / "conf/raven.config").read_text(encoding="utf-8")
+    assert "external/nf-helper/conf/sites/raven.config" in raven_wrapper
+    assert "executor.account = 'mmm_cpu'" in raven_wrapper
+    raven_search = raven_wrapper.split("withLabel: m6_foldseek_search", 1)[1].split(
+        "withLabel: m6_case_prepare", 1
+    )[0]
+    assert "cpus = 32" in raven_search
+    assert "memory = '192 GB'" in raven_search
+    assert "time = '24 hours'" in raven_search
+    assert "maxForks" not in raven_wrapper
 
     phaser_module = (
         REPOSITORY / "modules" / "local" / "run_first_copy_phaser.nf"

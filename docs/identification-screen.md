@@ -1,7 +1,8 @@
 # Case-specific all-candidate identification screen
 
-The approved [Raven execution route](raven-identification.md) reuses this same
-scientific graph with site-specific orchestration and the Raven scheduler policy.
+The [historical Raven route](raven-identification.md) reused this scientific
+graph. The operator-crystal programme is cancelled and its accepted assessments
+remain read-only; this page does not authorise restarting it.
 
 This internal, experimental Marmic profile runs explicit catalogue-derived
 protein hypotheses without the ordinary discovery route's global 25-coordinate

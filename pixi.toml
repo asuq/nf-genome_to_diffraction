@@ -88,7 +88,6 @@ offline-wheel-check = "python -m tests.scripts.check_offline_wheel --repository 
 hpc-wrapper-check = "bash -n bootstrap/nf-gtd-hpc-remote bootstrap/nf-gtd-hpc-smoke-job bootstrap/nf-gtd-hpc-recover-tools bootstrap/nf-gtd-worker-offline-shell"
 mr-resource-retry-check = "python -m tests.scripts.check_mr_resource_retry"
 nf-gtd-hpc-test = "python -m genome_to_diffraction.hpc.cli"
-nf-gtd-raven = "python -m genome_to_diffraction.hpc.raven_client"
 build-hpc-test = "python bootstrap/build_hpc_test_app.py --output dist/nf-gtd-hpc-test"
 prepare-project-layout = "bootstrap/prepare_project_layout.sh"
 prepare-public-control = "genome-to-diffraction benchmark prepare-public-control --specification benchmarks/public-controls/pdb_8oox.yaml"

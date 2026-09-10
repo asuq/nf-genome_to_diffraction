@@ -70,6 +70,81 @@ def test_viper_configuration_requires_explicit_site_identity(
     assert config.ssh_alias == "viper-cpu"
 
 
+@pytest.mark.parametrize(
+    ("alias", "dispatcher", "valid"),
+    [
+        (
+            "raven",
+            "/ptmp/test-user/nf-genome_to_diffraction/_tooling/nf-gtd-hpc-remote",
+            True,
+        ),
+        (
+            "marmic",
+            "/ptmp/test-user/nf-genome_to_diffraction/_tooling/nf-gtd-hpc-remote",
+            False,
+        ),
+        ("raven", "/home/test-user/_tooling/nf-gtd-hpc-remote", False),
+    ],
+)
+def test_raven_keeps_the_shared_configuration_with_fixed_site_paths(
+    tmp_path: Path, alias: str, dispatcher: str, valid: bool
+) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    (repository / ".git").mkdir()
+    raw = _configuration(repository)
+    raw.update(
+        schema_version="1.1",
+        site_id="raven",
+        ssh_alias=alias,
+        remote_dispatcher=dispatcher,
+    )
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(raw))
+    if valid:
+        assert HpcConfig.load(path).site_id == "raven"
+    else:
+        with pytest.raises(ConfigurationError, match="Raven requires"):
+            HpcConfig.load(path)
+
+
+@pytest.mark.parametrize(
+    ("site", "profile", "kind"),
+    [
+        ("raven", "m6-operational", "login_process"),
+        ("raven", "m6-inputs", "slurm_job"),
+        ("marmic", "m6-operational", "slurm_job"),
+        ("viper-cpu", "m6-operational", "slurm_job"),
+    ],
+)
+def test_new_owned_records_bind_controller_kind(
+    tmp_path: Path, site: str, profile: str, kind: str
+) -> None:
+    record = LocalRunRecord(
+        run_id=f"gtd-{profile}-20260911T000000Z-111111111111-01234567",
+        site_id=site,
+        commit="1" * 40,
+        owner_id="2" * 32,
+        profile=profile,
+        iteration=1,
+        parent_run_id=None,
+    )
+    value = json.loads(record.write(tmp_path).read_text())
+    assert value["schema_version"] == "1.2"
+    assert value["controller_kind"] == kind
+    assert LocalRunRecord.from_json(value) == record
+    value["controller_kind"] = (
+        "slurm_job" if kind == "login_process" else "login_process"
+    )
+    with pytest.raises(ValidationError, match="controller kind"):
+        LocalRunRecord.from_json(value)
+    if site == "raven":
+        value["schema_version"] = "1.1"
+        value.pop("controller_kind")
+        with pytest.raises(ValidationError, match="explicit controller kind"):
+            LocalRunRecord.from_json(value)
+
+
 def test_schema_1_1_rejects_missing_site_identity(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()

@@ -67,6 +67,29 @@ if [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then
         }
         ROOT="$expected_viper_root"
         SITE_ID=viper-cpu
+    elif [[ "$site_config_id" == raven ]]; then
+        [[ -O "$SITE_CONFIG" && "$(stat -c '%a' "$SITE_CONFIG")" == 600 && \
+           "${USER:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || {
+            printf 'unsafe Raven site configuration\n' >&2
+            exit 1
+        }
+        mapfile -t startup_site_values < "$SITE_CONFIG"
+        expected_raven_root="/ptmp/${USER}/nf-genome_to_diffraction"
+        [[ "${#startup_site_values[@]}" -eq 8 && \
+           "${startup_site_values[1]}" == "$expected_raven_root" && \
+           "${startup_site_values[2]}" == "$expected_raven_root/software/pixi-0.76.2/pixi" && \
+           "${startup_site_values[3]}" =~ $COMMIT_RE && \
+           "${startup_site_values[4]}" =~ $CHECKSUM_RE && \
+           "${startup_site_values[5]}" =~ $CHECKSUM_RE && \
+           "${startup_site_values[6]}" == mmm_cpu && \
+           "${startup_site_values[7]}" =~ ^raven0[1-4]i?$ && \
+           -d "$expected_raven_root" && \
+           "$(cd "$expected_raven_root" && pwd -P)" == "$LEGACY_ROOT" ]] || {
+            printf 'Raven site configuration differs from reviewed fixed bindings\n' >&2
+            exit 1
+        }
+        ROOT="$expected_raven_root"
+        SITE_ID=raven
     elif [[ "$site_config_id" == marmic ]]; then
         [[ -O "$SITE_CONFIG" && "$(stat -c '%a' "$SITE_CONFIG")" == 600 ]] || {
             printf 'unsafe Marmic site configuration\n' >&2
@@ -82,6 +105,12 @@ if [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then
         printf 'unsupported HPC site configuration\n' >&2
         exit 1
     fi
+elif [[ "${USER:-}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && \
+        -d "/ptmp/${USER}/nf-genome_to_diffraction" && \
+        "$(cd "/ptmp/${USER}/nf-genome_to_diffraction" && pwd -P)" == "$LEGACY_ROOT" && \
+        "$(hostname -s)" =~ ^raven0[1-4]i?$ ]]; then
+    ROOT="/ptmp/${USER}/nf-genome_to_diffraction"
+    SITE_ID=raven-unconfigured
 fi
 RUNS="$ROOT/runs"
 MIRROR="$ROOT/_cache/git/nf-genome_to_diffraction.git"
@@ -122,6 +151,211 @@ validate_owner() {
 
 validate_profile() {
     [[ "$1" =~ $PROFILE_RE ]] || fail wrapper_failure "invalid fixed profile"
+}
+
+controller_kind_for_profile() {
+    if [[ "$SITE_ID" == raven ]]; then
+        case "$1" in
+            m6-inputs) printf slurm_job ;;
+            m6-nextflow-smoke|m6-operational|m6-leakage) printf login_process ;;
+            *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
+        esac
+    elif [[ "$SITE_ID" == marmic || "$SITE_ID" == viper-cpu ]]; then
+        printf slurm_job
+    else
+        fail environment_failure "fixed HPC site is not configured"
+    fi
+}
+
+run_login_process() {
+    local operation="$1" run="$2" owner="$3"
+    local python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ "$SITE_ID" == raven && -f "$run/state/controller-kind" && \
+       ! -L "$run/state/controller-kind" && \
+       "$(<"$run/state/controller-kind")" == login_process && \
+       -x "$python" && "$(hostname -s)" == "${startup_site_values[7]}" ]] || \
+        fail environment_failure "owned login controller bindings are unavailable"
+    raven_runtime_check "${startup_site_values[3]}" \
+        "${startup_site_values[4]}" "${startup_site_values[5]}"
+    [[ "$(readlink -f "$run/source/.pixi")" == \
+       "$(readlink -f "$ROOT/sources/${startup_site_values[3]}/.pixi")" && \
+       "$(<"$run/state/site-config-sha256")" == \
+       "$(sha256sum "$SITE_CONFIG" | awk '{print $1}')" ]] || \
+        fail environment_failure "staged login runtime binding changed"
+    PYTHONPATH="$run/source/src" PYTHONDONTWRITEBYTECODE=1 \
+        "$python" -m genome_to_diffraction.hpc.login_process "$operation" \
+        --run "$run" --owner "$owner" || \
+        fail wrapper_failure "owned login controller operation failed; inspect its log"
+}
+
+raven_database_import() {
+    [[ "$#" -eq 1 && "$SITE_ID" == raven && ${#1} -le 16384 ]] || \
+        fail wrapper_failure "database import expects one bounded original authority"
+    [[ "$(hostname -s)" == "${startup_site_values[7]}" ]] || \
+        fail environment_failure "database import requires the bound Raven login host"
+    raven_runtime_check "${startup_site_values[3]}" \
+        "${startup_site_values[4]}" "${startup_site_values[5]}"
+    local python="$ROOT/sources/${startup_site_values[3]}/.pixi/envs/hpc/bin/python"
+    GIT_OPTIONAL_LOCKS=0 PYTHONDONTWRITEBYTECODE=1 \
+        "$python" - "$ROOT" "$SITE_CONFIG" "$0" "$1" <<'RAVEN_DATABASE_IMPORT_PY'
+import base64
+import hashlib
+import json
+import os
+import re
+import socket
+import stat
+import subprocess
+import sys
+from pathlib import Path
+
+root, site, dispatcher = map(Path, sys.argv[1:4])
+
+def pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError("duplicate database metadata field")
+        result[key] = value
+    return result
+
+def parse(payload):
+    value = json.loads(payload, object_pairs_hook=pairs)
+    if not isinstance(value, dict):
+        raise ValueError("database metadata is not an object")
+    return value
+
+def owned_directory(path):
+    info = path.lstat()
+    if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid()
+            or not path.resolve().is_relative_to(root.resolve())):
+        raise ValueError("database import directory is not owned and confined")
+
+def read(path, limit=2 * 1024**2):
+    owned_directory(path.parent)
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or not 0 < info.st_size <= limit):
+        raise ValueError("database import file is unsafe or exceeds its bound")
+    payload = path.read_bytes()
+    if len(payload) != info.st_size:
+        raise ValueError("database import file changed while reading")
+    return payload
+
+def digest(payload):
+    return hashlib.sha256(payload).hexdigest()
+
+authority = parse(base64.b64decode(sys.argv[4], validate=True))
+if digest(read(dispatcher)) != authority["dispatcher_sha256"]:
+    raise ValueError("database import dispatcher differs from qualified source")
+plan = authority["launch"]
+run_id = authority["run_id"]
+source_commit = plan["source_commit"]
+if (re.fullmatch(r"[a-f0-9]{40}", source_commit) is None
+        or re.fullmatch("gtd-raven-database-login-" + source_commit[:12]
+                        + r"-20260911-[a-z0-9]{6}", run_id) is None
+        or plan["run_id"] != run_id or plan["schema_version"] != "1.0"
+        or plan["purpose"] != "reference_database_login_build_not_M6"
+        or plan["execution_site"] != "raven_login" or plan["threads"] != 1):
+    raise ValueError("database import is outside the existing bootstrap contract")
+site_fields = read(site).decode("ascii").splitlines()
+if (len(site_fields) != 8 or site_fields[0] != "raven"
+        or site_fields[3] != plan["runtime_source_commit"]
+        or site_fields[4] != plan["pixi_lock_sha256"]
+        or authority["host"] != socket.gethostname()
+        or authority["host"].split(".")[0] != site_fields[7]):
+    raise ValueError("original database runtime or login host differs")
+bootstrap = root / "bootstrap/database-login-20260911-seqres-v5"
+run = root / "runs" / run_id
+for path in (root, root / "bootstrap", root / "runs", bootstrap, run,
+             run / "source", run / "artifacts"):
+    owned_directory(path)
+index = parse(read(bootstrap / "deployment-index.json"))
+if (set(index) != {"source.tar", "launch.json", "run_login_database.py"}
+        or index != authority["deployment_members"]):
+    raise ValueError("original database deployment inventory differs")
+files = {}
+for name in ("launch.json", "run_login_database.py"):
+    payload = read(bootstrap / name)
+    if digest(payload) != index[name]["sha256"] or len(payload) != index[name]["size_bytes"]:
+        raise ValueError("original database administrative bytes changed")
+    files["bootstrap/" + name] = payload
+if parse(files["bootstrap/launch.json"]) != plan:
+    raise ValueError("original database launch differs")
+for arguments, expected in ((["rev-parse", "HEAD"], source_commit),
+                            (["status", "--porcelain=v1", "--untracked-files=all"], "")):
+    result = subprocess.run(["git", "-C", str(run / "source"), *arguments],
+                            check=True, capture_output=True, text=True, timeout=30)
+    if result.stdout.strip() != expected:
+        raise ValueError("original database scientific source differs or is dirty")
+if digest(read(run / "source/pixi.lock")) != plan["pixi_lock_sha256"]:
+    raise ValueError("original database source lock differs")
+for name in ("controller.json", "state.json"):
+    files[name] = read(run / name)
+controller = parse(files["controller.json"])
+state = parse(files["state.json"])
+for record in (controller, state):
+    if (record["run_id"] != run_id or record["host"] != authority["host"]
+            or record["process"] != authority["process"]):
+        raise ValueError("original database process identity differs")
+process = authority["process"]
+if (set(process) != {"pid", "start_ticks", "boot_id"}
+        or type(process["pid"]) is not int or process["pid"] <= 0
+        or re.fullmatch(r"[1-9][0-9]*", process["start_ticks"]) is None
+        or re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", process["boot_id"]) is None):
+    raise ValueError("original database process identity is malformed")
+if (state["source_commit"] != source_commit
+        or state["runtime_source_commit"] != plan["runtime_source_commit"]
+        or state["threads"] != 1 or len(state["allowed_cpus"]) != 1
+        or state["native_M6_qualification"] is not False
+        or state["phase"] not in {"building", "verifying", "completed", "failed"}):
+    raise ValueError("original database execution record differs")
+if state["phase"] in {"building", "verifying"}:
+    proc = Path("/proc") / str(process["pid"])
+    fields = (proc / "stat").read_text().rsplit(") ", 1)[1].split()
+    if (proc.stat().st_uid != os.getuid() or fields[0] == "Z"
+            or fields[19] != process["start_ticks"]
+            or Path("/proc/sys/kernel/random/boot_id").read_text().strip() != process["boot_id"]):
+        raise ValueError("nonterminal database process is absent or its PID was reused")
+database_verified = False
+if state["phase"] == "completed":
+    for name in ("preflight.json", "database_manifest.json",
+                 "database_manifest.full-verified.json"):
+        files["artifacts/" + name] = read(run / "artifacts" / name)
+    manifest = read(root / "databases/database_manifest.json")
+    if (state["database_manifest"] != str(root / "databases/database_manifest.json")
+            or digest(manifest) != state["database_manifest_sha256"]
+            or parse(files["artifacts/database_manifest.json"]) != parse(manifest)
+            or digest(files["artifacts/database_manifest.full-verified.json"])
+            != state["verified_manifest_sha256"]):
+        raise ValueError("original verified database manifest binding changed")
+    files["database_manifest.json"] = manifest
+    database_verified = True
+log = run / "build.log"
+info = log.lstat()
+if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+    raise ValueError("database build log is unsafe")
+with log.open("rb") as handle:
+    handle.seek(max(0, info.st_size - 16000))
+    log_tail = handle.read(16000).decode("utf-8", errors="replace")
+payload = json.dumps({
+    "schema_version": "1.0", "evidence_kind": "imported_database_bootstrap_v1",
+    "managed_run": False, "native_M6_qualification": False,
+    "database_verified": database_verified, "launch": plan, "controller": controller,
+    "state": state, "log_tail": log_tail,
+    "files": {name: {"sha256": digest(value), "size_bytes": len(value),
+                     "content_base64": base64.b64encode(value).decode("ascii")}
+              for name, value in files.items()},
+}, sort_keys=True, indent=2).encode("ascii")
+if len(payload) > 16 * 1024**2:
+    raise ValueError("database import exceeds the bounded collection size")
+for key, value in {
+    "operation": "raven-database-import", "site_id": "raven", "run_id": run_id,
+    "evidence_base64": base64.b64encode(payload).decode("ascii"),
+    "evidence_sha256": digest(payload),
+}.items():
+    print(key + "\t" + base64.b64encode(value.encode()).decode("ascii"))
+RAVEN_DATABASE_IMPORT_PY
 }
 
 run_directory() {
@@ -331,6 +565,114 @@ marmic_site_configure() {
     emit configured "$configured"
     emit dispatcher_sha256 "$actual_dispatcher"
     emit site_config_sha256 "$actual_site"
+}
+
+raven_runtime_check() {
+    local runtime_commit="$1" expected_lock="$2" expected_phenix="$3"
+    local runtime="$ROOT/sources/$runtime_commit"
+    local phenix="$ROOT/software/manifests/phenix-2.1-6048-raven.json"
+    local python="$runtime/.pixi/envs/hpc/bin/python"
+    local pixi="$ROOT/software/pixi-0.76.2/pixi" candidate
+    [[ "$(hostname -s)" =~ ^raven0[1-4]i?$ ]] || \
+        fail environment_failure "Raven controller requires a Raven login node"
+    [[ "$runtime_commit" =~ $COMMIT_RE && "$expected_lock" =~ $CHECKSUM_RE && \
+       "$expected_phenix" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "Raven runtime bindings are invalid"
+    for candidate in "$ROOT" "$runtime"; do
+        [[ -d "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || \
+            fail filesystem_failure "Raven runtime directory is absent or unsafe"
+    done
+    for candidate in "$runtime/pixi.lock" "$phenix"; do
+        [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" && \
+           "$(file_size "$candidate")" -le 8388608 ]] || \
+            fail filesystem_failure "Raven runtime metadata is absent or unsafe"
+    done
+    [[ "$(GIT_OPTIONAL_LOCKS=0 git -c core.fsmonitor=false -C "$runtime" rev-parse HEAD)" == \
+       "$runtime_commit" && \
+       "$(sha256sum "$runtime/pixi.lock" | awk '{print $1}')" == "$expected_lock" && \
+       "$(sha256sum "$phenix" | awk '{print $1}')" == "$expected_phenix" ]] || \
+        fail environment_failure "Raven anchored source, lock or Phenix manifest changed"
+    [[ -x "$python" && -x "$pixi" && \
+       "$(readlink -f "$python")" == "$(cd "$ROOT" && pwd -P)"/* && \
+       "$(readlink -f "$pixi")" == "$(cd "$ROOT" && pwd -P)"/* && \
+       "$("$python" --version 2>&1)" == 'Python 3.14.'* && \
+       "$("$pixi" --version 2>&1)" == 'pixi 0.76.2' ]] || \
+        fail environment_failure "Raven existing Python/Pixi runtime is not qualified"
+}
+
+raven_site_configure() {
+    [[ "$#" -eq 4 && "$1" =~ $CHECKSUM_RE && "$2" =~ $COMMIT_RE && \
+       "$3" =~ $CHECKSUM_RE && "$4" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "Raven site setup expects reviewed dispatcher/runtime bindings"
+    local dispatcher_sha="$1" runtime_commit="$2" lock_sha="$3" phenix_sha="$4"
+    local temporary expected_site actual_site configured=false
+    [[ "$SITE_ID" == raven || "$SITE_ID" == raven-unconfigured ]] || \
+        fail environment_failure "Raven setup cannot modify another site"
+    [[ -d "$TOOL_DIR" && ! -L "$TOOL_DIR" && -O "$TOOL_DIR" && \
+       -f "$DISPATCHER" && ! -L "$DISPATCHER" && -O "$DISPATCHER" && \
+       "$(sha256sum "$DISPATCHER" | awk '{print $1}')" == "$dispatcher_sha" ]] || \
+        fail wrapper_failure "Raven setup dispatcher differs from reviewed source"
+    raven_runtime_check "$runtime_commit" "$lock_sha" "$phenix_sha"
+    temporary="$(mktemp "$TOOL_DIR/.raven-site.XXXXXXXX")" || \
+        fail filesystem_failure "cannot prepare Raven site binding"
+    printf '%s\n' raven "$ROOT" "$ROOT/software/pixi-0.76.2/pixi" \
+        "$runtime_commit" "$lock_sha" "$phenix_sha" mmm_cpu "$(hostname -s)" \
+        > "$temporary"
+    chmod 0600 "$temporary"
+    expected_site="$(sha256sum "$temporary" | awk '{print $1}')"
+    if [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then
+        if [[ ! -f "$SITE_CONFIG" || -L "$SITE_CONFIG" || ! -O "$SITE_CONFIG" || \
+              "$(stat -c '%a' "$SITE_CONFIG")" != 600 || \
+              "$(sha256sum "$SITE_CONFIG" | awk '{print $1}')" != "$expected_site" ]]; then
+            rm -f -- "$temporary"
+            fail environment_failure "existing Raven site binding differs; not replaced"
+        fi
+    elif ! ln -- "$temporary" "$SITE_CONFIG"; then
+        rm -f -- "$temporary"
+        fail filesystem_failure "cannot atomically create absent Raven site binding"
+    else
+        configured=true
+    fi
+    rm -f -- "$temporary"
+    actual_site="$(sha256sum "$SITE_CONFIG" | awk '{print $1}')"
+    [[ "$actual_site" == "$expected_site" ]] || \
+        fail filesystem_failure "Raven site binding changed during publication"
+    emit operation raven-site-configure
+    emit site_id raven
+    emit configured "$configured"
+    emit dispatcher_sha256 "$dispatcher_sha"
+    emit runtime_source_commit "$runtime_commit"
+    emit pixi_lock_sha256 "$lock_sha"
+    emit phenix_manifest_sha256 "$phenix_sha"
+    emit login_host "$(hostname -s)"
+    emit site_config_sha256 "$actual_site"
+}
+
+raven_readiness() {
+    local profile="$1"
+    [[ "$SITE_ID" == raven ]] || \
+        fail environment_failure "Raven fixed site binding has not been configured"
+    case "$profile" in
+        m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage) ;;
+        *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
+    esac
+    [[ "$(hostname -s)" == "${startup_site_values[7]}" ]] || \
+        fail environment_failure "Raven SSH endpoint differs from the bound login host"
+    raven_runtime_check "${startup_site_values[3]}" \
+        "${startup_site_values[4]}" "${startup_site_values[5]}"
+    emit operation readiness
+    emit site_id raven
+    emit profile "$profile"
+    emit ready true
+    emit scope runtime_bindings_only
+    emit runtime_source_commit "${startup_site_values[3]}"
+    emit pixi_lock_sha256 "${startup_site_values[4]}"
+    emit phenix_manifest_sha256 "${startup_site_values[5]}"
+    emit login_host "${startup_site_values[7]}"
+    emit runtime_bindings_verified true
+    emit database_binding_verified false
+    emit native_qualification_verified false
+    emit site_config_sha256 "$(sha256sum "$SITE_CONFIG" | awk '{print $1}')"
 }
 
 p0_configure() {
@@ -991,6 +1333,14 @@ database_config_readiness() {
         fi
     done
     allowed_configured="${values[0]}"
+    if [[ "$SITE_ID" == raven && ( "$manifest_mode" != runtime || \
+          "${values[0]}" != "$ROOT" || "${values[1]}" != "$ROOT/databases" || \
+          "${values[2]}" != "$ROOT/databases/database_manifest.json" || \
+          "${values[3]}" != 100000000000 || "${values[4]}" != 200000000000 || \
+          "${values[5]}" != 50000000000 || "${values[6]}" != 200000000000 ) ]]; then
+        DATABASE_CONFIG_STATUS=raven_runtime_binding_mismatch
+        return 1
+    fi
     if ! allowed="$(realpath -e "$allowed_configured" 2>"$DISCARD")" || \
         [[ ! -d "$allowed" || -L "$allowed_configured" || \
            "$allowed" == / || "$allowed" == "${HOME:-}" ]]; then
@@ -1032,8 +1382,12 @@ database_config_readiness() {
         return 1
     fi
     if (( values[3] <= 0 || values[3] > 2000000000000 || \
-          values[4] < 0 || values[4] >= values[3] || \
+          values[4] < 0 || \
           values[5] <= 0 || values[5] > values[3] || values[6] <= 0 )); then
+        DATABASE_CONFIG_STATUS=capacity_out_of_bounds
+        return 1
+    fi
+    if [[ "$SITE_ID" != raven ]] && (( values[4] >= values[3] )); then
         DATABASE_CONFIG_STATUS=capacity_out_of_bounds
         return 1
     fi
@@ -1067,7 +1421,11 @@ database_readiness() {
             pixi_status=version_check_failed
         fi
     fi
-    database_config_readiness || true
+    if [[ "$SITE_ID" == raven ]]; then
+        database_config_readiness runtime || true
+    else
+        database_config_readiness || true
+    fi
     if [[ "$pixi_status" == ready && "$DATABASE_CONFIG_STATUS" == ready ]]; then
         ready=true
     fi
@@ -1087,7 +1445,7 @@ database_runtime_configure() {
             "database-runtime-configure expects a checksum and encoded paths"
     local expected_checksum="$1"
     local encoded="$2"
-    local config_directory resolved temporary actual_checksum status size
+    local config_directory resolved root_resolved temporary actual_checksum status size
     [[ "$expected_checksum" =~ $CHECKSUM_RE ]] || \
         fail wrapper_failure "database runtime configuration checksum is invalid"
     [[ -n "$encoded" && "${#encoded}" -le 5464 && \
@@ -1104,7 +1462,8 @@ database_runtime_configure() {
     fi
     resolved="$(realpath -e "$config_directory" 2>"$DISCARD")" || \
         fail filesystem_failure "database configuration directory cannot be resolved"
-    [[ "$resolved" == "$config_directory" && -d "$config_directory" && \
+    root_resolved="$(cd "$ROOT" && pwd -P)"
+    [[ "$resolved" == "$root_resolved/_config" && -d "$config_directory" && \
         ! -L "$config_directory" && -O "$config_directory" ]] || \
         fail filesystem_failure "database configuration directory is unsafe"
     temporary="${DATABASE_CONFIG}.tmp.$$"
@@ -1272,6 +1631,7 @@ stage_run_common() {
     local iteration="$5"
     local profile="$6"
     local run pixi_bin pixi_version actual_lock submodule_commit manifest_tmp
+    local controller_kind manifest_version=1.0
     local phenix_manifest
     local gtd nextflow java mmseqs foldseek hpc_path
     local p0_config_sha256="" p0_config_json="null"
@@ -1357,8 +1717,17 @@ stage_run_common() {
     [[ "$expected_lock" =~ $CHECKSUM_RE ]] || fail wrapper_failure "invalid lock checksum"
     validate_owner "$owner_id"
     validate_profile "$profile"
-    [[ "$SITE_ID" == marmic || "$SITE_ID" == viper-cpu ]] || \
-        fail environment_failure "unsupported fixed HPC site"
+    controller_kind="$(controller_kind_for_profile "$profile")"
+    if [[ "$SITE_ID" == raven ]]; then
+        [[ "$profile" != database ]] || \
+            fail wrapper_failure "do not replace the existing Raven database continuation"
+        [[ "$(hostname -s)" == "${startup_site_values[7]}" && \
+           "$expected_lock" == "${startup_site_values[4]}" ]] || \
+            fail environment_failure "Raven login host or reused runtime lock differs"
+        raven_runtime_check "${startup_site_values[3]}" \
+            "${startup_site_values[4]}" "${startup_site_values[5]}"
+        manifest_version=1.1
+    fi
     [[ "$run_id" == "gtd-${profile}-"* ]] || \
         fail wrapper_failure "run ID profile does not match the requested profile"
     [[ "$iteration" =~ $INTEGER_RE ]] || fail wrapper_failure "invalid iteration"
@@ -1375,6 +1744,10 @@ stage_run_common() {
     RESOLVED_PIXI=""
     resolve_pixi
     pixi_bin="$RESOLVED_PIXI"
+    if [[ "$SITE_ID" == raven ]]; then
+        [[ "$pixi_bin" == "${startup_site_values[2]}" ]] || \
+            fail environment_failure "Raven Pixi record differs from the bound runtime"
+    fi
     pixi_version="$("$pixi_bin" --version 2>&1)" || \
         fail environment_failure "Pixi version check failed"
     [[ "$pixi_version" =~ ^pixi[[:space:]]+0\.76\.2$ ]] || \
@@ -1398,6 +1771,7 @@ stage_run_common() {
     atomic_text "$run/state/pixi-bin" "$pixi_bin"
     atomic_text "$run/state/profile" "$profile"
     atomic_text "$run/state/site-id" "$SITE_ID"
+    atomic_text "$run/state/controller-kind" "$controller_kind"
     append_event "$run" "stage_started"
 
     if [[ "$source_archive" == true ]]; then
@@ -1481,8 +1855,18 @@ stage_run_common() {
     atomic_text "$run/state/pixi-lock-sha256" "$actual_lock"
     [[ "$submodule_commit" =~ $COMMIT_RE ]] || \
         fail transfer_failure "nf-helper submodule commit could not be recorded"
-    ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
-        fail filesystem_failure "cannot attach the per-run Pixi environment"
+    if [[ "$SITE_ID" == raven ]]; then
+        ln -s "$ROOT/sources/${startup_site_values[3]}/.pixi" "$run/source/.pixi" || \
+            fail filesystem_failure "cannot attach the bound existing Raven environment"
+        export PYTHONPATH="$run/source/src" PYTHONDONTWRITEBYTECODE=1
+        atomic_text "$run/state/runtime-source-commit" "${startup_site_values[3]}"
+        atomic_text "$run/state/site-config-sha256" \
+            "$(sha256sum "$SITE_CONFIG" | awk '{print $1}')"
+        atomic_text "$run/state/login-host" "${startup_site_values[7]}"
+    else
+        ln -s "$run/environment/.pixi" "$run/source/.pixi" || \
+            fail filesystem_failure "cannot attach the per-run Pixi environment"
+    fi
 
     if [[ "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
@@ -1492,6 +1876,10 @@ stage_run_common() {
             nextflow_profile=viper-cpu
             execution_policy_relative=benchmarks/m6/execution-nextflow-v1.yaml
             execution_policy_id=m6_nextflow_slurm_v1
+        elif [[ "$SITE_ID" == raven ]]; then
+            nextflow_profile=raven
+            execution_policy_relative=benchmarks/m6/execution-nextflow-raven-v1.yaml
+            execution_policy_id=m6_nextflow_slurm_raven_v1
         else
             nextflow_profile=marmic
             execution_policy_relative=benchmarks/m6/execution-nextflow-marmic-v2.yaml
@@ -1635,6 +2023,11 @@ stage_run_common() {
             [[ "$(sha256sum "$phenix_manifest" | awk '{print $1}')" == \
                "$heteromer_phenix_sha256" ]] || \
                 fail environment_failure "fixed Marmic M6 Phenix manifest changed"
+        elif [[ "$SITE_ID" == raven ]]; then
+            phenix_manifest="$ROOT/software/manifests/phenix-2.1-6048-raven.json"
+            [[ "$(sha256sum "$phenix_manifest" | awk '{print $1}')" == \
+               "${startup_site_values[5]}" ]] || \
+                fail environment_failure "fixed Raven M6 Phenix manifest changed"
         else
             phenix_manifest="${startup_site_values[6]}"
         fi
@@ -1684,7 +2077,10 @@ stage_run_common() {
           "$profile" == m4-copy || \
           "$profile" == t12 || \
           "$profile" == database ]]; then
-        if ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
+        if [[ "$SITE_ID" == raven ]]; then
+            printf 'runtime_status=reused_source_lock_bound_environment\n' \
+                > "$run/logs/pixi-install.log"
+        elif ! PIXI_CACHE_DIR="$ROOT/_cache/pixi" "$pixi_bin" install \
             --manifest-path "$run/source/pixi.toml" \
             --environment hpc \
             --frozen \
@@ -2360,11 +2756,12 @@ PY
     manifest_tmp="$run/manifest.json.tmp.$$"
     cat > "$manifest_tmp" <<EOF
 {
-  "schema_version": "1.0",
+  "schema_version": "$manifest_version",
   "run_id": "$run_id",
   "site_id": "$(<"$run/state/site-id")",
   "project": "nf-genome_to_diffraction",
   "profile": "$profile",
+  "controller_kind": "$controller_kind",
   "iteration": $iteration,
   "commit": "$commit",
   "nf_helper_commit": "$submodule_commit",
@@ -3478,6 +3875,8 @@ m6_leakage_parent_bind_run() {
         fail wrapper_failure "m6-leakage-parent-bind expects five fixed fields"
     local run_id="$1" owner_id="$2" parent_run_id="$3" parent_owner_id="$4"
     local expected_precheck="$5" run parent actual_precheck shared_cache field
+    local result_relative=state/job-result.json
+    local -a precheck_paths
     validate_run_id "$run_id"
     validate_owner "$owner_id"
     validate_run_id "$parent_run_id"
@@ -3490,13 +3889,21 @@ m6_leakage_parent_bind_run() {
     parent="$(run_directory "$parent_run_id")"
     [[ "$(<"$run/state/profile")" == m6-leakage && \
        "$(<"$run/state/phase")" == staged && \
-       ! -e "$run/state/job-id" ]] || \
+       ! -e "$run/state/job-id" && ! -L "$run/state/job-id" && \
+       ! -e "$run/state/controller.json" && ! -L "$run/state/controller.json" ]] || \
         fail wrapper_failure "M6 leakage child is not safely staged"
+    if [[ "$SITE_ID" == raven ]]; then
+        result_relative=state/controller-result.json
+        [[ "$(<"$parent/state/controller-kind")" == login_process && \
+           "$(<"$run/state/controller-kind")" == login_process && \
+           ! -e "$parent/state/job-id" && ! -e "$parent/state/job-result.json" ]] || \
+            fail wrapper_failure "M6 Raven parent controller kind differs"
+    fi
     [[ "$(<"$parent/state/profile")" == m6-operational && \
        "$(<"$parent/state/phase")" == completed && \
        "$(<"$parent/state/failure-class")" == success && \
        "$(<"$parent/state/exit-code")" == 0 && \
-       -f "$parent/state/job-result.json" ]] || \
+       -f "$parent/$result_relative" ]] || \
         fail wrapper_failure "M6 operational parent is not successful"
     for field in \
         site-id \
@@ -3511,22 +3918,23 @@ m6_leakage_parent_bind_run() {
            "$(<"$run/state/$field")" == "$(<"$parent/state/$field")" ]] || \
             fail wrapper_failure "M6 parent and leakage authority differ: $field"
     done
-    for field in \
-        manifest.json \
-        state/job-result.json \
-        artifacts/qualification/m6-scientific-summary.json \
-        artifacts/qualification/m6-scientific-checksums.sha256; do
+    precheck_paths=(
+        manifest.json
+        "$result_relative"
+        artifacts/qualification/m6-scientific-summary.json
+        artifacts/qualification/m6-scientific-checksums.sha256
+    )
+    if [[ "$SITE_ID" == raven ]]; then
+        precheck_paths+=(state/controller.json)
+    fi
+    for field in "${precheck_paths[@]}"; do
         [[ -f "$parent/$field" && ! -L "$parent/$field" && \
            -O "$parent/$field" ]] || \
             fail wrapper_failure "M6 operational precheck evidence is unavailable"
     done
     actual_precheck="$(
         cd "$parent"
-        sha256sum \
-            manifest.json \
-            state/job-result.json \
-            artifacts/qualification/m6-scientific-summary.json \
-            artifacts/qualification/m6-scientific-checksums.sha256 | \
+        sha256sum "${precheck_paths[@]}" | \
             sha256sum | awk '{print $1}'
     )"
     [[ "$actual_precheck" == "$expected_precheck" ]] || \
@@ -3851,6 +4259,10 @@ validate_m6_smoke_site_state() {
         expected_profile=marmic
         expected_policy=benchmarks/m6/execution-nextflow-marmic-v2.yaml
         expected_policy_id=m6_nextflow_slurm_marmic_v2
+    elif [[ "$SITE_ID" == raven ]]; then
+        expected_profile=raven
+        expected_policy=benchmarks/m6/execution-nextflow-raven-v1.yaml
+        expected_policy_id=m6_nextflow_slurm_raven_v1
     else
         fail environment_failure "unsupported fixed HPC site"
     fi
@@ -4071,8 +4483,16 @@ submit_run() {
     [[ ! -e "$run/state/job-id" ]] || \
         fail wrapper_failure "run already has a scheduler job"
 
+    if [[ "$(controller_kind_for_profile "$profile")" == login_process ]]; then
+        run_login_process start "$run" "$owner_id"
+        return
+    fi
+    local -a scheduler_options=(--partition=slurm)
+    if [[ "$SITE_ID" == raven ]]; then
+        scheduler_options=(--account=mmm_cpu)
+    fi
     if ! submission="$(sbatch --parsable \
-        --partition=slurm \
+        "${scheduler_options[@]}" \
         --cpus-per-task="$cpus" \
         --mem="$memory" \
         --time="$walltime" \
@@ -4161,6 +4581,10 @@ status_run() {
     phase="$(<"$run/state/phase")"
     profile="$(<"$run/state/profile")"
     validate_profile "$profile"
+    if [[ "$(controller_kind_for_profile "$profile")" == login_process ]]; then
+        run_login_process status "$run" "$owner_id"
+        return
+    fi
     if [[ -f "$run/state/job-id" ]]; then
         job_id="$(<"$run/state/job-id")"
         [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
@@ -4406,6 +4830,9 @@ logs_run() {
         phenix_summary=true
     elif [[ -n "$profile" && -f "$run/logs/${profile}.log" ]]; then
         log_path="$run/logs/${profile}.log"
+    elif [[ "$SITE_ID" == raven && -f "$run/logs/controller.log" && \
+            ! -L "$run/logs/controller.log" ]]; then
+        log_path="$run/logs/controller.log"
     elif [[ -f "$run/state/job-id" ]]; then
         job_id="$(<"$run/state/job-id")"
         [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
@@ -4414,6 +4841,13 @@ logs_run() {
     if [[ "$profile" == database && "$log_path" == "$run/logs/database.log" ]]; then
         diagnostic_log="$(database_diagnostic_log "$log_path" || true)"
         diagnostic_header="failed database command log"
+    elif [[ "$SITE_ID" == raven && -f "$run/state/failure-class" && \
+            "$(<"$run/state/failure-class")" == wrapper_failure && \
+            -s "$run/logs/controller.log" && ! -L "$run/logs/controller.log" && \
+            -O "$run/logs/controller.log" && \
+            "$log_path" != "$run/logs/controller.log" ]]; then
+        diagnostic_log="$run/logs/controller.log"
+        diagnostic_header="login controller wrapper failure"
     elif [[ -n "$log_path" && -f "$log_path" ]]; then
         diagnostic_dir="$(nextflow_failure_workdir "$run" "$log_path" || true)"
         if [[ -n "$diagnostic_dir" ]]; then
@@ -4474,6 +4908,10 @@ cancel_run() {
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     phase="$(<"$run/state/phase")"
+    if [[ "$(controller_kind_for_profile "$(<"$run/state/profile")")" == login_process ]]; then
+        run_login_process cancel "$run" "$owner_id"
+        return
+    fi
     [[ -f "$run/state/job-id" ]] || fail wrapper_failure "run has no recorded scheduler job"
     job_id="$(<"$run/state/job-id")"
     [[ "$job_id" =~ $INTEGER_RE ]] || fail wrapper_failure "recorded job ID is invalid"
@@ -4661,6 +5099,13 @@ collect_run() {
         state/job-id \
         state/phase \
         state/job-result.json \
+        state/controller-kind \
+        state/controller.json \
+        state/controller-result.json \
+        state/body-result.json \
+        state/runtime-source-commit \
+        state/site-config-sha256 \
+        state/login-host \
         state/database-failed-staging-archive.json \
         state/p1-login-prefetch.sha256 \
         state/p2-diverse-login-stage.sha256 \
@@ -4730,6 +5175,7 @@ collect_run() {
         logs/m6-leakage.log \
         logs/database-source-stage.log \
         logs/sbatch.err \
+        logs/controller.log \
         logs/smoke.log \
         logs/p0.log \
         logs/p1.log \
@@ -6477,6 +6923,8 @@ clean_run() {
     local confirmation="$3"
     local run job_id scheduler_state resolved
     require_owned_run "$run_id" "$owner_id"
+    [[ "$SITE_ID" != raven ]] || \
+        fail wrapper_failure "Raven cleanup is outside the reviewed controller scope"
     [[ "$confirmation" == "$run_id" ]] || fail wrapper_failure "clean confirmation does not match"
     run="$(run_directory "$run_id")"
     resolved="$(realpath "$run")"
@@ -6521,8 +6969,17 @@ main() {
     case "$operation" in
         deploy-tools) deploy_tools "$@" ;;
         phenix-runtime-migrate) phenix_runtime_migrate_run "$@" ;;
-        readiness) readiness_p0 "$@" ;;
+        readiness)
+            if [[ "$SITE_ID" == raven || "$SITE_ID" == raven-unconfigured ]]; then
+                [[ "$#" -eq 1 ]] || fail wrapper_failure "readiness expects one profile"
+                raven_readiness "$1"
+            else
+                readiness_p0 "$@"
+            fi
+            ;;
         marmic-site-configure) marmic_site_configure "$@" ;;
+        raven-site-configure) raven_site_configure "$@" ;;
+        raven-database-import) raven_database_import "$@" ;;
         p0-configure) p0_configure "$@" ;;
         p0-inputs-stage) p0_inputs_stage "$@" ;;
         identification-inputs-stage) identification_inputs_stage "$@" ;;

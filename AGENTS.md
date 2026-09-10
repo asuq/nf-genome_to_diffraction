@@ -227,6 +227,18 @@ SSH approvals, or change permission settings. Use the already approved scoped
 command paths; report a genuinely unavailable operation without bypassing the
 permission boundary. The database-only raw-SSH limit remains in force.
 
+The user subsequently approved consolidating Raven into the original
+`nf-gtd-hpc-test` interface and removing the parallel Raven entry points.
+Preserve its reviewed executable, deployment, immutable source/input staging,
+owned-run monitoring and bounded collection cycle. Represent Raven login
+controllers explicitly as processes, never as Slurm jobs; scientific children
+remain Nextflow-managed Slurm tasks. Preserve the already started database
+process and immutable historical evidence while migrating monitoring. Remove
+superseded active commands, callers and documentation together after their
+replacement is qualified. This does not authorise restarting that database
+build, deleting remote evidence, changing scientific thresholds or broadening
+SSH/command permissions.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

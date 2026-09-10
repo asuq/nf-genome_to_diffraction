@@ -201,6 +201,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     conf = source / "conf"
     conf.mkdir()
     shutil.copy2(REPOSITORY / "conf/marmic.config", conf / "marmic.config")
+    shutil.copy2(REPOSITORY / "conf/raven.config", conf / "raven.config")
     qualification_workflows = source / "workflows" / "qualification"
     qualification_workflows.mkdir(parents=True)
     shutil.copy2(
@@ -216,6 +217,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     for name in (
         "execution-nextflow-v1.yaml",
         "execution-nextflow-marmic-v2.yaml",
+        "execution-nextflow-raven-v1.yaml",
         "protocol.yaml",
     ):
         shutil.copy2(REPOSITORY / "benchmarks" / "m6" / name, m6_benchmarks / name)
@@ -2057,6 +2059,227 @@ def test_m6_nextflow_smoke_submit_rejects_changed_site_policy_state(
     assert not (tmp_path / "sbatch-args").exists()
 
 
+def _prepare_raven_site_layout(
+    tmp_path: Path,
+) -> tuple[Path, Path, dict[str, str], str, str, str]:
+    dispatcher, _, environment, commit = _prepare_remote_layout(tmp_path)
+    root = dispatcher.parent.parent
+    # Rebase only the fixed Raven root in the isolated test copy. Production
+    # cannot accept a caller-selected root or test-mode environment switch.
+    dispatcher.write_text(
+        dispatcher.read_text().replace(
+            "/ptmp/${USER}/nf-genome_to_diffraction", str(root)
+        )
+    )
+    fake_bin = tmp_path / "fake-bin"
+    _write_executable(
+        fake_bin / "hostname",
+        ('#!/usr/bin/env bash\nprintf "%s\\n" "${FAKE_RAVEN_HOST:-raven03}"\n'),
+    )
+    runtime = root / "sources" / commit
+    runtime.parent.mkdir()
+    _run(
+        ["git", "clone", "--quiet", str(tmp_path / "source-origin"), str(runtime)],
+        cwd=tmp_path,
+    )
+    python = runtime / ".pixi/envs/hpc/bin/python"
+    python.parent.mkdir(parents=True)
+    _write_executable(python, '#!/usr/bin/env bash\necho "Python 3.14.6"\n')
+    pixi = root / "software/pixi-0.76.2/pixi"
+    pixi.parent.mkdir(parents=True)
+    _write_executable(pixi, '#!/usr/bin/env bash\necho "pixi 0.76.2"\n')
+    (root / "_tooling/pixi.path").write_text(f"{pixi}\n")
+    phenix = root / "software/manifests/phenix-2.1-6048-raven.json"
+    phenix.parent.mkdir()
+    phenix.write_text('{"test_fixture": true}\n')
+    lock_sha = hashlib.sha256((runtime / "pixi.lock").read_bytes()).hexdigest()
+    phenix_sha = hashlib.sha256(phenix.read_bytes()).hexdigest()
+    return root, dispatcher, environment, commit, lock_sha, phenix_sha
+
+
+@pytest.mark.parametrize("tampering", [None, "runtime_link", "site_digest"])
+def test_raven_common_stage_reuses_runtime_and_dispatches_login_without_sbatch(
+    tmp_path: Path,
+    tampering: str | None,
+) -> None:
+    root, dispatcher, environment, commit, lock_sha, phenix_sha = (
+        _prepare_raven_site_layout(tmp_path)
+    )
+    runtime = root / "sources" / commit
+    for name in ("genome-to-diffraction", "nextflow", "mmseqs", "foldseek"):
+        _write_executable(
+            runtime / ".pixi/envs/hpc/bin" / name, "#!/usr/bin/env bash\nexit 0\n"
+        )
+    java = runtime / ".pixi/envs/hpc/lib/jvm/bin/java"
+    java.parent.mkdir(parents=True)
+    _write_executable(java, "#!/usr/bin/env bash\nexit 0\n")
+    before = {
+        str(path.relative_to(runtime)): stat.S_IMODE(path.stat().st_mode)
+        for path in (runtime / ".pixi").rglob("*")
+    }
+    _run(
+        [
+            str(dispatcher),
+            "raven-site-configure",
+            hashlib.sha256(dispatcher.read_bytes()).hexdigest(),
+            commit,
+            lock_sha,
+            phenix_sha,
+        ],
+        cwd=root,
+        environment=environment,
+    )
+    run_id = f"gtd-m6-nextflow-smoke-20260911T000000Z-{commit[:12]}-01234567"
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "stage",
+                run_id,
+                commit,
+                lock_sha,
+                OWNER_ID,
+                "1",
+                "m6-nextflow-smoke",
+            ],
+            cwd=root,
+            environment=environment,
+        ).stdout
+    )
+    run = root / "runs" / run_id
+    assert staged["site_id"] == "raven"
+    assert (run / "source/.pixi").resolve() == runtime / ".pixi"
+    assert {
+        str(path.relative_to(runtime)): stat.S_IMODE(path.stat().st_mode)
+        for path in (runtime / ".pixi").rglob("*")
+    } == before
+    assert (
+        "reused_source_lock_bound_environment"
+        in (run / "logs/pixi-install.log").read_text()
+    )
+    manifest = json.loads((run / "manifest.json").read_text())
+    assert manifest["schema_version"] == "1.1"
+    assert manifest["controller_kind"] == "login_process"
+    assert (
+        manifest["m6_site_contract"]["execution_policy_id"]
+        == "m6_nextflow_slurm_raven_v1"
+    )
+    # The native Linux supervisor is tested separately. This fake verifies the
+    # shared dispatch boundary, including source PYTHONPATH and fixed arguments.
+    _write_executable(
+        runtime / ".pixi/envs/hpc/bin/python",
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'if [[ "$1" == --version ]]; then echo "Python 3.14.6"; exit 0; fi\n'
+        '[[ "$1" == -m && "$2" == genome_to_diffraction.hpc.login_process '
+        '&& "$3" == start ]]\n'
+        '[[ "$4" == --run && "$6" == --owner ]]\n'
+        '[[ "$PYTHONPATH" == "$5/source/src" ]]\n'
+        'printf "%s\\n" "$@" > "$5/logs/test-login-arguments"\n'
+        'printf "controller_kind\\tbG9naW5fcHJvY2Vzcw==\\n"\n',
+    )
+    if tampering == "runtime_link":
+        (run / "source").chmod(0o755)
+        (run / "source/.pixi").unlink()
+        (run / "source/.pixi").symlink_to(root / "unrelated-runtime")
+    elif tampering == "site_digest":
+        (run / "state/site-config-sha256").write_text("f" * 64)
+    response = _run(
+        [str(dispatcher), "submit", run_id, OWNER_ID],
+        cwd=root,
+        environment=environment,
+        success=tampering is None,
+    )
+    fields = _decode_protocol(response.stdout)
+    if tampering is None:
+        assert fields["controller_kind"] == "login_process"
+        assert (run / "logs/test-login-arguments").is_file()
+    else:
+        assert fields["failure_class"] == "environment_failure"
+        assert not (run / "logs/test-login-arguments").exists()
+    assert not (tmp_path / "sbatch-args").exists()
+    assert not (run / "state/job-id").exists()
+    cleanup = _run(
+        [str(dispatcher), "clean", run_id, OWNER_ID, run_id],
+        cwd=root,
+        environment=environment,
+        success=False,
+    )
+    assert "cleanup is outside" in _decode_protocol(cleanup.stdout)["message"]
+    assert run.is_dir()
+
+
+def test_raven_setup_binds_existing_runtime_then_readiness_is_read_only(
+    tmp_path: Path,
+) -> None:
+    root, dispatcher, environment, commit, lock_sha, phenix_sha = (
+        _prepare_raven_site_layout(tmp_path)
+    )
+    dispatcher_sha = hashlib.sha256(dispatcher.read_bytes()).hexdigest()
+    command = [
+        str(dispatcher),
+        "raven-site-configure",
+        dispatcher_sha,
+        commit,
+        lock_sha,
+        phenix_sha,
+    ]
+    first = _decode_protocol(_run(command, cwd=root, environment=environment).stdout)
+    assert first["configured"] == "true"
+    site = root / "_tooling/site.paths"
+    assert stat.S_IMODE(site.stat().st_mode) == 0o600
+    payload = site.read_bytes()
+    second = _decode_protocol(_run(command, cwd=root, environment=environment).stdout)
+    assert second["configured"] == "false"
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "readiness", "m6-operational"],
+            cwd=root,
+            environment=environment,
+        ).stdout
+    )
+    assert readiness["scope"] == "runtime_bindings_only"
+    assert readiness["runtime_bindings_verified"] == "true"
+    assert readiness["database_binding_verified"] == "false"
+    assert readiness["native_qualification_verified"] == "false"
+    assert readiness["runtime_source_commit"] == commit
+    assert site.read_bytes() == payload
+    assert not list((root / "runs").iterdir())
+
+
+@pytest.mark.parametrize("tampering", ["dispatcher", "lock", "phenix", "host"])
+def test_raven_setup_rejects_changed_binding_before_creating_site_record(
+    tmp_path: Path,
+    tampering: str,
+) -> None:
+    root, dispatcher, environment, commit, lock_sha, phenix_sha = (
+        _prepare_raven_site_layout(tmp_path)
+    )
+    dispatcher_sha = hashlib.sha256(dispatcher.read_bytes()).hexdigest()
+    if tampering == "dispatcher":
+        dispatcher_sha = "f" * 64
+    elif tampering == "lock":
+        lock_sha = "f" * 64
+    elif tampering == "phenix":
+        phenix_sha = "f" * 64
+    else:
+        environment["FAKE_RAVEN_HOST"] = "not-raven"
+    result = _run(
+        [
+            str(dispatcher),
+            "raven-site-configure",
+            dispatcher_sha,
+            commit,
+            lock_sha,
+            phenix_sha,
+        ],
+        cwd=root,
+        environment=environment,
+        success=False,
+    )
+    assert "failure_class" in _decode_protocol(result.stdout)
+    assert not (root / "_tooling/site.paths").exists()
+
+
 def test_marmic_site_setup_creates_only_its_identity_and_is_idempotent(
     tmp_path: Path,
 ) -> None:
@@ -3129,6 +3352,88 @@ def _install_fake_database_runtime(run: Path, fake_bin: Path) -> None:
         "  exit 9\n"
         "fi\n",
     )
+
+
+@pytest.mark.parametrize("mount_alias", [False, True])
+def test_raven_database_runtime_configuration_accepts_only_confined_site_paths(
+    tmp_path: Path,
+    mount_alias: bool,
+) -> None:
+    physical_root, dispatcher, environment, commit, lock_sha, phenix_sha = (
+        _prepare_raven_site_layout(tmp_path)
+    )
+    root = physical_root
+    if mount_alias:
+        alias = tmp_path / "site-mount"
+        alias.symlink_to(tmp_path, target_is_directory=True)
+        root = alias / physical_root.name
+        dispatcher.write_text(
+            dispatcher.read_text().replace(str(physical_root), str(root))
+        )
+        (root / "_tooling/pixi.path").write_text(f"{root}/software/pixi-0.76.2/pixi\n")
+    _run(
+        [
+            str(dispatcher),
+            "raven-site-configure",
+            hashlib.sha256(dispatcher.read_bytes()).hexdigest(),
+            commit,
+            lock_sha,
+            phenix_sha,
+        ],
+        cwd=root,
+        environment=environment,
+    )
+    manifest = root / "databases/database_manifest.json"
+    manifest.parent.mkdir()
+    manifest.write_text('{"fixture":"existing immutable database"}\n')
+    before = manifest.read_bytes()
+    payload = "\n".join(
+        [
+            str(root),
+            str(manifest.parent),
+            str(manifest),
+            "100000000000",
+            "200000000000",
+            "50000000000",
+            "200000000000",
+            "",
+        ]
+    ).encode()
+    config = root / "_config/database.paths"
+    checksum = hashlib.sha256(payload).hexdigest()
+    command = [
+        str(dispatcher),
+        "database-runtime-configure",
+        checksum,
+        base64.b64encode(payload).decode(),
+    ]
+    result = _decode_protocol(_run(command, cwd=root, environment=environment).stdout)
+    assert result["database_config_status"] == "ready"
+    assert (
+        config.read_bytes() == payload and stat.S_IMODE(config.stat().st_mode) == 0o600
+    )
+    readiness = _decode_protocol(
+        _run(
+            [str(dispatcher), "database-readiness"], cwd=root, environment=environment
+        ).stdout
+    )
+    assert readiness["ready"] == "true"
+    assert manifest.read_bytes() == before
+    repeated = _run(command, cwd=root, environment=environment, success=False)
+    assert (
+        _decode_protocol(repeated.stdout)["message"]
+        == "database configuration already exists"
+    )
+    config.write_bytes(
+        payload.replace(str(manifest.parent).encode(), str(tmp_path).encode())
+    )
+    changed = _decode_protocol(
+        _run(
+            [str(dispatcher), "database-readiness"], cwd=root, environment=environment
+        ).stdout
+    )
+    assert changed["ready"] == "false"
+    assert changed["database_config_status"] == "raven_runtime_binding_mismatch"
 
 
 def test_database_runtime_configuration_restores_existing_immutable_manifest(

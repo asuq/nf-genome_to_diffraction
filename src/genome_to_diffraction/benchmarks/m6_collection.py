@@ -42,11 +42,13 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
 )
 from genome_to_diffraction.benchmarks.m6_execution import (
     M6_SHARED_TRUTHLESS_PROCESSES,
+    M6_SITE_POLICIES,
     M6ChildOutputEvidence,
     M6ExecutionPolicy,
     M6ResourceEvidence,
     expected_m6_child_status,
     load_m6_execution_policy,
+    m6_operational_precheck_paths,
     m6_process_name,
 )
 from genome_to_diffraction.benchmarks.m6_identity import M6IdentityDecision
@@ -67,6 +69,10 @@ from genome_to_diffraction.benchmarks.m6_stages import (
 )
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
+from genome_to_diffraction.execution_evidence import (
+    ExecutionEvidenceError,
+    validate_login_result_binding,
+)
 from genome_to_diffraction.schemas.base import (
     ContractModel,
     NonEmptyString,
@@ -81,17 +87,11 @@ from genome_to_diffraction.schemas.io import (
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-_M6_OPERATIONAL_PRECHECK_PATHS = (
-    "manifest.json",
-    "state/job-result.json",
-    "artifacts/qualification/m6-scientific-summary.json",
-    "artifacts/qualification/m6-scientific-checksums.sha256",
-)
 
 
 @dataclass(frozen=True, slots=True)
 class M6CollectionRequest:
-    """Truth-side assembly request for exactly two collected Viper runs."""
+    """Truth-side assembly request for two collected runs from one reviewed site."""
 
     protocol: Path
     private_truth_map: Path
@@ -344,7 +344,11 @@ def _operational_precheck_sha256(root: Path) -> str:
 
     resolved = root.resolve(strict=True)
     inventory: list[str] = []
-    for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
+    manifest = _json_object(resolved / "manifest.json", "operational manifest")
+    site_id = manifest.get("site_id")
+    if not isinstance(site_id, str):
+        raise PublicControlError("M6 operational precheck site is absent")
+    for relative in m6_operational_precheck_paths(site_id):
         path = resolved.joinpath(*Path(relative).parts)
         try:
             confined = path.resolve(strict=True)
@@ -495,15 +499,49 @@ def _load_track(
         or runtime.get("profile") != profile
     ):
         raise PublicControlError(f"collected M6 {track} identity is inconsistent")
-    job_result = _json_object(resolved / "state/job-result.json", "job result")
+    state_key = "scheduler_state"
+    if expected_site_id == "raven":
+        if (
+            manifest.get("schema_version") != "1.1"
+            or manifest.get("controller_kind") != "login_process"
+            or (resolved / "state/job-id").exists()
+            or (resolved / "state/job-result.json").exists()
+        ):
+            raise PublicControlError("M6 Raven collection mixes controller kinds")
+        identity = _json_object(
+            resolved / "state/controller.json", "controller identity"
+        )
+        job_result = _json_object(
+            resolved / "state/controller-result.json", "controller result"
+        )
+        owner_id, commit = identity.get("owner_id"), manifest.get("commit")
+        if not isinstance(owner_id, str) or not isinstance(commit, str):
+            raise PublicControlError("M6 Raven controller ownership is absent")
+        try:
+            validate_login_result_binding(
+                identity,
+                job_result,
+                run_id=run_id,
+                owner_id=owner_id,
+                profile=profile,
+                source_commit=commit,
+            )
+        except ExecutionEvidenceError as error:
+            raise PublicControlError(
+                f"M6 Raven controller identity is invalid: {error}"
+            ) from error
+        state_key = "controller_state"
+    else:
+        job_result = _json_object(resolved / "state/job-result.json", "job result")
     if (
-        job_result.get("scheduler_state") != "COMPLETED"
+        job_result.get(state_key) != "COMPLETED"
+        or type(job_result.get("exit_code")) is not int
         or job_result.get("exit_code") != 0
         or job_result.get("failure_class") != "success"
         or _state_text(resolved, "failure-class") != "success"
         or _state_text(resolved, "exit-code") != "0"
     ):
-        raise PublicControlError(f"collected M6 {track} job did not succeed")
+        raise PublicControlError(f"collected M6 {track} controller did not succeed")
     case_ids = tuple(cast(str, row.get("case_id")) for row in cases)
     if case_ids != expected_case_ids:
         raise PublicControlError(f"collected M6 {track} cases are incomplete")
@@ -1081,20 +1119,13 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
         "leakage collection manifest",
     )
     site_id = operational_manifest.get("site_id")
-    site_policies = {
-        "viper-cpu": ("m6_nextflow_slurm_v1", "execution-nextflow-v1.yaml"),
-        "marmic": (
-            "m6_nextflow_slurm_marmic_v2",
-            "execution-nextflow-marmic-v2.yaml",
-        ),
-    }
     if (
         not isinstance(site_id, str)
-        or site_id not in site_policies
+        or site_id not in M6_SITE_POLICIES
         or leakage_manifest.get("site_id") != site_id
     ):
         raise PublicControlError("M6 tracks must use the same reviewed HPC site")
-    execution_policy_id, execution_policy_name = site_policies[site_id]
+    execution_policy_id, execution_policy_name = M6_SITE_POLICIES[site_id]
     execution_policy_path = protocol_path.with_name(execution_policy_name)
     if not execution_policy_path.is_file():
         raise PublicControlError("M6 Nextflow execution policy is absent")

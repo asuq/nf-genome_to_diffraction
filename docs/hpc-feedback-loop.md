@@ -1,8 +1,103 @@
-# Historical local-Marmic fixed-profile feedback loop
+# Fixed-profile HPC feedback loop
 
-> **Site status:** Marmic is retained as immutable historical evidence. New
-> prototype work uses the [Viper-CPU runbook](viper-cpu-runbook.md). Do not use
-> this historical page to stage new runs.
+> **Current authority:** use the original reviewed `nf-gtd-hpc-test` application
+> and its shared dispatcher for every supported site. The current approved M6
+> target is Raven. The Marmic and Viper records remain valid historical evidence;
+> their availability does not change the current site choice or authorise jobs.
+> The resource and profile inventory below predates current M6 work and describes
+> historical Marmic execution unless stated otherwise.
+
+## Raven through the common controller
+
+Raven uses the same configuration, source publication, `deploy-tools`, staging,
+owned-run state, bounded diagnostics and collection cycle. There is no separate
+Raven executable, SSH client or alternate JSON transport. Use a configuration
+with `site_id: raven`, `ssh_alias: raven`, and the fixed dispatcher under
+`/ptmp/USER/nf-genome_to_diffraction/_tooling/nf-gtd-hpc-remote`. Select that
+configuration explicitly; never rely on a different site's default config.
+
+After the local milestone gate and exact-source CI pass, refresh the reviewed
+installation at its existing approved path, then use the same executable:
+
+```text
+nf-gtd-hpc-test --config CONFIG deploy-tools --revision FULL_COMMIT
+nf-gtd-hpc-test --config CONFIG raven-site-configure --revision FULL_COMMIT --runtime-source-commit EXISTING_RUNTIME_COMMIT --phenix-manifest-sha256 FROZEN_PHENIX_SHA256
+nf-gtd-hpc-test --config CONFIG readiness m6-nextflow-smoke
+nf-gtd-hpc-test --config CONFIG stage m6-nextflow-smoke --revision FULL_COMMIT
+nf-gtd-hpc-test --config CONFIG submit m6-nextflow-smoke --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG status --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID
+```
+
+Use the already approved absolute executable path when that is the command
+permission boundary. Do not substitute raw SSH or request new broad approvals.
+`raven-site-configure` creates only the absent owned mode-0600 site record, or
+verifies an identical existing record. It binds the existing Pixi 0.76.2,
+runtime source, lock, licensed Phenix manifest, CPU account and login host.
+It never reinstalls an environment, replaces a site record or qualifies M6.
+Readiness reports runtime bindings only; database and native qualification
+remain separate gates.
+
+The fixed `m6-inputs` verifier is a Slurm job. The `m6-nextflow-smoke`,
+`m6-operational` and `m6-leakage` profiles use an explicitly identified login
+process with a two-CPU affinity limit. Their original shared job body launches
+Nextflow; Nextflow owns the scientific Slurm children. The Raven policy preserves
+the 24-hour child-job ceiling, 32 CPUs/192 GB per-job bound, at most 128 Foldseek
+queries per batch and maintained helper queue/submission controls. The driver
+JVM's 6 GB heap is a local orchestration budget, not a Slurm memory allocation.
+
+New local run records use schema 1.2 and bind `controller_kind` to site/profile.
+Historical Marmic/Viper records keep their documented schemas. A login process
+has a host, boot ID, PID and kernel start ticks in `state/controller.json` and a
+terminal `state/controller-result.json`; it never has a synthetic Slurm job ID
+or scheduler state. A missing result after process disappearance is an error,
+not inferred success. A wait timeout never cancels a process. Explicit authorised
+cancellation uses a PID descriptor and lets Nextflow stop its own children.
+
+The common collector checks source, ownership, identity, terminal result, logs
+and archive bounds before publication. M6 truth-side collection uses the same
+Raven policy mapping and process binding. A leakage parent digest additionally
+binds its original controller identity; mixing login and Slurm evidence fails.
+Local/fake-runtime tests establish these contracts, not native M6 acceptance.
+Qualify the native stub and the approved small real-data control before a large
+benchmark. Operational and leakage case sets and acceptance thresholds remain
+unchanged.
+
+### Existing database bootstrap handover
+
+The already launched September one-CPU database bootstrap is not a standard
+managed run. Do not restart it, rewrite its state, or disguise its identifiers
+as a new run. A bounded read-only import replaces the temporary transport:
+
+```text
+nf-gtd-hpc-test --config CONFIG raven-database-import --revision FULL_COMMIT --launch-record ORIGINAL_LAUNCH_JSON --controller-record ORIGINAL_START_OBSERVATION_JSON
+```
+
+The command reads the original launch and its sibling deployment record, checks
+the saved process identity against owned remote records and Linux process state,
+and retains a checksum-named local evidence JSON. On completion it also binds
+the original/current database manifests and the existing full-verification
+manifest. It does not rerun full resource hashing or claim M6 qualification.
+Imported evidence is explicitly `managed_run: false`, preserves absent exit and
+scheduler fields, and never creates a `LocalRunRecord`. This fixed import can
+only observe the existing bootstrap layout; it has no execution, restart,
+cancellation or deletion operation. Preserve its immutable bootstrap/source
+files after collection; retire the temporary client from active use.
+
+After successful database import, the existing `database-runtime-configure`
+command binds the prepared runtime from an owned mode-0600 seven-line paths
+file, confirmed by SHA-256. Raven requires the fixed project root, its
+`databases` directory and `databases/database_manifest.json`. The last four
+lines preserve the original bootstrap values: `100000000000`, `200000000000`,
+`50000000000`, `200000000000` (bytes). The filesystem free-space reserve and
+project-owned storage cap are different quantities; this runtime-only binding
+does not run preparation or change those values. The helper verifies physical
+confinement across the approved mount alias and cannot replace an existing
+configuration. `database-readiness` then inspects that existing runtime.
+
+The cancelled operator-crystal route remains
+[historical evidence](raven-identification.md), not an executable prerequisite.
 
 ## Purpose and boundary
 

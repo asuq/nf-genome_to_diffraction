@@ -1,7 +1,7 @@
 """Validate M6 execution policy and child Slurm resource evidence.
 
 The input policy fixes driver/per-job limits, batching, concurrency semantics,
-and shared-cache eligibility. The fixed Viper and Marmic policies use distinct
+and shared-cache eligibility. The fixed Viper, Marmic and Raven policies use distinct
 policy identities because their resource, batching, scheduler queue and
 submission-rate controls differ. A completed Nextflow trace is normalised into a
 checksum-bound inventory of native job IDs, requested resources, observed CPU
@@ -32,12 +32,50 @@ from genome_to_diffraction.schemas.base import (
 from genome_to_diffraction.schemas.io import load_json_document, load_yaml_document
 
 _MEMORY = re.compile(r"^([0-9]+(?:\.[0-9]+)?)\s*([KMGT]B)$", re.I)
+M6_SITE_POLICIES = {
+    "viper-cpu": ("m6_nextflow_slurm_v1", "execution-nextflow-v1.yaml"),
+    "marmic": ("m6_nextflow_slurm_marmic_v2", "execution-nextflow-marmic-v2.yaml"),
+    "raven": ("m6_nextflow_slurm_raven_v1", "execution-nextflow-raven-v1.yaml"),
+}
+M6_POLICY_FILES = dict(M6_SITE_POLICIES.values())
+
+
+def m6_operational_precheck_paths(site_id: str) -> tuple[str, ...]:
+    """Fixed ordered parent evidence shared by staging and truth-side collection."""
+
+    if site_id not in M6_SITE_POLICIES:
+        raise PublicControlError("M6 operational precheck site is not reviewed")
+    result = "controller-result.json" if site_id == "raven" else "job-result.json"
+    return (
+        "manifest.json",
+        f"state/{result}",
+        "artifacts/qualification/m6-scientific-summary.json",
+        "artifacts/qualification/m6-scientific-checksums.sha256",
+        *(("state/controller.json",) if site_id == "raven" else ()),
+    )
 
 
 class M6DriverPolicy(ContractModel):
     maximum_cpus: PositiveInt
     maximum_memory_gb: PositiveFloat
     maximum_scheduler_hours: PositiveFloat
+
+    @property
+    def maximum_controller_task_hours(self) -> float:
+        return self.maximum_scheduler_hours
+
+
+class M6LoginDriverPolicy(ContractModel):
+    """Local orchestration budgets, explicitly not a scheduler allocation."""
+
+    controller_kind: Literal["login_process"]
+    maximum_cpus: PositiveInt
+    maximum_memory_gb: PositiveFloat
+    maximum_local_task_hours: PositiveFloat
+
+    @property
+    def maximum_controller_task_hours(self) -> float:
+        return self.maximum_local_task_hours
 
 
 class M6PerJobPolicy(ContractModel):
@@ -80,15 +118,16 @@ class M6SharedCachePolicy(ContractModel):
 
 
 class M6ExecutionPolicy(ContractModel):
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.0", "1.1"]
     policy_id: Literal[
         "m6_nextflow_slurm_v1",
         "m6_nextflow_slurm_marmic_v2",
+        "m6_nextflow_slurm_raven_v1",
     ]
-    site_id: Literal["marmic", "viper-cpu"]
+    site_id: Literal["marmic", "viper-cpu", "raven"]
     orchestrator: Literal["nextflow_dsl2"]
     executor: Literal["slurm"]
-    driver: M6DriverPolicy
+    driver: M6DriverPolicy | M6LoginDriverPolicy
     per_job: M6PerJobPolicy
     concurrency: M6ConcurrencyPolicy
     search_batching: M6SearchBatchingPolicy
@@ -100,9 +139,23 @@ class M6ExecutionPolicy(ContractModel):
         expected_site = {
             "m6_nextflow_slurm_v1": "viper-cpu",
             "m6_nextflow_slurm_marmic_v2": "marmic",
+            "m6_nextflow_slurm_raven_v1": "raven",
         }[self.policy_id]
         if self.site_id != expected_site:
             raise ValueError("M6 execution policy ID and site ID disagree")
+        if self.site_id == "raven":
+            if self.schema_version != "1.1" or not isinstance(
+                self.driver, M6LoginDriverPolicy
+            ):
+                raise ValueError(
+                    "Raven policy requires an explicit login-process driver"
+                )
+        elif self.schema_version != "1.0" or not isinstance(
+            self.driver, M6DriverPolicy
+        ):
+            raise ValueError(
+                "Marmic/Viper policies require their Slurm driver contract"
+            )
         search_cpus = (
             self.search_batching.mmseqs2.cpus,
             self.search_batching.foldseek.cpus,
@@ -426,7 +479,7 @@ def collect_m6_resource_evidence(
                     record.requested_cpus > policy.driver.maximum_cpus
                     or record.requested_memory_gb > policy.driver.maximum_memory_gb
                     or record.requested_time_hours
-                    > policy.driver.maximum_scheduler_hours
+                    > policy.driver.maximum_controller_task_hours
                 ):
                     raise PublicControlError(
                         "M6 controller stage exceeds driver bounds"

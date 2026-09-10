@@ -4,6 +4,7 @@ import base64
 import binascii
 import hashlib
 import io
+import json
 import logging
 import os
 import re
@@ -23,7 +24,11 @@ from typing import Protocol
 
 from tqdm import tqdm
 
-from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
+from genome_to_diffraction.benchmarks.m6_execution import (
+    M6_SITE_POLICIES,
+    load_m6_execution_policy,
+    m6_operational_precheck_paths,
+)
 from genome_to_diffraction.benchmarks.m6_runner import (
     verify_m6_runner_truth_isolation,
 )
@@ -34,6 +39,11 @@ from genome_to_diffraction.benchmarks.m6_verification import (
 )
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import atomic_write_text, sha256_file
+from genome_to_diffraction.execution_evidence import (
+    ExecutionEvidenceError,
+    validate_login_result_binding,
+    validate_process_identity,
+)
 from genome_to_diffraction.hpc.control_matrix import build_fixed_control_matrix_bundle
 from genome_to_diffraction.hpc.control_slice import build_fixed_control_slice_bundle
 from genome_to_diffraction.hpc.identification_inputs import (
@@ -51,11 +61,13 @@ from genome_to_diffraction.hpc.models import (
     P0_EXECUTION_TIMEOUT_SECONDS,
     P1_EXECUTION_TIMEOUT_SECONDS,
     P2_EXECUTION_TIMEOUT_SECONDS,
+    ControllerKind,
     FailureClass,
     HpcConfig,
     LocalRunRecord,
     RemoteOperationError,
     ValidationError,
+    controller_kind_for_profile,
     load_local_run,
     validate_commit,
     validate_log_lines,
@@ -108,6 +120,8 @@ _QUEUED_STATES = frozenset(
 _RUNNING_STATES = frozenset(
     {"COMPLETING", "RESIZING", "RUNNING", "STOPPED", "SUSPENDED"}
 )
+_LOGIN_TERMINAL_STATES = frozenset({"COMPLETED", "FAILED", "CANCELLED", "STAGE_FAILED"})
+_LOGIN_RUNNING_STATES = frozenset({"STARTING", "RUNNING", "CANCELLING"})
 _RUN_SCOPED_REMOTE_OPERATIONS = frozenset(
     {
         "cancel",
@@ -277,7 +291,9 @@ def _validated_p0_paths_payload(path: Path) -> bytes:
     return payload
 
 
-def _validated_database_runtime_paths_payload(path: Path) -> bytes:
+def _validated_database_runtime_paths_payload(
+    path: Path, *, site_id: str, remote_root: PurePosixPath
+) -> bytes:
     """Load one canonical seven-line private database runtime configuration."""
 
     if (
@@ -312,6 +328,24 @@ def _validated_database_runtime_paths_payload(path: Path) -> bytes:
     ):
         raise ValidationError("database runtime capacities must be canonical integers")
     storage, reserve, required, scratch = (int(value) for value in lines[3:])
+    if site_id == "raven":
+        if lines[:3] != [
+            str(remote_root),
+            str(remote_root / "databases"),
+            str(remote_root / "databases/database_manifest.json"),
+        ] or (storage, reserve, required, scratch) != (
+            100_000_000_000,
+            200_000_000_000,
+            50_000_000_000,
+            200_000_000_000,
+        ):
+            raise ValidationError(
+                "Raven runtime paths must preserve its fixed database binding"
+            )
+        # These are the original bootstrap values. The filesystem free-space
+        # reserve and project-owned storage cap measure different quantities.
+        # Raven may bind this existing runtime only; fresh builds are disabled.
+        return payload
     if not (
         0 < storage <= 2_000_000_000_000
         and 0 <= reserve < storage
@@ -452,15 +486,10 @@ def _inspect_m6_runner_archive(
     )
 
 
-_M6_OPERATIONAL_PRECHECK_PATHS = (
-    "manifest.json",
-    "state/job-result.json",
-    "artifacts/qualification/m6-scientific-summary.json",
-    "artifacts/qualification/m6-scientific-checksums.sha256",
-)
 _M6_SOURCE_BRANCH_BY_SITE = {
     "viper-cpu": "main",
     "marmic": "main",
+    "raven": "main",
 }
 
 
@@ -483,7 +512,7 @@ def _m6_operational_precheck(
     if collected.is_symlink() or not collected.is_dir():
         raise ValidationError("M6 leakage requires its collected operational parent")
     paths: list[tuple[str, Path]] = []
-    for relative in _M6_OPERATIONAL_PRECHECK_PATHS:
+    for relative in m6_operational_precheck_paths(record.site_id):
         path = collected.joinpath(*PurePosixPath(relative).parts)
         if path.is_symlink() or not path.is_file():
             raise ValidationError(f"M6 operational precheck is missing {relative}")
@@ -501,7 +530,12 @@ def _m6_operational_precheck(
         or manifest.get("site_id") != record.site_id
         or result.get("run_id") != record.run_id
         or result.get("profile") != "m6-operational"
-        or result.get("scheduler_state") != "COMPLETED"
+        or result.get(
+            "controller_state"
+            if record.controller_kind == "login_process"
+            else "scheduler_state"
+        )
+        != "COMPLETED"
         or result.get("failure_class") != "success"
         or result.get("exit_code") != 0
         or summary.get("track") != "operational"
@@ -510,6 +544,12 @@ def _m6_operational_precheck(
     ):
         raise ValidationError(
             "M6 operational parent is not a collected successful exact track"
+        )
+    if record.controller_kind == "login_process":
+        if manifest.get("controller_kind") != "login_process":
+            raise ValidationError("M6 parent controller kind differs")
+        _validated_login_terminal_result(
+            {relative: path.read_bytes() for relative, path in paths}, record
         )
     inventory = "".join(
         f"{sha256_file(path)}  {relative}\n" for relative, path in paths
@@ -2626,7 +2666,7 @@ class HpcController:
     ) -> dict[str, object]:
         """Stage one explicitly confirmed truth-isolated 63-case M6 archive."""
 
-        if self.config.site_id not in {"viper-cpu", "marmic"}:
+        if self.config.site_id not in {"viper-cpu", "marmic", "raven"}:
             raise ValidationError("m6-inputs-stage requires a reviewed HPC site")
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
@@ -2720,7 +2760,7 @@ class HpcController:
     ) -> dict[str, object]:
         """Stage one fixed truth-isolated M6 track at its reviewed site."""
 
-        if self.config.site_id not in {"viper-cpu", "marmic"}:
+        if self.config.site_id not in {"viper-cpu", "marmic", "raven"}:
             raise ValidationError("M6 scientific staging requires a reviewed HPC site")
         if track not in {"operational", "leakage"}:
             raise ValidationError("M6 scientific track must be operational or leakage")
@@ -2753,11 +2793,7 @@ class HpcController:
         if source_branch != "main":
             raise ValidationError("source branch is not approved for M6 staging")
         self.git.ensure_reachable_from_origin_main(commit)
-        policy_name = (
-            "execution-nextflow-marmic-v2.yaml"
-            if self.config.site_id == "marmic"
-            else "execution-nextflow-v1.yaml"
-        )
+        policy_name = M6_SITE_POLICIES[self.config.site_id][1]
         policy_relative = PurePosixPath("benchmarks/m6") / policy_name
         policy_path = self.config.repository.joinpath(*policy_relative.parts)
         if policy_path.is_symlink() or not policy_path.is_file():
@@ -2968,7 +3004,9 @@ class HpcController:
         """Inspect one fixed profile's remote prerequisites without creating a run."""
 
         validate_profile(profile)
-        if profile not in {"p0", "p1", "p2", "p2-diverse", "p2-control"}:
+        if self.config.site_id == "raven":
+            controller_kind_for_profile(self.config.site_id, profile)
+        elif profile not in {"p0", "p1", "p2", "p2-diverse", "p2-control"}:
             raise ValidationError(
                 "readiness inspection is available only for p0, p1, p2, "
                 "p2-diverse, and p2-control"
@@ -2977,8 +3015,23 @@ class HpcController:
             "inspecting fixed HPC profile readiness",
             extra={"profile": profile},
         )
+        result = self.transport.run("readiness", [profile])
+        if self.config.site_id == "raven":
+            expected = {
+                "site_id": "raven",
+                "profile": profile,
+                "ready": "true",
+                "scope": "runtime_bindings_only",
+                "runtime_bindings_verified": "true",
+                "database_binding_verified": "false",
+                "native_qualification_verified": "false",
+            }
+            if any(result.get(key) != value for key, value in expected.items()):
+                raise RemoteOperationError(
+                    "Raven readiness scope or site is inconsistent"
+                )
         return {
-            **self.transport.run("readiness", [profile]),
+            **result,
             "operation": "readiness",
             "profile": profile,
         }
@@ -3014,6 +3067,289 @@ class HpcController:
                 failure_class=FailureClass.WRAPPER_FAILURE,
             )
         return {**remote, "commit": commit}
+
+    def raven_site_configure(
+        self, revision: str, runtime_source_commit: str, phenix_manifest_sha256: str
+    ) -> dict[str, object]:
+        """Bind the existing Raven tools through the canonical dispatcher."""
+
+        if self.config.site_id != "raven":
+            raise ValidationError("Raven site setup requires a Raven config")
+        validate_commit(runtime_source_commit)
+        if re.fullmatch(r"[a-f0-9]{64}", phenix_manifest_sha256) is None:
+            raise ValidationError("Raven Phenix binding must be an exact SHA-256")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        dispatcher_sha = hashlib.sha256(
+            self.git.read_file_at_commit(
+                commit, PurePosixPath("bootstrap/nf-gtd-hpc-remote")
+            )
+        ).hexdigest()
+        lock_sha = hashlib.sha256(
+            self.git.read_file_at_commit(commit, PurePosixPath("pixi.lock"))
+        ).hexdigest()
+        remote = self.transport.run(
+            "raven-site-configure",
+            [dispatcher_sha, runtime_source_commit, lock_sha, phenix_manifest_sha256],
+        )
+        expected = {
+            "operation": "raven-site-configure",
+            "site_id": "raven",
+            "dispatcher_sha256": dispatcher_sha,
+            "runtime_source_commit": runtime_source_commit,
+            "pixi_lock_sha256": lock_sha,
+            "phenix_manifest_sha256": phenix_manifest_sha256,
+        }
+        host = remote.get("login_host")
+        if (
+            any(remote.get(key) != value for key, value in expected.items())
+            or remote.get("configured") not in {"true", "false"}
+            or not isinstance(host, str)
+            or re.fullmatch(r"raven0[1-4]i?", host) is None
+        ):
+            raise RemoteOperationError(
+                "Raven setup returned inconsistent binding evidence"
+            )
+        root = PurePosixPath(self.config.remote_dispatcher).parent.parent
+        payload = "\n".join(
+            [
+                "raven",
+                str(root),
+                str(root / "software/pixi-0.76.2/pixi"),
+                runtime_source_commit,
+                lock_sha,
+                phenix_manifest_sha256,
+                "mmm_cpu",
+                host,
+                "",
+            ]
+        )
+        if (
+            remote.get("site_config_sha256")
+            != hashlib.sha256(payload.encode()).hexdigest()
+        ):
+            raise RemoteOperationError(
+                "Raven site record does not match reviewed bindings"
+            )
+        return {**remote, "commit": commit}
+
+    def raven_database_import(
+        self, revision: str, launch_record: Path, controller_record: Path
+    ) -> dict[str, object]:
+        """Read-only migration of the already launched September database bootstrap.
+
+        Its original nonstandard identity and missing scheduler/exit fields stay
+        intact. This never creates a LocalRunRecord, starts a process, or signals
+        anything. The imported JSON is historical database evidence, not M6.
+        """
+
+        if self.config.site_id != "raven":
+            raise ValidationError("database bootstrap import requires a Raven config")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        launch = _json_mapping(launch_record, "original database launch")
+        observed = _json_mapping(controller_record, "original database process")
+        deployment = _json_mapping(
+            launch_record.parent / "deployment-record.json", "database deployment"
+        )
+        source_commit = launch.get("source_commit")
+        run_id = launch.get("run_id")
+        host = observed.get("host")
+        process = observed.get("process")
+        if (
+            not isinstance(source_commit, str)
+            or COMMIT_PATTERN.fullmatch(source_commit) is None
+            or not isinstance(run_id, str)
+            or re.fullmatch(
+                rf"gtd-raven-database-login-{source_commit[:12]}-20260911-[a-z0-9]{{6}}",
+                run_id,
+            )
+            is None
+            or launch.get("schema_version") != "1.0"
+            or launch.get("purpose") != "reference_database_login_build_not_M6"
+            or launch.get("execution_site") != "raven_login"
+            or launch.get("threads") != 1
+            or observed.get("run_id") != run_id
+            or observed.get("source_commit") != source_commit
+            or observed.get("runtime_source_commit")
+            != launch.get("runtime_source_commit")
+            or observed.get("threads") != 1
+            or not isinstance(host, str)
+            or not isinstance(process, Mapping)
+        ):
+            raise ValidationError("original database launch/process binding differs")
+        try:
+            validate_process_identity({"host": host.split(".")[0], **process})
+        except ExecutionEvidenceError as error:
+            raise ValidationError(str(error)) from error
+        if set(process) != {"pid", "start_ticks", "boot_id"}:
+            raise ValidationError("original database process fields differ")
+        members = deployment.get("members")
+        if not isinstance(members, Mapping) or set(members) != {
+            "source.tar",
+            "launch.json",
+            "run_login_database.py",
+        }:
+            raise ValidationError("original database deployment inventory differs")
+        for name in ("launch.json", "run_login_database.py"):
+            item = members[name]
+            path = launch_record.parent / name
+            if (
+                not isinstance(item, Mapping)
+                or path.is_symlink()
+                or item.get("sha256") != sha256_file(path)
+                or item.get("size_bytes") != path.stat().st_size
+            ):
+                raise ValidationError("original database deployment bytes differ")
+        authority = {
+            "run_id": run_id,
+            "launch": launch,
+            "deployment_members": members,
+            "host": host,
+            "process": process,
+            "dispatcher_sha256": hashlib.sha256(
+                self.git.read_file_at_commit(
+                    commit, PurePosixPath("bootstrap/nf-gtd-hpc-remote")
+                )
+            ).hexdigest(),
+        }
+        # Send only frozen administrative metadata and hashes, never biological inputs.
+        encoded = base64.b64encode(
+            json.dumps(authority, sort_keys=True).encode()
+        ).decode()
+        remote = self.transport.run("raven-database-import", [encoded])
+        try:
+            payload = base64.b64decode(remote["evidence_base64"], validate=True)
+        except (KeyError, ValueError) as error:
+            raise _terminal_evidence_error(
+                "database import payload is invalid"
+            ) from error
+        if len(payload) > 16 * 1024**2 or hashlib.sha256(
+            payload
+        ).hexdigest() != remote.get("evidence_sha256"):
+            raise _terminal_evidence_error("database import checksum or size differs")
+        evidence = _terminal_evidence_mapping(
+            payload, label="database bootstrap import"
+        )
+        state = evidence.get("state")
+        identity = evidence.get("controller")
+        if (
+            remote.get("site_id") != "raven"
+            or remote.get("run_id") != run_id
+            or evidence.get("evidence_kind") != "imported_database_bootstrap_v1"
+            or evidence.get("managed_run") is not False
+            or evidence.get("native_M6_qualification") is not False
+            or evidence.get("launch") != launch
+            or not isinstance(state, Mapping)
+            or not isinstance(identity, Mapping)
+            or identity.get("process") != process
+            or identity.get("host") != host
+            or state.get("process") != process
+            or state.get("host") != host
+            or state.get("source_commit") != source_commit
+            or state.get("run_id") != run_id
+            or identity.get("run_id") != run_id
+            or state.get("runtime_source_commit") != launch.get("runtime_source_commit")
+            or state.get("threads") != 1
+            or state.get("native_M6_qualification") is not False
+            or state.get("phase")
+            not in {"building", "verifying", "completed", "failed"}
+        ):
+            raise _terminal_evidence_error(
+                "database import changed its original authority"
+            )
+        destination = self.config.local_state_root / "imported-database" / run_id
+        if evidence.get("database_verified") is not (state["phase"] == "completed"):
+            raise _terminal_evidence_error(
+                "database import verification contradicts its phase"
+            )
+        files = evidence.get("files")
+        expected_files = {
+            "bootstrap/launch.json",
+            "bootstrap/run_login_database.py",
+            "controller.json",
+            "state.json",
+        }
+        if state["phase"] == "completed":
+            expected_files.update(
+                {
+                    "artifacts/preflight.json",
+                    "artifacts/database_manifest.json",
+                    "artifacts/database_manifest.full-verified.json",
+                    "database_manifest.json",
+                }
+            )
+        if not isinstance(files, Mapping) or set(files) != expected_files:
+            raise _terminal_evidence_error("database import file inventory differs")
+        decoded_files: dict[str, bytes] = {}
+        for name, item in files.items():
+            if not isinstance(item, Mapping) or not isinstance(
+                item.get("content_base64"), str
+            ):
+                raise _terminal_evidence_error("database import file record is invalid")
+            try:
+                content = base64.b64decode(item["content_base64"], validate=True)
+            except ValueError as error:
+                raise _terminal_evidence_error(
+                    "database import file encoding is invalid"
+                ) from error
+            if (
+                len(content) != item.get("size_bytes")
+                or len(content) > 2 * 1024**2
+                or hashlib.sha256(content).hexdigest() != item.get("sha256")
+            ):
+                raise _terminal_evidence_error("database import file checksum differs")
+            decoded_files[name] = content
+        for name, expected in (
+            ("bootstrap/launch.json", launch),
+            ("controller.json", identity),
+            ("state.json", state),
+        ):
+            if _terminal_evidence_mapping(decoded_files[name], label=name) != expected:
+                raise _terminal_evidence_error(
+                    "database import file and summary disagree"
+                )
+        for name in ("launch.json", "run_login_database.py"):
+            if files[f"bootstrap/{name}"]["sha256"] != members[name]["sha256"]:
+                raise _terminal_evidence_error(
+                    "database import administrative source changed"
+                )
+        if state["phase"] == "completed" and (
+            files["database_manifest.json"]["sha256"]
+            != state.get("database_manifest_sha256")
+            or files["artifacts/database_manifest.full-verified.json"]["sha256"]
+            != state.get("verified_manifest_sha256")
+        ):
+            raise _terminal_evidence_error("database import verified manifest changed")
+        destination.mkdir(parents=True, exist_ok=True)
+        if destination.is_symlink() or not destination.resolve().is_relative_to(
+            self.config.local_state_root.resolve()
+        ):
+            raise ValidationError(
+                "database import destination escapes owned local state"
+            )
+        path = destination / f"{hashlib.sha256(payload).hexdigest()}.json"
+        if path.is_symlink():
+            raise ValidationError("database import destination is a symlink")
+        if not path.exists():
+            with path.open("xb") as handle:
+                handle.write(payload)
+        elif path.read_bytes() != payload:
+            raise ValidationError("database import destination content changed")
+        return {
+            "operation": "raven-database-import",
+            "site_id": "raven",
+            "run_id": run_id,
+            "controller_kind": "login_process",
+            "original_phase": state["phase"],
+            "terminal": state["phase"] in {"completed", "failed"},
+            "database_verified": evidence.get("database_verified"),
+            "native_M6_qualification": False,
+            "imported_evidence": str(path),
+            "sha256": remote["evidence_sha256"],
+        }
 
     def p0_configure(
         self,
@@ -3224,7 +3560,11 @@ class HpcController:
     ) -> dict[str, object]:
         """Install one absent configuration for an existing immutable database."""
 
-        payload = _validated_database_runtime_paths_payload(paths_file)
+        payload = _validated_database_runtime_paths_payload(
+            paths_file,
+            site_id=self.config.site_id,
+            remote_root=PurePosixPath(self.config.remote_dispatcher).parent.parent,
+        )
         checksum = hashlib.sha256(payload).hexdigest()
         if confirmation != checksum:
             raise ValidationError(
@@ -3351,13 +3691,13 @@ class HpcController:
         }
 
     def status(self, run_id: str) -> dict[str, object]:
-        """Return scheduler and recorded process state for an owned run."""
+        """Return the owned execution kind without conflating processes and jobs."""
 
         record = self._owned_run(run_id)
-        return {
-            **self.transport.run("status", [run_id, record.owner_id]),
-            "operation": "status",
-        }
+        result = self.transport.run("status", [run_id, record.owner_id])
+        if record.controller_kind == "login_process":
+            _validated_monitor_state(result, record.controller_kind)
+        return {**result, "operation": "status"}
 
     def wait(self, run_id: str) -> dict[str, object]:
         """Poll with fixed queue and execution deadlines; never cancel implicitly."""
@@ -3410,27 +3750,12 @@ class HpcController:
         ) as progress_bar:
             while True:
                 result = self.status(run_id)
-                scheduler_state = result.get("scheduler_state")
-                if not isinstance(scheduler_state, str) or scheduler_state not in (
-                    _QUEUED_STATES | _RUNNING_STATES | _TERMINAL_STATES
-                ):
-                    raise RemoteOperationError(
-                        "remote scheduler state is missing or unsupported",
-                        failure_class=FailureClass.TRANSFER_FAILURE,
-                    )
-                terminal = result.get("terminal")
-                if (
-                    not isinstance(terminal, str)
-                    or terminal not in {"true", "false"}
-                    or ((terminal == "true") != (scheduler_state in _TERMINAL_STATES))
-                ):
-                    raise RemoteOperationError(
-                        "remote terminal flag contradicts its scheduler state",
-                        failure_class=FailureClass.TRANSFER_FAILURE,
-                    )
-                if terminal == "true":
+                running, terminal = _validated_monitor_state(
+                    result, record.controller_kind
+                )
+                if terminal:
                     return {**result, "operation": "wait"}
-                if scheduler_state in _RUNNING_STATES and phase == "queue":
+                if running and phase == "queue":
                     phase = "execution"
                     total = execution_timeout
                     progress_bar.reset(total=total)
@@ -3447,7 +3772,7 @@ class HpcController:
                             "terminal": "false",
                             "wait_timeout_class": FailureClass.QUEUE_TIMEOUT,
                             "message": (
-                                "queue wait limit reached; job was not cancelled"
+                                "start wait limit reached; execution was not cancelled"
                             ),
                         }
                 else:
@@ -3459,7 +3784,8 @@ class HpcController:
                             "terminal": "false",
                             "wait_timeout_class": "execution_wait_timeout",
                             "message": (
-                                "execution wait limit reached; inspect scheduler state"
+                                "execution wait limit reached; "
+                                "inspect owned execution state"
                             ),
                         }
 
@@ -3525,7 +3851,9 @@ class HpcController:
                 destination,
                 progress=self.progress,
             )
-        failure_signature = _failure_signature(destination)
+        failure_signature = _failure_signature(
+            destination, controller_kind=record.controller_kind
+        )
         if failure_signature is not None:
             replace(record, failure_signature=failure_signature).write(
                 self.config.local_state_root
@@ -3644,7 +3972,7 @@ class HpcController:
         }
 
     def cancel(self, run_id: str) -> dict[str, object]:
-        """Cancel only the scheduler job bound to an owned local run record."""
+        """Cancel only the process or scheduler job bound to an owned run record."""
 
         record = self._owned_run(run_id)
         self.logger.warning("cancelling owned HPC run", extra={"run_id": run_id})
@@ -3659,6 +3987,10 @@ class HpcController:
         record = self._owned_run(run_id)
         if confirmation != run_id:
             raise ValidationError("clean confirmation must exactly equal the run ID")
+        if record.site_id == "raven":
+            raise ValidationError(
+                "Raven cleanup is outside the reviewed controller scope"
+            )
         return {
             **self.transport.run("clean", [run_id, record.owner_id, confirmation]),
             "operation": "clean",
@@ -3819,6 +4151,71 @@ def _extract_approved_archive(
     return sorted(extracted)
 
 
+def _validated_monitor_state(
+    result: Mapping[str, object], controller_kind: ControllerKind
+) -> tuple[bool, bool]:
+    """Validate status against the locally owned execution kind, never a guess."""
+
+    if controller_kind == "login_process":
+        if result.get("controller_kind") != controller_kind or any(
+            field in result for field in ("job_id", "scheduler_state")
+        ):
+            raise _terminal_evidence_error(
+                "login controller carries scheduler evidence"
+            )
+        state_key = "controller_state"
+        terminal_states = _LOGIN_TERMINAL_STATES
+        running_states = _LOGIN_RUNNING_STATES
+        allowed_states = terminal_states | running_states | {"STAGED"}
+        state = result.get(state_key)
+        if not isinstance(state, str) or state not in {"STAGED", "STAGE_FAILED"}:
+            pid = result.get("controller_pid")
+            if not isinstance(pid, str) or re.fullmatch(r"[1-9][0-9]*", pid) is None:
+                raise _terminal_evidence_error("controller PID is missing or invalid")
+            _validated_process_identity(
+                {
+                    "host": result.get("controller_host"),
+                    "pid": int(pid),
+                    "start_ticks": result.get("controller_start_ticks"),
+                    "boot_id": result.get("controller_boot_id"),
+                }
+            )
+    else:
+        if result.get("controller_kind", "slurm_job") != "slurm_job" or any(
+            field in result
+            for field in ("controller_state", "controller_pid", "controller_host")
+        ):
+            raise _terminal_evidence_error(
+                "Slurm job carries login-controller evidence"
+            )
+        state_key = "scheduler_state"
+        terminal_states = _TERMINAL_STATES
+        running_states = _RUNNING_STATES
+        allowed_states = terminal_states | running_states | _QUEUED_STATES
+        state = result.get(state_key)
+    if not isinstance(state, str) or state not in allowed_states:
+        raise _terminal_evidence_error(
+            f"remote {state_key.replace('_', ' ')} is missing or unsupported"
+        )
+    terminal = result.get("terminal")
+    if (
+        not isinstance(terminal, str)
+        or terminal not in {"true", "false"}
+        or ((terminal == "true") != (state in terminal_states))
+    ):
+        raise _terminal_evidence_error(f"remote terminal flag contradicts {state_key}")
+    return state in running_states, terminal == "true"
+
+
+def _validated_process_identity(value: object) -> Mapping[str, object]:
+    """Require the host/boot/start-time identity needed to reject PID reuse."""
+
+    try:
+        return validate_process_identity(value)
+    except ExecutionEvidenceError as error:
+        raise _terminal_evidence_error(str(error)) from error
+
+
 def _terminal_evidence_error(reason: str) -> RemoteOperationError:
     return RemoteOperationError(
         f"owned terminal HPC evidence is invalid: {reason}",
@@ -3836,7 +4233,9 @@ def _terminal_evidence_mapping(payload: bytes, *, label: str) -> Mapping[str, ob
     return value
 
 
-def _validated_failure_outcome(result: Mapping[str, object]) -> FailureClass:
+def _validated_failure_outcome(
+    result: Mapping[str, object], *, controller_kind: ControllerKind = "slurm_job"
+) -> FailureClass:
     failure_value = result.get("failure_class")
     if not isinstance(failure_value, str):
         raise _terminal_evidence_error("failure_class must be explicitly declared")
@@ -3847,18 +4246,33 @@ def _validated_failure_outcome(result: Mapping[str, object]) -> FailureClass:
             f"failure_class is unsupported: {failure_value!r}"
         ) from error
 
-    scheduler_state = result.get("scheduler_state")
-    if not isinstance(scheduler_state, str) or scheduler_state not in _TERMINAL_STATES:
-        raise _terminal_evidence_error("scheduler_state is not a terminal state")
+    if controller_kind == "login_process":
+        if result.get("controller_kind") != controller_kind or any(
+            field in result for field in ("job_id", "scheduler_state")
+        ):
+            raise _terminal_evidence_error("login result carries scheduler evidence")
+        state = result.get("controller_state")
+        terminal_states = _LOGIN_TERMINAL_STATES - {"STAGE_FAILED"}
+        state_key = "controller_state"
+    else:
+        if result.get("controller_kind", "slurm_job") != "slurm_job" or (
+            "controller_state" in result
+        ):
+            raise _terminal_evidence_error("Slurm result carries login evidence")
+        state = result.get("scheduler_state")
+        terminal_states = _TERMINAL_STATES
+        state_key = "scheduler_state"
+    if not isinstance(state, str) or state not in terminal_states:
+        raise _terminal_evidence_error(f"{state_key} is not a terminal state")
     exit_code = result.get("exit_code")
     if type(exit_code) is not int or exit_code < 0:
         raise _terminal_evidence_error("exit_code must be a non-negative integer")
     if failure is FailureClass.SUCCESS:
-        if scheduler_state != "COMPLETED" or exit_code != 0:
+        if state != "COMPLETED" or exit_code != 0:
             raise _terminal_evidence_error(
                 "success requires COMPLETED and exit_code zero"
             )
-    elif scheduler_state == "COMPLETED" or exit_code == 0:
+    elif state == "COMPLETED" or exit_code == 0:
         raise _terminal_evidence_error(
             "failure requires a non-success terminal state and nonzero exit_code"
         )
@@ -3907,7 +4321,12 @@ def _validated_terminal_inventory(result: Mapping[str, object]) -> None:
 
 def _owned_terminal_archive_evidence(archive: ArchivePayload) -> dict[str, bytes]:
     required = frozenset({"manifest.json", "state/phase", "state/failure-class"})
-    selected = required | {"state/job-id", "state/job-result.json"}
+    selected = required | {
+        "state/job-id",
+        "state/job-result.json",
+        "state/controller.json",
+        "state/controller-result.json",
+    }
     if _archive_size(archive) > MAX_ARTIFACT_TOTAL_BYTES:
         raise _terminal_evidence_error(
             "compressed archive exceeds the collection limit"
@@ -3976,7 +4395,7 @@ def _validated_owned_terminal_result(
         evidence["manifest.json"], label="manifest.json"
     )
     expected_manifest = {
-        "schema_version": "1.0",
+        "schema_version": "1.1" if record.site_id == "raven" else "1.0",
         "run_id": record.run_id,
         "site_id": record.site_id,
         "project": "nf-genome_to_diffraction",
@@ -3991,6 +4410,12 @@ def _validated_owned_terminal_result(
             raise _terminal_evidence_error(
                 f"manifest {field} does not match the owned immutable run"
             )
+    if record.site_id == "raven" and manifest.get("controller_kind") != (
+        record.controller_kind
+    ):
+        raise _terminal_evidence_error(
+            "manifest controller kind differs from owned run"
+        )
     helper_commit = manifest.get("nf_helper_commit")
     if not isinstance(helper_commit, str) or not COMMIT_PATTERN.fullmatch(
         helper_commit
@@ -4015,15 +4440,28 @@ def _validated_owned_terminal_result(
     if phase == "stage_failed":
         if failure is FailureClass.SUCCESS:
             raise _terminal_evidence_error("stage failure is recorded as success")
-        if "state/job-id" in evidence or "state/job-result.json" in evidence:
+        if any(
+            name in evidence
+            for name in (
+                "state/job-id",
+                "state/job-result.json",
+                "state/controller.json",
+                "state/controller-result.json",
+            )
+        ):
             raise _terminal_evidence_error(
-                "stage failure unexpectedly has scheduler evidence"
+                "stage failure unexpectedly has execution evidence"
             )
         return {
             "schema_version": "1.0",
             "run_id": record.run_id,
             "profile": record.profile,
-            "scheduler_state": "FAILED",
+            "controller_kind": record.controller_kind,
+            **(
+                {"controller_state": "STAGE_FAILED"}
+                if record.controller_kind == "login_process"
+                else {"scheduler_state": "FAILED"}
+            ),
             "exit_code": 1,
             "failure_class": failure.value,
             "structured_test_reports": [],
@@ -4031,6 +4469,25 @@ def _validated_owned_terminal_result(
         }
     if phase not in {"completed", "cancel_requested"}:
         raise _terminal_evidence_error("terminal phase is invalid")
+    if record.controller_kind == "login_process":
+        result = _validated_login_terminal_result(evidence, record)
+        _validated_terminal_timestamps(result)
+        result_failure = _validated_failure_outcome(
+            result, controller_kind=record.controller_kind
+        )
+        if result_failure is not failure:
+            raise _terminal_evidence_error(
+                "controller result differs from failure state"
+            )
+        _validated_terminal_inventory(result)
+        return result
+    if (
+        "state/controller.json" in evidence
+        or "state/controller-result.json" in evidence
+    ):
+        raise _terminal_evidence_error(
+            "Slurm archive contains login-controller evidence"
+        )
     missing_scheduler = sorted(
         {"state/job-id", "state/job-result.json"} - evidence.keys()
     )
@@ -4070,6 +4527,33 @@ def _validated_owned_terminal_result(
             "job result failure class differs from recorded state"
         )
     _validated_terminal_inventory(result)
+    return result
+
+
+def _validated_login_terminal_result(
+    evidence: Mapping[str, bytes], record: LocalRunRecord
+) -> Mapping[str, object]:
+    if "state/job-id" in evidence or "state/job-result.json" in evidence:
+        raise _terminal_evidence_error("login archive contains scheduler evidence")
+    if not {"state/controller.json", "state/controller-result.json"} <= evidence.keys():
+        raise _terminal_evidence_error("required controller evidence is absent")
+    identity = _terminal_evidence_mapping(
+        evidence["state/controller.json"], label="state/controller.json"
+    )
+    result = _terminal_evidence_mapping(
+        evidence["state/controller-result.json"], label="state/controller-result.json"
+    )
+    try:
+        validate_login_result_binding(
+            identity,
+            result,
+            run_id=record.run_id,
+            owner_id=record.owner_id,
+            profile=record.profile,
+            source_commit=record.commit,
+        )
+    except ExecutionEvidenceError as error:
+        raise _terminal_evidence_error(str(error)) from error
     return result
 
 
@@ -4577,8 +5061,15 @@ def _atomic_write_bytes(path: Path, payload: bytes) -> None:
         raise
 
 
-def _failure_signature(destination: Path) -> str | None:
-    result_path = destination / "state" / "job-result.json"
+def _failure_signature(
+    destination: Path, *, controller_kind: ControllerKind = "slurm_job"
+) -> str | None:
+    result_name = (
+        "controller-result.json"
+        if controller_kind == "login_process"
+        else "job-result.json"
+    )
+    result_path = destination / "state" / result_name
     if not result_path.is_file():
         phase_path = destination / "state" / "phase"
         failure_path = destination / "state" / "failure-class"
@@ -4590,7 +5081,7 @@ def _failure_signature(destination: Path) -> str | None:
                 "stage-failure state is invalid after collection"
             ) from error
         if phase != "stage_failed" or failure is FailureClass.SUCCESS:
-            raise _terminal_evidence_error("job-result.json is absent after collection")
+            raise _terminal_evidence_error(f"{result_name} is absent after collection")
         logs = destination / "logs"
         candidates = sorted(
             path
@@ -4612,18 +5103,21 @@ def _failure_signature(destination: Path) -> str | None:
         value = load_json_document(result_path)
     except ContractLoadError as error:
         raise _terminal_evidence_error(
-            "job-result.json is invalid after collection"
+            f"{result_name} is invalid after collection"
         ) from error
     if not isinstance(value, Mapping):
-        raise _terminal_evidence_error("job-result.json must be a JSON object")
-    failure = _validated_failure_outcome(value)
+        raise _terminal_evidence_error(f"{result_name} must be a JSON object")
+    failure = _validated_failure_outcome(value, controller_kind=controller_kind)
     if failure is FailureClass.SUCCESS:
         return None
     exit_code = str(value["exit_code"])
-    scheduler_state = str(value["scheduler_state"])
+    state_key = (
+        "controller_state" if controller_kind == "login_process" else "scheduler_state"
+    )
+    execution_state = str(value[state_key])
     diagnostic = _failure_log_digest(destination, value)
     return hashlib.sha256(
-        f"{failure.value}\0{exit_code}\0{scheduler_state}\0{diagnostic}".encode()
+        f"{failure.value}\0{exit_code}\0{execution_state}\0{diagnostic}".encode()
     ).hexdigest()
 
 

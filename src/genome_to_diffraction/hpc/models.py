@@ -4,9 +4,10 @@ import re
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.execution_evidence import RAVEN_LOGIN_PROFILES
 from genome_to_diffraction.schemas.io import ContractLoadError, load_json_document
 
 RUN_ID_PATTERN = re.compile(
@@ -19,7 +20,9 @@ OWNER_PATTERN = re.compile(r"^[0-9a-f]{32}$")
 SSH_ALIAS_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
 REMOTE_PATH_PATTERN = re.compile(r"^/[A-Za-z0-9._/-]+$")
 JOB_ID_PATTERN = re.compile(r"^[0-9]+$")
-SITE_ID_PATTERN = re.compile(r"^(marmic|viper-cpu)$")
+SITE_ID_PATTERN = re.compile(r"^(marmic|viper-cpu|raven)$")
+ControllerKind = Literal["slurm_job", "login_process"]
+RAVEN_SLURM_PROFILES = frozenset({"m6-inputs"})
 
 MAX_LOG_LINES = 2_000
 MAX_ARTIFACT_FILE_BYTES = 128 * 1024 * 1024
@@ -159,7 +162,7 @@ class HpcConfig:
         if schema_version == "1.1" and "site_id" not in raw:
             raise ConfigurationError("schema_version 1.1 requires site_id")
         if not isinstance(site_id, str) or SITE_ID_PATTERN.fullmatch(site_id) is None:
-            raise ConfigurationError("site_id must be 'marmic' or 'viper-cpu'")
+            raise ConfigurationError("site_id must be 'marmic', 'viper-cpu' or 'raven'")
 
         repository = _absolute_local_path(raw.get("repository"), "repository")
         if not repository.is_dir() or not (repository / ".git").exists():
@@ -183,6 +186,18 @@ class HpcConfig:
         if PurePosixPath(remote_dispatcher).name != "nf-gtd-hpc-remote":
             raise ConfigurationError(
                 "remote_dispatcher must name the fixed nf-gtd-hpc-remote executable"
+            )
+        if site_id == "raven" and (
+            ssh_alias != "raven"
+            or re.fullmatch(
+                r"/ptmp/[A-Za-z0-9][A-Za-z0-9._-]*/nf-genome_to_diffraction/"
+                r"_tooling/nf-gtd-hpc-remote",
+                remote_dispatcher,
+            )
+            is None
+        ):
+            raise ConfigurationError(
+                "Raven requires its fixed SSH alias and /ptmp project dispatcher"
             )
 
         return cls(
@@ -229,6 +244,12 @@ class LocalRunRecord:
     parent_run_id: str | None
     failure_signature: str | None = None
 
+    @property
+    def controller_kind(self) -> ControllerKind:
+        """Return the fixed site's/profile's model, not a scheduler status."""
+
+        return controller_kind_for_profile(self.site_id, self.profile)
+
     @classmethod
     def from_json(cls, value: object) -> LocalRunRecord:
         """Validate a deserialised local run record."""
@@ -243,10 +264,12 @@ class LocalRunRecord:
                 raise ValidationError(
                     "local run record schema 1.0 requires the Marmic site"
                 )
-        elif schema_version == "1.1":
+        elif schema_version in {"1.1", "1.2"}:
             site_id = value.get("site_id")
             if not isinstance(site_id, str):
-                raise ValidationError("local run record schema 1.1 requires site_id")
+                raise ValidationError(
+                    f"local run record schema {schema_version} requires site_id"
+                )
         else:
             raise ValidationError("unsupported local run record schema")
         commit = str(value.get("commit", ""))
@@ -257,6 +280,12 @@ class LocalRunRecord:
         signature = value.get("failure_signature")
         validate_run_id(run_id)
         validate_site_id(site_id)
+        expected_controller = controller_kind_for_profile(site_id, profile)
+        if schema_version == "1.2":
+            if value.get("controller_kind") != expected_controller:
+                raise ValidationError("local run controller kind differs from its site")
+        elif site_id == "raven":
+            raise ValidationError("Raven run records require explicit controller kind")
         validate_commit(commit)
         validate_owner_id(owner_id)
         validate_profile(profile)
@@ -288,9 +317,10 @@ class LocalRunRecord:
         atomic_write_json(
             path,
             {
-                "schema_version": "1.1",
+                "schema_version": "1.2",
                 "run_id": self.run_id,
                 "site_id": self.site_id,
+                "controller_kind": self.controller_kind,
                 "commit": self.commit,
                 "owner_id": self.owner_id,
                 "profile": self.profile,
@@ -330,8 +360,20 @@ def validate_site_id(value: str) -> str:
     """Return one explicitly supported immutable execution-site identifier."""
 
     if SITE_ID_PATTERN.fullmatch(value) is None:
-        raise ValidationError("site_id must be 'marmic' or 'viper-cpu'")
+        raise ValidationError("site_id must be 'marmic', 'viper-cpu' or 'raven'")
     return value
+
+
+def controller_kind_for_profile(site_id: str, profile: str) -> ControllerKind:
+    """Bind a reviewed fixed profile to its actual outer execution mechanism."""
+
+    validate_site_id(site_id)
+    validate_profile(profile)
+    if site_id != "raven" or profile in RAVEN_SLURM_PROFILES:
+        return "slurm_job"
+    if profile in RAVEN_LOGIN_PROFILES:
+        return "login_process"
+    raise ValidationError("profile is not qualified for the Raven controller")
 
 
 def validate_commit(value: str) -> str:
