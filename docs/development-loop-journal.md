@@ -16285,3 +16285,23 @@ with a collapsed combined parent or a guessed command.
   binding. Resolve the actual database manifest before native qualification.
   The large Raven test is not submitted; the requested pause-and-monitor-only
   boundary still follows a genuine large-run submission.
+
+## 2026-09-10 - Raven runtime verified; prepared-database binding unresolved
+
+- Published `7defc9cd1e68cd940fb56400a382474714f5f6ea`; all six lanes of CI
+  `34443664566` passed. Its source-bound read-only readiness operation completed
+  successfully on a Raven login node using the existing environment.
+- Python 3.14.6, Gemmi 0.7.5 and Pydantic 2.13.4 were observed. The existing
+  runtime source/Pixi-lock and saved Phenix-manifest checksums matched. The
+  inspection created no remote state and submitted no job.
+- Within the configured project, the software-manifest directory contains the
+  verified Phenix manifest and its verification log. The general manifests,
+  databases, resources and configuration directories are absent. This does not
+  prove that no suitable database exists elsewhere on Raven, but it provides
+  no current PDB/Foldseek/ProstT5 binding for M6.
+- Preserve the timestamped readiness evidence outside Git. The previously asked
+  prepared-database manifest path is now required input; if no prepared set is
+  available, a separately authorised staging step is needed. Do not invent a
+  path, use the cancelled supplied-model cohort as a database, or silently
+  download/rebuild large resources. Native M6 and the large Raven run remain
+  unsubmitted, and the pause-after-submission condition has not been reached.
