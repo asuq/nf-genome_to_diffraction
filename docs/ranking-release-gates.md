@@ -182,9 +182,15 @@ sources, preparation outputs, truth evidence and archives under repository
 input integration milestone now passes the complete locked gate: 1,564 unit,
 185 contract and 103 integration tests plus all workflow/cache and packaging
 checks. All tracked inputs remained unchanged during the captured gate.
-Exact-source CI and reviewed Marmic input qualification are next. Native
-scientific search additionally awaits the requested correction to the current
-16-GB memory policy; no increased allocation or native acceptance is implied.
+All six exact-source CI lanes passed for `8634c4c1` in run `34409995423`.
+The initial Marmic input stage stopped before run creation because its explicit
+site identity was absent. The operator has now approved a narrow fixed-site
+setup operation and the Marmic v2 Foldseek policy of 32 CPUs/192 GB with
+128-query batches. Their complete local integration gate now passes 1,578 unit,
+185 contract and 108 integration tests plus all workflow/cache and package
+checks. Exact-source CI, the input-only route and a small native known-control
+run must follow before the full benchmark. Native four-arm evidence and
+scientific acceptance remain outstanding.
 
 - The pre-change focused baseline passes 70 tests covering MR review, Matthews
   inputs/probability and M6 seed selection. This is not acceptance of the new

@@ -1044,7 +1044,7 @@ def test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies() -> None:
         (REPOSITORY / "benchmarks/m6/execution-nextflow-v1.yaml").read_text()
     )
     marmic_policy = yaml.safe_load(
-        (REPOSITORY / "benchmarks/m6/execution-nextflow-marmic-v1.yaml").read_text()
+        (REPOSITORY / "benchmarks/m6/execution-nextflow-marmic-v2.yaml").read_text()
     )
     marmic_site = (
         REPOSITORY / "external/nf-helper/conf/sites/marmic.config"
@@ -1055,7 +1055,7 @@ def test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies() -> None:
     assert "unsupported HPC site configuration" in dispatcher
     assert "stage_m6_site_policy_bound" in dispatcher
     assert "validate_m6_smoke_site_state" in dispatcher
-    assert "execution-nextflow-marmic-v1.yaml" in dispatcher
+    assert "execution-nextflow-marmic-v2.yaml" in dispatcher
     assert "execution-nextflow-v1.yaml" in dispatcher
     assert '-profile "$M6_NEXTFLOW_PROFILE"' in smoke_body
     assert "--execution_policy" in smoke_body
@@ -1075,7 +1075,12 @@ def test_m6_smoke_uses_only_fixed_site_bound_profiles_and_policies() -> None:
         "submit_rate_limit": "5/1s",
     }
     assert marmic_policy["site_id"] == "marmic"
-    assert marmic_policy["policy_id"] == "m6_nextflow_slurm_marmic_v1"
+    assert marmic_policy["policy_id"] == "m6_nextflow_slurm_marmic_v2"
+    assert marmic_policy["per_job"]["maximum_memory_gb"] == 192.0
+    assert (
+        marmic_policy["search_batching"]["foldseek"]["maximum_unique_sequences"] == 128
+    )
+    assert viper_policy["per_job"]["maximum_memory_gb"] == 16.0
     assert marmic_policy["concurrency"] == {
         "aggregate_policy": "scheduler_managed",
         "phenix_policy": "scheduler_managed",

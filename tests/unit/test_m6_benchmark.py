@@ -124,7 +124,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks" / "m6" / "protocol.yaml"
 EXECUTION_POLICY = ROOT / "benchmarks" / "m6" / "execution-nextflow-v1.yaml"
 MARMIC_EXECUTION_POLICY = (
-    ROOT / "benchmarks" / "m6" / "execution-nextflow-marmic-v1.yaml"
+    ROOT / "benchmarks" / "m6" / "execution-nextflow-marmic-v2.yaml"
 )
 HASH = "a" * 64
 
@@ -559,7 +559,7 @@ def _synthetic_collection_protocol(tmp_path: Path) -> Path:
     path = tmp_path / "synthetic-m6-protocol.yaml"
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     (tmp_path / "execution-nextflow-v1.yaml").write_bytes(EXECUTION_POLICY.read_bytes())
-    (tmp_path / "execution-nextflow-marmic-v1.yaml").write_bytes(
+    (tmp_path / "execution-nextflow-marmic-v2.yaml").write_bytes(
         MARMIC_EXECUTION_POLICY.read_bytes()
     )
     load_m6_protocol(path)
@@ -1202,20 +1202,22 @@ def _synthetic_collection(
     }
     if nextflow:
         execution_policy_id = (
-            "m6_nextflow_slurm_marmic_v1"
+            "m6_nextflow_slurm_marmic_v2"
             if site_id == "marmic"
             else "m6_nextflow_slurm_v1"
         )
         execution_policy_path = (
             MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
         )
+        search_memory_gb = 192.0 if site_id == "marmic" else 16.0
         runtime.update(
             execution_model="nextflow_dsl2_slurm_fanout",
             execution_policy=execution_policy_id,
+            maximum_memory_gb=search_memory_gb,
             child_job_count=1,
             peak_running_jobs=1,
             peak_aggregate_cpu_count=32,
-            peak_aggregate_memory_gb=16.0,
+            peak_aggregate_memory_gb=search_memory_gb,
             maximum_concurrent_phenix_attempts=0,
         )
         resources = {
@@ -1224,13 +1226,13 @@ def _synthetic_collection(
             "execution_policy_sha256": sha256_file(execution_policy_path),
             "child_job_count": 1,
             "maximum_cpu_per_job": 32,
-            "maximum_memory_gb_per_job": 16.0,
+            "maximum_memory_gb_per_job": search_memory_gb,
             "maximum_scheduler_hours_per_job": 24.0,
             "maximum_peak_rss_gb": 8.0,
             "maximum_observed_cpu_percent": 3100.0,
             "peak_running_jobs": 1,
             "peak_aggregate_cpus": 32,
-            "peak_aggregate_memory_gb": 16.0,
+            "peak_aggregate_memory_gb": search_memory_gb,
             "peak_concurrent_phenix_jobs": 0,
             "per_job_bounds_passed": True,
             "jobs": [
@@ -1240,7 +1242,7 @@ def _synthetic_collection(
                     "status": "CACHED" if track == "leakage" else "COMPLETED",
                     "native_job_id": "101",
                     "requested_cpus": 32,
-                    "requested_memory_gb": 16.0,
+                    "requested_memory_gb": search_memory_gb,
                     "requested_time_hours": 24.0,
                     "start": "2026-08-17T00:00:00Z",
                     "complete": "2026-08-17T01:00:00Z",
@@ -1532,7 +1534,7 @@ def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
     [
         ("viper-cpu", "m6_nextflow_slurm_v1", False),
         ("viper-cpu", "m6_nextflow_slurm_v1", True),
-        ("marmic", "m6_nextflow_slurm_marmic_v1", True),
+        ("marmic", "m6_nextflow_slurm_marmic_v2", True),
     ],
 )
 def test_m6_collection_accepts_two_identity_bearing_tracks(
@@ -1572,6 +1574,7 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
 
     assert result.evidence.execution_policy_id == policy_id
     assert result.evidence.maximum_cpu_count == 32
+    assert result.evidence.maximum_memory_gb == (192.0 if site_id == "marmic" else 16.0)
     assert result.evidence.child_job_count == 2
     assert result.evidence.execution_policy_sha256 == sha256_file(
         MARMIC_EXECUTION_POLICY if site_id == "marmic" else EXECUTION_POLICY
@@ -1907,7 +1910,7 @@ def test_m6_evaluator_holds_on_an_unexpected_execution_failure(
     ("policy_id", "policy_path"),
     [
         ("m6_nextflow_slurm_v1", EXECUTION_POLICY),
-        ("m6_nextflow_slurm_marmic_v1", MARMIC_EXECUTION_POLICY),
+        ("m6_nextflow_slurm_marmic_v2", MARMIC_EXECUTION_POLICY),
     ],
 )
 def test_m6_evaluator_binds_the_nextflow_execution_policy(
@@ -1917,6 +1920,9 @@ def test_m6_evaluator_binds_the_nextflow_execution_policy(
     payload = _evidence(protocol).model_dump(mode="json")
     payload.update(
         maximum_cpu_count=32,
+        maximum_memory_gb=load_m6_execution_policy(
+            policy_path
+        ).per_job.maximum_memory_gb,
         execution_policy_id=policy_id,
         execution_policy_sha256=sha256_file(policy_path),
         child_job_count=1,
@@ -1933,6 +1939,42 @@ def test_m6_evaluator_binds_the_nextflow_execution_policy(
     held = evaluate_m6(M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path))
     assert held.accepted is False
     assert "execution_policy_verified" in held.failed_gates
+
+
+@pytest.mark.parametrize(
+    ("policy_id", "policy_path", "memory_gb", "accepted"),
+    [
+        ("m6_nextflow_slurm_marmic_v2", MARMIC_EXECUTION_POLICY, 192.0, True),
+        ("m6_nextflow_slurm_marmic_v2", MARMIC_EXECUTION_POLICY, 192.1, False),
+        ("m6_nextflow_slurm_v1", EXECUTION_POLICY, 192.0, False),
+        ("m6_nextflow_slurm_marmic_v1", MARMIC_EXECUTION_POLICY, 16.0, False),
+    ],
+)
+def test_m6_evaluator_uses_only_the_current_site_memory_bound(
+    tmp_path: Path,
+    policy_id: str,
+    policy_path: Path,
+    memory_gb: float,
+    accepted: bool,
+) -> None:
+    protocol = load_m6_protocol(PROTOCOL)
+    payload = _evidence(protocol).model_dump(mode="json")
+    payload.update(
+        maximum_cpu_count=32,
+        maximum_memory_gb=memory_gb,
+        execution_policy_id=policy_id,
+        execution_policy_sha256=sha256_file(policy_path),
+        child_job_count=1,
+    )
+    evidence_path = tmp_path / "resource-evidence.json"
+    _write_json(evidence_path, payload)
+
+    result = evaluate_m6(M6EvaluationRequest(protocol=PROTOCOL, evidence=evidence_path))
+
+    assert result.accepted is accepted
+    assert ("bounded_memory" not in result.failed_gates) is accepted
+    if policy_id == "m6_nextflow_slurm_marmic_v1":
+        assert "execution_policy_verified" in result.failed_gates
 
 
 def test_m6_evaluator_holds_on_forbidden_family_attempts(tmp_path: Path) -> None:
@@ -2223,7 +2265,10 @@ def _nextflow_catalogue_task(
     return task_root
 
 
-def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> None:
+@pytest.mark.parametrize("policy_path", (EXECUTION_POLICY, MARMIC_EXECUTION_POLICY))
+def test_m6_search_batching_deduplicates_across_catalogues(
+    tmp_path: Path, policy_path: Path
+) -> None:
     first_task = _nextflow_catalogue_task(
         tmp_path,
         "first-task",
@@ -2244,7 +2289,7 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     output = build_m6_search_batches(
         (first, second),
         ROOT / "tests/fixtures/stubs/database_manifest.json",
-        EXECUTION_POLICY,
+        policy_path,
         ROOT / "pixi.lock",
         tmp_path / "batches",
     )
@@ -2274,7 +2319,7 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     changed = build_m6_search_batches(
         (first, second),
         changed_database,
-        EXECUTION_POLICY,
+        policy_path,
         ROOT / "pixi.lock",
         tmp_path / "changed-batches",
     )
@@ -2291,7 +2336,7 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     changed_software = build_m6_search_batches(
         (first, second),
         ROOT / "tests/fixtures/stubs/database_manifest.json",
-        EXECUTION_POLICY,
+        policy_path,
         changed_lock,
         tmp_path / "changed-software-batches",
     )
@@ -2302,6 +2347,68 @@ def test_m6_search_batching_deduplicates_across_catalogues(tmp_path: Path) -> No
     )
     assert changed_software_batch["batch_id"] == first_batch["batch_id"]
     assert changed_software_batch["search_cache_key"] != first_batch["search_cache_key"]
+
+    changed_policy = tmp_path / "changed-policy.yaml"
+    policy_payload = load_m6_execution_policy(policy_path).model_dump(mode="json")
+    policy_payload["per_job"]["maximum_memory_gb"] -= 1.0
+    _write_json(changed_policy, policy_payload)
+    changed_resources = build_m6_search_batches(
+        (first, second),
+        ROOT / "tests/fixtures/stubs/database_manifest.json",
+        changed_policy,
+        ROOT / "pixi.lock",
+        tmp_path / "changed-resource-batches",
+    )
+    changed_resource_batch = json.loads(
+        next(
+            (changed_resources / "prostt5_foldseek_batches").glob("*/task.json")
+        ).read_text(encoding="utf-8")
+    )
+    assert changed_resource_batch["batch_id"] == first_batch["batch_id"]
+    assert changed_resource_batch["search_cache_key"] != first_batch["search_cache_key"]
+
+
+def test_marmic_m6_batches_conserve_130_queries_in_fixed_128_query_items(
+    tmp_path: Path,
+) -> None:
+    sequences = tuple("A" * 50 + "C" * index for index in range(1, 131))
+    first_task = _nextflow_catalogue_task(tmp_path, "first", sequences)
+    second_task = _nextflow_catalogue_task(tmp_path, "second", sequences[:4])
+    first = run_m6_catalogue_task(
+        first_task, ROOT / "pixi.lock", tmp_path / "first-bundle"
+    )
+    second = run_m6_catalogue_task(
+        second_task, ROOT / "pixi.lock", tmp_path / "second-bundle"
+    )
+    outputs: list[Path] = []
+    for name, catalogues in (
+        ("ordered", (first, second)),
+        ("reversed", (second, first)),
+    ):
+        output = build_m6_search_batches(
+            catalogues,
+            ROOT / "tests/fixtures/stubs/database_manifest.json",
+            MARMIC_EXECUTION_POLICY,
+            ROOT / "pixi.lock",
+            tmp_path / name,
+        )
+        outputs.append(output)
+        plan = json.loads((output / "batch_plan.json").read_text())
+        tasks = [
+            json.loads(path.read_text())
+            for path in sorted(
+                (output / "prostt5_foldseek_batches").glob("*/task.json")
+            )
+        ]
+        assert plan["catalogue_record_count"] == 134
+        assert plan["unique_sequence_count"] == 130
+        assert plan["foldseek_batch_count"] == 2
+        assert sorted(task["sequence_count"] for task in tasks) == [2, 128]
+        assert sum(task["residue_count"] for task in tasks) == sum(map(len, sequences))
+        assert all(task["threads"] == 32 for task in tasks)
+    assert (outputs[0] / "batch_plan.json").read_bytes() == (
+        outputs[1] / "batch_plan.json"
+    ).read_bytes()
 
 
 @pytest.mark.parametrize(
@@ -2440,7 +2547,7 @@ def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
         (
             MARMIC_EXECUTION_POLICY,
             "marmic",
-            "m6_nextflow_slurm_marmic_v1",
+            "m6_nextflow_slurm_marmic_v2",
             30,
             "10/1s",
         ),
@@ -2455,10 +2562,11 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     submit_rate_limit: str,
 ) -> None:
     policy = load_m6_execution_policy(policy_path)
+    expected_memory = 192.0 if site_id == "marmic" else 16.0
     trace = tmp_path / "trace.tsv"
     trace.write_text(
         "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\tcomplete\tpeak_rss\t%cpu\n"
-        "M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t16 GB\t1d\t"
+        f"M6_SEARCH_FOLDSEEK\tb1\tCOMPLETED\t101\t32\t{expected_memory:g} GB\t1d\t"
         "2026-08-17T00:00:00+00:00\t2026-08-17T01:00:00+00:00\t8 GB\t3100%\n"
         "M6_FIRST_COPY\th1\tCOMPLETED\t102\t2\t4 GB\t24h\t"
         "2026-08-17T00:30:00+00:00\t2026-08-17T00:45:00+00:00\t0\t190%\n"
@@ -2482,6 +2590,10 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     assert policy.concurrency.submit_rate_limit == submit_rate_limit
     assert policy.search_batching.mmseqs2.cpus == 32
     assert policy.search_batching.foldseek.cpus == 32
+    assert policy.per_job.maximum_memory_gb == expected_memory
+    assert policy.search_batching.foldseek.maximum_unique_sequences == (
+        128 if site_id == "marmic" else 10_000
+    )
     assert evidence.per_job_bounds_passed is True
     assert evidence.execution_policy_id == policy_id
     assert evidence.execution_policy_sha256 == sha256_file(policy_path)
@@ -2493,6 +2605,7 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     assert evidence.peak_aggregate_cpus == 34
     assert evidence.peak_concurrent_phenix_jobs == 1
     assert evidence.maximum_scheduler_hours_per_job == 24.0
+    assert evidence.maximum_memory_gb_per_job == expected_memory
     assert evidence.maximum_peak_rss_gb == 8.0
     assert evidence.jobs[1].peak_rss_gb == 0.0
     assert evidence.maximum_observed_cpu_percent == 3100.0

@@ -2,8 +2,8 @@
 
 The input policy fixes driver/per-job limits, batching, concurrency semantics,
 and shared-cache eligibility. The fixed Viper and Marmic policies use distinct
-policy identities because their scheduler queue and submission-rate controls
-differ. A completed Nextflow trace is normalised into a
+policy identities because their resource, batching, scheduler queue and
+submission-rate controls differ. A completed Nextflow trace is normalised into a
 checksum-bound inventory of native job IDs, requested resources, observed CPU
 and peak RSS, and aggregate concurrency. Missing trace fields, unparsable
 values, changed counts, or policy violations fail loudly. The policy checksum
@@ -83,7 +83,7 @@ class M6ExecutionPolicy(ContractModel):
     schema_version: Literal["1.0"]
     policy_id: Literal[
         "m6_nextflow_slurm_v1",
-        "m6_nextflow_slurm_marmic_v1",
+        "m6_nextflow_slurm_marmic_v2",
     ]
     site_id: Literal["marmic", "viper-cpu"]
     orchestrator: Literal["nextflow_dsl2"]
@@ -99,7 +99,7 @@ class M6ExecutionPolicy(ContractModel):
     def _validate_resource_hierarchy(self) -> Self:
         expected_site = {
             "m6_nextflow_slurm_v1": "viper-cpu",
-            "m6_nextflow_slurm_marmic_v1": "marmic",
+            "m6_nextflow_slurm_marmic_v2": "marmic",
         }[self.policy_id]
         if self.site_id != expected_site:
             raise ValueError("M6 execution policy ID and site ID disagree")

@@ -43,7 +43,7 @@ from genome_to_diffraction.structure_search.provider_plan import (
 REPOSITORY = Path(__file__).resolve().parents[2]
 CONFIG = REPOSITORY / "examples/config.yaml"
 DATABASE = REPOSITORY / "tests/fixtures/stubs/provider_plan_database_manifest.json"
-M6_POLICY = REPOSITORY / "benchmarks/m6/execution-nextflow-marmic-v1.yaml"
+M6_POLICY = REPOSITORY / "benchmarks/m6/execution-nextflow-marmic-v2.yaml"
 SOFTWARE_LOCK = REPOSITORY / "pixi.lock"
 
 

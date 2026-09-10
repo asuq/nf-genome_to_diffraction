@@ -133,7 +133,7 @@ Synthetic tests exercise production-order parity and permutation stability,
 packing/copy-state exclusions, exact result partitioning, unchanged human gates,
 authority tampering and an additional-copy adapter call with only the external
 Phenix invocation simulated. The refreshed input integration milestone passes
-the complete locked gate, including 1,852 Python tests and all workflow/cache
+the complete locked gate, including 1,871 Python tests and all workflow/cache
 and packaging checks. Exact-source CI, reviewed-site input qualification and
 native known-control/four-arm qualification remain outstanding.
 
@@ -300,7 +300,23 @@ pixi run --locked genome-to-diffraction benchmark verify-m6-runner \
 
 The reviewed input-qualification profile streams only an explicitly confirmed
 archive below `.untracked/`, revalidates it on both sides of the transfer, and
-requests one CPU and 4 GB because it performs no search or Phenix work:
+requests one CPU and 4 GB because it performs no search or Phenix work.
+
+Marmic first requires its explicit owned site identity. After deploying the
+same checked commit, initialise only that fixed missing record through the
+reviewed create-only operation:
+
+```bash
+pixi run --locked nf-gtd-hpc-test --config .untracked/config.marmic.json \
+  --no-progress marmic-site-configure --revision FULL_COMMIT
+```
+
+The operation verifies the installed dispatcher checksum and refuses an
+unexpected existing record. P0 readiness alone does not establish this M6
+prerequisite. Keep using the explicit site configuration for staging and all
+owned-run operations.
+
+Stage and submit the confirmed archive:
 
 ```bash
 nf-gtd-hpc-test --no-progress m6-inputs-stage \
@@ -410,19 +426,33 @@ not drop, round, or relabel cases.
 
 ## Execution and failure semantics
 
-M6 uses separate operational/open-set and leakage/hardening Viper stages. Each
+M6 uses separate operational/open-set and leakage/hardening reviewed-site stages. Each
 starts with a 2-CPU/8-GB Nextflow driver. Independent child tasks are submitted
-to Slurm; batched MMseqs2 and Foldseek jobs may request 32 CPUs/16 GB, while all
-other child jobs retain smaller allocations. The ceiling is 24 hours per Slurm
+to Slurm. MMseqs2 retains 32 CPUs/16 GB at both sites. Marmic Foldseek uses
+32 CPUs/192 GB under `m6_nextflow_slurm_marmic_v2`; Viper's unchanged v1 policy
+retains 32 CPUs/16 GB. All other child jobs retain their existing smaller
+allocations. The ceiling is 24 hours per Slurm
 job, not a tool timeout. Slurm controls aggregate and Phenix concurrency, which
 are measured rather than capped.
+
+The operator approved the Marmic correction after a qualified production batch
+used 64.6 GiB peak RSS, exceeding the old 16-GB cap. The current
+[Marmic v2 policy](../benchmarks/m6/execution-nextflow-marmic-v2.yaml) is bound
+through staging, execution, collection and evaluation; the former Marmic v1
+identity cannot enter current acceptance. Resource limits are read from that
+verified policy rather than a shared hard-coded memory value. The policy
+checksum already participates in search cache keys, so changing resources
+invalidates cached search evidence even for identical query groups. A small
+native known-control qualification is required before the full benchmark;
+local tests and the existing stub smoke do not satisfy that requirement.
 
 The refreshed 29 catalogue objects are imported independently and contain
 70,870 distinct raw sequences before import filtering (the historical source
 contained 70,864). Qualification records bind the actual imported/searchable
 inventory rather than assuming a historical count. MMseqs2 searches one batch capped at 100,000 sequences/30
-million residues. Foldseek searches deterministic batches capped at 10,000
-sequences/3 million residues. This avoids reloading the target database and
+million residues. Marmic Foldseek searches deterministic batches capped at
+128 sequences; Viper retains its 10,000-sequence cap. Both retain the existing
+3-million-residue bound. This avoids reloading the target database and
 ProstT5 model once per sample while retaining every catalogue candidate.
 
 Candidate-specific no-hit, no-model, ambiguity, assumption violation, remote

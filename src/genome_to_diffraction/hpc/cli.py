@@ -53,6 +53,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "profile", choices=("p0", "p1", "p2", "p2-diverse", "p2-control")
     )
 
+    marmic_site_configure = actions.add_parser(
+        "marmic-site-configure",
+        help="create only the missing fixed Marmic site-identity record",
+    )
+    marmic_site_configure.add_argument("--revision", required=True)
+
     p0_configure = actions.add_parser(
         "p0-configure",
         help="install or checksum-gated rotate one P0 site-path configuration",
@@ -271,6 +277,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         return controller.phenix_runtime_migrate(args.run_id)
     if args.operation == "readiness":
         return controller.readiness(args.profile)
+    if args.operation == "marmic-site-configure":
+        return controller.marmic_site_configure(args.revision)
     if args.operation == "p0-configure":
         return controller.p0_configure(
             args.paths_file,

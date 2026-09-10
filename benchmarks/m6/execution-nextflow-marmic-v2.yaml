@@ -1,5 +1,5 @@
 schema_version: "1.0"
-policy_id: m6_nextflow_slurm_marmic_v1
+policy_id: m6_nextflow_slurm_marmic_v2
 site_id: marmic
 orchestrator: nextflow_dsl2
 executor: slurm
@@ -9,7 +9,7 @@ driver:
   maximum_scheduler_hours: 24.0
 per_job:
   maximum_cpus: 32
-  maximum_memory_gb: 16.0
+  maximum_memory_gb: 192.0
   maximum_scheduler_hours: 24.0
 concurrency:
   aggregate_policy: scheduler_managed
@@ -24,7 +24,7 @@ search_batching:
     maximum_residues: 30000000
   foldseek:
     cpus: 32
-    maximum_unique_sequences: 10000
+    maximum_unique_sequences: 128
     maximum_residues: 3000000
 tool_runtime_timeouts: false
 shared_cache:

@@ -215,7 +215,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     m6_benchmarks.mkdir(parents=True)
     for name in (
         "execution-nextflow-v1.yaml",
-        "execution-nextflow-marmic-v1.yaml",
+        "execution-nextflow-marmic-v2.yaml",
         "protocol.yaml",
     ):
         shutil.copy2(REPOSITORY / "benchmarks" / "m6" / name, m6_benchmarks / name)
@@ -1440,7 +1440,7 @@ def test_unknown_pass2_submit_requires_rg7_authority_and_528_hour_bound(
 @pytest.mark.parametrize(
     ("site_id", "policy_name", "policy_id"),
     [
-        ("marmic", "execution-nextflow-marmic-v1.yaml", "m6_nextflow_slurm_marmic_v1"),
+        ("marmic", "execution-nextflow-marmic-v2.yaml", "m6_nextflow_slurm_marmic_v2"),
         ("viper-cpu", "execution-nextflow-v1.yaml", "m6_nextflow_slurm_v1"),
     ],
 )
@@ -1628,7 +1628,7 @@ def test_marmic_m6_scientific_stage_binds_frozen_phenix_and_policy(
     assert (state / "site-id").read_text().strip() == "marmic"
     assert (state / "nextflow-profile").read_text().strip() == "marmic"
     assert (state / "execution-policy-id").read_text().strip() == (
-        "m6_nextflow_slurm_marmic_v1"
+        "m6_nextflow_slurm_marmic_v2"
     )
     assert (state / "phenix-manifest").read_text().strip() == str(phenix_manifest)
     assert (state / "phenix-manifest-sha256").read_text().strip() == phenix_sha256
@@ -1731,8 +1731,8 @@ def test_m6_leakage_binds_only_collected_same_source_operational_cache(
         (
             "marmic",
             "marmic",
-            "execution-nextflow-marmic-v1.yaml",
-            "m6_nextflow_slurm_marmic_v1",
+            "execution-nextflow-marmic-v2.yaml",
+            "m6_nextflow_slurm_marmic_v2",
         ),
         (
             "viper-cpu",
@@ -2031,6 +2031,86 @@ def test_m6_nextflow_smoke_submit_rejects_changed_site_policy_state(
     assert fields["failure_class"] == "wrapper_failure"
     assert fields["message"] == "M6 run site policy mapping changed after staging"
     assert not (tmp_path / "sbatch-args").exists()
+
+
+def test_marmic_site_setup_creates_only_its_identity_and_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, _ = _prepare_remote_layout(tmp_path)
+    root = dispatcher.parent.parent
+    site_config = dispatcher.parent / "site.paths"
+    checksum = hashlib.sha256(dispatcher.read_bytes()).hexdigest()
+    command = [str(dispatcher), "marmic-site-configure", checksum]
+
+    first = _decode_protocol(
+        _run(command, cwd=tmp_path, environment=environment).stdout
+    )
+    assert site_config.read_bytes() == b"marmic\n"
+    assert site_config.stat().st_mode & 0o777 == 0o600
+    assert first == {
+        "operation": "marmic-site-configure",
+        "site_id": "marmic",
+        "configured": "true",
+        "dispatcher_sha256": checksum,
+        "site_config_sha256": hashlib.sha256(b"marmic\n").hexdigest(),
+    }
+    before = site_config.stat().st_mtime_ns
+    second = _decode_protocol(
+        _run(command, cwd=tmp_path, environment=environment).stdout
+    )
+    assert second == {**first, "configured": "false"}
+    assert site_config.stat().st_mtime_ns == before
+    assert list((root / "runs").iterdir()) == []
+    assert list(dispatcher.parent.glob(".marmic-site.*")) == []
+    assert not (tmp_path / "sbatch-args").exists()
+
+
+@pytest.mark.parametrize("existing", ("symlink", "wrong_mode", "wrong_value"))
+def test_marmic_site_setup_never_replaces_an_unexpected_record(
+    tmp_path: Path, existing: str
+) -> None:
+    dispatcher, _, environment, _ = _prepare_remote_layout(tmp_path)
+    site_config = dispatcher.parent / "site.paths"
+    payload = b"unapproved\n" if existing == "wrong_value" else b"marmic\n"
+    target = tmp_path / "symlink-target" if existing == "symlink" else site_config
+    target.write_bytes(payload)
+    target.chmod(0o644 if existing == "wrong_mode" else 0o600)
+    if existing == "symlink":
+        site_config.symlink_to(target)
+    before = target.stat()
+
+    _run(
+        [
+            str(dispatcher),
+            "marmic-site-configure",
+            hashlib.sha256(dispatcher.read_bytes()).hexdigest(),
+        ],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+
+    assert target.read_bytes() == payload
+    assert target.stat().st_mode == before.st_mode
+    assert target.stat().st_mtime_ns == before.st_mtime_ns
+    assert site_config.is_symlink() == (existing == "symlink")
+    assert not (tmp_path / "sbatch-args").exists()
+
+
+def test_marmic_site_setup_rejects_changed_dispatcher_before_writing(
+    tmp_path: Path,
+) -> None:
+    dispatcher, _, environment, _ = _prepare_remote_layout(tmp_path)
+    rejected = _run(
+        [str(dispatcher), "marmic-site-configure", "0" * 64],
+        cwd=tmp_path,
+        environment=environment,
+        success=False,
+    )
+    fields = _decode_protocol(rejected.stdout)
+    assert fields["failure_class"] == "wrapper_failure"
+    assert fields["message"] == "Marmic site setup dispatcher checksum changed"
+    assert not (dispatcher.parent / "site.paths").exists()
 
 
 def test_dispatcher_rejects_an_unknown_site_configuration(tmp_path: Path) -> None:

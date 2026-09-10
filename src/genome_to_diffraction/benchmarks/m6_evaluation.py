@@ -21,6 +21,7 @@ from genome_to_diffraction.benchmarks.m6_edge import (
     M6EdgeObservation,
     verify_edge_observations,
 )
+from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
 from genome_to_diffraction.benchmarks.m6_identity import M6IdentityDecision
 from genome_to_diffraction.benchmarks.m6_protocol import (
     M6BenchmarkProtocol,
@@ -338,7 +339,7 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
     evidence = load_m6_evidence(request.evidence)
     policy_names = {
         "m6_nextflow_slurm_v1": "execution-nextflow-v1.yaml",
-        "m6_nextflow_slurm_marmic_v1": "execution-nextflow-marmic-v1.yaml",
+        "m6_nextflow_slurm_marmic_v2": "execution-nextflow-marmic-v2.yaml",
     }
     policy_name = policy_names.get(evidence.execution_policy_id or "")
     execution_policy_path = (
@@ -347,6 +348,20 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
     expected_execution_policy_sha256 = (
         sha256_file(execution_policy_path)
         if execution_policy_path is not None and execution_policy_path.is_file()
+        else None
+    )
+    execution_policy = (
+        load_m6_execution_policy(execution_policy_path)
+        if execution_policy_path is not None and execution_policy_path.is_file()
+        else None
+    )
+    # Historical serial evidence retains its explicit 16-GB diagnostic bound.
+    # Current fan-out evidence must use a known, checksum-bound site policy.
+    maximum_memory_gb = (
+        16.0
+        if evidence.execution_policy_id is None
+        else execution_policy.per_job.maximum_memory_gb
+        if execution_policy is not None
         else None
     )
     if evidence.protocol_id != protocol.protocol_id:
@@ -491,12 +506,17 @@ def evaluate_m6(request: M6EvaluationRequest) -> M6EvaluationResult:
             )
             or (
                 evidence.execution_policy_id in policy_names
+                and execution_policy is not None
+                and execution_policy.policy_id == evidence.execution_policy_id
                 and evidence.execution_policy_sha256 == expected_execution_policy_sha256
                 and evidence.child_job_count > 0
             )
         ),
         "bounded_cpu_per_job": evidence.maximum_cpu_count <= 32,
-        "bounded_memory": evidence.maximum_memory_gb <= 16.0,
+        "bounded_memory": (
+            maximum_memory_gb is not None
+            and evidence.maximum_memory_gb <= maximum_memory_gb
+        ),
         "phenix_concurrency_recorded": evidence.maximum_concurrent_phenix_attempts >= 0,
         "bounded_scheduler_ceiling": evidence.scheduler_ceiling_hours <= 24.0,
     }

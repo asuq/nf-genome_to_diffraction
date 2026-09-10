@@ -54,12 +54,14 @@ transition and fan out through case preparation, first-copy hypotheses,
 copy-series seeds, and refinement/sequence finalists.
 
 MMseqs2 receives up to 100,000 unique sequences or 30 million residues per
-batch. ProstT5/Foldseek receives up to 10,000 unique sequences or 3 million
-residues per batch. These content limits amortise target-database and model
+batch. Marmic ProstT5/Foldseek receives up to 128 unique sequences per batch;
+Viper retains its 10,000-sequence bound. Both retain the existing limit of
+3 million residues per batch. These content limits amortise target-database and model
 initialisation while keeping heterogeneous proteome sizes from creating
-unbounded jobs. The fixed M6 runner contains 29 catalogues, 141,937 catalogue
-records, and 70,864 unique sequences (23,020,184 residues), producing one
-MMseqs2 batch and approximately eight Foldseek batches.
+unbounded jobs. The refreshed M6 runner contains 29 catalogue objects and
+70,870 distinct raw sequences before import filtering. Qualification records
+the actual searchable groups, residues and task counts from its checksum-bound
+batch plan; the old eight-Foldseek-batch estimate does not describe Marmic v2.
 
 This boundary follows the official
 [MMseqs2 user guide](https://www.mmseqs.com/latest/userguide.pdf), which defines
@@ -69,13 +71,17 @@ which supports multi-sequence FASTA queries for ProstT5/Foldseek search.
 
 ## Resource and cache policy
 
-The approved M6 execution policy is
-`benchmarks/m6/execution-nextflow-v1.yaml`. Its CPU and memory ceilings apply to
+The approved M6 execution policies are
+[`execution-nextflow-v1.yaml`](../benchmarks/m6/execution-nextflow-v1.yaml) for
+Viper and [`execution-nextflow-marmic-v2.yaml`](../benchmarks/m6/execution-nextflow-marmic-v2.yaml)
+for Marmic. Their CPU and memory ceilings apply to
 each submitted Slurm job, not the aggregate workflow. All ready jobs may be
 submitted; Slurm owns admission and total concurrency. Aggregate peak
 allocations and simultaneous Phenix jobs remain measured evidence rather than
-hard gates. Batched MMseqs2 and Foldseek workers may use 32 CPUs and 16 GB;
-all case and Phenix workers retain their smaller task-specific allocations.
+hard gates. MMseqs2 uses 32 CPUs/16 GB at both sites. Marmic Foldseek uses
+32 CPUs/192 GB; Viper Foldseek retains 32 CPUs/16 GB. The collector and evaluator
+bind their resource checks to the exact selected-site policy. All case and
+Phenix workers retain their smaller task-specific allocations.
 
 Only truthless catalogue import, PDB-sequence search, and ProstT5/Foldseek
 bundles may use the shared discovery store. Cache keys include input checksums,

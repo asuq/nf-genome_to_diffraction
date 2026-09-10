@@ -368,6 +368,20 @@ status plus checksum, but never returns configured site paths. `ready: true`
 means only that staging prerequisites exist. The staged job independently
 revalidates the configuration and still must verify real Phenix and databases.
 
+`marmic-site-configure --revision FULL_COMMIT` creates only the missing
+Marmic site-identity record. Use the explicit Marmic controller configuration.
+It requires clean source reachable from `origin/main`, binds the installed
+dispatcher to its committed checksum, and accepts no caller-provided path,
+site name or payload. The endpoint creates the fixed owned mode-`0600`
+`site.paths` containing exactly `marmic` plus a newline. Atomic create-only
+publication cannot overwrite an existing record; a canonical record returns
+`configured: false` without changing its bytes or modification time. Unsafe,
+noncanonical, foreign-site or changed-source state fails. The response binds
+the site and dispatcher checksums. It neither creates a scientific run nor
+submits a job, changes a resource policy or grants human scientific approval.
+Unit and dispatcher checks cover exact-source binding, create/repeat behaviour,
+changed evidence, symlink/mode/content rejection and zero scheduler activity.
+
 `deploy-tools` first requires a clean local worktree. It resolves the exact Git
 commit, reads only `bootstrap/nf-gtd-hpc-remote` and
 `bootstrap/nf-gtd-hpc-smoke-job`, and calculates their SHA-256 values without

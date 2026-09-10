@@ -290,6 +290,49 @@ readiness_p0() {
     emit scope staging_prerequisites_only
 }
 
+marmic_site_configure() {
+    [[ "$#" -eq 1 && "$1" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "Marmic site setup expects its dispatcher checksum"
+    local expected_dispatcher="$1" actual_dispatcher expected_site actual_site
+    local temporary configured=false
+    [[ "$SITE_ID" == marmic ]] || \
+        fail environment_failure "Marmic site setup cannot modify another site"
+    [[ -d "$ROOT" && ! -L "$ROOT" && -O "$ROOT" && \
+       -d "$TOOL_DIR" && ! -L "$TOOL_DIR" && -O "$TOOL_DIR" && \
+       -f "$DISPATCHER" && ! -L "$DISPATCHER" && -O "$DISPATCHER" ]] || \
+        fail filesystem_failure "Marmic site setup requires owned fixed paths"
+    actual_dispatcher="$(sha256sum "$DISPATCHER" | awk '{print $1}')"
+    [[ "$actual_dispatcher" == "$expected_dispatcher" ]] || \
+        fail wrapper_failure "Marmic site setup dispatcher checksum changed"
+    expected_site="$(printf 'marmic\n' | sha256sum | awk '{print $1}')"
+    if [[ -e "$SITE_CONFIG" || -L "$SITE_CONFIG" ]]; then
+        [[ -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && -O "$SITE_CONFIG" && \
+           "$(stat -c '%a' "$SITE_CONFIG")" == 600 && \
+           "$(sha256sum "$SITE_CONFIG" | awk '{print $1}')" == "$expected_site" ]] || \
+            fail environment_failure "existing Marmic site identity is not canonical"
+    else
+        temporary="$(mktemp "$TOOL_DIR/.marmic-site.XXXXXXXX")" || \
+            fail filesystem_failure "cannot prepare the fixed Marmic site identity"
+        # Hard-link publication creates the fixed name atomically and cannot
+        # replace a file created after the absence check.
+        if ! printf 'marmic\n' > "$temporary" || \
+           ! chmod 0600 "$temporary" || ! ln -- "$temporary" "$SITE_CONFIG"; then
+            rm -f -- "$temporary"
+            fail filesystem_failure "cannot create the absent Marmic site identity"
+        fi
+        rm -f -- "$temporary"
+        configured=true
+    fi
+    actual_site="$(sha256sum "$SITE_CONFIG" | awk '{print $1}')"
+    [[ "$actual_site" == "$expected_site" ]] || \
+        fail environment_failure "fixed Marmic site identity changed during setup"
+    emit operation marmic-site-configure
+    emit site_id marmic
+    emit configured "$configured"
+    emit dispatcher_sha256 "$actual_dispatcher"
+    emit site_config_sha256 "$actual_site"
+}
+
 p0_configure() {
     [[ "$#" -eq 2 || "$#" -eq 3 ]] || \
         fail wrapper_failure \
@@ -1451,8 +1494,8 @@ stage_run_common() {
             execution_policy_id=m6_nextflow_slurm_v1
         else
             nextflow_profile=marmic
-            execution_policy_relative=benchmarks/m6/execution-nextflow-marmic-v1.yaml
-            execution_policy_id=m6_nextflow_slurm_marmic_v1
+            execution_policy_relative=benchmarks/m6/execution-nextflow-marmic-v2.yaml
+            execution_policy_id=m6_nextflow_slurm_marmic_v2
         fi
         execution_policy="$run/source/$execution_policy_relative"
         [[ -f "$execution_policy" && ! -L "$execution_policy" && \
@@ -3801,8 +3844,8 @@ validate_m6_smoke_site_state() {
         expected_policy_id=m6_nextflow_slurm_v1
     elif [[ "$SITE_ID" == marmic ]]; then
         expected_profile=marmic
-        expected_policy=benchmarks/m6/execution-nextflow-marmic-v1.yaml
-        expected_policy_id=m6_nextflow_slurm_marmic_v1
+        expected_policy=benchmarks/m6/execution-nextflow-marmic-v2.yaml
+        expected_policy_id=m6_nextflow_slurm_marmic_v2
     else
         fail environment_failure "unsupported fixed HPC site"
     fi
@@ -6474,6 +6517,7 @@ main() {
         deploy-tools) deploy_tools "$@" ;;
         phenix-runtime-migrate) phenix_runtime_migrate_run "$@" ;;
         readiness) readiness_p0 "$@" ;;
+        marmic-site-configure) marmic_site_configure "$@" ;;
         p0-configure) p0_configure "$@" ;;
         p0-inputs-stage) p0_inputs_stage "$@" ;;
         identification-inputs-stage) identification_inputs_stage "$@" ;;

@@ -16126,3 +16126,63 @@ with a collapsed combined parent or a guessed command.
   a small native control and the four-arm/full M6 programme once its resources
   are approved. The cancelled identification programme remains closed, and no
   v0.3/v0.4 scientific acceptance or release is claimed.
+
+## 2026-09-10 - Approved Marmic site setup and resource policy local increment
+
+- The operator explicitly approved both prerequisites: the narrow fixed-site
+  setup and 32-CPU/192-GB Foldseek with at most 128 queries per batch, followed
+  by a small native control before the full benchmark. Neither question remains
+  an approval blocker. Scientific budgets, thresholds and review gates are
+  unchanged; the cancelled investigation stays closed.
+- Added `marmic-site-configure` through the maintained controller. It requires
+  clean published source and the exact deployed dispatcher checksum, accepts no
+  caller path or payload, and creates only the canonical owned mode-0600 site
+  record. Create-only atomic publication refuses replacement; a repeat leaves
+  a valid record unchanged. Unsafe records and changed evidence fail closed.
+- Replaced the active Marmic v1 execution policy with v2 and updated scheduler,
+  staging, runtime provenance, collection and evaluation together. Limits now
+  come from the checksum-bound selected-site policy rather than a shared 16-GB
+  constant. Viper resources and other task allocations remain unchanged.
+  Policy changes invalidate search keys even for identical query cohorts.
+- Focused checks pass: 13 site-setup checks; 151 M6/HPC/provider checks;
+  33 dispatcher/contract checks; and 11 batching/resource checks, including
+  130 unique queries split deterministically into 128 and two. Tests reject
+  over-budget evidence, cross-site limits and the superseded Marmic identity.
+  Ruff and ty pass. These are local checks, not native qualification.
+- Next refresh the deterministic atlas and run the named complete integration
+  milestone, publish for exact-source CI, deploy, perform the approved fixed
+  site setup and retry input qualification. Then qualify the small native
+  known-control route before full RF/M6 execution. No new remote run or
+  scientific job has been created during this implementation increment.
+
+## 2026-09-10 - Marmic integration encountered temporary-script launch timeouts
+
+- The complete captured gate stopped in unit tests: 1,575 passed and three
+  existing Phenix installer/executor checks exceeded the same 10-second
+  temporary-script execution probe. All source input bytes stayed unchanged.
+  Each timeout occurred before the mock installer ran; it is not a native
+  Phenix or scientific benchmark result.
+- Neither the installer implementation nor its tests changed in this milestone.
+  All 18 Phenix tests then passed unchanged in an isolated run. The full-gate
+  failure and checksums are preserved; its cause is not established by that
+  isolated success. No timeout, retry branch or test exclusion was added.
+- Rerun the complete gate once with the same scientific source, test selection
+  and parallel settings. Deployment and native qualification still require a
+  passing complete gate and exact-source CI.
+
+## 2026-09-10 - Marmic setup/resource integration milestone passed
+
+- The recorded complete recheck passed with the same scientific source and
+  parallel test settings: 1,578 unit, 185 contract and 108 integration tests,
+  schema/public-panel/documentation/atlas/action checks, every Nextflow syntax,
+  fan-out, cache, mutation and resource-retry check, offline package installation
+  and wrapper syntax. All 1,167 source file inputs remained unchanged during
+  the gate, including the new Marmic v2 policy file.
+- The earlier temporary-script launch timeouts remain retained as a separate
+  failed gate; neither timeout settings nor installer/test behaviour was changed
+  to obtain this result. This establishes local integration only.
+- Next commit/publish the checked Marmic site-setup and resource-policy changes
+  for exact-source CI, then deploy and initialise the approved site identity.
+  Retry the existing input-only qualification before implementing and running
+  the bounded positive/target-absent native control. Four-arm RF and complete M6
+  scientific acceptance, subsequent reviews and both releases remain pending.

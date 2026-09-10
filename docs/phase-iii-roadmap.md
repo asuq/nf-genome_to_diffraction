@@ -1053,7 +1053,7 @@ control gates.
 
 Status: reviewed M6 scientific staging, scheduling, collection, and evaluation
 now support both immutable Viper and Marmic site contracts. Marmic accepts only
-its frozen Phenix manifest, the exact `m6_nextflow_slurm_marmic_v1` policy,
+its frozen Phenix manifest, the exact `m6_nextflow_slurm_marmic_v2` policy,
 the configured `marmic` Nextflow profile, and a run-owned Apptainer cache;
 Phase III source must be explicitly reachable from `origin/main`.
 The controller refuses endpoint-site mismatch, and paired tracks cannot mix
@@ -1061,6 +1061,10 @@ sites or policy identities. Historical Viper/main evidence remains readable.
 The local fake scheduler exercises complete Marmic staging and both reviewed
 submission policies. No scientific M6 profile has been launched; real
 execution remains behind the earlier Phase III control gates.
+The current Marmic v2 resource correction replaces the original 16-GB/10,000-
+query stub-era policy with the operator-approved 192-GB/128-query Foldseek
+bound. Earlier v1 smoke evidence does not qualify that successor; a small
+native known-control run remains required before full execution.
 
 Status: the fixed M6 scientific controller now also reuses the reviewed
 exact-commit source-archive fallback when the selected site's bare Git mirror

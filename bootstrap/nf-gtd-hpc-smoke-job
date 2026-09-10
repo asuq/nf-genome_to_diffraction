@@ -4020,8 +4020,8 @@ load_m6_smoke_site_contract() {
         expected_policy_id=m6_nextflow_slurm_v1
     elif [[ "$M6_SITE_ID" == marmic ]]; then
         expected_profile=marmic
-        expected_policy_relative=benchmarks/m6/execution-nextflow-marmic-v1.yaml
-        expected_policy_id=m6_nextflow_slurm_marmic_v1
+        expected_policy_relative=benchmarks/m6/execution-nextflow-marmic-v2.yaml
+        expected_policy_id=m6_nextflow_slurm_marmic_v2
     else
         printf 'unsupported M6 smoke site identity\n' >&2
         return 1
@@ -4530,6 +4530,7 @@ run_m6_scientific() {
     local expected_database_sha expected_phenix_sha output before after
     local replay_digest cache_counts expected total cached log relative log_count
     local included=0 peak_phenix peak_jobs peak_cpu peak_memory child_jobs
+    local maximum_cpu maximum_memory maximum_scheduler_hours
 
     if [[ "$PROFILE" == m6-operational ]]; then
         M6_TRACK=operational
@@ -4731,17 +4732,24 @@ EOF
     ) > "$after"
     cmp -s "$before" "$after" || return 3
     replay_digest="$(sha256sum "$before" | awk '{print $1}')"
-    read -r child_jobs peak_jobs peak_cpu peak_memory peak_phenix < <(
+    read -r child_jobs peak_jobs peak_cpu peak_memory peak_phenix \
+        maximum_cpu maximum_memory maximum_scheduler_hours < <(
         "$RUN/source/.pixi/envs/hpc/bin/python" - \
-            "$qualification/m6-child-resource-evidence.json" <<'PY'
+            "$qualification/m6-child-resource-evidence.json" \
+            "$M6_EXECUTION_POLICY" <<'PY'
 import json, pathlib, sys
+from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
 record = json.loads(pathlib.Path(sys.argv[1]).read_text())
+policy = load_m6_execution_policy(pathlib.Path(sys.argv[2]))
 print(
     record["child_job_count"],
     record["peak_running_jobs"],
     record["peak_aggregate_cpus"],
     record["peak_aggregate_memory_gb"],
     record["peak_concurrent_phenix_jobs"],
+    policy.per_job.maximum_cpus,
+    policy.per_job.maximum_memory_gb,
+    policy.per_job.maximum_scheduler_hours,
 )
 PY
     )
@@ -4762,10 +4770,10 @@ EOF
   "profile": "$PROFILE",
   "track": "$M6_TRACK",
   "execution_model": "nextflow_dsl2_slurm_fanout",
-  "maximum_cpu_count": 32,
-  "maximum_memory_gb": 16.0,
+  "maximum_cpu_count": $maximum_cpu,
+  "maximum_memory_gb": $maximum_memory,
   "maximum_concurrent_phenix_attempts": $peak_phenix,
-  "scheduler_ceiling_hours": 24.0,
+  "scheduler_ceiling_hours": $maximum_scheduler_hours,
   "tool_runtime_timeouts": false,
   "child_job_count": $child_jobs,
   "peak_running_jobs": $peak_jobs,

@@ -161,6 +161,15 @@ only after all corresponding acceptance gates genuinely pass. Do not restart
 the cancelled operator-crystal identification/AFDB investigation or fabricate
 human approvals to advance unattended work.
 
+The user then explicitly approved both required Marmic prerequisites: add and
+qualify a narrow setup operation that creates only the missing owned,
+mode-0600 `site.paths` record containing `marmic`, and update M6 Foldseek to
+32 CPUs, 192 GB and at most 128 queries per batch. Qualify a small native
+known-control run before the full benchmark. Preserve the explicit site
+validation, exact-source deployment, existing scientific task budgets,
+truth isolation and human-review gates; this does not authorise arbitrary
+configuration replacement, unrelated jobs or the cancelled investigation.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

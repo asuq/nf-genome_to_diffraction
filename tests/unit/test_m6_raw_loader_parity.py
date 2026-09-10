@@ -65,7 +65,7 @@ ROOT = Path(__file__).resolve().parents[2]
 PROTOCOL = ROOT / "benchmarks/m6/protocol.yaml"
 EXECUTION_POLICIES = (
     ROOT / "benchmarks/m6/execution-nextflow-v1.yaml",
-    ROOT / "benchmarks/m6/execution-nextflow-marmic-v1.yaml",
+    ROOT / "benchmarks/m6/execution-nextflow-marmic-v2.yaml",
 )
 SCIENTIFIC_FIXTURE = (
     ROOT / "tests/fixtures/stubs/m6_nextflow/track_output/m6_scientific_summary.json"

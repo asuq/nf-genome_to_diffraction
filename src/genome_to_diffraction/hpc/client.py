@@ -23,6 +23,7 @@ from typing import Protocol
 
 from tqdm import tqdm
 
+from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
 from genome_to_diffraction.benchmarks.m6_runner import (
     verify_m6_runner_truth_isolation,
 )
@@ -2699,6 +2700,22 @@ class HpcController:
         if source_branch != "main":
             raise ValidationError("source branch is not approved for M6 staging")
         self.git.ensure_reachable_from_origin_main(commit)
+        policy_name = (
+            "execution-nextflow-marmic-v2.yaml"
+            if self.config.site_id == "marmic"
+            else "execution-nextflow-v1.yaml"
+        )
+        policy_relative = PurePosixPath("benchmarks/m6") / policy_name
+        policy_path = self.config.repository.joinpath(*policy_relative.parts)
+        if policy_path.is_symlink() or not policy_path.is_file():
+            raise ValidationError("M6 fixed site execution policy is unavailable")
+        if policy_path.read_bytes() != self.git.read_file_at_commit(
+            commit, policy_relative
+        ):
+            raise ValidationError("M6 execution policy differs from the staged source")
+        execution_policy = load_m6_execution_policy(policy_path)
+        if execution_policy.site_id != self.config.site_id:
+            raise ValidationError("M6 execution policy belongs to another site")
         untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
         try:
             archive.resolve(strict=True).relative_to(untracked_root)
@@ -2835,12 +2852,14 @@ class HpcController:
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "case_count": case_count,
             "object_count": object_count,
-            "driver_cpu_count": 2,
-            "driver_memory_gb": 8.0,
-            "maximum_cpu_count": 32,
-            "maximum_memory_gb": 16.0,
+            "driver_cpu_count": execution_policy.driver.maximum_cpus,
+            "driver_memory_gb": execution_policy.driver.maximum_memory_gb,
+            "maximum_cpu_count": execution_policy.per_job.maximum_cpus,
+            "maximum_memory_gb": execution_policy.per_job.maximum_memory_gb,
             "maximum_concurrent_phenix_attempts": "scheduler_managed",
-            "scheduler_ceiling_hours": 24.0,
+            "scheduler_ceiling_hours": execution_policy.per_job.maximum_scheduler_hours,
+            "execution_policy_id": execution_policy.policy_id,
+            "execution_policy_sha256": sha256_file(policy_path),
             "archive_sha256": archive_sha256,
             "manifest_sha256": manifest_sha256,
             "local_record": str(local_path),
@@ -2939,6 +2958,38 @@ class HpcController:
             "operation": "readiness",
             "profile": profile,
         }
+
+    def marmic_site_configure(self, revision: str) -> dict[str, object]:
+        """Create the sole fixed site record through a checksum-bound dispatcher."""
+
+        if self.config.site_id != "marmic":
+            raise ValidationError("fixed Marmic site setup requires a Marmic config")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        dispatcher_sha256 = hashlib.sha256(
+            self.git.read_file_at_commit(
+                commit, PurePosixPath("bootstrap/nf-gtd-hpc-remote")
+            )
+        ).hexdigest()
+        expected_site_sha256 = hashlib.sha256(b"marmic\n").hexdigest()
+        self.logger.warning(
+            "creating the fixed Marmic site identity if absent",
+            extra={"commit": commit, "dispatcher_sha256": dispatcher_sha256},
+        )
+        remote = self.transport.run("marmic-site-configure", [dispatcher_sha256])
+        if (
+            remote.get("operation") != "marmic-site-configure"
+            or remote.get("site_id") != "marmic"
+            or remote.get("dispatcher_sha256") != dispatcher_sha256
+            or remote.get("site_config_sha256") != expected_site_sha256
+            or remote.get("configured") not in {"true", "false"}
+        ):
+            raise RemoteOperationError(
+                "Marmic site setup returned inconsistent identity evidence",
+                failure_class=FailureClass.WRAPPER_FAILURE,
+            )
+        return {**remote, "commit": commit}
 
     def p0_configure(
         self,

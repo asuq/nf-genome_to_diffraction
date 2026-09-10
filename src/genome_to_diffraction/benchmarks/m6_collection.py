@@ -43,8 +43,10 @@ from genome_to_diffraction.benchmarks.m6_evaluation import (
 from genome_to_diffraction.benchmarks.m6_execution import (
     M6_SHARED_TRUTHLESS_PROCESSES,
     M6ChildOutputEvidence,
+    M6ExecutionPolicy,
     M6ResourceEvidence,
     expected_m6_child_status,
+    load_m6_execution_policy,
     m6_process_name,
 )
 from genome_to_diffraction.benchmarks.m6_identity import M6IdentityDecision
@@ -442,10 +444,12 @@ def _verify_child_output_evidence(
 def _load_track(
     root: Path,
     track: M6ScientificTrack,
-    expected_site_id: str,
-    expected_execution_policy_id: str,
+    expected_execution_policy: M6ExecutionPolicy,
     expected_execution_policy_sha256: str,
 ) -> _CollectedTrack:
+    expected_site_id = expected_execution_policy.site_id
+    expected_execution_policy_id = expected_execution_policy.policy_id
+    per_job = expected_execution_policy.per_job
     resolved = root.resolve(strict=True)
     qualification = resolved / "artifacts" / "qualification"
     manifest = _json_object(resolved / "manifest.json", "collection manifest")
@@ -551,9 +555,9 @@ def _load_track(
                 qualification, track, resource_evidence, resume_cache
             )
         if (
-            runtime.get("maximum_cpu_count") != 32
-            or runtime.get("maximum_memory_gb") != 16.0
-            or runtime.get("scheduler_ceiling_hours") != 24.0
+            runtime.get("maximum_cpu_count") != per_job.maximum_cpus
+            or runtime.get("maximum_memory_gb") != per_job.maximum_memory_gb
+            or runtime.get("scheduler_ceiling_hours") != per_job.maximum_scheduler_hours
             or runtime.get("tool_runtime_timeouts") is not False
             or runtime.get("execution_policy") != expected_execution_policy_id
             or resource_evidence.per_job_bounds_passed is not True
@@ -561,9 +565,10 @@ def _load_track(
             or resource_evidence.execution_policy_sha256
             != expected_execution_policy_sha256
             or resource_evidence.child_job_count != runtime.get("child_job_count")
-            or resource_evidence.maximum_cpu_per_job > 32
-            or resource_evidence.maximum_memory_gb_per_job > 16.0
-            or resource_evidence.maximum_scheduler_hours_per_job > 24.0
+            or resource_evidence.maximum_cpu_per_job > per_job.maximum_cpus
+            or resource_evidence.maximum_memory_gb_per_job > per_job.maximum_memory_gb
+            or resource_evidence.maximum_scheduler_hours_per_job
+            > per_job.maximum_scheduler_hours
             or resource_evidence.peak_running_jobs != runtime.get("peak_running_jobs")
             or resource_evidence.peak_aggregate_cpus
             != runtime.get("peak_aggregate_cpu_count")
@@ -1079,8 +1084,8 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
     site_policies = {
         "viper-cpu": ("m6_nextflow_slurm_v1", "execution-nextflow-v1.yaml"),
         "marmic": (
-            "m6_nextflow_slurm_marmic_v1",
-            "execution-nextflow-marmic-v1.yaml",
+            "m6_nextflow_slurm_marmic_v2",
+            "execution-nextflow-marmic-v2.yaml",
         ),
     }
     if (
@@ -1094,18 +1099,22 @@ def collect_m6_evidence(request: M6CollectionRequest) -> M6CollectionResult:
     if not execution_policy_path.is_file():
         raise PublicControlError("M6 Nextflow execution policy is absent")
     execution_policy_sha256 = sha256_file(execution_policy_path)
+    execution_policy = load_m6_execution_policy(execution_policy_path)
+    if (
+        execution_policy.policy_id != execution_policy_id
+        or execution_policy.site_id != site_id
+    ):
+        raise PublicControlError("M6 execution policy differs from its reviewed site")
     operational = _load_track(
         request.operational_collection,
         "operational",
-        site_id,
-        execution_policy_id,
+        execution_policy,
         execution_policy_sha256,
     )
     leakage = _load_track(
         request.leakage_collection,
         "leakage",
-        site_id,
-        execution_policy_id,
+        execution_policy,
         execution_policy_sha256,
     )
     tracks = (operational, leakage)

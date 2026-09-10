@@ -128,6 +128,7 @@ class FakeTransport:
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
     stage_site_id: str = "marmic"
+    site_setup_response: dict[str, str] | None = None
     log_payload: bytes = b"line one\nline two\n"
     log_response: dict[str, str] | None = None
 
@@ -149,6 +150,16 @@ class FakeTransport:
             raise self.deploy_error
         if operation == "stage" and self.stage_error is not None:
             raise self.stage_error
+        if operation == "marmic-site-configure":
+            if self.site_setup_response is not None:
+                return self.site_setup_response
+            return {
+                "operation": operation,
+                "site_id": "marmic",
+                "configured": "true",
+                "dispatcher_sha256": arguments[0],
+                "site_config_sha256": hashlib.sha256(b"marmic\n").hexdigest(),
+            }
         if operation == "status" and self.status_responses:
             return self.status_responses.pop(0)
         if operation == "logs":
@@ -783,6 +794,15 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
     (tmp_path / "pixi.lock").write_text("locked\n", encoding="utf-8")
     bootstrap = tmp_path / "bootstrap"
     bootstrap.mkdir(exist_ok=True)
+    policies = tmp_path / "benchmarks/m6"
+    policies.mkdir(parents=True, exist_ok=True)
+    for policy_name in (
+        "execution-nextflow-v1.yaml",
+        "execution-nextflow-marmic-v2.yaml",
+    ):
+        (policies / policy_name).write_bytes(
+            (REPOSITORY / "benchmarks/m6" / policy_name).read_bytes()
+        )
     for name in (
         "nf-gtd-hpc-remote",
         "nf-gtd-hpc-smoke-job",
@@ -2304,7 +2324,7 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     assert result["driver_cpu_count"] == 2
     assert result["driver_memory_gb"] == 8.0
     assert result["maximum_cpu_count"] == 32
-    assert result["maximum_memory_gb"] == 16.0
+    assert result["maximum_memory_gb"] == (192.0 if site_id == "marmic" else 16.0)
     assert result["maximum_concurrent_phenix_attempts"] == "scheduler_managed"
     assert result["scheduler_ceiling_hours"] == 24.0
     assert transport.m6_scientific_archive == archive.read_bytes()
@@ -2571,6 +2591,62 @@ def test_scientific_readiness_accepts_no_path_or_run_authority(
         controller.readiness("smoke")
     with pytest.raises(ValidationError):
         controller.readiness("p0;touch-bad")
+
+
+def test_marmic_site_setup_binds_published_source_and_accepts_no_paths(
+    tmp_path: Path,
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+
+    result = controller.marmic_site_configure("HEAD")
+
+    expected_dispatcher = sha256_file(tmp_path / "bootstrap/nf-gtd-hpc-remote")
+    assert transport.calls == [("marmic-site-configure", (expected_dispatcher,))]
+    assert result["commit"] == COMMIT
+    assert result["configured"] == "true"
+    assert result["site_config_sha256"] == hashlib.sha256(b"marmic\n").hexdigest()
+
+
+@pytest.mark.parametrize("source_state", ("wrong_site", "dirty", "unpublished"))
+def test_marmic_site_setup_rejects_unqualified_source_before_transport(
+    tmp_path: Path, source_state: str
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    if source_state == "wrong_site":
+        controller.config = _config(tmp_path, site_id="viper-cpu")
+    else:
+        controller.git = FakeGit(
+            repository=tmp_path,
+            dirty=source_state == "dirty",
+            reachable=source_state != "unpublished",
+        )
+
+    with pytest.raises(ValidationError):
+        controller.marmic_site_configure("HEAD")
+
+    assert transport.calls == []
+
+
+@pytest.mark.parametrize("field", ("site_id", "dispatcher_sha256", "configured"))
+def test_marmic_site_setup_rejects_changed_remote_evidence(
+    tmp_path: Path, field: str
+) -> None:
+    transport = FakeTransport()
+    controller = _controller(tmp_path, transport)
+    response = {
+        "operation": "marmic-site-configure",
+        "site_id": "marmic",
+        "configured": "true",
+        "dispatcher_sha256": sha256_file(tmp_path / "bootstrap/nf-gtd-hpc-remote"),
+        "site_config_sha256": hashlib.sha256(b"marmic\n").hexdigest(),
+    }
+    response[field] = "changed"
+    transport.site_setup_response = response
+
+    with pytest.raises(RemoteOperationError, match="inconsistent identity evidence"):
+        controller.marmic_site_configure("HEAD")
 
 
 def test_p0_configuration_is_checksum_confirmed_and_strictly_validated(

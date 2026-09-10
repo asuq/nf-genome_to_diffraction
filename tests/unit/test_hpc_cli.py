@@ -30,6 +30,19 @@ def test_missing_configuration_returns_json_and_diagnostic_log(
     assert "HPC operation failed" in captured.err
 
 
+def test_marmic_site_setup_accepts_only_the_source_revision() -> None:
+    parser = _build_parser()
+    configured = parser.parse_args(["marmic-site-configure", "--revision", "HEAD"])
+    assert configured.operation == "marmic-site-configure"
+    assert configured.revision == "HEAD"
+    with pytest.raises(SystemExit):
+        parser.parse_args(["marmic-site-configure"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["marmic-site-configure", "--revision", "HEAD", "--path", "arbitrary"]
+        )
+
+
 def test_database_start_commands_are_distinct_from_routine_profiles() -> None:
     parser = _build_parser()
 
