@@ -53,7 +53,7 @@ from genome_to_diffraction.schemas.results import (
     StructuralSearchHit,
 )
 
-_ADAPTER_VERSION = "m6-trusted-model-policy-v3"
+_ADAPTER_VERSION = "m6-trusted-model-policy-v4"
 _DIRECT_PROVIDER = "pdb_sequence_mmseqs"
 _PROSTT5_PROVIDER = "foldseek_prostt5_pdb"
 _EXPECTED_PROVIDERS = frozenset({_DIRECT_PROVIDER, _PROSTT5_PROVIDER})
@@ -360,15 +360,14 @@ def apply_m6_model_policy(request: M6ModelPolicyRequest) -> M6ModelPolicyOutput:
     ):
         hit = raw_hit
         reason: str | None = None
-        if hit.provider == _PROSTT5_PROVIDER:
-            if hit.raw_metrics.get("coordinate_mapping_status") == "unavailable":
-                reason = "coordinate_mapping_unavailable"
+        if hit.raw_metrics.get("coordinate_mapping_status") == "unavailable":
+            reason = "coordinate_mapping_unavailable"
+        elif hit.provider == _PROSTT5_PROVIDER:
+            qualified = _qualified_foldseek_hit(hit, direct_by_sequence)
+            if qualified is None:
+                reason = "amino_acid_alignment_unavailable"
             else:
-                qualified = _qualified_foldseek_hit(hit, direct_by_sequence)
-                if qualified is None:
-                    reason = "amino_acid_alignment_unavailable"
-                else:
-                    hit = qualified
+                hit = qualified
         if reason is None and (hit.pdb_id or "").upper() == source_pdb.upper():
             reason = "exact_deposited_coordinates"
         if reason is None and mode == "query_relative_leakage":

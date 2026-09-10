@@ -16388,3 +16388,53 @@ with a collapsed combined parent or a guessed command.
   No native-control or large M6 run exists. Continue from the mapping decision,
   then finish the approved login-node DB build/verification and use only the
   reviewed Raven client for subsequent M6 work.
+
+## 2026-09-11 - Sequence-only reference handling approved and validated locally
+
+- The user approved preserving the missing-suffix sequence with coordinate/
+  MR-model mapping unavailable and recoverably moving only the exact failed
+  run's sequence staging into its evidence folder. That directory was empty;
+  the owned, locked move succeeded, and no data was deleted. The original
+  terminal job and its evidence are unchanged.
+- Added one shared identifier parser that distinguishes complete suffixes from
+  explicit `unavailable_seqres_suffix` records. Preserve the original ID,
+  sequence and mapping token. Malformed entries/assemblies and inconsistent
+  mapping tables still fail. Database metadata records the unavailable count
+  and the approved interpretation policy.
+- The PDB sequence adapter retains hit status, raw alignment metrics and every
+  sequence hit while deferring coordinate-unavailable references. Coordinate
+  registration does not fetch them, and the M6 model policy retains a rejected
+  annotation instead of admitting an MR model. Catalogue candidates are not
+  discarded. Search/model-policy adapter versions and the generated provider
+  plan example were updated together for cache invalidation.
+- All 197 focused database/search/provider/M6/coordinate tests pass, with Ruff
+  and ty checks. A full local normalisation of the frozen reference preserves
+  all 1,095,971 protein records and reports exactly one unavailable mapping;
+  65,326 non-protein records follow the unchanged exclusion policy. FASTA and
+  mapping row counts agree. Their SHA-256 values are respectively
+  `c2250d06b3662eb33ae2807d7e9631cd33c86010aa06fddb39657374425455e6` and
+  `5d16d0f384eab498a417a460904282e8d1176b65339ccdbe88aa47193e86e5b5`.
+- Preserved the unfinished native-control-purpose work separately, so this
+  database fix can receive its own exact-source integration and CI gate.
+  Next complete that gate, publish the qualified source, and finish the
+  requested one-CPU login-node build and full/functional verification using
+  existing resources and runtime. No new native DB/M6 run has started.
+- The user requested no more command-approval prompts. Use existing approved
+  command paths only; raw SSH remains limited to database preparation. Updated
+  the existing follow-up to reflect the accepted decision and permission limit.
+
+## 2026-09-11 - Sequence-only mapping integration milestone passed
+
+- The captured complete locked gate passed: 1,599 unit, 185 contract and 110
+  integration tests, plus schema, documentation, current-atlas, Nextflow,
+  fan-out/resume/cache, offline packaging and wrapper checks. All 1,174 source
+  inputs remained unchanged. Gate log SHA-256 is
+  `712e743c41a2fbf22b64de6b09543e00717d62ced27b2b531b5ba2fb36f50825`.
+- Publish this checked mapping fix for exact-source CI, then use its clean
+  archive for the approved single-CPU login-node continuation. Existing runtime,
+  verified source downloads and prepared PDB/ProstT5 resources are reused.
+  Native database verification and all M6 execution remain pending.
+- At the user's request, the existing scheduled follow-up now reads one
+  phase-independent local development-procedure note on each run. Routine
+  state changes update that note, not the scheduled rule. The note stays
+  outside Git and retains the permission, ownership and pause boundaries.

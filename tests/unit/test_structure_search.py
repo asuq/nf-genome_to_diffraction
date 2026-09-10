@@ -244,7 +244,7 @@ def test_pdb_sequence_search_preserves_hit_no_hit_and_ineligible_states(
     assert manifest["query_count"] == 3
     assert manifest["eligible_query_count"] == 2
     assert manifest["hit_count"] == 1
-    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v4"
+    assert manifest["adapter_version"] == "pdb-sequence-mmseqs-v5"
     assert manifest["provider_authorisation"]["authorisation_scope"] == (
         "reviewed_provider_plan"
     )
@@ -277,6 +277,61 @@ def test_pdb_sequence_search_rejects_unmapped_hit(
                 progress=False,
             )
         )
+
+
+@pytest.mark.parametrize(
+    "namespace", ["unavailable_seqres_suffix", "legacy_seqres_suffix"]
+)
+def test_missing_suffix_retains_sequence_hit_but_cannot_supply_a_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    namespace: str,
+) -> None:
+    sequence_path, manifest_path, groups = _write_inputs(tmp_path)
+    mapping = tmp_path / "database with spaces" / "target_mapping.tsv"
+    mapping.write_text(
+        "target_id\tpdb_id\tidentifier_namespace\tseqres_token\t"
+        "sequence_length\tsequence_sha256\toriginal_header\n"
+        f"36za_\t36ZA\t{namespace}\t\t4\t"
+        f"{hashlib.sha256(b'ACDE').hexdigest()}\t36za_\n"
+    )
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    _write_mmseqs(binary / "mmseqs", groups[0].sequence_group_id, target="36za_")
+    monkeypatch.setenv("PATH", f"{binary}{os.pathsep}{os.environ['PATH']}")
+    request = PdbSequenceSearchRequest(
+        sequence_groups_jsonl=sequence_path,
+        database_manifest=manifest_path,
+        output_directory=tmp_path / "output",
+        **_provider_route(tmp_path, manifest_path, ProviderKey.PDB_SEQUENCE),
+        progress=False,
+    )
+    if namespace != "unavailable_seqres_suffix":
+        with pytest.raises(ResultParseError, match="mapping identity is inconsistent"):
+            search_pdb_sequences(request)
+        return
+    output = search_pdb_sequences(request)
+    result = next(
+        item
+        for item in output.results
+        if item.sequence_group_id == groups[0].sequence_group_id
+    )
+    assert result.execution_status is ExecutionStatus.COMPLETED_HIT
+    assert result.scientific_status is SearchScientificStatus.HITS_FOUND
+    assert result.hit_count == 1
+    hit = result.hits[0]
+    assert hit.target_id == "36za_"
+    assert hit.target_chain_or_entity is None
+    assert hit.eligibility_status is EligibilityStatus.DEFERRED
+    assert hit.raw_metrics["coordinate_mapping_status"] == "unavailable"
+    assert hit.bits == 80.0
+    assert result.warnings
+    assert (
+        json.loads(output.search_manifest.read_text())[
+            "coordinate_mapping_unavailable_hit_count"
+        ]
+        == 1
+    )
 
 
 def _write_foldseek_inputs(

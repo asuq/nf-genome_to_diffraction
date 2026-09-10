@@ -3005,6 +3005,28 @@ def test_m6_model_policy_filters_every_route_and_retains_candidates(
             identity=0.5,
             coverage=1.0,
         ),
+        _policy_hit(
+            second,
+            hit_id="hit_direct_unmapped",
+            provider="pdb_sequence_mmseqs",
+            pdb_id="36ZA",
+            target_sha256=second.sha256,
+            identity=1.0,
+            coverage=1.0,
+        ).model_copy(
+            update={
+                "target_id": "36za_",
+                "target_chain_or_entity": None,
+                "identifier_namespace": "unavailable_seqres_suffix",
+                "raw_metrics": {
+                    "target_sequence_length": len(second.sequence),
+                    "target_sequence_sha256": second.sha256,
+                    "coordinate_mapping_status": "unavailable",
+                },
+                "eligibility_status": EligibilityStatus.DEFERRED,
+                "eligibility_reason": "sequence evidence with unavailable mapping",
+            }
+        ),
     )
     foldseek_hits = (
         _policy_hit(
@@ -3102,7 +3124,7 @@ def test_m6_model_policy_filters_every_route_and_retains_candidates(
     assert report["all_candidates_retained"] is True
     assert report["rejection_reason_counts"] == {
         "amino_acid_alignment_unavailable": 1,
-        "coordinate_mapping_unavailable": 1,
+        "coordinate_mapping_unavailable": 2,
         "exact_deposited_coordinates": 1,
         "query_relative_leakage": 1,
     }

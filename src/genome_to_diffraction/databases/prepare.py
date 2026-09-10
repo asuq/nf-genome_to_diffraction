@@ -56,6 +56,7 @@ from genome_to_diffraction.databases.network import (
     DownloadMetadata,
     download_public_resource,
 )
+from genome_to_diffraction.databases.pdb_mapping import parse_pdb_sequence_identifier
 from genome_to_diffraction.databases.sources import (
     FOLDSEEK_PDB_ARCHIVE_URL,
     FOLDSEEK_PDB_VERSION_URL,
@@ -92,11 +93,6 @@ _EXPECTED_SMOKE_TARGET = "1ubq_A"
 _SMOKE_MAX_EVALUE = 1.0e-5
 _SMOKE_MIN_BITS = 30.0
 _SMOKE_MIN_COVERAGE = 0.9
-_PDB_SEQRES_TARGET = re.compile(
-    r"^(?P<pdb_id>[0-9][A-Za-z0-9]{3})"
-    r"(?:-assembly(?P<assembly_number>[1-9][0-9]*))?"
-    r"_(?P<seqres_token>[^\s\t]+)$"
-)
 
 
 def _load_json_document(path: Path, label: str) -> object:
@@ -191,10 +187,13 @@ class DatabasePreparationRequest:
 def _parse_pdb_seqres_target(target: str) -> tuple[str, str]:
     """Resolve a SEQRES or Foldseek assembly-chain target to its PDB chain key."""
 
-    match = _PDB_SEQRES_TARGET.fullmatch(target)
-    if match is None:
+    try:
+        identifier = parse_pdb_sequence_identifier(target)
+    except ValueError as error:
+        raise DatabaseError(str(error)) from error
+    if not identifier.coordinate_mapping_available:
         raise DatabaseError(f"unsupported PDB SEQRES target identifier: {target!r}")
-    return match.group("pdb_id").upper(), match.group("seqres_token")
+    return identifier.pdb_id, identifier.token
 
 
 def _parse_smoke_result(path: Path) -> tuple[SmokeHit, ...]:
@@ -1200,16 +1199,18 @@ def _prepare_foldseek_resource(
 
 def _normalise_pdb_sequences(
     compressed: Path, fasta: Path, mapping: Path, *, progress: bool
-) -> tuple[int, int]:
-    """Preserve validated protein SEQRES IDs and their explicit suffix tokens."""
+) -> tuple[int, int, int]:
+    """Retain protein IDs and distinguish unavailable mappings from known tokens."""
 
     count = 0
     skipped_non_protein = 0
+    unavailable_mappings = 0
     seen: set[tuple[str, str]] = set()
     current_header: str | None = None
     current_target: str | None = None
     current_pdb_id: str | None = None
     current_token: str | None = None
+    current_namespace: str | None = None
     current_declared_length: int | None = None
     current_is_protein = False
     sequence_parts: list[str] = []
@@ -1227,7 +1228,7 @@ def _normalise_pdb_sequences(
         )
 
         def flush_record() -> None:
-            nonlocal count, skipped_non_protein
+            nonlocal count, skipped_non_protein, unavailable_mappings
             if current_header is None:
                 return
             if not current_is_protein:
@@ -1237,6 +1238,7 @@ def _normalise_pdb_sequences(
                 current_target is None
                 or current_pdb_id is None
                 or current_token is None
+                or current_namespace is None
                 or current_declared_length is None
             ):
                 raise AssertionError("protein SEQRES state is incomplete")
@@ -1265,13 +1267,23 @@ def _normalise_pdb_sequences(
                 )
             seen.add(key)
             mapping_handle.write(
-                f"{current_target}\t{current_pdb_id}\tlegacy_seqres_suffix\t"
+                f"{current_target}\t{current_pdb_id}\t{current_namespace}\t"
                 f"{current_token}\t{len(sequence)}\t"
                 f"{hashlib.sha256(sequence.encode('ascii')).hexdigest()}\t"
                 f"{current_header}\n"
             )
             fasta_handle.write(f">{current_target}\n{sequence}\n")
             count += 1
+            if current_namespace == "unavailable_seqres_suffix":
+                unavailable_mappings += 1
+                _LOGGER.warning(
+                    "retained PDB sequence with unavailable coordinate mapping",
+                    extra={
+                        "target_id": current_target,
+                        "coordinate_mapping_status": "unavailable",
+                        "reason": "missing_seqres_suffix",
+                    },
+                )
             bar.update(1)
 
         for line_number, line in enumerate(source, start=1):
@@ -1288,7 +1300,13 @@ def _normalise_pdb_sequences(
                 current_target = target
                 sequence_parts = []
                 if current_is_protein:
-                    current_pdb_id, current_token = _parse_pdb_seqres_target(target)
+                    try:
+                        identifier = parse_pdb_sequence_identifier(target)
+                    except ValueError as error:
+                        raise DatabaseError(str(error)) from error
+                    current_pdb_id = identifier.pdb_id
+                    current_token = identifier.token
+                    current_namespace = identifier.namespace
                     length_match = _DECLARED_LENGTH.search(header)
                     if length_match is None:
                         raise DatabaseError(
@@ -1299,6 +1317,7 @@ def _normalise_pdb_sequences(
                 else:
                     current_pdb_id = None
                     current_token = None
+                    current_namespace = None
                     current_declared_length = None
                 continue
             if current_header is None:
@@ -1318,7 +1337,7 @@ def _normalise_pdb_sequences(
         flush_record()
     if count == 0:
         raise DatabaseError("RCSB PDB sequence resource contains no protein records")
-    return count, skipped_non_protein
+    return count, skipped_non_protein, unavailable_mappings
 
 
 def _require_seqres_mapping(sequence_root: Path, target: str) -> dict[str, JsonValue]:
@@ -1350,17 +1369,23 @@ def _require_seqres_mapping(sequence_root: Path, target: str) -> dict[str, JsonV
                     sequence_sha256,
                     _,
                 ) = fields
-                parsed_pdb_id, parsed_token = _parse_pdb_seqres_target(mapped_target)
-                if (parsed_pdb_id, parsed_token) != target_key:
-                    continue
-                if (
-                    pdb_id != parsed_pdb_id
-                    or token != parsed_token
-                    or namespace != "legacy_seqres_suffix"
+                try:
+                    identifier = parse_pdb_sequence_identifier(mapped_target)
+                except ValueError as error:
+                    raise DatabaseError(str(error)) from error
+                if (pdb_id, namespace, token) != (
+                    identifier.pdb_id,
+                    identifier.namespace,
+                    identifier.token,
                 ):
                     raise DatabaseError(
                         f"inconsistent PDB target mapping at line {line_number}"
                     )
+                if (
+                    not identifier.coordinate_mapping_available
+                    or (identifier.pdb_id, identifier.token) != target_key
+                ):
+                    continue
                 try:
                     sequence_length = int(raw_sequence_length)
                 except ValueError as error:
@@ -1569,11 +1594,13 @@ def _prepare_pdb_sequences(
                     "pdb_sequences",
                     sequence_path,
                 )
-            sequence_count, skipped_non_protein = _normalise_pdb_sequences(
-                sequence_path,
-                build_staging / "pdb_seqres.faa",
-                build_staging / "target_mapping.tsv",
-                progress=request.progress,
+            sequence_count, skipped_non_protein, unavailable_mappings = (
+                _normalise_pdb_sequences(
+                    sequence_path,
+                    build_staging / "pdb_seqres.faa",
+                    build_staging / "target_mapping.tsv",
+                    progress=request.progress,
+                )
             )
             createdb_log = _log_path(database_root, name, "createdb")
             run_command(
@@ -1625,6 +1652,10 @@ def _prepare_pdb_sequences(
                 "content_type": metadata.content_type,
                 "sequence_count": sequence_count,
                 "skipped_non_protein_count": skipped_non_protein,
+                "coordinate_mapping_unavailable_count": unavailable_mappings,
+                "coordinate_mapping_policy": (
+                    "retain_missing_seqres_suffix_as_sequence_only_v1"
+                ),
                 "createindex_threads": request.threads,
                 "build_storage": (
                     "compute_scratch"

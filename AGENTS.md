@@ -211,6 +211,22 @@ database job has since failed and is terminal; preserve its evidence and do not
 resubmit it or infer that cancellation is needed. This login-node exception
 remains limited to database preparation, not M6 or other scientific workloads.
 
+The user explicitly approved retaining the missing-suffix SEQRES record as
+sequence evidence with coordinate/MR-model mapping unavailable, and recoverably
+moving only the failed sequence staging for its exact owned database run into
+that run's evidence folder. Preserve the original identifier and sequence,
+report the unavailable mapping explicitly, and prevent that reference from
+supplying an MR model. This is not permission to discard catalogue candidates,
+guess an author-chain/entity mapping, weaken other input validation, delete data,
+change reference snapshots silently, or expand the raw-SSH exception beyond
+database preparation.
+
+The user also explicitly directed Codex to stop requesting command approvals
+and use the existing persistent approvals. Do not request new command or broad
+SSH approvals, or change permission settings. Use the already approved scoped
+command paths; report a genuinely unavailable operation without bypassing the
+permission boundary. The database-only raw-SSH limit remains in force.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

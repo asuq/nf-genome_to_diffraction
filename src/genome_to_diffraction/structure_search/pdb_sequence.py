@@ -19,6 +19,7 @@ from genome_to_diffraction.checksums import (
     sha256_file,
 )
 from genome_to_diffraction.databases.common import tool_version
+from genome_to_diffraction.databases.pdb_mapping import parse_pdb_sequence_identifier
 from genome_to_diffraction.ids import canonical_digest, canonical_json_text, content_id
 from genome_to_diffraction.schemas.io import load_contract
 from genome_to_diffraction.schemas.manifests import (
@@ -50,7 +51,7 @@ from genome_to_diffraction.structure_search.provider_plan import (
 from genome_to_diffraction.time import utc_now
 
 _LOGGER = logging.getLogger("genome_to_diffraction.structure_search.pdb_sequence")
-_ADAPTER_VERSION = "pdb-sequence-mmseqs-v4"
+_ADAPTER_VERSION = "pdb-sequence-mmseqs-v5"
 _PROVIDER = "pdb_sequence_mmseqs"
 _STANDARD_AMINO_ACIDS = frozenset("ACDEFGHIKLMNPQRSTVWY")
 _RESULT_FIELDS = (
@@ -121,6 +122,10 @@ class _TargetMapping:
     token: str
     sequence_length: int
     sequence_sha256: str
+
+    @property
+    def coordinate_mapping_available(self) -> bool:
+        return self.namespace == "legacy_seqres_suffix"
 
 
 def _bind_provider_route(request: PdbSequenceSearchRequest) -> PdbSequenceSearchRequest:
@@ -477,7 +482,11 @@ def _load_target_mappings(
             "sequence_length",
             "sequence_sha256",
         }
-        if reader.fieldnames is None or not required.issubset(reader.fieldnames):
+        if (
+            reader.fieldnames is None
+            or not required.issubset(reader.fieldnames)
+            or len(reader.fieldnames) != len(set(reader.fieldnames))
+        ):
             raise ResultParseError("PDB target mapping has invalid headers")
         iterator = tqdm(
             reader,
@@ -491,6 +500,18 @@ def _load_target_mappings(
                 continue
             if target in mappings:
                 raise ResultParseError(f"duplicate PDB target mapping: {target}")
+            try:
+                identifier = parse_pdb_sequence_identifier(target)
+            except ValueError as error:
+                raise ResultParseError(str(error)) from error
+            if (row["pdb_id"], row["identifier_namespace"], row["seqres_token"]) != (
+                identifier.pdb_id,
+                identifier.namespace,
+                identifier.token,
+            ):
+                raise ResultParseError(
+                    f"PDB target-mapping identity is inconsistent: {target}"
+                )
             try:
                 sequence_length = int(row["sequence_length"])
             except ValueError as error:
@@ -661,7 +682,9 @@ def search_pdb_sequences(
                 provider_rank=rank,
                 target_id=raw_hit.target,
                 model_key=(f"pdb:{mapping.pdb_id}:{mapping.namespace}:{mapping.token}"),
-                target_chain_or_entity=mapping.token,
+                target_chain_or_entity=(
+                    mapping.token if mapping.coordinate_mapping_available else None
+                ),
                 pdb_id=mapping.pdb_id,
                 identifier_namespace=mapping.namespace,
                 query_start=raw_hit.query_start,
@@ -680,9 +703,30 @@ def search_pdb_sequences(
                     "identity_fraction": raw_hit.identity_fraction,
                     "target_sequence_length": mapping.sequence_length,
                     "target_sequence_sha256": mapping.sequence_sha256,
+                    "coordinate_mapping_status": (
+                        "resolved"
+                        if mapping.coordinate_mapping_available
+                        else "unavailable"
+                    ),
+                    "coordinate_mapping_unavailable_reason": (
+                        None
+                        if mapping.coordinate_mapping_available
+                        else "missing_seqres_suffix"
+                    ),
                 },
-                eligibility_status=EligibilityStatus.SELECTED,
-                eligibility_reason="passed configured PDB sequence-search thresholds",
+                eligibility_status=(
+                    EligibilityStatus.SELECTED
+                    if mapping.coordinate_mapping_available
+                    else EligibilityStatus.DEFERRED
+                ),
+                eligibility_reason=(
+                    "passed configured PDB sequence-search thresholds"
+                    if mapping.coordinate_mapping_available
+                    else (
+                        "sequence evidence retained; coordinate mapping unavailable: "
+                        "missing SEQRES suffix"
+                    )
+                ),
             )
             record_hits.append(hit)
             all_hits.append(hit)
@@ -696,7 +740,18 @@ def search_pdb_sequences(
         elif record_hits:
             execution_status = ExecutionStatus.COMPLETED_HIT
             scientific_status = SearchScientificStatus.HITS_FOUND
-            warnings = ()
+            unavailable_count = sum(
+                hit.raw_metrics["coordinate_mapping_status"] == "unavailable"
+                for hit in record_hits
+            )
+            warnings = (
+                (
+                    "coordinate mapping unavailable for "
+                    f"{unavailable_count} retained sequence hit(s)",
+                )
+                if unavailable_count
+                else ()
+            )
         else:
             execution_status = ExecutionStatus.COMPLETED_NO_HIT
             scientific_status = SearchScientificStatus.NO_HIT
@@ -773,6 +828,10 @@ def search_pdb_sequences(
             "query_count": len(sequence_groups),
             "eligible_query_count": len(eligible_records),
             "hit_count": len(all_hits),
+            "coordinate_mapping_unavailable_hit_count": sum(
+                hit.raw_metrics["coordinate_mapping_status"] == "unavailable"
+                for hit in all_hits
+            ),
             "status_counts": dict(sorted(status_counts.items())),
             "parameters": identity_payload["parameters"],
             "outputs": {

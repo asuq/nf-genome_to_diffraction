@@ -235,7 +235,7 @@ def test_adapter_rejects_entry_for_another_provider(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("provider", "adapter_version"),
     (
-        (ProviderKey.PDB_SEQUENCE, "pdb-sequence-mmseqs-v4"),
+        (ProviderKey.PDB_SEQUENCE, "pdb-sequence-mmseqs-v5"),
         (ProviderKey.FOLDSEEK_PROSTT5_PDB, "prostt5-foldseek-pdb-v6"),
     ),
 )
@@ -311,7 +311,7 @@ def test_frozen_m6_provider_rejects_unowned_or_changed_task_evidence(
     task = json.loads(authorisation.batch_task_json.read_text(encoding="utf-8"))
     threads = 32
     maximum_hits = 25
-    adapter = "pdb-sequence-mmseqs-v4"
+    adapter = "pdb-sequence-mmseqs-v5"
     database = DATABASE
     if mutation == "provider":
         task["provider"] = "prostt5_foldseek"

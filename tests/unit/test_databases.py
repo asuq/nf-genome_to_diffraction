@@ -293,6 +293,45 @@ def _write_pdb_sequence_source(path: Path) -> None:
         handle.write(">1ubq_B mol:dna length:4 synthetic DNA\nACGT\n")
 
 
+def test_missing_seqres_suffix_is_retained_without_coordinate_mapping(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.gz"
+    with gzip.open(source, "wt", encoding="ascii") as handle:
+        handle.write(">36za_ mol:protein length:4 synthetic sequence\nACDE\n")
+        handle.write(">36za_A mol:protein length:4 mapped sequence\nFGHI\n")
+        handle.write(">36za_B mol:dna length:4 non-protein\nACGT\n")
+    fasta = tmp_path / "normalised.faa"
+    mapping = tmp_path / "target_mapping.tsv"
+    assert prepare_module._normalise_pdb_sequences(
+        source, fasta, mapping, progress=False
+    ) == (2, 1, 1)
+    assert fasta.read_text() == ">36za_\nACDE\n>36za_A\nFGHI\n"
+    assert "36za_\t36ZA\tunavailable_seqres_suffix\t\t4\t" in mapping.read_text()
+    assert "36za_A\t36ZA\tlegacy_seqres_suffix\tA\t4\t" in mapping.read_text()
+    # An unavailable row must neither become a blank coordinate key nor prevent
+    # a later fully mapped row from being used by the database smoke verifier.
+    with pytest.raises(DatabaseError, match="unsupported PDB SEQRES target"):
+        prepare_module._require_seqres_mapping(tmp_path, "36za_")
+    assert (
+        prepare_module._require_seqres_mapping(tmp_path, "36za_A")["seqres_token"]
+        == "A"
+    )
+
+
+@pytest.mark.parametrize("target", ["36za", "bad_", "36za-assembly1_", "36za_A B"])
+def test_unavailable_mapping_does_not_admit_other_malformed_identifiers(
+    tmp_path: Path,
+    target: str,
+) -> None:
+    from genome_to_diffraction.databases.pdb_mapping import (
+        parse_pdb_sequence_identifier,
+    )
+
+    with pytest.raises(ValueError, match="unsupported PDB SEQRES target"):
+        parse_pdb_sequence_identifier(target)
+
+
 def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
     source = tmp_path / "case-sensitive-seqres.txt.gz"
     with gzip.open(source, "wt", encoding="utf-8") as handle:
@@ -301,11 +340,11 @@ def test_pdb_seqres_chain_tokens_are_case_sensitive(tmp_path: Path) -> None:
     fasta = tmp_path / "normalised.faa"
     mapping = tmp_path / "mapping.tsv"
 
-    count, skipped = prepare_module._normalise_pdb_sequences(
+    count, skipped, unavailable = prepare_module._normalise_pdb_sequences(
         source, fasta, mapping, progress=False
     )
 
-    assert (count, skipped) == (2, 0)
+    assert (count, skipped, unavailable) == (2, 0, 0)
     assert fasta.read_text(encoding="utf-8") == ">10eg_A\nAA\n>10eg_a\nAA\n"
     mapping_text = mapping.read_text(encoding="utf-8")
     assert "10eg_A\t10EG\tlegacy_seqres_suffix\tA\t" in mapping_text

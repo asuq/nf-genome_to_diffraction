@@ -133,7 +133,7 @@ _CAPABILITIES = {
         result_provider="pdb_sequence_mmseqs",
         execution_class=ProviderExecutionClass.LOCAL_COMPUTE,
         support_status=ProviderSupportStatus.AVAILABLE,
-        provider_adapter_version="pdb-sequence-mmseqs-v4",
+        provider_adapter_version="pdb-sequence-mmseqs-v5",
         required_resource_names=("coordinate_cache", "pdb_sequences"),
     ),
 }

@@ -504,15 +504,29 @@ def test_registration_requires_search_snapshot_sequence_identity(
         register_pdb_coordinates(_request(tmp_path, hit_path, groups, manifest))
 
 
+@pytest.mark.parametrize("provider", ["foldseek_prostt5_pdb", "pdb_sequence_mmseqs"])
 def test_registration_ignores_retained_deferred_mapping_gap(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider: str,
 ) -> None:
     hit_path, groups, manifest, hits = _inputs(tmp_path)
     deferred = hits[1].model_copy(
         update={
-            "provider": "foldseek_prostt5_pdb",
-            "database_id": "db_test_pdb_foldseek",
-            "identifier_namespace": "foldseek_target_unmapped",
+            "provider": provider,
+            "database_id": (
+                "db_test_pdb_foldseek"
+                if provider == "foldseek_prostt5_pdb"
+                else "db_test_pdb_sequences"
+            ),
+            "identifier_namespace": (
+                "foldseek_target_unmapped"
+                if provider == "foldseek_prostt5_pdb"
+                else "unavailable_seqres_suffix"
+            ),
+            "target_id": "36za_",
+            "pdb_id": "36ZA",
+            "target_chain_or_entity": None,
             "eligibility_status": EligibilityStatus.DEFERRED,
             "eligibility_reason": "retained mapping gap",
             "raw_metrics": {"coordinate_mapping_status": "unavailable"},
