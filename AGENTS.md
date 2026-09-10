@@ -181,6 +181,30 @@ cancelled identification work. After the requested large test is submitted and
 Raven monitoring is scheduled, pause development for the user's laptop reboot
 and monitor only the owned Raven run until the user resumes development.
 
+The user then instructed Codex to prepare the missing Raven databases, identified
+aria2 in the existing `download` mamba environment, and explicitly allowed raw
+SSH approval requests for preparation. They requested all needed approvals before
+leaving. A task-scoped local runner was presented for the bounded Raven upload,
+database preparation, agreed native control/large M6 test, and read-only
+monitoring/collection operations. This is not blanket SSH authority: respect the
+actual command approval, exact owned paths, immutable source/CI/control gates and
+the post-large-submission pause. Download only the required public reference set;
+reuse the locked scientific environment and Phenix unchanged. No GPU/AF01 work,
+cancellation, deletion, unrelated jobs or scientific-setting changes are implied.
+Database preparation and its functional smoke are not M6 acceptance evidence.
+
+The user subsequently restricted the raw-SSH exception to database preparation:
+do not ask for raw SSH after that preparation and its final verification/
+collection. Remove M6 operations from the one-off administrative runner. All
+subsequent M6 staging, execution and monitoring must use the reviewed repository
+Raven client after its corresponding fixed profiles are qualified.
+
+For this database preparation the user explicitly requested final verification
+on a Raven login node. Confine that verifier to one CPU, reuse the anchored
+prepared manifest and existing functional/full-checksum verification, and do not
+replace or cancel the already submitted build job. Verification is not a new
+database build and does not authorise general scientific work on login nodes.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

@@ -16305,3 +16305,55 @@ with a collapsed combined parent or a guessed command.
   path, use the cancelled supplied-model cohort as a database, or silently
   download/rebuild large resources. Native M6 and the large Raven run remain
   unsubmitted, and the pause-after-submission condition has not been reached.
+
+## 2026-09-10 - Raven database preparation authorised and staged
+
+- The user superseded the existing-manifest question by asking Codex to prepare
+  the databases. They identified aria2 in the existing `download` mamba
+  environment, allowed raw SSH approval requests, and asked for all approvals
+  before leaving. The task-scoped runner's read-only probe and bounded upload
+  succeeded; it exposes no arbitrary shell, cancellation, deletion or GPU route.
+- Live inspection found aria2 1.37.0 and sufficient shared-filesystem headroom.
+  Fixed public-route probes read only one response byte. The PDB/ProstT5 archives
+  retain their recorded representations; the PDB sequence source is now the
+  September 5 representation and will receive its own frozen checksum. The five
+  planned source objects total approximately 4.62 GB.
+- Reuse the scientific code from CI-qualified `7defc9cd`, with an isolated
+  checksum-verified source archive and the unchanged existing locked runtime.
+  No software installation or Phenix modification is part of this preparation.
+  Eleven focused private administrative checks and Ruff/Bash syntax checks pass.
+- The exact bounded source/launch upload and owned run initialisation succeeded.
+  Source archive SHA-256 is
+  `5b6f7fe950549fe54cca29c683c8b9a56608a8530a2e009c549e17b9821bfab6`;
+  deployment package SHA-256 is
+  `53db600c5af6d36e7babda7a2b93401c9c33bba9755987ba5945af813629fcb3`.
+- Download on the login node, first checking the tiny version/ubiquitin objects,
+  then freezing all five verified sources. Prepare and fully reverify offline in
+  one 4-CPU/8-GB job capped at 24 hours, with explicit storage bounds. Preserve
+  exact scheduler ownership and manifests outside Git. No database build or M6
+  job has been submitted at this checkpoint. Database smoke success must not
+  replace the required separate small M6 native control before the large test.
+- Updated the existing hourly follow-up using the OpenAI Docs workflow; it no
+  longer waits for a supplied database path and retains the requested development
+  pause after the genuine large-test submission. No subagents or archival.
+- The owned detached download session subsequently started. The PDB version
+  file and ubiquitin coordinate object both passed their exact size/SHA-256
+  checks; the large public archives are downloading. No database build or M6
+  job is submitted yet. Continue from the owned download state, not a new stage.
+- All five downloads subsequently completed and passed the existing source-
+  bundle full verifier: 4,618,711,764 bytes. The frozen bundle-manifest SHA-256 is
+  `2d49ceb46c5c17371b65df77123ae73a66e105b75d1dfae81011f41afea1647f`.
+  The one owned database build was then submitted as Raven job `30126386`.
+  Do not repeat submission; inspect that job through the scoped runner. No M6
+  run exists yet, and database functional qualification is still pending.
+- The user then limited the raw-SSH exception to database preparation and its
+  final verification/collection. Removed every M6 operation from the one-off
+  administrative runner. Subsequent M6 staging, execution and monitoring must
+  use the reviewed repository Raven client after fixed-profile qualification;
+  do not request raw SSH for those later steps. The existing database job is
+  unchanged and must not be duplicated, cancelled or restarted.
+- The user also requested final database verification on a login node. Prepare
+  a separate checksum-anchored verifier confined to one CPU, using the same
+  existing functional/full-checksum verification code. Leave job `30126386`
+  unchanged and wait for its frozen prepared manifest; this instruction does
+  not authorise a second database build or general login-node scientific jobs.
