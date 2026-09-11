@@ -16768,3 +16768,38 @@ with a collapsed combined parent or a guessed command.
   longest sequences, and an equivalent fully cached resume before the large
   benchmark. Continue authorised development alongside monitoring; no reboot
   pause or renewed cancelled-crystal investigation applies.
+
+## 2026-09-11 - Native planner failure and explicit Raven child source binding
+
+- The real C001/C025 control on `10f2ffb64098` failed before any search or MR.
+  Collected its terminal record and 32 diagnostic/provenance files through the
+  original client; failure signature is
+  `099f5e0af8d4168f2d25151d44b428df16d4f3a320fd2699a3cf3f345e9d3be6`.
+  Slurm child `30150222` ran the new planning command but its CLI rejected
+  `--execution-purpose native_control`. All seven Phenix probes had passed;
+  they do not establish the application-source binding of scientific children.
+- The source supports the new flag, but the task wrapper only set the reused
+  runtime's executable path. It did not explicitly rebind the child Python
+  source. The precise site mechanism losing/replacing the controller's exported
+  path is not established by the retained diagnostics. Reproduced the failure
+  locally with the actual non-stub M6 planning process/CLI and deliberately
+  stale inherited application source, keeping the locked interpreter unchanged.
+- Raven's task setup now explicitly binds the run-owned source after module
+  setup and disables bytecode writes. The real planning regression passes and
+  verifies the loaded CLI path, native-control purpose, C001/C025 inventory and
+  non-acceptance flag. All 74 focused Raven/native-purpose/repository-policy
+  tests pass, as do full lint/type checks. Runtime installation, references,
+  scientific settings, resources and immutable failed-run evidence are unchanged.
+- Complete the named source-captured parallel milestone and exact-source CI,
+  then qualify a fresh immutable native run through the original client.
+  Do not resubmit the failed run or launch the large benchmark before genuine
+  positive/target-absent MR, resource/RSS, truth-isolation and cached-resume
+  gates pass. The independent four-arm reference draft is parked incomplete;
+  prioritise this native boundary correction before resuming that work.
+- The complete `raven-child-source-binding` milestone passed all 25 checks
+  with all 1,184 captured source inputs unchanged: 1,677 unit, 185 contract
+  and 128 integration tests, every workflow/cache/resume check, and the
+  quality/package group. Elapsed time was 7m46s; gate log SHA-256 is
+  `34736d0d6c4371252d82e821f36eed5c550cf81aa654f98936832d8bf9b20341`.
+  Commit/push for exact-source CI, then prioritise the fresh real-data control.
+  This local pass does not qualify native MR or the large benchmark.

@@ -39,6 +39,16 @@ It never reinstalls an environment, replaces a site record or qualifies M6.
 Readiness reports runtime bindings only; database and native qualification
 remain separate gates.
 
+The reused environment supplies the locked interpreter/dependencies, not the
+application source authority. Raven's task `beforeScript` sets both the runtime
+`PATH` and the run-owned source `PYTHONPATH` after module setup, with bytecode
+writing disabled. Do not rely on the controller's Python path surviving
+scheduler/site environment handling. The non-stub local planner regression
+exercises the actual M6 CLI/module against a deliberately stale inherited
+application path; it must resolve the staged source and retain the two-case
+native-control identity. Stub routing and command-help probes alone cannot
+establish that binding for scientific children.
+
 The fixed `m6-inputs` verifier is a Slurm job. The `m6-nextflow-smoke`,
 `m6-native-control`, `m6-operational` and `m6-leakage` profiles use an explicitly identified login
 process with a two-CPU affinity limit. Their original shared job body launches

@@ -6263,7 +6263,7 @@
     },
     {
       "path": "conf/raven.config",
-      "sha256": "101c63f8669c3fff09d9d1b45ab2fa6d2a2bc426dfb59829b693aaec75f58858"
+      "sha256": "eee68b26a72133fa4cf5a9bd6b87fd9e7c28673a1ee2cb23b9760acd97cf8739"
     },
     {
       "path": "conf/site-specific.example.config",
@@ -6282,7 +6282,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_3b22a9496e7d1095c5e629744ac755c683bfdfa94b897075f0a0945c0f704870",
+  "inventory_id": "atlasinv_71b540285b012d3f3a60d4eeeae54eee8fa4b7fbe59dd07047e8b72a3f5a266c",
   "nextflow_files": [
     {
       "declarations": [],
@@ -64967,12 +64967,17 @@
       "cli_commands": [],
       "imports": [
         "csv",
+        "genome_to_diffraction.benchmarks.m6_protocol",
+        "genome_to_diffraction.benchmarks.m6_runner",
+        "json",
         "pathlib",
         "subprocess",
-        "tests.scripts.check_nextflow"
+        "sys",
+        "tests.scripts.check_nextflow",
+        "tests.unit.test_m6_benchmark"
       ],
       "path": "tests/integration/test_m6_raven_local_stage.py",
-      "sha256": "a51e9bf2f0cbc49af052b553b714514247f22c95a5e837d907874bb79f67e429",
+      "sha256": "f99ff1db7b3b5bc0f27f063a417259621e196de92cd0e2a26dbf6d91681b4519",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -64994,13 +64999,51 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 82,
+          "end_line": 90,
           "kind": "function",
-          "line": 12,
+          "line": 20,
           "name": "test_raven_coordinate_stage_runs_locally_with_bounded_resources",
           "public": true,
           "qualname": "test_raven_coordinate_stage_runs_locally_with_bounded_resources",
           "signature": "def test_raven_coordinate_stage_runs_locally_with_bounded_resources(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "M6RunnerBundleRequest",
+            "Path",
+            "_environment",
+            "_prepared_manifest",
+            "build_m6_runner_bundle",
+            "config.write_text",
+            "csv.DictReader",
+            "entrypoint.write_text",
+            "json.loads",
+            "launcher.chmod",
+            "launcher.write_text",
+            "len",
+            "list",
+            "load_m6_protocol",
+            "module.chmod",
+            "module.write_text",
+            "module_bin.mkdir",
+            "open",
+            "package.mkdir",
+            "read_text",
+            "runtime_bin.mkdir",
+            "str",
+            "subprocess.run",
+            "symlink_to",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "Exercise the real CLI/module, not its stub, with stale inherited source.",
+          "end_line": 230,
+          "kind": "function",
+          "line": 93,
+          "name": "test_raven_real_planner_uses_run_source_with_a_reused_older_runtime",
+          "public": true,
+          "qualname": "test_raven_real_planner_uses_run_source_with_a_reused_older_runtime",
+          "signature": "def test_raven_real_planner_uses_run_source_with_a_reused_older_runtime(tmp_path: Path) -> None"
         }
       ]
     },
