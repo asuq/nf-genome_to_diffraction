@@ -16996,3 +16996,47 @@ with a collapsed combined parent or a guessed command.
   scientific implementation and the reviewed fixed controller route. Local
   synthetic fixtures are not native qualification. All pre-large-run, complete
   M6, rank-recovery, human-review and release boundaries remain unchanged.
+
+## 2026-09-11 - Original preparation and first-copy reference receipts qualified locally
+
+- All six exact-source CI lanes passed for the preceding plan/materialisation/
+  review milestone on `6d577b3a2c0112442face2c3c21dab53ac0febec`, run
+  `34573018542`.
+- Bound reference admission to original production preparation: fixed case and
+  track, full catalogue import, original MTZ/configuration/model policy,
+  preflight and coordinate-stage inputs/outputs. The baseline must reproduce
+  the ordered production hypotheses exactly. Complete model/Matthews inputs
+  still receive reference assessment when production admission is empty;
+  genuinely empty coordinate inputs emit no invented funnel or MR evidence.
+- Added a one-hypothesis reference wrapper around the unchanged production
+  first-copy Phaser adapter. Expected composition, one searched copy, original
+  model/sequence/diffraction/runtime and allocated threads remain unchanged.
+  Separate receipts bind source, original preparation, task identity, native
+  command, both result encodings and every output byte. Hit, no-hit, tool-failure
+  and parse-failure outcomes retain their actual types; no human or production
+  benchmark decision is generated.
+- The prepared-case review join now requires the exact unique union of
+  authenticated first-copy receipts before freezing and reviewing results.
+  Both cohorts preserve the original receipts. Missing, duplicate, unplanned
+  and changed inputs or native evidence fail closed. Command revalidation
+  uses original task paths; collection must not rewrite saved provenance.
+- All 22 focused checks passed using actual production input/preparation
+  producers and explicitly synthetic external responses. The captured milestone
+  passed all 25 repository checks with all 1,227 source inputs unchanged:
+  1,786 unit, 185 contract and 128 integration tests, workflow/cache checks and
+  packaging. Duration was 10m12s; log SHA-256 is
+  `021e4c3db89f04df29922860397bf7ee082907ddc1424ad3a2807dddaf73d08d`.
+  Integrated worktree commit `ff31a23f600164d1a3a561c8cd73428c1c59e4a8`
+  as `b52bb1a9` for code-only exact CI. This increment changes fixtures, tests
+  and documentation, not production source, schemas, workflows, HPC tools or
+  environments.
+- The immutable source-413b Raven control remains active. The latest owned
+  status is running and the bounded logs still end at search submissions.
+  No new MR, measured RSS, cached resume or native acceptance is claimed.
+  Keep its original wait/collection cycle and freeze terminal outputs before
+  truth-side comparison; do not deploy this increment into that run.
+- Next connect the reference copy/finalist/refinement and per-arm identity
+  evidence, then qualify the fixed Nextflow fan-out, native provenance/resume
+  and reviewed original-client route. The first-copy tests are not native
+  Phenix qualification. All native-control, full M6, rank-recovery, human-review
+  and release gates remain required.
