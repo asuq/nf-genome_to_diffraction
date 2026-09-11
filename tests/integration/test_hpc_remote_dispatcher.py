@@ -1885,10 +1885,10 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     assert "Stored process" not in body
     assert '"M6_SEARCH_PDB": 2' in body
     assert '"M6_SEARCH_FOLDSEEK": 2' in body
-    assert '"M6_STAGE_COORDINATES": 1' in body
+    assert '"M6_STAGE_COORDINATES": 2' in body
     assert 'controller_stages = record["controller_stages"]' in body
-    assert "or len(jobs) != 25" in body
-    assert "or len(controller_stages) != 1" in body
+    assert "or len(jobs) != 39" in body
+    assert "or len(controller_stages) != 2" in body
     assert 'len({job["native_job_id"] for job in search}) != 4' in body
     assert '"$stored" -eq 3' not in body
     assert "len(search) != 2" not in body
@@ -1921,7 +1921,9 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     )
     assert [row["case_id"] for row in contract["case_contracts"]] == [
         "M6C001",
+        "M6C002",
         "M6C057",
+        "M6C058",
     ]
     assert all(
         row["identity_decision"]["adapter_version"] == "m6-identity-decision-v1"
@@ -1962,7 +1964,7 @@ def test_m6_smoke_resource_check_uses_fixed_site_search_memory(
             "requested_time_hours": 24.0,
         }
         for index, process in enumerate(
-            ["M6_SEARCH_PDB"] * 2 + ["M6_SEARCH_FOLDSEEK"] * 2 + ["M6_OTHER"] * 21
+            ["M6_SEARCH_PDB"] * 2 + ["M6_SEARCH_FOLDSEEK"] * 2 + ["M6_OTHER"] * 35
         )
     ]
     record = {
@@ -1970,10 +1972,11 @@ def test_m6_smoke_resource_check_uses_fixed_site_search_memory(
         "execution_policy_sha256": checksum,
         "jobs": jobs,
         "controller_stages": [
-            {"process": "M6_STAGE_COORDINATES", "status": "COMPLETED"}
+            {"process": "M6_STAGE_COORDINATES", "status": "COMPLETED"},
+            {"process": "M6_STAGE_COORDINATES", "status": "COMPLETED"},
         ],
         "per_job_bounds_passed": True,
-        "child_job_count": 25,
+        "child_job_count": 39,
         "peak_running_jobs": 2,
         "peak_aggregate_cpus": 64,
         "peak_aggregate_memory_gb": foldseek_memory * 2,
@@ -2012,20 +2015,20 @@ def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
         "M6_SEARCH_PDB": 2,
         "M6_SEARCH_FOLDSEEK": 2,
         "M6_PARTITION_DISCOVERY": 2,
-        "M6_PREFLIGHT_CASE": 2,
-        "M6_APPLY_POLICY": 1,
-        "M6_STAGE_COORDINATES": 1,
-        "M6_PREPARE_ACTIVE_CASE": 1,
-        "M6_PREPARE_EARLY_CASE": 1,
-        "M6_FIRST_COPY": 1,
-        "M6_SELECT_SEEDS": 1,
-        "M6_EMPTY_SEEDS": 1,
-        "M6_ADDITIONAL_COPY": 1,
-        "M6_SELECT_FINALISTS": 1,
-        "M6_EMPTY_FINALISTS": 1,
-        "M6_REFINEMENT": 1,
-        "M6_ASSEMBLE_CASE": 1,
-        "M6_ASSEMBLE_EMPTY_CASE": 1,
+        "M6_PREFLIGHT_CASE": 4,
+        "M6_APPLY_POLICY": 2,
+        "M6_STAGE_COORDINATES": 2,
+        "M6_PREPARE_ACTIVE_CASE": 2,
+        "M6_PREPARE_EARLY_CASE": 2,
+        "M6_FIRST_COPY": 2,
+        "M6_SELECT_SEEDS": 2,
+        "M6_EMPTY_SEEDS": 2,
+        "M6_ADDITIONAL_COPY": 2,
+        "M6_SELECT_FINALISTS": 2,
+        "M6_EMPTY_FINALISTS": 2,
+        "M6_REFINEMENT": 2,
+        "M6_ASSEMBLE_CASE": 2,
+        "M6_ASSEMBLE_EMPTY_CASE": 2,
         "M6_AGGREGATE_TRACK": 1,
     }
     truthless = {
@@ -2070,12 +2073,12 @@ def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
         cwd=tmp_path,
         input_data=validator.encode(),
     )
-    assert accepted.stdout.strip() == b"26 26 6 20"
+    assert accepted.stdout.strip() == b"41 41 6 35"
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["cache_mechanism"] == "nextflow_resume"
     assert evidence["leakage_cached_truthless_task_count"] == 6
-    assert evidence["leakage_completed_track_specific_task_count"] == 20
-    assert evidence["coordinate_stage_process_count"] == 1
+    assert evidence["leakage_completed_track_specific_task_count"] == 35
+    assert evidence["coordinate_stage_process_count"] == 2
 
     trace(leakage_resume, mode="LEAKAGE", extra_cached="M6_STAGE_COORDINATES")
     rejected = _run(

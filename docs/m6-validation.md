@@ -488,6 +488,13 @@ at 128 sequences; Viper retains its 10,000-sequence cap. All retain the existing
 3-million-residue bound. This avoids reloading the target database and
 ProstT5 model once per sample while retaining every catalogue candidate.
 
+Catalogue import and discovery are unique per content key, but each catalogue
+may serve several cases. Both active and early-exit case branches therefore
+require a keyed many-case/one-catalogue broadcast. A one-to-one channel join
+would consume the sole catalogue row for only the first case with that key.
+Every original case remains an independent downstream task; no extra import or
+database search is needed for another case using the same catalogue.
+
 Candidate-specific no-hit, no-model, ambiguity, assumption violation, remote
 disabled/rate-limited, and conflicting-column outcomes are completed scientific
 states. Missing or changed inputs, truth leakage, checksum mismatch, malformed
@@ -508,13 +515,18 @@ resource evidence, cross-track truthless Nextflow-cache isolation, and the fixed
 resource profiles. The MTZ regression additionally proves FWT/PHWT/FC/PHIC are
 omitted, HKL/observations/Free-R are exact, target-derived coefficient mutations
 do not change sanitised bytes or identity, invalid arrays fail closed, and the
-runner-visible MTZ cannot recover the omitted columns. A two-case Viper
-`-stub-run` must then prove real child Slurm
-submission without generating acceptance evidence. The complete locked
-repository gate remains required before an immutable Viper candidate is staged.
+runner-visible MTZ cannot recover the omitted columns. The canonical four-case
+stub has two active consumers of one catalogue and two early-exit consumers of
+another. It must retain all four cases exactly once while emitting only two
+imports, two PDB searches and two Foldseek searches: 41 tasks in total. Identical
+resume must cache all 41 tasks; cross-track resume may cache only the six
+truthless tasks and must newly complete all 35 track-specific tasks. The fixed
+reviewed-site `-stub-run` must also prove real child Slurm submission without
+generating acceptance evidence. The complete locked repository gate remains
+required before an immutable candidate is staged.
 
 The local full-graph cache probe separately changes one checksum-bearing
-protocol input and requires the exact ten-task downstream closure while all 16
+protocol input and requires the exact 19-task downstream closure while all 22
 unaffected tasks and child outputs remain byte-identical. It also deletes one
 required child from a cached catalogue bundle and requires an explicit
 `hold_missing_required_child` verifier outcome; an unchanged published aggregate

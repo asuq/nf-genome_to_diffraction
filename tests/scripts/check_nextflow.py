@@ -632,7 +632,7 @@ def check_localisation_wave_stub() -> None:
 def _assert_m6_fanout_trace(
     trace_rows: Sequence[dict[str, str]], *, require_cached: bool
 ) -> dict[str, tuple[dict[str, str], ...]]:
-    """Require the complete multi-catalogue M6 stub fan-out."""
+    """Require all active/early consumers of each shared catalogue exactly once."""
 
     catalogue_keys = {
         "a" * 64,
@@ -651,11 +651,24 @@ def _assert_m6_fanout_trace(
         },
         "M6_PREFLIGHT_CASE": {
             "m6-preflight:M6C001",
+            "m6-preflight:M6C002",
             "m6-preflight:M6C057",
+            "m6-preflight:M6C058",
         },
-        "M6_STAGE_COORDINATES": {"m6-coordinate-stage:M6C001"},
-        "M6_PREPARE_ACTIVE_CASE": {"m6-case:M6C001"},
-        "M6_PREPARE_EARLY_CASE": {"m6-early-case:M6C057"},
+        "M6_STAGE_COORDINATES": {
+            "m6-coordinate-stage:M6C001",
+            "m6-coordinate-stage:M6C002",
+        },
+        "M6_PREPARE_ACTIVE_CASE": {"m6-case:M6C001", "m6-case:M6C002"},
+        "M6_PREPARE_EARLY_CASE": {
+            "m6-early-case:M6C057",
+            "m6-early-case:M6C058",
+        },
+        "M6_ASSEMBLE_CASE": {"m6-evidence:M6C001", "m6-evidence:M6C002"},
+        "M6_ASSEMBLE_EMPTY_CASE": {
+            "m6-empty-evidence:M6C057",
+            "m6-empty-evidence:M6C058",
+        },
     }
     rows_by_process: dict[str, tuple[dict[str, str], ...]] = {}
     for process, expected in expected_tags.items():
@@ -691,13 +704,13 @@ def _assert_m6_cross_track_cache(
     cached = tuple(row for row in leakage_rows if row["status"] == "CACHED")
     completed = tuple(row for row in leakage_rows if row["status"] == "COMPLETED")
     cached_counts = Counter(row["process"].split(":")[-1] for row in cached)
-    if len(leakage_rows) != 26 or cached_counts != expected_cached:
+    if len(leakage_rows) != 41 or cached_counts != expected_cached:
         raise RuntimeError(
             "M6 leakage resume did not cache exactly six truthless tasks: "
             f"{dict(sorted(cached_counts.items()))}"
         )
-    if len(completed) != 20 or len(cached) + len(completed) != len(leakage_rows):
-        raise RuntimeError("M6 leakage resume did not complete 20 track-specific tasks")
+    if len(completed) != 35 or len(cached) + len(completed) != len(leakage_rows):
+        raise RuntimeError("M6 leakage resume did not complete 35 track-specific tasks")
     for process in expected_cached:
         first_tags = sorted(
             row["tag"] for row in first_rows if row["process"].split(":")[-1] == process
@@ -1857,10 +1870,10 @@ def check_stubs() -> None:
         trace_path = m6_out / "pipeline_info" / "trace.tsv"
         with trace_path.open(encoding="utf-8", newline="") as handle:
             trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
-        if len(trace_rows) != 26 or {row["status"] for row in trace_rows} != {
+        if len(trace_rows) != 41 or {row["status"] for row in trace_rows} != {
             "COMPLETED"
         }:
-            raise RuntimeError("M6 first stub run did not complete exactly 26 tasks")
+            raise RuntimeError("M6 first stub run did not complete exactly 41 tasks")
         fanout_rows = _assert_m6_fanout_trace(trace_rows, require_cached=False)
         processes = {row["process"].split(":")[-1] for row in trace_rows}
         required_processes = {
@@ -1920,13 +1933,19 @@ def check_stubs() -> None:
             .splitlines()
             if line
         )
-        if len(case_records) != 2 or any(
-            record.get("schema_version") != "3.0"
-            or record.get("adapter_version") != "m6-nextflow-case-evidence-v3-stages"
-            or not isinstance(record.get("identity_decision"), dict)
-            or not isinstance(record.get("edge_observations"), list)
-            or not isinstance(record.get("stage_inventory"), dict)
-            for record in case_records
+        if (
+            len(case_records) != 4
+            or {record.get("case_id") for record in case_records}
+            != {"M6C001", "M6C002", "M6C057", "M6C058"}
+            or any(
+                record.get("schema_version") != "3.0"
+                or record.get("adapter_version")
+                != "m6-nextflow-case-evidence-v3-stages"
+                or not isinstance(record.get("identity_decision"), dict)
+                or not isinstance(record.get("edge_observations"), list)
+                or not isinstance(record.get("stage_inventory"), dict)
+                for record in case_records
+            )
         ):
             raise RuntimeError("M6 stub did not retain v3 identity/edge/stage evidence")
         m6_files = sorted(path for path in m6_out.rglob("*") if path.is_file())
@@ -1941,10 +1960,10 @@ def check_stubs() -> None:
             raise RuntimeError("resumed M6 stub did not report cached work")
         with trace_path.open(encoding="utf-8", newline="") as handle:
             resumed_trace_rows = tuple(csv.DictReader(handle, delimiter="\t"))
-        if len(resumed_trace_rows) != 26 or {
+        if len(resumed_trace_rows) != 41 or {
             row["status"] for row in resumed_trace_rows
         } != {"CACHED"}:
-            raise RuntimeError("resumed M6 stub did not cache all 26 tasks")
+            raise RuntimeError("resumed M6 stub did not cache all 41 tasks")
         _assert_m6_fanout_trace(resumed_trace_rows, require_cached=True)
         after_resume = {
             str(path.relative_to(m6_out)): hashlib.sha256(path.read_bytes()).hexdigest()

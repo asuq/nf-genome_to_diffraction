@@ -14,7 +14,7 @@ from tests.scripts.check_nextflow import REPOSITORY, _environment, _read_trace, 
 
 def _rows(path: Path) -> dict[str, dict[str, str]]:
     rows = {row["tag"]: row for row in _read_trace(path)}
-    if len(rows) != 26:
+    if len(rows) != 41:
         raise RuntimeError(f"M6 task inventory changed: {sorted(rows)}")
     return rows
 
@@ -73,7 +73,7 @@ def main() -> None:
         trace = output / "pipeline_info/trace.tsv"
         baseline = _rows(trace)
         if {row["status"] for row in baseline.values()} != {"COMPLETED"}:
-            raise RuntimeError("M6 mutation baseline was not 26 completed tasks")
+            raise RuntimeError("M6 mutation baseline was not 41 completed tasks")
         inventories = {tag: _inventory(row) for tag, row in baseline.items()}
         child_baseline = output / "pipeline_info/m6-first-child-outputs.json"
         collect_m6_child_output_evidence(
@@ -86,7 +86,7 @@ def main() -> None:
         _run([*command, "-resume"], environment=environment)
         resumed = _rows(trace)
         if {row["status"] for row in resumed.values()} != {"CACHED"}:
-            raise RuntimeError("M6 baseline resume was not 26 cached tasks")
+            raise RuntimeError("M6 baseline resume was not 41 cached tasks")
         collect_m6_child_output_evidence(
             M6ChildOutputEvidenceRequest(
                 track="operational",
@@ -147,6 +147,15 @@ def main() -> None:
             "m6-finalists:M6C001",
             "m6-refine:M6C001:sol_stub",
             "m6-evidence:M6C001",
+            "m6-policy:M6C002",
+            "m6-coordinate-stage:M6C002",
+            "m6-case:M6C002",
+            "m6-first:M6C002:hyp_stub",
+            "m6-seeds:M6C002",
+            "m6-copy:M6C002:sol_stub",
+            "m6-finalists:M6C002",
+            "m6-refine:M6C002:sol_stub",
+            "m6-evidence:M6C002",
             "m6-aggregate:operational",
         }
         actual_completed = {

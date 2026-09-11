@@ -121,7 +121,7 @@ process M6_PREFLIGHT_CASE {
 
     stub:
     """
-    if [[ '${item[0]}' == M6C057 ]]; then
+    if [[ '${item[0]}' == M6C057 || '${item[0]}' == M6C058 ]]; then
     /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
             '${projectDir}/tests/fixtures/stubs/m6_nextflow/early_preflight_bundle' m6_preflight_bundle
     else

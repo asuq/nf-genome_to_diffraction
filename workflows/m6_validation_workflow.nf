@@ -168,7 +168,8 @@ workflow M6_VALIDATION_WORKFLOW {
         .map { caseId, catalogueKey, task, preflightBundle ->
             tuple(catalogueKey, caseId, task, preflightBundle)
         }
-        .join(discovery, by: 0)
+        // Several cases consume each uniquely planned catalogue result.
+        .combine(discovery, by: 0)
     policy_inputs = active_joined.map {
         catalogueKey, caseId, task, preflightBundle, catalogueBundle, pdbBundle, foldseekBundle ->
         tuple(
@@ -201,7 +202,7 @@ workflow M6_VALIDATION_WORKFLOW {
         .map { caseId, catalogueKey, task, preflightBundle ->
             tuple(catalogueKey, caseId, task, preflightBundle)
         }
-        .join(imported, by: 0)
+        .combine(imported, by: 0)
     early_case_inputs = early_joined.map {
         catalogueKey, caseId, task, preflightBundle, catalogueBundle ->
         tuple(caseId, task, catalogueBundle, preflightBundle)
