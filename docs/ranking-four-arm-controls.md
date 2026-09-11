@@ -260,6 +260,45 @@ reference-only task emission, and distinguish empty, no-hit and missing-evidence
 states. They do not qualify the native first-copy executor, a full reference
 Nextflow graph, refinement/finalist provenance, or a cached native resume.
 
+The [prepared-case binding](../tests/fixtures/ranking_four_arm_prepared.py)
+connects the fixed reference plan to original production task outputs. It
+checks the original case/track, full catalogue import, copied task inputs,
+MTZ/preflight, trusted model policy and original coordinate-stage inventory.
+The copy-weighted admission must reproduce the production preparation exactly;
+both reference cohorts then use its unchanged models and complete Matthews
+inputs. Source, runtime, plan, every original bundle file and all reference
+outputs are bound. An empty coordinate inventory produces no invented funnel
+or MR result. Production-empty admission is still assessed when its complete
+model/Matthews inputs exist; production selection is not a reference veto.
+
+The [first-copy adapter](../tests/fixtures/ranking_four_arm_first_copy.py)
+executes exactly one emitted hypothesis through the unchanged production Phaser
+adapter, preserving expected composition, one searched copy, original sequence,
+complete model registry, diffraction inputs and allocated threads. It adds a
+separate reference receipt, not an M6 or human decision. The receipt binds the
+task key and every native output byte; validation rederives command construction,
+checks both result encodings and verifies native selected-solution assets.
+Hit, no-hit, tool-failure and parse-failure statuses remain distinct. Command
+revalidation uses the original task paths; collection must retain those paths
+as provenance rather than rewrite the saved native commands.
+
+The prepared-case review join requires the exact unique union of authenticated
+first-copy receipts before calling the shared result-freezing/review path.
+Both frozen cohorts retain the original receipts, including logs and failure
+records. Missing, duplicate, unplanned, changed or foreign evidence fails
+before it can become review authority. No independent scientific task loop or
+scheduler is introduced: the native graph must fan hypotheses out in Nextflow.
+
+The [prepared-input tests](../tests/unit/test_ranking_four_arm_prepared.py)
+exercise actual runner, catalogue, preflight, model-policy, registration,
+preparation and admission producers against a synthetic full catalogue.
+The [first-copy tests](../tests/unit/test_ranking_four_arm_first_copy.py) replace
+only the external Phenix response with frozen representative output. They test
+command parity, typed outcomes, input/receipt tampering and the complete
+receipt-to-review join. This is local adapter qualification, not evidence of a
+real Phenix run, scheduler resources or a cached native resume. The full fixed
+Nextflow route and reference finalist/refinement/identity assembly remain open.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,
