@@ -17131,3 +17131,52 @@ with a collapsed combined parent or a guessed command.
   Next finish these boundaries, then the fixed Nextflow/controller graph and
   native provenance/resume. All full-M6, rank-recovery, human-review and release
   gates remain required; no cancelled investigation or GPU work is reopened.
+
+## 2026-09-11 - M6 collection staging and reference refinement/identity qualified
+
+- All six exact-source CI lanes passed for the catalogue-broadcast milestone
+  on `a1b38e383ce67ed5c01d26bc610438d5457c2d87`, run `34588390456`.
+- The immutable source-413b Raven native control terminated with a software
+  failure before MR. Its complete controller log records 41 successful tasks,
+  including all 34 Foldseek batches, and two failed discovery partitions.
+  Every Foldseek argument had the same staged basename, resolving to one link;
+  the existing duplicate-batch validator correctly refused the aliased inputs.
+  Preserved the 32 collected diagnostic files, their hashes and a separate
+  byte-verified original copy. No resource or scientific acceptance follows
+  from successful search exit codes or requested aggregate memory.
+- Reproduced the same-basename collision in both actual partition and aggregate
+  process definitions. Added distinct indexed staging parents for PDB batches,
+  Foldseek batches and case results. Native scientific arguments, resources and
+  the three shared-store contracts are unchanged. Fresh and fully cached wiring
+  passed with a simulated CLI. Nested-directory mutation remains cached even
+  with deep mode; removed that ineffective experiment and verified the original
+  child-output checksum guard rejects changed bytes before acceptance.
+- The bounded collector now retains the one fixed raw M6 trace after failure,
+  even before successful-run snapshots exist. Ownership, canonical full path,
+  regular-file and size checks remain mandatory; substituted parents fail.
+  Marmic and Raven regression tests preserve only that trace, not neighbours or
+  an invented acceptance record. Deployment and native recollection are pending.
+- Added reference-only refinement receipts using the unchanged M6/Phenix route,
+  with full catalogue, native commands, typed failures, metrics and original
+  input/output hashes. Per-arm identity requires the complete unique receipt
+  union, then uses only each arm's advanced seeds and the existing M6 identity
+  rule. Entry/exit authentication avoids repeated full-union validation without
+  caching validation state between calls. Empty admission, no-hit, unavailable
+  locus metadata and execution failure remain distinct. Simulated Phenix tests
+  are not native evidence; prior failed development tests are retained.
+- Three reference boundary tests and nine staging/collection checks passed.
+  The complete captured gate passed all 25 checks: 1,800 unit, 185 contract and
+  131 integration tests, workflow/cache checks, atlas and packaging. All 1,247
+  source inputs were unchanged. One group at a time with two workers took
+  24m33s; separate graph-worktree setup and five lightweight transport tests
+  overlapped, but no other full scientific suite or native run was active.
+  Passing gate log SHA-256:
+  `209229aaf3464f3987a624c1eb9dbe99547fabead64b531e478410bc11baf305`.
+- Integrated worktree commit `57b994b4f74b5fc0673d992391cd03968e64f192`
+  as `8fe10d75`; code-only exact CI follows this journal update. Next deploy the
+  qualified collector, recollect the failed control's raw trace and inspect
+  measured Foldseek resources, then start one fresh exact-qualified native
+  control. Do not edit or resume the failed immutable run. The large benchmark
+  still requires positive/absent outcomes, native provenance, measured resources
+  and equivalent cached resume. Reference CLI/graph drafts remain unqualified;
+  full M6, retrospective rank recovery, human-review and release gates remain.
