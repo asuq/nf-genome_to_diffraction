@@ -216,6 +216,7 @@ def test_root_nextflow_surface_has_only_intentional_owners() -> None:
         "prepare_databases.nf",
         "qualification.nf",
         "reviewed_first_copy.nf",
+        "rf_reference.nf",
     }
 
 

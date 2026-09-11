@@ -125,7 +125,9 @@ process M6_PREFLIGHT_CASE {
 
     stub:
     """
-    if [[ '${item[0]}' == M6C057 || '${item[0]}' == M6C058 ]]; then
+    # M6C037 exercises the RF graph's early branch only in this simulation;
+    # it is not a claim about that real benchmark case's preflight outcome.
+    if [[ '${item[0]}' == M6C057 || '${item[0]}' == M6C058 || '${item[0]}' == M6C037 ]]; then
     /bin/bash '${projectDir}/tests/scripts/copy_stub_fixture.sh' \
             '${projectDir}/tests/fixtures/stubs/m6_nextflow/early_preflight_bundle' m6_preflight_bundle
     else

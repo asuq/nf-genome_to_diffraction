@@ -364,6 +364,69 @@ typed failures, complete and missing/duplicate receipt joins, per-arm isolation
 and rehashed identity alteration. Native refinement, full fixed Nextflow and
 controller execution, resource provenance and cached resume remain required.
 
+### Fixed reference graph and completion boundary
+
+The repository-root [reference entry point](../rf_reference.nf) keeps
+`projectDir` at the immutable checkout. Its
+[workflow](../tests/fixtures/ranking_four_arm_workflow.nf) reuses the original
+catalogue import, batched PDB/Foldseek searches, discovery partition, preflight,
+policy, coordinate staging and preparation definitions. In particular,
+`M6_STAGE_COORDINATES` retains its exact name and bounded Raven local selector;
+the three shared-store contracts and scientific/resource settings are unchanged.
+Many cases consume each shared catalogue through keyed broadcasts. Active and
+early preparations then join uniquely by case ID.
+
+The [reference processes](../tests/fixtures/ranking_four_arm_tasks.nf) emit one
+hypothesis, prior-bound seed or finalist per scheduler item. Existing M6 labels
+supply allocated threads. There is no independent multi-case scientific loop
+in the [fixture CLI](../tests/fixtures/ranking_four_arm_cli.py). Its invocation
+binds only that command's `PYTHONPATH` to `projectDir/src:projectDir`, uses
+`python -P -m` and verifies every loaded application/fixture module's origin.
+The existing fixture namespace must have exactly the checkout's search path.
+This does not add a reference mode to the installed scientific application.
+
+[Transport contexts](../tests/fixtures/ranking_four_arm_context.py) retain
+canonical original native paths and no scientific overrides. They live outside
+checksum-bound result bundles. Reading a context does not authenticate it:
+every stage still invokes its existing complete original-input validator.
+The exact first-copy/copy/refinement unions are deterministically ordered at
+joins. Preflight-blocked and completed-no-model cases generate no invented
+review or identity. Materialised empty admission and scheduled no-hit keep
+their separate genuine review and stage records.
+
+The [five-case assembler](../tests/fixtures/ranking_four_arm_aggregate.py)
+requires every fixed prepared case exactly once and an identity only for each
+materialised case. It revalidates original plans, preparations and identities,
+then freezes contexts, manifests and identity-owned bytes before any truth
+comparison. Missing, duplicate, foreign or self-consistently rehashed altered
+evidence fails. The `rf-exact-five-completion-v1` record has no native, benchmark
+or human-approval claim and cannot be an operational leakage parent.
+
+The [child checkpoint](../tests/fixtures/ranking_four_arm_execution.py) reuses
+the production byte-inventory reader without assigning the mixed reference
+graph an M6 track. It binds all child outputs, seven complete task script/log
+files, the original result, trace and executor source. First tasks must complete;
+resume tasks must all cache and match the externally checksum-frozen baseline.
+Modified or missing nested files and logs are refused even when Nextflow still
+reports cached tasks. The CLI `checkpoint` stage verifies file integrity only:
+the fixed native controller must separately revalidate original scientific
+boundaries, tool execution, allocated/measured resources and fixed input bindings.
+A task-process exit of zero does not mean an underlying Phenix candidate hit.
+
+[Graph tests](../tests/integration/test_ranking_four_arm_graph.py) execute the
+actual Nextflow graph and original planner with explicitly simulated scientific
+stages. The [stub helper](../tests/fixtures/ranking_four_arm_stub.py) labels every
+document as simulation-only; its records deliberately fail scientific schemas.
+The synthetic M6C037 preflight-early branch describes test scheduling, not that
+real case's expected outcome. The full stub covers 49 fresh and fully cached
+tasks, both preparation paths, five unique cases, separate empty/no-hit paths,
+independent first/copy/refinement items and changed/missing-file holds. The
+[aggregate tests](../tests/unit/test_ranking_four_arm_aggregate.py) additionally
+use original scientific validators with simulated Phenix responses. Neither
+test establishes native reference execution. Full repository and exact-source
+CI gates, the reviewed original-client profile, native provenance/resume and
+frozen-output truth comparison remain required before reference acceptance.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,

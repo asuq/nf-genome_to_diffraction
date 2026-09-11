@@ -531,31 +531,8 @@ def collect_m6_resource_evidence(
     return evidence
 
 
-def collect_m6_child_output_evidence(
-    request: M6ChildOutputEvidenceRequest,
-) -> M6ChildOutputEvidence:
-    """Snapshot every first-pass child and refuse changed cached-resume children."""
-
-    trace = request.trace.resolve(strict=True)
-    baseline: M6ChildOutputEvidence | None = None
-    baseline_sha256: str | None = None
-    if request.baseline is not None:
-        baseline_path = request.baseline.resolve(strict=True)
-        try:
-            baseline = M6ChildOutputEvidence.model_validate(
-                load_json_document(baseline_path)
-            )
-        except (OSError, ValueError) as error:
-            raise PublicControlError(
-                f"M6 first-pass child output evidence is invalid: {error}"
-            ) from error
-        if baseline.phase != "first":
-            raise PublicControlError("M6 child output baseline is not a first pass")
-        if baseline.track != request.track:
-            raise PublicControlError(
-                "M6 child output baseline belongs to another track"
-            )
-        baseline_sha256 = sha256_file(baseline_path)
+def collect_child_output_tasks(trace: Path) -> tuple[M6ChildOutputTask, ...]:
+    """Read path-free byte inventories without assigning execution authority."""
 
     records: list[M6ChildOutputTask] = []
     with trace.open(encoding="utf-8", newline="") as handle:
@@ -595,17 +572,45 @@ def collect_m6_child_output_evidence(
                     f"M6 task has missing or changed child outputs: {row['tag']}"
                 ) from error
 
+    return tuple(sorted(records, key=lambda item: (item.process, item.tag)))
+
+
+def collect_m6_child_output_evidence(
+    request: M6ChildOutputEvidenceRequest,
+) -> M6ChildOutputEvidence:
+    """Snapshot every first-pass child and refuse changed cached-resume children."""
+
+    trace = request.trace.resolve(strict=True)
+    baseline: M6ChildOutputEvidence | None = None
+    baseline_sha256: str | None = None
+    if request.baseline is not None:
+        baseline_path = request.baseline.resolve(strict=True)
+        try:
+            baseline = M6ChildOutputEvidence.model_validate(
+                load_json_document(baseline_path)
+            )
+        except (OSError, ValueError) as error:
+            raise PublicControlError(
+                f"M6 first-pass child output evidence is invalid: {error}"
+            ) from error
+        if baseline.phase != "first":
+            raise PublicControlError("M6 child output baseline is not a first pass")
+        if baseline.track != request.track:
+            raise PublicControlError(
+                "M6 child output baseline belongs to another track"
+            )
+        baseline_sha256 = sha256_file(baseline_path)
+
+    ordered_records = collect_child_output_tasks(trace)
+
     try:
-        ordered_records = tuple(
-            sorted(records, key=lambda item: (item.process, item.tag))
-        )
         evidence = M6ChildOutputEvidence(
             schema_version="1.1",
             track=request.track,
             phase="first" if baseline is None else "resume",
             trace_sha256=sha256_file(trace),
             baseline_sha256=baseline_sha256,
-            task_count=len(records),
+            task_count=len(ordered_records),
             tasks=ordered_records,
         )
     except ValidationError as error:
