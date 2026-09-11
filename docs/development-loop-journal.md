@@ -16525,3 +16525,49 @@ with a collapsed combined parent or a guessed command.
   Nextflow history/cache/log state and bound worker/thread counts. Keep dependent
   execution/resume checks sequential within their suites, preserve every gate
   check, and validate/measure the new runner before claiming a speed improvement.
+
+## 2026-09-11 - Raven common-controller handover and first native feedback
+
+- The user then prioritised Raven test initiation before parallel-test
+  development. Preserved the unfinished parallel runner separately and stopped
+  only its owned local test invocation. Its partial run is not passed evidence
+  or a measured speedup. The native-control-purpose draft remains separately
+  preserved as well.
+- Refreshed the original installed controller from clean CI-qualified commit
+  `3ae43b5286b1101c896cfe5c54e4f7259b195b50`, deployed the fixed shared scripts,
+  and bound the existing Raven runtime without reinstalling it. The common
+  read-only import recovered the original completed one-CPU database process
+  and its full/functional verification. Four resources are ready; all
+  1,095,971 protein sequences and the one explicitly unavailable coordinate
+  mapping are retained. This is database, not M6, qualification.
+- Created and verified the fixed database runtime binding. Recoverably archived
+  the superseded local transport and configuration, verifying their original
+  bytes; remote bootstrap/source and scientific evidence remain untouched.
+- Started native stub
+  `gtd-m6-nextflow-smoke-20260910T235555Z-3ae43b5286b1-b7928a6b` through the
+  original controller. Its login-process identity, real Nextflow execution,
+  terminal failure and bounded collection worked without synthetic Slurm
+  controller fields. Catalogue/preflight children were submitted, but Slurm
+  rejected the 192 GB Foldseek request: shared CPU jobs permit at most
+  120,000 MB. The terminal evidence and failure signature
+  `05ede5341d40073c8896ad6da8abbe5bcb0a9cab07effe3f49f1a97b1ae8aa24`
+  are retained; no native scientific qualification is claimed.
+- [MPCDF's Raven guide](https://docs.mpcdf.mpg.de/doc/computing/raven-user-guide.html)
+  confirms the shared-node limit and full-node CPU allocation model. Preserving
+  the 192 GB requirement therefore needs a reviewed full-node resource binding,
+  including accurate accounting for the 72-core reservation. Do not silently
+  reduce memory/batch size or widen the current 32-CPU resource policy.
+- The fixed input archive staged successfully, but nested stage routines emitted
+  duplicate protocol fields, which the strict client correctly rejected. An
+  owned status check confirmed the completed staged state and no prior job;
+  submitted only that input verifier as job `30145600`, run
+  `gtd-m6-inputs-20260911T000210Z-3ae43b5286b1-306d37e5`. No upload was repeated.
+  That job completed successfully with exit 0. Collected input qualification
+  confirms all 63 cases and all 65 objects, with candidate retention intact.
+  Fix the duplicate writer without weakening the protocol parser. The native
+  log also exposed a legacy Raven-wide work-directory override; restore
+  run-owned M6 work paths rather than broadening diagnostic collection.
+- Continue from the resource-allocation decision. Then qualify the focused
+  operational fixes and complete
+  the approved small native control before the large benchmark. Keep parallel
+  test development deferred and preserve the post-large-run reboot pause.
