@@ -100,7 +100,9 @@ acceptance thresholds. Report unique proteins separately from models, copy
 states and tasks, with stage-specific scheduled/recommended/advanced metrics.
 
 Run the predeclared four-arm admission-prior/review-order comparison on known
-controls only. Reuse identical native MR evidence when only review order
+controls only. The [fixed five-case comparison specification](ranking-four-arm-controls.md)
+records the cohort, reference semantics, paired evidence and actual-advancement
+requirements before comparison execution. Reuse identical native MR evidence when only review order
 changes; changed scheduled cohorts require real results. Keep historical
 reference policies in benchmark fixtures or frozen reference runs, not active
 alternative production paths. Include required positive, copy-alternative,

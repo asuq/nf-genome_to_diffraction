@@ -6282,7 +6282,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_71b540285b012d3f3a60d4eeeae54eee8fa4b7fbe59dd07047e8b72a3f5a266c",
+  "inventory_id": "atlasinv_7d4edcbf113951564512dd8d109a596860c794a6e8a71488e2f2d6fe81df3666",
   "nextflow_files": [
     {
       "declarations": [],
@@ -61793,6 +61793,149 @@
     },
     {
       "cli_commands": [],
+      "imports": [
+        "collections.abc",
+        "dataclasses",
+        "genome_to_diffraction.matthews.enumerate",
+        "genome_to_diffraction.matthews.probability",
+        "genome_to_diffraction.review.priority",
+        "genome_to_diffraction.schemas.results",
+        "typing"
+      ],
+      "path": "tests/fixtures/ranking_four_arm_reference.py",
+      "sha256": "7e8d5f45352de3848ab81f695d88ace383d274eb652dae056a00ddcc7821cdaf",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "bases": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "doc": "A comparison annotation, not a modified production Matthews record.",
+          "end_line": 45,
+          "kind": "class",
+          "line": 39,
+          "name": "ReferencePriorRow",
+          "public": true,
+          "qualname": "ReferencePriorRow"
+        },
+        {
+          "calls": [],
+          "decorators": [],
+          "doc": "",
+          "end_line": 49,
+          "kind": "function",
+          "line": 48,
+          "name": "_physical_rank",
+          "public": false,
+          "qualname": "_physical_rank",
+          "signature": "def _physical_rank(row: MatthewsHypothesis) -> int"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "any",
+            "dynamic_copy_counts",
+            "getattr",
+            "sorted",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 86,
+          "kind": "function",
+          "line": 52,
+          "name": "_validate_complete_group",
+          "public": false,
+          "qualname": "_validate_complete_group",
+          "signature": "def _validate_complete_group(rows: Sequence[MatthewsHypothesis]) -> None"
+        },
+        {
+          "calls": [
+            "MatthewsHypothesis.model_validate",
+            "ReferencePriorRow",
+            "ValueError",
+            "_physical_rank",
+            "_validate_complete_group",
+            "append",
+            "enumerate",
+            "groups.setdefault",
+            "len",
+            "original.model_dump",
+            "output.extend",
+            "prior",
+            "sorted",
+            "tuple",
+            "type"
+          ],
+          "decorators": [],
+          "doc": "Re-rank all physical alternatives before applying the same retention cap.",
+          "end_line": 153,
+          "kind": "function",
+          "line": 89,
+          "name": "reference_prior_inventory",
+          "public": true,
+          "qualname": "reference_prior_inventory",
+          "signature": "def reference_prior_inventory(rows: Sequence[MatthewsHypothesis], *, admission_prior: AdmissionPrior, maximum_hypotheses_per_candidate: int) -> tuple[ReferencePriorRow, ...]"
+        },
+        {
+          "calls": [],
+          "decorators": [],
+          "doc": "",
+          "end_line": 138,
+          "kind": "function",
+          "line": 134,
+          "name": "prior",
+          "public": true,
+          "qualname": "reference_prior_inventory.prior",
+          "signature": "def prior(row: MatthewsHypothesis) -> float"
+        },
+        {
+          "calls": [
+            "MrHypothesis.model_validate",
+            "NormalisedMrResult.model_validate",
+            "ValueError",
+            "_physical_rank",
+            "item.hypothesis.model_dump",
+            "item.result.model_dump",
+            "len",
+            "mr_evidence_key",
+            "priors.get",
+            "reference_prior_inventory",
+            "sorted",
+            "tuple",
+            "type"
+          ],
+          "decorators": [],
+          "doc": "Pair review orders on identical MR without claiming recommendation/execution.",
+          "end_line": 207,
+          "kind": "function",
+          "line": 156,
+          "name": "reference_review_order",
+          "public": true,
+          "qualname": "reference_review_order",
+          "signature": "def reference_review_order(evidence: Sequence[FirstCopyReviewEvidence], matthews: Sequence[MatthewsHypothesis], *, admission_prior: AdmissionPrior, review_order: ReviewOrder, maximum_hypotheses_per_candidate: int) -> tuple[FirstCopyReviewEvidence, ...]"
+        },
+        {
+          "calls": [
+            "_physical_rank",
+            "mr_evidence_key"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 205,
+          "kind": "function",
+          "line": 199,
+          "name": "key",
+          "public": true,
+          "qualname": "reference_review_order.key",
+          "signature": "def key(item: FirstCopyReviewEvidence) -> tuple[object, ...]"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
       "imports": [],
       "path": "tests/integration/__init__.py",
       "sha256": "8404b8d8f6a0e517bd21df1ad37c46d298f794fd8005c753aea853d908d38a38",
@@ -99814,6 +99957,240 @@
           "public": true,
           "qualname": "test_cli_checks_panel_successfully",
           "signature": "def test_cli_checks_panel_successfully(capsys: pytest.CaptureFixture[str]) -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "dataclasses",
+        "genome_to_diffraction.matthews.enumerate",
+        "genome_to_diffraction.review.priority",
+        "genome_to_diffraction.schemas.io",
+        "genome_to_diffraction.schemas.manifests",
+        "genome_to_diffraction.schemas.results",
+        "genome_to_diffraction.status",
+        "hashlib",
+        "pathlib",
+        "pytest",
+        "tests.fixtures.ranking_four_arm_reference",
+        "tests.unit.test_review_priority"
+      ],
+      "path": "tests/unit/test_ranking_four_arm_reference.py",
+      "sha256": "33ec01e412bab84d0b989d5d79726e664c63ce7c1a085c0729072df4b81d08b1",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "CrystalEntry",
+            "MtzPreflightRecord.model_validate_json",
+            "SequenceGroupRecord.model_validate_json",
+            "config.matthews.model_copy",
+            "config.model_copy",
+            "enumerate_group",
+            "hashlib.sha256",
+            "hexdigest",
+            "isinstance",
+            "len",
+            "load_contract",
+            "model_copy",
+            "read_bytes",
+            "read_text",
+            "sequence.encode",
+            "splitlines"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 66,
+          "kind": "function",
+          "line": 34,
+          "name": "_enumeration",
+          "public": false,
+          "qualname": "_enumeration",
+          "signature": "def _enumeration(mass_da: float, marker: str, *, retention_cap: int=4) -> tuple[MatthewsHypothesis, ...]"
+        },
+        {
+          "calls": [
+            "_evidence",
+            "base.hypothesis.model_copy",
+            "replace"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 88,
+          "kind": "function",
+          "line": 69,
+          "name": "_joined",
+          "public": false,
+          "qualname": "_joined",
+          "signature": "def _joined(row: MatthewsHypothesis, marker: str, *, strong: bool=True) -> FirstCopyReviewEvidence"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "all",
+            "len",
+            "reference_prior_inventory",
+            "reversed",
+            "row.model_dump_json",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 112,
+          "kind": "function",
+          "line": 91,
+          "name": "test_weighted_reference_exactly_preserves_production_enumeration",
+          "public": true,
+          "qualname": "test_weighted_reference_exactly_preserves_production_enumeration",
+          "signature": "def test_weighted_reference_exactly_preserves_production_enumeration() -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "all",
+            "any",
+            "reference_prior_inventory",
+            "row.model_dump_json",
+            "sum",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 130,
+          "kind": "function",
+          "line": 115,
+          "name": "test_solvent_reference_recomputes_retention_without_rewriting",
+          "public": true,
+          "qualname": "test_solvent_reference_recomputes_retention_without_rewriting",
+          "signature": "def test_solvent_reference_recomputes_retention_without_rewriting() -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "len",
+            "pytest.mark.parametrize",
+            "reference_prior_inventory"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('prior', ('solvent_density', 'copy_weighted'))"
+          ],
+          "doc": "",
+          "end_line": 141,
+          "kind": "function",
+          "line": 134,
+          "name": "test_impossible_diagnostic_is_never_retained",
+          "public": true,
+          "qualname": "test_impossible_diagnostic_is_never_retained",
+          "signature": "def test_impossible_diagnostic_is_never_retained(prior: AdmissionPrior) -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "model_copy",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "reference_prior_inventory"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('truncated', 'duplicate', 'stale_reference', 'changed_rank', 'changed_input'))"
+          ],
+          "doc": "",
+          "end_line": 166,
+          "kind": "function",
+          "line": 148,
+          "name": "test_reference_rejects_incomplete_or_changed_production_inputs",
+          "public": true,
+          "qualname": "test_reference_rejects_incomplete_or_changed_production_inputs",
+          "signature": "def test_reference_rejects_incomplete_or_changed_production_inputs(corruption: str) -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "_joined",
+            "item.result.model_dump_json",
+            "len",
+            "next",
+            "pytest.approx",
+            "pytest.mark.parametrize",
+            "reference_review_order",
+            "reversed",
+            "sorted",
+            "tuple"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize(('prior', 'order', 'strong_first'), (('solvent_density', 'prior_first', False), ('copy_weighted', 'prior_first', False), ('solvent_density', 'mr_led', True), ('copy_weighted', 'mr_led', True)))"
+          ],
+          "doc": "",
+          "end_line": 216,
+          "kind": "function",
+          "line": 178,
+          "name": "test_four_arms_reuse_identical_synthetic_mr_and_keep_production_baseline",
+          "public": true,
+          "qualname": "test_four_arms_reuse_identical_synthetic_mr_and_keep_production_baseline",
+          "signature": "def test_four_arms_reuse_identical_synthetic_mr_and_keep_production_baseline(prior: AdmissionPrior, order: ReviewOrder, strong_first: bool) -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "_joined",
+            "high.result.model_copy",
+            "pytest.mark.parametrize",
+            "reference_review_order",
+            "replace",
+            "sorted"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('order', ('prior_first', 'mr_led'))"
+          ],
+          "doc": "",
+          "end_line": 243,
+          "kind": "function",
+          "line": 220,
+          "name": "test_failed_or_uninspectable_mr_cannot_gain_priority_from_reference_prior",
+          "public": true,
+          "qualname": "test_failed_or_uninspectable_mr_cannot_gain_priority_from_reference_prior",
+          "signature": "def test_failed_or_uninspectable_mr_cannot_gain_priority_from_reference_prior(order: ReviewOrder) -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "_joined",
+            "item.hypothesis.model_copy",
+            "item.result.model_copy",
+            "next",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "reference_review_order",
+            "replace"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('foreign_sequence', 'foreign_result', 'duplicate', 'unretained'))"
+          ],
+          "doc": "",
+          "end_line": 279,
+          "kind": "function",
+          "line": 249,
+          "name": "test_reference_review_rejects_broken_joins_and_out_of_cohort_rows",
+          "public": true,
+          "qualname": "test_reference_review_rejects_broken_joins_and_out_of_cohort_rows",
+          "signature": "def test_reference_review_rejects_broken_joins_and_out_of_cohort_rows(corruption: str) -> None"
+        },
+        {
+          "calls": [
+            "_enumeration",
+            "reference_review_order"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 292,
+          "kind": "function",
+          "line": 282,
+          "name": "test_empty_mr_is_not_fabricated_as_a_result",
+          "public": true,
+          "qualname": "test_empty_mr_is_not_fabricated_as_a_result",
+          "signature": "def test_empty_mr_is_not_fabricated_as_a_result() -> None"
         }
       ]
     },
