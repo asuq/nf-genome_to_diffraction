@@ -72,6 +72,12 @@ completion and scientific tool settings stay fixed. Do not restore historical
 solvent-window clipping, benchmark top-25 protein preselection, aggregate
 packing inference, or strict rejection of evidenced coupled tNCS.
 
+Keep the two current retention limits distinct: the frozen M6 configuration
+retains four Matthews alternatives per candidate, while its existing `pilot`
+profile admits at most three alternatives per model before the 25-task cap.
+Apply both unchanged in every arm. Neither limit is a static ceiling on the
+expected copy count itself; complete physical alternatives stay in the inventory.
+
 The solvent-only reference must recompute its candidate-local prior ranks and
 which expected-copy hypotheses survive the unchanged per-model budget. Merely
 reordering the already copy-weighted top rows does not test solvent-only
@@ -138,6 +144,22 @@ stability, incomplete/stale inputs, foreign joins, impossible states and
 failed/uninspectable MR. Their mathematical ordering probe explicitly uses a
 larger synthetic retention cap; it is not the native comparison budget.
 These tests use synthetic MR, never native qualification or advancement claims.
+
+The next read-only fixture,
+[`ranking_four_arm_admission.py`](../tests/fixtures/ranking_four_arm_admission.py),
+uses the actual production loaders, complete physical/factor validation, verified
+model bytes and hypothesis construction. It annotates the full model-backed
+physical inventory with reference retention and cap dispositions. The weighted
+baseline uses the production selector; the solvent-only reference preserves its
+existing diversity-bucket rounds and deterministic tie-breaks. It does not write
+a runnable bundle, fabricate a review decision or change production records.
+Its [admission tests](../tests/unit/test_ranking_four_arm_admission.py) compare
+ordered hypotheses directly with the production funnel, preserve a 93-model/
+31-protein fixture through the 25-task cap, distinguish four-row retention from
+the three-per-model limit, and exercise newly admitted omitted-copy alternatives
+on explicit synthetic mass/volume inputs. Corrupt factors, missing inventories,
+changed models and foreign scope/budgets fail closed. Input permutation does not
+change the selected cohort. These are local fixture checks, not native recovery.
 
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated

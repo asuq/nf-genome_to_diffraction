@@ -6282,7 +6282,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_7d4edcbf113951564512dd8d109a596860c794a6e8a71488e2f2d6fe81df3666",
+  "inventory_id": "atlasinv_6096eae3d1e11aa625b9b9654fc4220c060703ef9270df0ce4e460f79b199dc1",
   "nextflow_files": [
     {
       "declarations": [],
@@ -61796,6 +61796,107 @@
       "imports": [
         "collections.abc",
         "dataclasses",
+        "genome_to_diffraction.ranking.funnel",
+        "genome_to_diffraction.schemas.manifests",
+        "genome_to_diffraction.schemas.results",
+        "tests.fixtures.ranking_four_arm_reference"
+      ],
+      "path": "tests/fixtures/ranking_four_arm_admission.py",
+      "sha256": "7b51855402f084e48f8c9248ad4caa8b56c4952a7e5869c33b893e301eb4101e",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "bases": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "doc": "Original executable hypothesis plus separately labelled comparison data.",
+          "end_line": 46,
+          "kind": "class",
+          "line": 39,
+          "name": "ReferenceAdmissionRow",
+          "public": true,
+          "qualname": "ReferenceAdmissionRow"
+        },
+        {
+          "bases": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "doc": "Complete model-backed physical inventory and explicit cap dispositions.",
+          "end_line": 61,
+          "kind": "class",
+          "line": 50,
+          "name": "ReferenceAdmissionPlan",
+          "public": true,
+          "qualname": "ReferenceAdmissionPlan"
+        },
+        {
+          "calls": [
+            "append",
+            "buckets.setdefault",
+            "buckets.values",
+            "len",
+            "max",
+            "range",
+            "selected.append",
+            "sorted",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "Frozen reference of the existing bucket rounds, using solvent-only keys.",
+          "end_line": 80,
+          "kind": "function",
+          "line": 64,
+          "name": "_solvent_selection",
+          "public": false,
+          "qualname": "_solvent_selection",
+          "signature": "def _solvent_selection(rows: Sequence[ReferenceAdmissionRow]) -> tuple[ReferenceAdmissionRow, ...]"
+        },
+        {
+          "calls": [
+            "ReferenceAdmissionPlan",
+            "ReferenceAdmissionRow",
+            "ValueError",
+            "_complete_matthews_rows",
+            "_copy_cap",
+            "_diverse_candidate_sort_key",
+            "_diverse_input_digests",
+            "_diverse_model_paths",
+            "_join_diverse_candidates",
+            "_load_diverse_inputs",
+            "_select_diverse_candidates",
+            "_solvent_selection",
+            "_unique_index",
+            "any",
+            "append",
+            "by_group.setdefault",
+            "frozenset",
+            "inventory.append",
+            "inventory.sort",
+            "len",
+            "reference_prior_inventory",
+            "set",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "Plan one fixed-budget reference cohort without rewriting raw production rows.",
+          "end_line": 224,
+          "kind": "function",
+          "line": 83,
+          "name": "reference_admission_plan",
+          "public": true,
+          "qualname": "reference_admission_plan",
+          "signature": "def reference_admission_plan(request: DiverseFirstCopyFunnelRequest, *, admission_prior: AdmissionPrior) -> ReferenceAdmissionPlan"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "collections.abc",
+        "dataclasses",
         "genome_to_diffraction.matthews.enumerate",
         "genome_to_diffraction.matthews.probability",
         "genome_to_diffraction.review.priority",
@@ -99957,6 +100058,198 @@
           "public": true,
           "qualname": "test_cli_checks_panel_successfully",
           "signature": "def test_cli_checks_panel_successfully(capsys: pytest.CaptureFixture[str]) -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "collections",
+        "dataclasses",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.matthews.enumerate",
+        "genome_to_diffraction.ranking",
+        "genome_to_diffraction.ranking.funnel",
+        "genome_to_diffraction.schemas.io",
+        "genome_to_diffraction.schemas.manifests",
+        "genome_to_diffraction.schemas.results",
+        "json",
+        "pathlib",
+        "pytest",
+        "tests.fixtures.ranking_four_arm_admission",
+        "tests.unit.test_m6_admission",
+        "tests.unit.test_ranking_funnel",
+        "yaml"
+      ],
+      "path": "tests/unit/test_ranking_four_arm_admission.py",
+      "sha256": "745a30adb50c1b6ca18bdd51e077dd695b8e0e4ae192bef637e28856aedc40c1",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "CrystalEntry",
+            "MtzPreflightRecord.model_validate_json",
+            "SequenceGroupRecord.model_validate_json",
+            "canonical_json_text",
+            "enumerate_group",
+            "isinstance",
+            "join",
+            "json.dumps",
+            "load_contract",
+            "replace",
+            "request.matthews_hypotheses_jsonl.write_text",
+            "request.mtz_preflight_jsonl.read_bytes",
+            "request.pipeline_config.read_text",
+            "request.pipeline_config.write_text",
+            "request.sequence_groups_jsonl.read_text",
+            "splitlines",
+            "tuple",
+            "yaml.safe_load"
+          ],
+          "decorators": [],
+          "doc": "Re-enumerate the synthetic fixture under the unchanged native M6 budgets.",
+          "end_line": 60,
+          "kind": "function",
+          "line": 29,
+          "name": "_fixed_inputs",
+          "public": false,
+          "qualname": "_fixed_inputs",
+          "signature": "def _fixed_inputs(request: DiverseFirstCopyFunnelRequest) -> DiverseFirstCopyFunnelRequest"
+        },
+        {
+          "calls": [
+            "_diverse_request",
+            "_fixed_inputs"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 64,
+          "kind": "function",
+          "line": 63,
+          "name": "_small_request",
+          "public": false,
+          "qualname": "_small_request",
+          "signature": "def _small_request(tmp_path: Path) -> DiverseFirstCopyFunnelRequest"
+        },
+        {
+          "calls": [
+            "Counter",
+            "_small_request",
+            "all",
+            "any",
+            "build_diverse_first_copy_funnel",
+            "len",
+            "reference_admission_plan",
+            "request.matthews_hypotheses_jsonl.read_bytes",
+            "set",
+            "tuple",
+            "values"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 91,
+          "kind": "function",
+          "line": 67,
+          "name": "test_reference_preserves_four_retained_but_three_per_model",
+          "public": true,
+          "qualname": "test_reference_preserves_four_retained_but_three_per_model",
+          "signature": "def test_reference_preserves_four_retained_but_three_per_model(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "DiverseFirstCopyFunnelRequest",
+            "_fixed_inputs",
+            "_prepared_case",
+            "glob",
+            "next"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 120,
+          "kind": "function",
+          "line": 96,
+          "name": "_large_request",
+          "public": false,
+          "qualname": "_large_request",
+          "signature": "def _large_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> DiverseFirstCopyFunnelRequest"
+        },
+        {
+          "calls": [
+            "_large_request",
+            "build_diverse_first_copy_funnel",
+            "join",
+            "len",
+            "path.read_text",
+            "path.write_text",
+            "reference_admission_plan",
+            "request.output_directory.exists",
+            "reversed",
+            "splitlines",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 151,
+          "kind": "function",
+          "line": 123,
+          "name": "test_reference_global_cap_and_complete_model_join",
+          "public": true,
+          "qualname": "test_reference_global_cap_and_complete_model_join",
+          "signature": "def test_reference_global_cap_and_complete_model_join(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None"
+        },
+        {
+          "calls": [
+            "_diverse_request",
+            "_fixed_inputs",
+            "all",
+            "json.dumps",
+            "json.loads",
+            "preflight.update",
+            "reference_admission_plan",
+            "request.mtz_preflight_jsonl.read_text",
+            "request.mtz_preflight_jsonl.write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 179,
+          "kind": "function",
+          "line": 154,
+          "name": "test_solvent_reference_admits_previously_omitted_physical_copies",
+          "public": true,
+          "qualname": "test_solvent_reference_admits_previously_omitted_physical_copies",
+          "signature": "def test_solvent_reference_admits_previously_omitted_physical_copies(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "_small_request",
+            "join",
+            "json.dumps",
+            "json.loads",
+            "manifest_path.read_text",
+            "model.write_text",
+            "path.read_text",
+            "path.write_text",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "reference_admission_plan",
+            "replace",
+            "request.output_directory.exists",
+            "request.pipeline_config.read_text",
+            "request.pipeline_config.write_text",
+            "splitlines"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('scope', 'budget', 'missing_group', 'stale_factor', 'model_bytes'))"
+          ],
+          "doc": "",
+          "end_line": 211,
+          "kind": "function",
+          "line": 185,
+          "name": "test_reference_admission_fails_closed",
+          "public": true,
+          "qualname": "test_reference_admission_fails_closed",
+          "signature": "def test_reference_admission_fails_closed(tmp_path: Path, corruption: str) -> None"
         }
       ]
     },
