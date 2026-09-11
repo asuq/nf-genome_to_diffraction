@@ -16857,3 +16857,34 @@ with a collapsed combined parent or a guessed command.
   comparison route. This first reference milestone is not full RF-G4 or M6
   acceptance. The cancelled investigation and v0.3/v0.4 review boundaries remain
   unchanged; continue authorised development alongside owned-run monitoring.
+
+## 2026-09-11 - Reference admission preserves production inputs and task budgets
+
+- All six exact-source CI lanes passed for the first reference milestone on
+  `315f1bc3a88bc8a6c909e823f074fa28d862f2e0`, run `34564988690`.
+- Added a read-only admission fixture using production model-byte/input
+  verification, complete Matthews rederivation and hypothesis construction.
+  The weighted baseline calls the production selector and matches its ordered
+  hypotheses. Solvent-only selection retains the same diversity buckets and
+  tie-breaks while keeping raw production factors unchanged.
+- The audit distinguishes the frozen configuration's four retained Matthews
+  alternatives from the existing pilot profile's three-per-model admission
+  limit, followed by 25 MR tasks. Both limits remain unchanged in every arm;
+  neither truncates the reported physical copy range itself. Tests preserve
+  the complete 93-model/31-protein synthetic inventory and separately exercise
+  solvent-only promotion of previously omitted physical alternatives.
+- All 53 focused checks passed. The captured admission milestone passed all
+  25 checks with all 1,193 source inputs unchanged: 1,705 unit, 185 contract
+  and 128 integration tests, workflow/cache/resume checks and packaging.
+  Duration was 7m47s; log SHA-256 is
+  `cbf5fe7086fefe0d9aa2329260de3bd05eb4811602f493e77b8f7a5e0dabde51`.
+  Integrated the focused worktree commit onto main; production scientific
+  source, schemas, workflows, resources, HPC tooling and environment are
+  unchanged from the active native-control source.
+- This fixture does not write runnable reference bundles, approve seeds or
+  establish native recovery. Next qualify paired recommendations against
+  actual validated review assets, then explicit reference benchmark authority
+  and shared-executor advancement receipts through a fixed native route.
+  Do not mislabel a reference recommendation as production authority or an
+  executed seed. Continue monitoring the existing native control; its last
+  log still ends at search submissions, with MR/RSS/resume gates outstanding.
