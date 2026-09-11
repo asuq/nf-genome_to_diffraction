@@ -17088,3 +17088,46 @@ with a collapsed combined parent or a guessed command.
   execution. Keep the original runtime/source bindings and real empty/no-hit
   distinctions. All native-control, full M6, rank-recovery, human-review and
   release gates remain required; the cancelled investigation is not reopened.
+
+## 2026-09-11 - Shared-catalogue M6 broadcast correction qualified locally
+
+- All six exact-source CI lanes passed for the prepared-copy/finalist milestone
+  on `8d8f479aa41114f291575f773871d766a7707986`, run `34585195879`.
+- Reproduced a concrete scheduling loss when several cases share a catalogue:
+  the original one-to-one joins retained four preflights but only one active
+  and one early-exit continuation, yielding 28 stub tasks. Replaced only the
+  active/discovery and early/import joins with keyed many-case broadcasts.
+  Catalogue/search deduplication, scientific settings, identities, task budgets,
+  resource profiles and the three shared-store contracts are unchanged.
+- Expanded the canonical smoke to two active consumers of one catalogue and
+  two early consumers of another. All four case paths now complete exactly
+  once: 41 fresh tasks, 41 fully cached resume tasks, and six truthless cached
+  plus 35 newly completed cross-track tasks. The corresponding Slurm stub
+  inventory is 39 children plus two bounded offline coordinate stages; this
+  is scheduling evidence, not native scientific or M6 acceptance.
+- The mutation probe passed with exactly 19 changed and 22 unchanged tasks;
+  removing a required cached child still yields an explicit hold. All eight
+  focused HPC smoke validators passed after correcting two stale test-count
+  assertions. The earlier failed assertions remain development evidence.
+- The complete captured gate passed all 25 checks: 1,797 unit, 185 contract
+  and 128 integration tests, workflow/cache checks and packaging. All 1,237
+  source inputs remained unchanged. One group at a time with two workers took
+  33m42s. Only after unit, integration and quality groups passed did serial,
+  numerical-thread-bounded reference tests overlap the remaining stubs. No
+  test, timeout or scientific parameter was changed or omitted for the gate.
+  Passing log SHA-256:
+  `b82a1444b931374fdd986aeae988c9c2b4b4397007b2936590002056bc6bc40c`.
+- Integrated worktree commit `3f2ab77be346196aee9d1278f099004ea3488b8c`
+  as `cff3987b`; code-only exact CI follows this journal update. Do not deploy
+  this source into the immutable active source-413b native control or treat
+  that older run as qualification of the corrected broadcast.
+- The original-client native wait remains active; latest owned status is
+  running and bounded logs still end at search submissions. No new MR, peak
+  RSS, cached native resume or positive/absent acceptance is established.
+  Freeze terminal outputs before truth comparison and retain the large-run hold.
+- Separate reference refinement and per-arm identity fixtures/tests are drafted
+  but not yet qualified. A first test run found a simulator request mismatch;
+  its empty/no-hit path passed. The corrected run is still under inspection.
+  Next finish these boundaries, then the fixed Nextflow/controller graph and
+  native provenance/resume. All full-M6, rank-recovery, human-review and release
+  gates remain required; no cancelled investigation or GPU work is reopened.
