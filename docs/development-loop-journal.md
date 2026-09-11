@@ -16571,3 +16571,48 @@ with a collapsed combined parent or a guessed command.
   operational fixes and complete
   the approved small native control before the large benchmark. Keep parallel
   test development deferred and preserve the post-large-run reboot pause.
+
+## 2026-09-11 - Shared-node Raven allocation and fixed native-control purpose
+
+- The user questioned the exclusive-node request. Rechecked retained measurements:
+  the earlier batch used 64.6 GiB, while the later thirteen 32-thread batches
+  used 21--22 GB. The 192 GB request was a conservative carried-over allocation,
+  not a demonstrated requirement; the native Raven failure was scheduler
+  rejection, not OOM. The user approved qualifying 32 CPUs/96 GB with unchanged
+  128-query batches before scaling up. No exclusive-node change was applied.
+- Added the distinct Raven v2 execution policy and updated its shared binding,
+  evaluator and resource tests. Marmic/Viper settings are unchanged. Removed
+  the legacy Raven-wide work-directory override and bound M6's work directory
+  explicitly to the run/cache authority, preserving scoped diagnostics.
+- Fixed nested staging responses so source metadata is emitted once and each
+  public operation emits completion only after its attachments succeed. The
+  integration tests now use the production strict decoder; they can no longer
+  silently overwrite duplicate fields. Errors remain explicit.
+- Restored the preserved two-case purpose draft and integrated it into the
+  original controller and shared Nextflow graph. Only Raven operational inputs
+  may execute M6C001/M6C025; their full catalogues and the complete input archive
+  are preserved. Staging/submission recheck purpose and runner identity. Native
+  plans/results have distinct non-acceptance identities, cannot enter full-track
+  evaluation and cannot act as a leakage parent. First/resume resource and child
+  evidence still use the common collectors.
+- The early focused benchmark/policy suite passed 135 tests and the strict
+  dispatcher slice passed 15 tests. The integrated purpose/client/model suite
+  subsequently passed 306 tests, then the expanded client/native-purpose slice
+  passed 235 tests and both native-stage/purpose-tamper integrations passed.
+  Type and wrapper checks pass. Finish the named full gate and exact-source CI
+  before refreshing/deploying the original controller and running a fresh Raven
+  stub followed by the small native control. Peak RSS and real MR/truth checks
+  remain required; no new native job or large benchmark has been submitted.
+- The syntax check initially traversed generated partial repositories retained
+  inside ignored test evidence. Added the pinned linter's explicit local-evidence
+  exclusion while preserving its default exclusions and actual source scope.
+  The focused scope regression and real Nextflow syntax check pass; no evidence
+  was deleted. Full lint/type checks and the refreshed current atlas also pass.
+- The complete shared-node/native-control gate passed in 18m27s with all 1,176
+  captured source inputs unchanged: 1,665 unit, 185 contract and 122 integration
+  tests, plus every schema, documentation/atlas, Nextflow, fan-out/cache/resume,
+  offline wheel and wrapper check. Gate log SHA-256 is
+  `7980bd7874674460b0aad9bfbc52d801d9ab184cc897666613f3c61e67c9c3a8`.
+  This is local implementation qualification only. Commit/push for exact-source
+  CI, refresh/deploy the original controller, and start a fresh native Raven
+  stub before the fixed real control. No new native submission is claimed.

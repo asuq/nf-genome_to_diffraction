@@ -13,6 +13,7 @@ params {
     database_manifest: Path
     phenix_manifest: Path
     track: String
+    execution_purpose: String = 'benchmark'
     outdir: Path = file('results/m6')
     cache_root: Path = file('.cache/m6')
 }
@@ -22,6 +23,10 @@ workflow {
     if (!(params.track in ['operational', 'leakage'])) {
         error "M6 track must be operational or leakage"
     }
+    if (!(params.execution_purpose in ['benchmark', 'native_control']) ||
+        (params.execution_purpose == 'native_control' && params.track != 'operational')) {
+        error "M6 native control requires the fixed operational execution purpose"
+    }
     M6_VALIDATION_WORKFLOW(
         params.runner_root,
         params.protocol,
@@ -29,6 +34,7 @@ workflow {
         params.software_lock,
         params.database_manifest,
         params.phenix_manifest,
-        params.track
+        params.track,
+        params.execution_purpose
     )
 }

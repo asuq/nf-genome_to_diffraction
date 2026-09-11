@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -157,10 +157,12 @@ controller_kind_for_profile() {
     if [[ "$SITE_ID" == raven ]]; then
         case "$1" in
             m6-inputs) printf slurm_job ;;
-            m6-nextflow-smoke|m6-operational|m6-leakage) printf login_process ;;
+            m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage) printf login_process ;;
             *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
         esac
     elif [[ "$SITE_ID" == marmic || "$SITE_ID" == viper-cpu ]]; then
+        [[ "$1" != m6-native-control ]] || \
+            fail wrapper_failure "native control is qualified only for Raven"
         printf slurm_job
     else
         fail environment_failure "fixed HPC site is not configured"
@@ -653,7 +655,7 @@ raven_readiness() {
     [[ "$SITE_ID" == raven ]] || \
         fail environment_failure "Raven fixed site binding has not been configured"
     case "$profile" in
-        m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage) ;;
+        m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage) ;;
         *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
     esac
     [[ "$(hostname -s)" == "${startup_site_values[7]}" ]] || \
@@ -1669,7 +1671,8 @@ stage_run_common() {
           "$profile" == unknown-single-component || \
           "$profile" == unknown-pass2 || \
           ( "$SITE_ID" == marmic && \
-            ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
+            ( "$profile" == m6-operational || "$profile" == m6-leakage || \
+              "$profile" == m6-native-control ) ) ]]; then
         [[ "$#" -eq 8 || "$#" -eq 11 ]] || \
             fail wrapper_failure "Phenix-bound stage expects its fixed manifest"
         heteromer_phenix_manifest="$7"
@@ -1692,7 +1695,8 @@ stage_run_common() {
               "$profile" == unknown-single-component || \
               "$profile" == unknown-pass2 || \
               ( "$SITE_ID" == marmic && \
-                ( "$profile" == m6-operational || "$profile" == m6-leakage ) ) ]]; then
+                ( "$profile" == m6-operational || "$profile" == m6-leakage || \
+                  "$profile" == m6-native-control ) ) ]]; then
             source_archive_sha256="$9"
             source_archive_size="${10}"
             expected_submodule_commit="${11}"
@@ -1869,7 +1873,8 @@ stage_run_common() {
     fi
 
     if [[ "$profile" == m6-nextflow-smoke || \
-          "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+          "$profile" == m6-operational || "$profile" == m6-leakage || \
+          "$profile" == m6-native-control ]]; then
         local nextflow_profile execution_policy_relative execution_policy
         local execution_policy_sha256 execution_policy_id apptainer_cache
         if [[ "$SITE_ID" == viper-cpu ]]; then
@@ -1878,8 +1883,8 @@ stage_run_common() {
             execution_policy_id=m6_nextflow_slurm_v1
         elif [[ "$SITE_ID" == raven ]]; then
             nextflow_profile=raven
-            execution_policy_relative=benchmarks/m6/execution-nextflow-raven-v1.yaml
-            execution_policy_id=m6_nextflow_slurm_raven_v1
+            execution_policy_relative=benchmarks/m6/execution-nextflow-raven-v2.yaml
+            execution_policy_id=m6_nextflow_slurm_raven_v2
         else
             nextflow_profile=marmic
             execution_policy_relative=benchmarks/m6/execution-nextflow-marmic-v2.yaml
@@ -2004,7 +2009,8 @@ stage_run_common() {
         atomic_text "$run/state/database-manifest-sha256" "$database_manifest_sha256"
         p0_config_json="\"$p0_config_sha256\""
         database_manifest_json="\"$database_manifest_sha256\""
-    elif [[ "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+    elif [[ "$profile" == m6-operational || "$profile" == m6-leakage || \
+            "$profile" == m6-native-control ]]; then
         database_config_readiness runtime || true
         [[ "$DATABASE_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -2074,6 +2080,7 @@ stage_run_common() {
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
+          "$profile" == m6-native-control || \
           "$profile" == m4-copy || \
           "$profile" == t12 || \
           "$profile" == database ]]; then
@@ -2108,6 +2115,7 @@ stage_run_common() {
               "$profile" == control-slice || "$profile" == control-matrix || \
               "$profile" == m6-nextflow-smoke || \
               "$profile" == m6-operational || "$profile" == m6-leakage || \
+              "$profile" == m6-native-control || \
               "$profile" == m4-copy || \
               "$profile" == t12 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
@@ -2789,13 +2797,22 @@ EOF
     chmod -R a-w "$run/source"
     atomic_text "$run/state/phase" "staged"
     append_event "$run" "stage_completed"
-    emit operation stage
-    emit run_id "$run_id"
-    emit site_id "$(<"$run/state/site-id")"
+    # Source provenance is emitted once here. Only the public operation emits
+    # completion, after its own input attachment has also succeeded.
     emit commit "$commit"
     emit nf_helper_commit "$submodule_commit"
     emit pixi_version "$pixi_version"
-    emit profile "$profile"
+}
+
+emit_stage_completion() {
+    local operation="$1" run_id="$2" run
+    run="$(run_directory "$run_id")"
+    [[ "$(<"$run/state/phase")" == staged ]] || \
+        fail wrapper_failure "cannot report an incomplete stage as successful"
+    emit operation "$operation"
+    emit run_id "$run_id"
+    emit site_id "$(<"$run/state/site-id")"
+    emit profile "$(<"$run/state/profile")"
     emit phase staged
 }
 
@@ -2808,6 +2825,7 @@ stage_run() {
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
     stage_run_common "$@"
+    emit_stage_completion stage "$1"
 }
 
 stage_archive_run() {
@@ -2819,6 +2837,7 @@ stage_archive_run() {
     [[ "$6" != database ]] || \
         fail wrapper_failure "database profile requires database-stage"
     stage_run_common "$@"
+    emit_stage_completion stage "$1"
 }
 
 phenix_runtime_migrate_run() {
@@ -3253,13 +3272,11 @@ m4_copy_stage_run() {
         "$(sha256sum "$staged_manifest" | awk '{print $1}')"
     atomic_text "$run/state/phase" staged
     append_event "$run" m4_copy_inputs_ready
-    emit operation m4-copy-stage
-    emit run_id "$run_id"
+    emit_stage_completion m4-copy-stage "$run_id"
     emit parent_run_id "$parent_run_id"
     emit seed_count "$seed_count"
     emit decisions_sha256 "$decisions_sha256"
     emit review_manifest_sha256 "$review_sha256"
-    emit phase staged
 }
 
 t12_stage_run() {
@@ -3328,14 +3345,12 @@ t12_stage_run() {
         "$(sha256sum "$staged_manifest" | awk '{print $1}')"
     atomic_text "$run/state/phase" staged
     append_event "$run" t12_inputs_ready
-    emit operation t12-stage
-    emit run_id "$run_id"
+    emit_stage_completion t12-stage "$run_id"
     emit parent_run_id "$parent_run_id"
     emit seed_count "$seed_count"
     emit source_records_sha256 "$source_sha256"
     emit t12_stage_manifest_sha256 \
         "$(<"$run/state/t12-stage-manifest-sha256")"
-    emit phase staged
 }
 
 control_slice_stage_run() {
@@ -3467,14 +3482,11 @@ PY
         "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
     atomic_text "$run/state/phase" staged
     append_event "$run" control_slice_inputs_ready
-    emit operation control-slice-stage
-    emit run_id "$run_id"
-    emit site_id viper-cpu
+    emit_stage_completion control-slice-stage "$run_id"
     emit slice_id prokaryote_homomer_smoke_v1
     emit case_count "$case_count"
     emit archive_sha256 "$archive_sha256"
     emit manifest_sha256 "$manifest_sha256"
-    emit phase staged
 }
 
 control_matrix_stage_run() {
@@ -3616,14 +3628,11 @@ PY
         "$(sha256sum "$phenix_manifest" | awk '{print $1}')"
     atomic_text "$run/state/phase" staged
     append_event "$run" control_matrix_inputs_ready
-    emit operation control-matrix-stage
-    emit run_id "$run_id"
-    emit site_id viper-cpu
+    emit_stage_completion control-matrix-stage "$run_id"
     emit suite_id prokaryote_homomer_workflow_v1
     emit case_count "$case_count"
     emit archive_sha256 "$archive_sha256"
     emit manifest_sha256 "$manifest_sha256"
-    emit phase staged
 }
 
 m6_runner_stage_common() {
@@ -3651,7 +3660,9 @@ m6_runner_stage_common() {
         fi
     elif [[ "$operation" == m6-scientific-stage ]]; then
         [[ ( "$profile" == m6-operational && "$track" == operational ) || \
-           ( "$profile" == m6-leakage && "$track" == leakage ) ]] || \
+           ( "$profile" == m6-leakage && "$track" == leakage ) || \
+           ( "$profile" == m6-native-control && "$track" == operational && \
+             "$SITE_ID" == raven ) ]] || \
             fail wrapper_failure "invalid M6 scientific profile"
         stage_log=m6-scientific-stage.log
         if [[ "$SITE_ID" == marmic ]]; then
@@ -3816,6 +3827,11 @@ PY
     atomic_text "$run/state/m6-runner-case-count" "$case_count"
     atomic_text "$run/state/m6-runner-object-count" "$object_count"
     atomic_text "$run/state/m6-track" "$track"
+    if [[ "$profile" == m6-native-control ]]; then
+        atomic_text "$run/state/m6-execution-purpose" native_control
+    elif [[ "$track" != qualification ]]; then
+        atomic_text "$run/state/m6-execution-purpose" benchmark
+    fi
     if [[ "$track" != qualification ]]; then
         [[ -f "$run/state/database-manifest" && \
            -f "$run/state/database-manifest-sha256" && \
@@ -3841,17 +3857,16 @@ PY
     fi
     atomic_text "$run/state/phase" staged
     append_event "$run" m6_runner_ready
-    emit operation "$operation"
-    emit run_id "$run_id"
-    emit site_id "$SITE_ID"
+    emit_stage_completion "$operation" "$run_id"
     emit protocol_id m6_independent_prokaryote_homomer_v1
-    emit profile "$profile"
     emit track "$track"
+    if [[ "$track" != qualification ]]; then
+        emit execution_purpose "$(<"$run/state/m6-execution-purpose")"
+    fi
     emit case_count "$case_count"
     emit object_count "$object_count"
     emit archive_sha256 "$archive_sha256"
     emit manifest_sha256 "$manifest_sha256"
-    emit phase staged
 }
 
 m6_inputs_stage_run() {
@@ -3861,13 +3876,21 @@ m6_inputs_stage_run() {
 }
 
 m6_scientific_stage_run() {
-    [[ "$#" -eq 10 || "$#" -eq 12 || "$#" -eq 13 || "$#" -eq 15 ]] || \
+    [[ "$#" -eq 11 || "$#" -eq 13 || "$#" -eq 14 || "$#" -eq 16 ]] || \
         fail wrapper_failure "m6-scientific-stage expects its fixed site arguments"
-    local track="${10}"
+    local track="${10}" purpose="${11}" profile
     [[ "$track" == operational || "$track" == leakage ]] || \
         fail wrapper_failure "invalid M6 scientific track"
+    if [[ "$purpose" == benchmark ]]; then
+        profile="m6-${track}"
+    elif [[ "$purpose" == native_control && "$track" == operational && \
+            "$SITE_ID" == raven ]]; then
+        profile=m6-native-control
+    else
+        fail wrapper_failure "native control requires Raven operational inputs"
+    fi
     m6_runner_stage_common \
-        m6-scientific-stage "m6-${track}" "$track" "${@:1:9}" "${@:11}"
+        m6-scientific-stage "$profile" "$track" "${@:1:9}" "${@:12}"
 }
 
 m6_leakage_parent_bind_run() {
@@ -4219,18 +4242,16 @@ PY
         "$(sha256sum "$staged_manifest" | awk '{print $1}')"
     atomic_text "$run/state/phase" staged
     append_event "$run" m4_import_inputs_ready
-    emit operation m4-import-stage
-    emit run_id "$run_id"
-    emit site_id viper-cpu
+    emit_stage_completion m4-import-stage "$run_id"
     emit source_site_id marmic
     emit seed_count "$seed_count"
     emit archive_sha256 "$archive_sha256"
-    emit phase staged
 }
 
 database_stage_run() {
     [[ "$#" -eq 4 ]] || fail wrapper_failure "database-stage expects four fixed arguments"
     stage_run_common "$1" "$2" "$3" "$4" 1 database
+    emit_stage_completion stage "$1"
 }
 
 validate_m6_smoke_site_state() {
@@ -4261,8 +4282,8 @@ validate_m6_smoke_site_state() {
         expected_policy_id=m6_nextflow_slurm_marmic_v2
     elif [[ "$SITE_ID" == raven ]]; then
         expected_profile=raven
-        expected_policy=benchmarks/m6/execution-nextflow-raven-v1.yaml
-        expected_policy_id=m6_nextflow_slurm_raven_v1
+        expected_policy=benchmarks/m6/execution-nextflow-raven-v2.yaml
+        expected_policy_id=m6_nextflow_slurm_raven_v2
     else
         fail environment_failure "unsupported fixed HPC site"
     fi
@@ -4289,6 +4310,7 @@ submit_run() {
     local owner_id="$2"
     local run submission job_id profile walltime
     local cpus memory actual_authority_count expected_p0_config_sha256
+    local expected_m6_purpose expected_m6_track
     require_owned_run "$run_id" "$owner_id"
     run="$(run_directory "$run_id")"
     [[ "$(<"$run/state/phase")" == staged ]] || \
@@ -4317,8 +4339,28 @@ submit_run() {
             fail wrapper_failure "P0 configuration changed after staging"
     fi
     if [[ "$profile" == m6-nextflow-smoke || \
-          "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+          "$profile" == m6-operational || "$profile" == m6-leakage || \
+          "$profile" == m6-native-control ]]; then
         validate_m6_smoke_site_state "$run"
+    fi
+    if [[ "$profile" =~ ^(m6-native-control|m6-operational|m6-leakage)$ ]]; then
+        expected_m6_purpose=benchmark
+        expected_m6_track="${profile#m6-}"
+        if [[ "$profile" == m6-native-control ]]; then
+            expected_m6_purpose=native_control
+            expected_m6_track=operational
+        fi
+        [[ -f "$run/state/m6-execution-purpose" && \
+           ! -L "$run/state/m6-execution-purpose" && \
+           "$(<"$run/state/m6-execution-purpose")" == "$expected_m6_purpose" && \
+           -f "$run/state/m6-track" && \
+           "$(<"$run/state/m6-track")" == "$expected_m6_track" && \
+           -f "$run/artifacts/m6-runner-inputs/runner_manifest.json" && \
+           ! -L "$run/artifacts/m6-runner-inputs/runner_manifest.json" && \
+           -f "$run/state/m6-runner-manifest-sha256" && \
+           "$(sha256sum "$run/artifacts/m6-runner-inputs/runner_manifest.json" | awk '{print $1}')" == \
+           "$(<"$run/state/m6-runner-manifest-sha256")" ]] || \
+            fail wrapper_failure "M6 scientific purpose or runner binding changed"
     fi
     if [[ "$profile" == m6-leakage ]]; then
         [[ -f "$run/state/m6-operational-parent-run-id" && \
@@ -4447,7 +4489,8 @@ submit_run() {
         memory=4G
     fi
     if [[ "$profile" == m6-nextflow-smoke || \
-          "$profile" == m6-operational || "$profile" == m6-leakage ]]; then
+          "$profile" == m6-operational || "$profile" == m6-leakage || \
+          "$profile" == m6-native-control ]]; then
         cpus=2
         memory=8G
     fi
@@ -4462,6 +4505,7 @@ submit_run() {
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
+          "$profile" == m6-native-control || \
           "$profile" == m4-copy || \
           "$profile" == t12 ]]; then
         walltime=24:00:00
@@ -5150,6 +5194,7 @@ collect_run() {
         state/m6-runner-case-count \
         state/m6-runner-object-count \
         state/m6-track \
+        state/m6-execution-purpose \
         state/m6-operational-parent-run-id \
         state/m6-operational-precheck-sha256 \
         state/failure-class \
@@ -5171,6 +5216,7 @@ collect_run() {
         logs/m6-scientific-stage.log \
         logs/m6-inputs.log \
         logs/m6-nextflow-smoke.log \
+        logs/m6-native-control.log \
         logs/m6-operational.log \
         logs/m6-leakage.log \
         logs/database-source-stage.log \
@@ -5457,6 +5503,9 @@ collect_run() {
         artifacts/qualification/m6-smoke-leakage-pipeline-info/dag.html \
         artifacts/qualification/m6-scientific-summary.json \
         artifacts/qualification/m6-execution-verification.json \
+        artifacts/qualification/m6-native-control-summary.json \
+        artifacts/qualification/m6-native-control-output-verification.json \
+        artifacts/qualification/m6-native-control-checksums.sha256 \
         artifacts/qualification/m6-case-results.jsonl \
         artifacts/qualification/m6-candidate-rankings.jsonl.gz \
         artifacts/qualification/m6-model-policy-results.jsonl \

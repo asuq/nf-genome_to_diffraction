@@ -430,11 +430,14 @@ not drop, round, or relabel cases.
 
 ## Execution and failure semantics
 
-M6 uses separate operational/open-set and leakage/hardening reviewed-site stages. Each
-starts with a 2-CPU/8-GB Nextflow driver. Independent child tasks are submitted
-to Slurm. MMseqs2 retains 32 CPUs/16 GB at both sites. Marmic Foldseek uses
+M6 uses separate operational/open-set and leakage/hardening reviewed-site stages.
+Raven uses an explicitly identified login-process driver; Marmic/Viper use their
+Slurm driver. The orchestration budget is 2 CPUs/8 GB; it is not a Slurm
+allocation on Raven. Independent child tasks are submitted to Slurm.
+MMseqs2 retains 32 CPUs/16 GB at all three sites. Marmic Foldseek uses
 32 CPUs/192 GB under `m6_nextflow_slurm_marmic_v2`; Viper's unchanged v1 policy
-retains 32 CPUs/16 GB. All other child jobs retain their existing smaller
+retains 32 CPUs/16 GB. Raven v2 uses 32 CPUs/96 GB for shared CPU jobs. All other
+child jobs retain their existing smaller
 allocations. The ceiling is 24 hours per Slurm
 job, not a tool timeout. Slurm controls aggregate and Phenix concurrency, which
 are measured rather than capped.
@@ -450,12 +453,31 @@ invalidates cached search evidence even for identical query groups. A small
 native known-control qualification is required before the full benchmark;
 local tests and the existing stub smoke do not satisfy that requirement.
 
+The fixed `native_control` execution purpose selects M6C001 and M6C025 from
+the unchanged runner, without downsampling their catalogues. It remains on the
+operational model policy, is not a third benchmark track and has separate plan
+and output adapter identities. Its explicit non-acceptance flag and distinct
+summary prevent entry into full-track collection or use as a leakage parent.
+The [common-controller runbook](hpc-feedback-loop.md) specifies the native
+MR, target-absence, resource, truth-isolation and cached-resume checks needed
+before the large run; structural output verification alone is not that gate.
+
+The [Raven v2 policy](../benchmarks/m6/execution-nextflow-raven-v2.yaml) replaces
+the rejected 192-GB v1 request. The user approved 96 GB after reviewing the
+recorded 64.6-GiB earlier batch and later 21--22-GB 32-thread batches. Neither
+observation proves the peak for the refreshed benchmark; measure the complete
+native control, including its longest sequences, before scaling up. Keep 32
+processing threads and at most 128 queries, without exclusive-node reservation
+or candidate downsampling. M6 Nextflow work directories are explicitly bound
+to the owned run's cache (or the verified operational parent's shared cache),
+not a Raven-wide work directory.
+
 The refreshed 29 catalogue objects are imported independently and contain
 70,870 distinct raw sequences before import filtering (the historical source
 contained 70,864). Qualification records bind the actual imported/searchable
 inventory rather than assuming a historical count. MMseqs2 searches one batch capped at 100,000 sequences/30
-million residues. Marmic Foldseek searches deterministic batches capped at
-128 sequences; Viper retains its 10,000-sequence cap. Both retain the existing
+million residues. Marmic and Raven Foldseek search deterministic batches capped
+at 128 sequences; Viper retains its 10,000-sequence cap. All retain the existing
 3-million-residue bound. This avoids reloading the target database and
 ProstT5 model once per sample while retaining every catalogue candidate.
 

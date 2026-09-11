@@ -265,8 +265,31 @@ def test_m6_scientific_stage_accepts_only_a_confirmed_archive_and_track(
 
     assert staged.operation == "m6-scientific-stage"
     assert staged.track == track
+    assert staged.execution_purpose == "benchmark"
     assert staged.source_branch == "main"
     assert submitted.profile == f"m6-{track}"
+
+
+def test_native_control_stage_and_submit_use_the_original_cli() -> None:
+    parser = _build_parser()
+    staged = parser.parse_args(
+        [
+            "m6-scientific-stage",
+            "--revision",
+            "HEAD",
+            "--archive",
+            "runner.tar",
+            "--confirm-archive-sha256",
+            "a" * 64,
+            "--track",
+            "operational",
+            "--execution-purpose",
+            "native_control",
+        ]
+    )
+    assert staged.execution_purpose == "native_control"
+    submitted = parser.parse_args(["submit", "m6-native-control", "--run-id", "RUN_ID"])
+    assert submitted.profile == "m6-native-control"
 
 
 def test_t12_stage_accepts_only_revision_and_owned_parent() -> None:

@@ -9,6 +9,7 @@ process M6_PLAN_TRACK {
     database_manifest: Path
     software_lock: Path
     track: String
+    execution_purpose: String
 
     output:
     plan: Path = file('m6_track_plan')
@@ -21,6 +22,7 @@ process M6_PLAN_TRACK {
         --database-manifest '${database_manifest}' \
         --software-lock '${software_lock}' \
         --track '${track}' \
+        --execution-purpose '${execution_purpose}' \
         --outdir m6_track_plan
     """
 
@@ -521,6 +523,7 @@ process M6_AGGREGATE_TRACK {
     database_manifest: Path
     phenix_manifest: Path
     track: String
+    execution_purpose: String
 
     output:
     result: Path = file('m6_scientific')
@@ -537,6 +540,7 @@ process M6_AGGREGATE_TRACK {
         --database-manifest '${database_manifest}' \
         --phenix-manifest '${phenix_manifest}' \
         --track '${track}' \
+        --execution-purpose '${execution_purpose}' \
         --outdir m6_scientific
     """
 

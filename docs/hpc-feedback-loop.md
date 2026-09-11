@@ -40,12 +40,16 @@ Readiness reports runtime bindings only; database and native qualification
 remain separate gates.
 
 The fixed `m6-inputs` verifier is a Slurm job. The `m6-nextflow-smoke`,
-`m6-operational` and `m6-leakage` profiles use an explicitly identified login
+`m6-native-control`, `m6-operational` and `m6-leakage` profiles use an explicitly identified login
 process with a two-CPU affinity limit. Their original shared job body launches
 Nextflow; Nextflow owns the scientific Slurm children. The Raven policy preserves
-the 24-hour child-job ceiling, 32 CPUs/192 GB per-job bound, at most 128 Foldseek
+the 24-hour child-job ceiling, 32 CPUs/96 GB per-job bound, at most 128 Foldseek
 queries per batch and maintained helper queue/submission controls. The driver
 JVM's 6 GB heap is a local orchestration budget, not a Slurm memory allocation.
+The Raven v2 policy qualifies shared-node Foldseek jobs with measured peak RSS;
+96 GB is a test allocation, not an established minimum or a scientific acceptance
+claim. Keep the full catalogues and 128-query limit while measuring the native
+known control. The rejected v1 request and its historical source remain intact.
 
 New local run records use schema 1.2 and bind `controller_kind` to site/profile.
 Historical Marmic/Viper records keep their documented schemas. A login process
@@ -63,6 +67,31 @@ Local/fake-runtime tests establish these contracts, not native M6 acceptance.
 Qualify the native stub and the approved small real-data control before a large
 benchmark. Operational and leakage case sets and acceptance thresholds remain
 unchanged.
+
+The approved small native control uses the same immutable 63-case runner archive
+but executes only the fixed M6C001/M6C025 pair, with each complete catalogue:
+
+```text
+nf-gtd-hpc-test --config CONFIG m6-scientific-stage --revision FULL_COMMIT --archive RUNNER_TAR --confirm-archive-sha256 RUNNER_SHA256 --track operational --execution-purpose native_control
+nf-gtd-hpc-test --config CONFIG submit m6-native-control --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG status --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID
+```
+
+The purpose is bound at staging and rechecked before submission and execution.
+It cannot select arbitrary cases, use leakage inputs, have an operational parent
+or run at another site. The shared Nextflow graph verifies the full input bundle
+before materialising those two cases. Native-control plan, summary and verification
+identities are distinct and explicitly cannot claim full M6 acceptance.
+
+Controller success alone is not qualification: first freeze the collected output
+checksums, then compare the known control with the local truth-side evidence.
+Require actual MR evidence on M6C001, no exact assignment on target-absent M6C025,
+complete native tool/resource/child records and a fully cached equivalent resume.
+Measure peak resident memory, including batches containing the longest sequences,
+before the large run. No-memory-measurement and no-execution outcomes are not a
+passed native resource qualification. The fixed scientific case partitions and
+the later four-arm ranking comparison are unchanged.
 
 ### Existing database bootstrap handover
 

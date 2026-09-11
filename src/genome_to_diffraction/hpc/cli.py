@@ -60,6 +60,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "p2-control",
             "m6-inputs",
             "m6-nextflow-smoke",
+            "m6-native-control",
             "m6-operational",
             "m6-leakage",
             "database",
@@ -163,7 +164,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="fixed remote branch containing the immutable commit",
     )
 
-    submit = actions.add_parser("submit", help="submit the fixed Slurm profile")
+    submit = actions.add_parser(
+        "submit", help="start the fixed owned profile with its recorded controller kind"
+    )
     submit.add_argument(
         "profile",
         choices=(
@@ -185,6 +188,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "control-matrix",
             "m6-inputs",
             "m6-nextflow-smoke",
+            "m6-native-control",
             "m6-operational",
             "m6-leakage",
             "m4-copy",
@@ -194,10 +198,10 @@ def _build_parser() -> argparse.ArgumentParser:
     submit.add_argument("--run-id", required=True)
 
     for operation, help_text in (
-        ("status", "query the recorded scheduler job"),
+        ("status", "query the recorded owned process or scheduler job"),
         ("wait", "wait with bounded queue and execution time"),
         ("collect", "collect approved small artefacts"),
-        ("cancel", "cancel only the recorded scheduler job"),
+        ("cancel", "cancel only the recorded owned process or scheduler job"),
     ):
         action = actions.add_parser(operation, help=help_text)
         action.add_argument("--run-id", required=True)
@@ -267,6 +271,12 @@ def _build_parser() -> argparse.ArgumentParser:
     m6_scientific_stage.add_argument("--confirm-archive-sha256", required=True)
     m6_scientific_stage.add_argument(
         "--track", choices=("operational", "leakage"), required=True
+    )
+    m6_scientific_stage.add_argument(
+        "--execution-purpose",
+        choices=("benchmark", "native_control"),
+        default="benchmark",
+        help="native_control selects only the fixed Raven M6C001/M6C025 pair",
     )
     m6_scientific_stage.add_argument(
         "--source-branch",
@@ -371,6 +381,7 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             args.archive,
             args.confirm_archive_sha256,
             args.track,
+            execution_purpose=args.execution_purpose,
             source_branch=args.source_branch,
             operational_parent_run_id=args.operational_parent_run_id,
         )

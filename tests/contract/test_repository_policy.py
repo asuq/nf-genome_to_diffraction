@@ -690,9 +690,11 @@ def test_nf_helper_submodule_exposes_reviewed_site_profiles() -> None:
         "withLabel: m6_case_prepare", 1
     )[0]
     assert "cpus = 32" in raven_search
-    assert "memory = '192 GB'" in raven_search
+    assert "memory = '96 GB'" in raven_search
     assert "time = '24 hours'" in raven_search
     assert "maxForks" not in raven_wrapper
+    assert "--exclusive" not in raven_wrapper
+    assert not re.search(r"^\s*workDir\s*=", raven_wrapper, re.MULTILINE)
 
     phaser_module = (
         REPOSITORY / "modules" / "local" / "run_first_copy_phaser.nf"

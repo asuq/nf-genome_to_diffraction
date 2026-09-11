@@ -35,6 +35,9 @@ from genome_to_diffraction.schemas.io import (
 )
 
 M6ScientificTrack = Literal["operational", "leakage"]
+M6ExecutionPurpose = Literal["benchmark", "native_control"]
+M6_NATIVE_CONTROL_CASE_IDS = ("M6C001", "M6C025")
+M6_NATIVE_CONTROL_ADAPTER = "m6-native-control-run-v1"
 _LEGACY_ADAPTER_VERSION = "m6-scientific-run-v3"
 _NEXTFLOW_V1_ADAPTER_VERSION = "m6-nextflow-run-v1"
 _NEXTFLOW_V2_ADAPTER_VERSION = "m6-nextflow-run-v2"
@@ -52,6 +55,7 @@ _SUMMARY_SCHEMA_BY_ADAPTER = {
     _NEXTFLOW_V1_ADAPTER_VERSION: "1.0",
     _NEXTFLOW_V2_ADAPTER_VERSION: "2.0",
     _NEXTFLOW_V3_ADAPTER_VERSION: "3.0",
+    M6_NATIVE_CONTROL_ADAPTER: "3.0",
 }
 
 _TRACK_CASES: dict[M6ScientificTrack, tuple[str, ...]] = {
@@ -69,6 +73,19 @@ def m6_track_case_ids(track: M6ScientificTrack) -> tuple[str, ...]:
         return _TRACK_CASES[track]
     except KeyError as error:
         raise ValueError(f"unsupported M6 scientific track: {track}") from error
+
+
+def m6_execution_case_ids(
+    track: M6ScientificTrack, purpose: M6ExecutionPurpose
+) -> tuple[str, ...]:
+    """Select a complete track or the one fixed non-acceptance native control."""
+
+    full_partition = m6_track_case_ids(track)
+    if purpose == "benchmark":
+        return full_partition
+    if purpose == "native_control" and track == "operational":
+        return M6_NATIVE_CONTROL_CASE_IDS
+    raise ValueError("M6 native control requires its fixed operational purpose")
 
 
 def _json_object(path: Path) -> dict[str, object]:
@@ -112,18 +129,67 @@ def verify_m6_scientific_output(
 ) -> Path:
     """Verify deterministic, complete, retain-all track evidence."""
 
+    return _verify_m6_output(
+        output_directory,
+        track,
+        expected_ids=m6_track_case_ids(track),
+        allowed_adapters=_VERIFIABLE_ADAPTER_VERSIONS,
+        summary_name="m6_scientific_summary.json",
+        report_name="m6_execution_verification.json",
+    )
+
+
+def verify_m6_native_control_output(output_directory: Path) -> Path:
+    """Check fixed two-case output integrity, without claiming M6 acceptance.
+
+    Real-tool, resource, cached-resume and truth checks remain separate native
+    qualification requirements. Structural output verification is not that gate.
+    """
+
+    return _verify_m6_output(
+        output_directory,
+        "operational",
+        expected_ids=M6_NATIVE_CONTROL_CASE_IDS,
+        allowed_adapters=frozenset({M6_NATIVE_CONTROL_ADAPTER}),
+        summary_name="m6_native_control_summary.json",
+        report_name="m6_native_control_output_verification.json",
+    )
+
+
+def _verify_m6_output(
+    output_directory: Path,
+    track: M6ScientificTrack,
+    *,
+    expected_ids: tuple[str, ...],
+    allowed_adapters: frozenset[str],
+    summary_name: str,
+    report_name: str,
+) -> Path:
+    """Apply the shared retention/identity/stage checks to an explicit contract."""
+
     root = output_directory.resolve(strict=True)
-    summary_path = root / "m6_scientific_summary.json"
+    summary_path = root / summary_name
     summary = _json_object(summary_path)
     adapter_version = summary.get("adapter_version")
     if (
-        adapter_version not in _VERIFIABLE_ADAPTER_VERSIONS
+        adapter_version not in allowed_adapters
         or summary.get("schema_version")
         != _SUMMARY_SCHEMA_BY_ADAPTER[cast(str, adapter_version)]
         or summary.get("track") != track
-        or summary.get("case_ids") != list(m6_track_case_ids(track))
+        or summary.get("case_ids") != list(expected_ids)
     ):
         raise PublicControlError("M6 scientific summary identity changed")
+    native_control = adapter_version == M6_NATIVE_CONTROL_ADAPTER
+    if native_control:
+        if (
+            summary.get("execution_purpose") != "native_control"
+            or summary.get("benchmark_acceptance_claim") is not False
+        ):
+            raise PublicControlError(
+                "M6 native-control non-acceptance identity changed"
+            )
+    elif summary.get("execution_purpose", "benchmark") != "benchmark":
+        raise PublicControlError("Native control is not a complete M6 scientific track")
     output_names = {
         "case_results": "m6_case_results.jsonl",
         "candidate_rankings": "m6_candidate_rankings.jsonl",
@@ -149,7 +215,7 @@ def verify_m6_scientific_output(
 
     cases = _jsonl_objects(root / output_names["case_results"])
     case_ids = tuple(cast(str, row.get("case_id")) for row in cases)
-    if case_ids != m6_track_case_ids(track):
+    if case_ids != expected_ids:
         raise PublicControlError("M6 scientific case-result partition changed")
     if canonical_digest(cases) != summary.get("case_evidence_digest"):
         raise PublicControlError("M6 deterministic case-evidence replay differs")
@@ -165,8 +231,12 @@ def verify_m6_scientific_output(
         if adapter_version in {
             _NEXTFLOW_V2_ADAPTER_VERSION,
             _NEXTFLOW_V3_ADAPTER_VERSION,
+            M6_NATIVE_CONTROL_ADAPTER,
         }:
-            current = adapter_version == _NEXTFLOW_V3_ADAPTER_VERSION
+            current = adapter_version in {
+                _NEXTFLOW_V3_ADAPTER_VERSION,
+                M6_NATIVE_CONTROL_ADAPTER,
+            }
             if case.get("schema_version") != ("3.0" if current else "2.0") or case.get(
                 "adapter_version"
             ) != (
@@ -319,7 +389,7 @@ def verify_m6_scientific_output(
     if not all(checks.values()):
         failed = sorted(name for name, value in checks.items() if not value)
         raise PublicControlError(f"M6 scientific verification failed: {failed}")
-    report = root / "m6_execution_verification.json"
+    report = root / report_name
     atomic_write_json(
         report,
         {
@@ -327,6 +397,14 @@ def verify_m6_scientific_output(
             "adapter_version": adapter_version,
             "track": track,
             "case_count": len(cases),
+            **(
+                {
+                    "execution_purpose": "native_control",
+                    "benchmark_acceptance_claim": False,
+                }
+                if native_control
+                else {}
+            ),
             "scientific_output_digest": summary["scientific_output_digest"],
             "cache_key": cache_key,
             "cache_invalidation_checks": invalidation_checks,

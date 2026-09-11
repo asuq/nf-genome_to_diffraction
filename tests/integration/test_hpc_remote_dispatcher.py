@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from genome_to_diffraction.checksums import atomic_write_json
+from genome_to_diffraction.hpc.client import _decode_remote_fields as _decode_protocol
 from genome_to_diffraction.hpc.identification_inputs import (
     build_identification_input_bundle,
 )
@@ -155,14 +156,6 @@ def _write_executable(path: Path, text: str) -> None:
     path.chmod(0o755)
 
 
-def _decode_protocol(payload: bytes) -> dict[str, str]:
-    result: dict[str, str] = {}
-    for line in payload.splitlines():
-        key, encoded = line.split(b"\t", maxsplit=1)
-        result[key.decode()] = base64.b64decode(encoded).decode()
-    return result
-
-
 def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     helper = root / "helper"
     helper.mkdir()
@@ -217,7 +210,7 @@ def _prepare_git_repositories(root: Path) -> tuple[Path, str]:
     for name in (
         "execution-nextflow-v1.yaml",
         "execution-nextflow-marmic-v2.yaml",
-        "execution-nextflow-raven-v1.yaml",
+        "execution-nextflow-raven-v2.yaml",
         "protocol.yaml",
     ):
         shutil.copy2(REPOSITORY / "benchmarks" / "m6" / name, m6_benchmarks / name)
@@ -1465,6 +1458,15 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
     (state / "phase").write_text("staged\n", encoding="utf-8")
     (state / "profile").write_text("m6-operational\n", encoding="utf-8")
+    (state / "m6-track").write_text("operational\n", encoding="ascii")
+    (state / "m6-execution-purpose").write_text("benchmark\n", encoding="ascii")
+    runner_manifest = run / "artifacts/m6-runner-inputs/runner_manifest.json"
+    runner_manifest.parent.mkdir(parents=True)
+    runner_manifest.write_text('{"case_count":63}\n', encoding="ascii")
+    (state / "m6-runner-manifest-sha256").write_text(
+        hashlib.sha256(runner_manifest.read_bytes()).hexdigest() + "\n",
+        encoding="ascii",
+    )
     (state / "site-id").write_text(f"{site_id}\n", encoding="utf-8")
     (state / "nextflow-profile").write_text(f"{site_id}\n", encoding="utf-8")
     (state / "execution-policy-relative").write_text(
@@ -1506,6 +1508,7 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
     assert '-profile "$M6_NEXTFLOW_PROFILE"' in m6_command
     assert '--execution_policy "$M6_EXECUTION_POLICY"' in m6_command
     assert '--apptainer_cache_dir "$M6_APPTAINER_CACHE"' in m6_command
+    assert '-work-dir "$M6_CACHE_ROOT/work"' in m6_command
     assert "-profile viper-cpu" not in m6_command
     assert 'if [[ "$M6_SITE_ID" == viper-cpu ]]' in m6_body
     assert "NF_HELPER_VIPER_COMPUTE_CONTROLLER=managed-slurm" in m6_body
@@ -1589,7 +1592,7 @@ def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
         "1",
     ]
     if not input_only:
-        arguments.append("operational")
+        arguments.extend(["operational", "benchmark"])
         rejected = _run(
             [str(dispatcher), operation, *arguments],
             cwd=tmp_path,
@@ -1853,6 +1856,7 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     assert '-profile "$M6_NEXTFLOW_PROFILE"' in smoke_functions
     assert '--execution-policy "$M6_EXECUTION_POLICY"' in smoke_functions
     assert '--apptainer_cache_dir "$M6_APPTAINER_CACHE"' in smoke_functions
+    assert '-work-dir "$M6_SMOKE_CACHE/work"' in smoke_functions
     assert 'export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"' in body
     assert "/ptmp/ashima/apptainer-cache" not in body
     assert "m6-nextflow-smoke-resource-evidence.json" in body
@@ -2097,6 +2101,145 @@ def _prepare_raven_site_layout(
     return root, dispatcher, environment, commit, lock_sha, phenix_sha
 
 
+@pytest.mark.parametrize("tamper_purpose", [False, True])
+def test_raven_native_control_stage_and_purpose_bound_submit(
+    tmp_path: Path,
+    tamper_purpose: bool,
+) -> None:
+    root, dispatcher, environment, commit, lock_sha, phenix_sha = (
+        _prepare_raven_site_layout(tmp_path)
+    )
+    runtime = root / "sources" / commit
+    binary = runtime / ".pixi/envs/hpc/bin"
+    for name in ("genome-to-diffraction", "nextflow", "mmseqs", "foldseek"):
+        _write_executable(binary / name, "#!/usr/bin/env bash\nexit 0\n")
+    java = runtime / ".pixi/envs/hpc/lib/jvm/bin/java"
+    java.parent.mkdir(parents=True)
+    _write_executable(java, "#!/usr/bin/env bash\nexit 0\n")
+    _write_executable(
+        binary / "python",
+        (
+            "#!/usr/bin/env bash\nset -euo pipefail\n"
+            'if [[ "$1" == --version ]]; then echo "Python 3.14.6"; exit 0; fi\n'
+            f'if [[ "$1" == - ]]; then exec {shlex.quote(sys.executable)} "$@"; fi\n'
+            '[[ "$1" == -m && "$2" == genome_to_diffraction.hpc.login_process '
+            '&& "$3" == start ]]\n'
+            '[[ "$4" == --run && "$6" == --owner '
+            '&& "$PYTHONPATH" == "$5/source/src" ]]\n'
+            'printf "%s\\n" "$@" > "$5/logs/test-login-arguments"\n'
+            'printf "controller_kind\\tbG9naW5fcHJvY2Vzcw==\\n"\n'
+        ),
+    )
+    _run(
+        [
+            str(dispatcher),
+            "raven-site-configure",
+            hashlib.sha256(dispatcher.read_bytes()).hexdigest(),
+            commit,
+            lock_sha,
+            phenix_sha,
+        ],
+        cwd=root,
+        environment=environment,
+    )
+    database = root / "databases"
+    database.mkdir()
+    manifest = database / "database_manifest.json"
+    manifest.write_text('{"schema_version":"1.0"}\n')
+    paths = root / "_config/database.paths"
+    paths.parent.mkdir(exist_ok=True)
+    paths.write_text(
+        "\n".join(
+            (
+                str(root),
+                str(database),
+                str(manifest),
+                "100000000000",
+                "200000000000",
+                "50000000000",
+                "200000000000",
+            )
+        )
+        + "\n"
+    )
+    paths.chmod(0o600)
+    payload = b"frozen bounded input object\n"
+    digest = hashlib.sha256(payload).hexdigest()
+    runner = json.dumps(
+        {
+            "schema_version": "1.0",
+            "protocol_id": "m6_independent_prokaryote_homomer_v1",
+            "case_count": 63,
+            "object_count": 1,
+            "cases": [{"case_id": f"M6C{i:03d}"} for i in range(1, 64)],
+            "objects": {digest: {"sha256": digest, "size_bytes": len(payload)}},
+        }
+    ).encode()
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:") as archive:
+        for name, content in (
+            ("runner_manifest.json", runner),
+            (f"objects/{digest}", payload),
+        ):
+            item = tarfile.TarInfo(name)
+            item.size = len(content)
+            archive.addfile(item, io.BytesIO(content))
+    archive = buffer.getvalue()
+    run_id = f"gtd-m6-native-control-20260911T000000Z-{commit[:12]}-01234567"
+    staged = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "m6-scientific-stage",
+                run_id,
+                commit,
+                lock_sha,
+                OWNER_ID,
+                hashlib.sha256(archive).hexdigest(),
+                str(len(archive)),
+                hashlib.sha256(runner).hexdigest(),
+                "63",
+                "1",
+                "operational",
+                "native_control",
+            ],
+            cwd=root,
+            environment=environment,
+            input_data=archive,
+        ).stdout
+    )
+    run = root / "runs" / run_id
+    assert staged["operation"] == "m6-scientific-stage"
+    assert staged["profile"] == "m6-native-control"
+    assert staged["execution_purpose"] == "native_control"
+    assert (run / "state/controller-kind").read_text().strip() == "login_process"
+    assert (
+        run / "artifacts/m6-runner-inputs/runner_manifest.json"
+    ).read_bytes() == runner
+    if tamper_purpose:
+        (run / "state/m6-execution-purpose").write_text("benchmark\n")
+    submitted = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "submit",
+                run_id,
+                OWNER_ID,
+            ],
+            cwd=root,
+            environment=environment,
+            success=not tamper_purpose,
+        ).stdout
+    )
+    if tamper_purpose:
+        assert submitted["message"] == "M6 scientific purpose or runner binding changed"
+        assert not (run / "logs/test-login-arguments").exists()
+    else:
+        assert submitted["controller_kind"] == "login_process"
+        assert (run / "logs/test-login-arguments").is_file()
+    assert not (tmp_path / "sbatch-args").exists()
+
+
 @pytest.mark.parametrize("tampering", [None, "runtime_link", "site_digest"])
 def test_raven_common_stage_reuses_runtime_and_dispatches_login_without_sbatch(
     tmp_path: Path,
@@ -2162,7 +2305,7 @@ def test_raven_common_stage_reuses_runtime_and_dispatches_login_without_sbatch(
     assert manifest["controller_kind"] == "login_process"
     assert (
         manifest["m6_site_contract"]["execution_policy_id"]
-        == "m6_nextflow_slurm_raven_v1"
+        == "m6_nextflow_slurm_raven_v2"
     )
     # The native Linux supervisor is tested separately. This fake verifies the
     # shared dispatch boundary, including source PYTHONPATH and fixed arguments.

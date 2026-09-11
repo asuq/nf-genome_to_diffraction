@@ -72,11 +72,30 @@ def _environment(nxf_home: Path) -> dict[str, str]:
 def check_syntax() -> None:
     """Run the Nextflow parser/linter over all workflow sources."""
 
+    # Keep the pinned Nextflow defaults and exclude local evidence, which can
+    # contain deliberately incomplete repository copies from integration tests.
+    excludes = (
+        ".git",
+        ".lineage",
+        ".nextflow",
+        ".nf-test",
+        "nf-test.config",
+        "work",
+        ".untracked",
+    )
     with tempfile.TemporaryDirectory(
         prefix="nf-genome-to-diffraction-lint-", dir="/tmp"
     ) as temporary:
         environment = _environment(Path(temporary) / "nxf-home")
-        _run(["nextflow", "lint", "."], environment=environment)
+        _run(
+            [
+                "nextflow",
+                "lint",
+                *[arg for path in excludes for arg in ("-exclude", path)],
+                ".",
+            ],
+            environment=environment,
+        )
 
 
 def _assert_files(root: Path, names: set[str]) -> None:

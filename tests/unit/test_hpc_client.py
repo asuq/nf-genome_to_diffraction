@@ -414,6 +414,11 @@ class FakeTransport:
             "run_id": arguments[0],
             "remote_operation": "m6-scientific-stage",
             "site_id": self.stage_site_id,
+            "profile": "m6-native-control"
+            if arguments[10] == "native_control"
+            else f"m6-{arguments[9]}",
+            "track": arguments[9],
+            "execution_purpose": arguments[10],
         }
 
     def t12_stage(
@@ -806,6 +811,7 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
     for policy_name in (
         "execution-nextflow-v1.yaml",
         "execution-nextflow-marmic-v2.yaml",
+        "execution-nextflow-raven-v2.yaml",
     ):
         (policies / policy_name).write_bytes(
             (REPOSITORY / "benchmarks/m6" / policy_name).read_bytes()
@@ -2340,14 +2346,15 @@ def test_m6_scientific_stage_streams_one_fixed_bounded_track(
     )
     assert operation == "m6-scientific-stage"
     assert arguments[9] == track
+    assert arguments[10] == "benchmark"
     if site_id == "marmic":
-        assert arguments[10:] == (
+        assert arguments[11:] == (
             "/approved/site/phenix/manifest.json",
             "a" * 64,
         )
-        assert all("/" not in argument for argument in arguments[:10])
+        assert all("/" not in argument for argument in arguments[:11])
     else:
-        assert len(arguments) == 10
+        assert len(arguments) == 11
         assert all("/" not in argument for argument in arguments)
     if track == "leakage":
         bind_operation, bind_arguments = transport.calls[-1]

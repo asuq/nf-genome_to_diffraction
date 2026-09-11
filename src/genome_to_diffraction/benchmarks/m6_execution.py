@@ -35,7 +35,7 @@ _MEMORY = re.compile(r"^([0-9]+(?:\.[0-9]+)?)\s*([KMGT]B)$", re.I)
 M6_SITE_POLICIES = {
     "viper-cpu": ("m6_nextflow_slurm_v1", "execution-nextflow-v1.yaml"),
     "marmic": ("m6_nextflow_slurm_marmic_v2", "execution-nextflow-marmic-v2.yaml"),
-    "raven": ("m6_nextflow_slurm_raven_v1", "execution-nextflow-raven-v1.yaml"),
+    "raven": ("m6_nextflow_slurm_raven_v2", "execution-nextflow-raven-v2.yaml"),
 }
 M6_POLICY_FILES = dict(M6_SITE_POLICIES.values())
 
@@ -122,7 +122,7 @@ class M6ExecutionPolicy(ContractModel):
     policy_id: Literal[
         "m6_nextflow_slurm_v1",
         "m6_nextflow_slurm_marmic_v2",
-        "m6_nextflow_slurm_raven_v1",
+        "m6_nextflow_slurm_raven_v2",
     ]
     site_id: Literal["marmic", "viper-cpu", "raven"]
     orchestrator: Literal["nextflow_dsl2"]
@@ -139,7 +139,7 @@ class M6ExecutionPolicy(ContractModel):
         expected_site = {
             "m6_nextflow_slurm_v1": "viper-cpu",
             "m6_nextflow_slurm_marmic_v2": "marmic",
-            "m6_nextflow_slurm_raven_v1": "raven",
+            "m6_nextflow_slurm_raven_v2": "raven",
         }[self.policy_id]
         if self.site_id != expected_site:
             raise ValueError("M6 execution policy ID and site ID disagree")

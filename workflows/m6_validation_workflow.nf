@@ -36,9 +36,12 @@ workflow M6_VALIDATION_WORKFLOW {
     database_manifest: Path
     phenix_manifest: Path
     track: String
+    execution_purpose: String
 
     main:
-    plan = M6_PLAN_TRACK(runner_root, database_manifest, software_lock, track)
+    plan = M6_PLAN_TRACK(
+        runner_root, database_manifest, software_lock, track, execution_purpose
+    )
 
     catalogue_tasks = plan.flatMap { Path bundle ->
         bundle.resolve('catalogue_tasks.tsv').toFile().readLines().drop(1)
@@ -387,7 +390,8 @@ workflow M6_VALIDATION_WORKFLOW {
         protocol,
         database_manifest,
         phenix_manifest,
-        track
+        track,
+        execution_purpose
     )
 
     emit:

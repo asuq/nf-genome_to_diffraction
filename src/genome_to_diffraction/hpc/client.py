@@ -179,6 +179,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/control-matrix.log",
         "logs/m6-inputs.log",
         "logs/m6-nextflow-smoke.log",
+        "logs/m6-native-control.log",
         "logs/m6-operational.log",
         "logs/m6-leakage.log",
         "logs/m4-copy.log",
@@ -187,7 +188,7 @@ _FAILURE_APPLICATION_LOGS = frozenset(
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -2614,7 +2615,7 @@ class HpcController:
 
         if record.profile == "m6-inputs":
             stage = self.transport.m6_inputs_stage
-        elif record.profile in {"m6-operational", "m6-leakage"}:
+        elif record.profile in {"m6-native-control", "m6-operational", "m6-leakage"}:
             stage = self.transport.m6_scientific_stage
         else:
             raise ValidationError("source/runner staging requires a fixed M6 profile")
@@ -2755,6 +2756,7 @@ class HpcController:
         expected_archive_sha256: str,
         track: str,
         *,
+        execution_purpose: str = "benchmark",
         source_branch: str = "main",
         operational_parent_run_id: str | None = None,
     ) -> dict[str, object]:
@@ -2764,6 +2766,16 @@ class HpcController:
             raise ValidationError("M6 scientific staging requires a reviewed HPC site")
         if track not in {"operational", "leakage"}:
             raise ValidationError("M6 scientific track must be operational or leakage")
+        if execution_purpose not in {"benchmark", "native_control"}:
+            raise ValidationError("M6 execution purpose is not reviewed")
+        if execution_purpose == "native_control" and (
+            self.config.site_id != "raven"
+            or track != "operational"
+            or operational_parent_run_id is not None
+        ):
+            raise ValidationError(
+                "native control requires Raven operational inputs without a parent"
+            )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)
         _validate_m6_source_branch(self.config.site_id, source_branch)
@@ -2824,7 +2836,11 @@ class HpcController:
             protocol=self.config.repository / "benchmarks/m6/protocol.yaml",
             expected_sha256=expected_archive_sha256,
         )
-        profile = f"m6-{track}"
+        profile = (
+            "m6-native-control"
+            if execution_purpose == "native_control"
+            else f"m6-{track}"
+        )
         timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
         run_id = f"gtd-{profile}-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
         owner_id = secrets.token_hex(16)
@@ -2848,6 +2864,7 @@ class HpcController:
                 "run_id": run_id,
                 "track": track,
                 "archive_sha256": archive_sha256,
+                "execution_purpose": execution_purpose,
                 "case_count": case_count,
                 "object_count": object_count,
             },
@@ -2863,10 +2880,21 @@ class HpcController:
             str(case_count),
             str(object_count),
             track,
+            execution_purpose,
         ]
         if self.config.site_id == "marmic":
             arguments.extend(_fixed_heteromer_phenix_binding(self.config.repository))
         remote = self._stage_m6_runner(record, arguments, archive_path)
+        if (
+            remote.get("run_id") != run_id
+            or remote.get("profile") != profile
+            or remote.get("track") != track
+            or remote.get("execution_purpose") != execution_purpose
+        ):
+            raise RemoteOperationError(
+                "M6 staged profile or execution purpose differs",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
         if operational_parent is not None:
             assert operational_precheck_sha256 is not None
             bound = self.transport.run(
@@ -3727,6 +3755,7 @@ class HpcController:
                             "control-slice",
                             "control-matrix",
                             "m6-nextflow-smoke",
+                            "m6-native-control",
                             "m6-operational",
                             "m6-leakage",
                             "m4-copy",

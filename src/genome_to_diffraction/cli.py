@@ -840,6 +840,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--track", choices=("operational", "leakage"), required=True
     )
     m6_plan_nf.add_argument("--outdir", type=Path, required=True)
+    m6_plan_nf.add_argument(
+        "--execution-purpose",
+        choices=("benchmark", "native_control"),
+        default="benchmark",
+    )
     m6_import_task = benchmark_actions.add_parser(
         "run-m6-catalogue-task", help="import one M6 catalogue channel item"
     )
@@ -990,6 +995,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--track", choices=("operational", "leakage"), required=True
     )
     m6_track_evidence.add_argument("--outdir", type=Path, required=True)
+    m6_track_evidence.add_argument(
+        "--execution-purpose",
+        choices=("benchmark", "native_control"),
+        default="benchmark",
+    )
     m6_resources = benchmark_actions.add_parser(
         "collect-m6-resources", help="derive M6 child-job resource evidence"
     )
@@ -2834,6 +2844,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
                 software_lock=args.software_lock,
                 track=args.track,
                 output_directory=args.outdir,
+                execution_purpose=args.execution_purpose,
             )
         )
         print(
@@ -2988,6 +2999,7 @@ def _run_benchmark(args: argparse.Namespace) -> int:
             args.phenix_manifest,
             args.track,
             args.outdir,
+            execution_purpose=args.execution_purpose,
         )
         print(f"Aggregated M6 {args.track} track: {result}")
         return 0

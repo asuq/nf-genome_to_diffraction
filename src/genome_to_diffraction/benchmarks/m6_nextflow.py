@@ -56,8 +56,11 @@ from genome_to_diffraction.benchmarks.m6_model_policy import (
     apply_m6_model_policy,
 )
 from genome_to_diffraction.benchmarks.m6_scientific import (
+    M6_NATIVE_CONTROL_ADAPTER,
+    M6ExecutionPurpose,
     M6ScientificTrack,
-    m6_track_case_ids,
+    m6_execution_case_ids,
+    verify_m6_native_control_output,
     verify_m6_scientific_output,
 )
 from genome_to_diffraction.benchmarks.m6_stages import (
@@ -140,6 +143,7 @@ from genome_to_diffraction.structure_search.provider_plan import (
 )
 
 _PLAN_ADAPTER = "m6-nextflow-plan-v1"
+_NATIVE_CONTROL_PLAN_ADAPTER = "m6-native-control-plan-v1"
 _CATALOGUE_ADAPTER = "m6-nextflow-catalogue-v1"
 _QUERY_BATCH_ADAPTER = "m6-nextflow-query-batch-v2"
 _PDB_ADAPTER = "m6-nextflow-pdb-search-v2"
@@ -342,6 +346,7 @@ class M6TrackPlanRequest:
     software_lock: Path
     track: M6ScientificTrack
     output_directory: Path
+    execution_purpose: M6ExecutionPurpose = "benchmark"
 
 
 @dataclass(frozen=True, slots=True)
@@ -436,8 +441,9 @@ def _object_by_role(
 
 
 def plan_m6_nextflow_track(request: M6TrackPlanRequest) -> M6TrackPlanOutput:
-    """Verify and materialise one complete track into independent task bundles."""
+    """Verify all inputs and materialise the complete or fixed-control graph."""
 
+    expected_ids = m6_execution_case_ids(request.track, request.execution_purpose)
     runner = request.runner_root.resolve(strict=True)
     database = request.database_manifest.resolve(strict=True)
     software_lock = request.software_lock.resolve(strict=True)
@@ -456,7 +462,12 @@ def plan_m6_nextflow_track(request: M6TrackPlanRequest) -> M6TrackPlanOutput:
     cases_by_id = {case.case_id: case for case in inventory.cases}
     catalogue_tasks: dict[str, M6CatalogueTask] = {}
     case_tasks: list[M6CaseTask] = []
-    for case in inventory.cases:
+    catalogue_cases = (
+        inventory.cases
+        if request.execution_purpose == "benchmark"
+        else tuple(cases_by_id[case_id] for case_id in expected_ids)
+    )
+    for case in catalogue_cases:
         roles = _object_by_role(runner, case)
         catalogue_spec = roles["catalogue"][1]
         config_spec = roles["analysis_config"][1]
@@ -498,7 +509,7 @@ def plan_m6_nextflow_track(request: M6TrackPlanRequest) -> M6TrackPlanOutput:
             atomic_write_json(task_root / "task.json", task.model_dump(mode="json"))
             catalogue_tasks[catalogue_key] = task
 
-    for case_id in m6_track_case_ids(request.track):
+    for case_id in expected_ids:
         case = cases_by_id[case_id]
         roles = _object_by_role(runner, case)
         catalogue_spec = roles["catalogue"][1]
@@ -576,9 +587,21 @@ def plan_m6_nextflow_track(request: M6TrackPlanRequest) -> M6TrackPlanOutput:
         plan_manifest,
         {
             "schema_version": "1.0",
-            "adapter_version": _PLAN_ADAPTER,
+            "adapter_version": (
+                _NATIVE_CONTROL_PLAN_ADAPTER
+                if request.execution_purpose == "native_control"
+                else _PLAN_ADAPTER
+            ),
             "track": request.track,
-            "case_ids": list(m6_track_case_ids(request.track)),
+            **(
+                {
+                    "execution_purpose": "native_control",
+                    "benchmark_acceptance_claim": False,
+                }
+                if request.execution_purpose == "native_control"
+                else {}
+            ),
+            "case_ids": list(expected_ids),
             "case_task_count": len(case_tasks),
             "catalogue_task_count": len(catalogue_tasks),
             "input_sha256": {
@@ -2860,10 +2883,14 @@ def run_m6_aggregate_track_task(
     phenix_manifest: Path,
     track: M6ScientificTrack,
     output_directory: Path,
+    *,
+    execution_purpose: M6ExecutionPurpose = "benchmark",
 ) -> Path:
-    """Deterministically aggregate one complete Nextflow M6 track."""
+    """Aggregate complete evidence under its full-track or fixed-control contract."""
 
-    expected_ids = m6_track_case_ids(track)
+    expected_ids = m6_execution_case_ids(track, execution_purpose)
+    native_control = execution_purpose == "native_control"
+    run_adapter = M6_NATIVE_CONTROL_ADAPTER if native_control else _RUN_ADAPTER
     by_id: dict[str, Path] = {}
     records_by_id: dict[str, dict[str, object]] = {}
     for directory in case_evidence:
@@ -2984,15 +3011,27 @@ def run_m6_aggregate_track_task(
         "database_manifest": sha256_file(database),
         "phenix_manifest": sha256_file(phenix),
     }
-    summary = output / "m6_scientific_summary.json"
+    summary = output / (
+        "m6_native_control_summary.json"
+        if native_control
+        else "m6_scientific_summary.json"
+    )
     atomic_write_json(
         summary,
         {
             "schema_version": "3.0",
-            "adapter_version": _RUN_ADAPTER,
+            "adapter_version": run_adapter,
             "execution_model": "nextflow_dsl2_slurm_fanout",
             "protocol_id": "m6_independent_prokaryote_homomer_v1",
             "track": track,
+            **(
+                {
+                    "execution_purpose": "native_control",
+                    "benchmark_acceptance_claim": False,
+                }
+                if native_control
+                else {}
+            ),
             "case_count": len(records),
             "case_ids": list(expected_ids),
             "candidate_count": sum(
@@ -3024,7 +3063,7 @@ def run_m6_aggregate_track_task(
             "input_sha256": input_sha256,
             "cache_key": canonical_digest(
                 {
-                    "adapter_version": _RUN_ADAPTER,
+                    "adapter_version": run_adapter,
                     "track": track,
                     "input_sha256": input_sha256,
                 }
@@ -3032,5 +3071,8 @@ def run_m6_aggregate_track_task(
             "outputs": outputs,
         },
     )
-    verify_m6_scientific_output(output, track)
+    if native_control:
+        verify_m6_native_control_output(output)
+    else:
+        verify_m6_scientific_output(output, track)
     return output

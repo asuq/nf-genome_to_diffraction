@@ -128,7 +128,7 @@ EXECUTION_POLICY = ROOT / "benchmarks" / "m6" / "execution-nextflow-v1.yaml"
 MARMIC_EXECUTION_POLICY = (
     ROOT / "benchmarks" / "m6" / "execution-nextflow-marmic-v2.yaml"
 )
-RAVEN_EXECUTION_POLICY = ROOT / "benchmarks/m6/execution-nextflow-raven-v1.yaml"
+RAVEN_EXECUTION_POLICY = ROOT / "benchmarks/m6/execution-nextflow-raven-v2.yaml"
 HASH = "a" * 64
 
 
@@ -1209,7 +1209,7 @@ def _synthetic_collection(
     if nextflow:
         execution_policy_id, policy_name = M6_SITE_POLICIES[site_id]
         execution_policy_path = PROTOCOL.with_name(policy_name)
-        search_memory_gb = 192.0 if site_id in {"marmic", "raven"} else 16.0
+        search_memory_gb = {"marmic": 192.0, "raven": 96.0, "viper-cpu": 16.0}[site_id]
         runtime.update(
             execution_model="nextflow_dsl2_slurm_fanout",
             execution_policy=execution_policy_id,
@@ -1564,7 +1564,7 @@ def test_m6_collection_rehashes_private_cluster_lines(tmp_path: Path) -> None:
         ("viper-cpu", "m6_nextflow_slurm_v1", False),
         ("viper-cpu", "m6_nextflow_slurm_v1", True),
         ("marmic", "m6_nextflow_slurm_marmic_v2", True),
-        ("raven", "m6_nextflow_slurm_raven_v1", True),
+        ("raven", "m6_nextflow_slurm_raven_v2", True),
     ],
 )
 def test_m6_collection_accepts_two_identity_bearing_tracks(
@@ -1604,8 +1604,9 @@ def test_m6_collection_accepts_two_identity_bearing_tracks(
 
     assert result.evidence.execution_policy_id == policy_id
     assert result.evidence.maximum_cpu_count == 32
-    assert result.evidence.maximum_memory_gb == (
-        192.0 if site_id in {"marmic", "raven"} else 16.0
+    assert (
+        result.evidence.maximum_memory_gb
+        == ({"marmic": 192.0, "raven": 96.0, "viper-cpu": 16.0}[site_id])
     )
     assert result.evidence.child_job_count == 2
     assert result.evidence.execution_policy_sha256 == sha256_file(
@@ -1980,6 +1981,10 @@ def test_m6_evaluator_binds_the_nextflow_execution_policy(
         ("m6_nextflow_slurm_marmic_v2", MARMIC_EXECUTION_POLICY, 192.1, False),
         ("m6_nextflow_slurm_v1", EXECUTION_POLICY, 192.0, False),
         ("m6_nextflow_slurm_marmic_v1", MARMIC_EXECUTION_POLICY, 16.0, False),
+        ("m6_nextflow_slurm_raven_v2", RAVEN_EXECUTION_POLICY, 96.0, True),
+        ("m6_nextflow_slurm_raven_v2", RAVEN_EXECUTION_POLICY, 96.1, False),
+        ("m6_nextflow_slurm_raven_v2", RAVEN_EXECUTION_POLICY, 192.0, False),
+        ("m6_nextflow_slurm_raven_v1", RAVEN_EXECUTION_POLICY, 96.0, False),
     ],
 )
 def test_m6_evaluator_uses_only_the_current_site_memory_bound(
@@ -2005,7 +2010,7 @@ def test_m6_evaluator_uses_only_the_current_site_memory_bound(
 
     assert result.accepted is accepted
     assert ("bounded_memory" not in result.failed_gates) is accepted
-    if policy_id == "m6_nextflow_slurm_marmic_v1":
+    if policy_id in {"m6_nextflow_slurm_marmic_v1", "m6_nextflow_slurm_raven_v1"}:
         assert "execution_policy_verified" in result.failed_gates
 
 
@@ -2586,7 +2591,7 @@ def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
         (
             RAVEN_EXECUTION_POLICY,
             "raven",
-            "m6_nextflow_slurm_raven_v1",
+            "m6_nextflow_slurm_raven_v2",
             250,
             "5/1s",
         ),
@@ -2601,7 +2606,7 @@ def test_m6_execution_policy_and_trace_use_site_bound_per_job_limits(
     submit_rate_limit: str,
 ) -> None:
     policy = load_m6_execution_policy(policy_path)
-    expected_memory = 192.0 if site_id in {"marmic", "raven"} else 16.0
+    expected_memory = {"marmic": 192.0, "raven": 96.0, "viper-cpu": 16.0}[site_id]
     trace = tmp_path / "trace.tsv"
     trace.write_text(
         "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\tcomplete\tpeak_rss\t%cpu\n"

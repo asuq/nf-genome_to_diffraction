@@ -239,6 +239,15 @@ replacement is qualified. This does not authorise restarting that database
 build, deleting remote evidence, changing scientific thresholds or broadening
 SSH/command permissions.
 
+After reviewing the measured Foldseek memory use, the user approved qualifying
+Raven M6 with 32 CPUs, 96 GB and at most 128 queries per batch. This supersedes
+the proposed exclusive-node reservation for the former 192 GB request. Keep
+the full catalogues, existing search/scientific settings and 24-hour ceiling;
+measure peak resident memory on the representative native control before the
+large benchmark. Do not claim 96 GB is a measured minimum or increase resources
+without evidence. Marmic and Viper policies remain unchanged. Test
+parallelisation remains deferred while Raven test initiation is prioritised.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

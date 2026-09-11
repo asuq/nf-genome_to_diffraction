@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -25,7 +25,7 @@ PROFILE="${3-}"
 CONTROLLER_KIND="${GTD_CONTROLLER_KIND:-slurm_job}"
 if [[ "$CONTROLLER_KIND" == login_process ]]; then
     [[ -z "${SLURM_JOB_ID:-}" && \
-       "$PROFILE" =~ ^(m6-nextflow-smoke|m6-operational|m6-leakage)$ ]] || {
+       "$PROFILE" =~ ^(m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage)$ ]] || {
         printf 'login controller cannot carry a Slurm allocation or unreviewed profile\n' >&2
         exit 2
     }
@@ -238,6 +238,9 @@ finalise() {
     elif [[ "$PROFILE" == m6-nextflow-smoke ]]; then
         reports_json='["artifacts/qualification/m6-nextflow-smoke-summary.json","artifacts/qualification/m6-nextflow-smoke-resume-check.json","artifacts/qualification/m6-nextflow-smoke-resource-evidence.json","artifacts/qualification/m6-nextflow-smoke-contract-evidence.json"]'
         retained_json='["artifacts/m6-nextflow-smoke","artifacts/qualification"]'
+    elif [[ "$PROFILE" == m6-native-control ]]; then
+        reports_json='["artifacts/qualification/m6-native-control-summary.json","artifacts/qualification/m6-native-control-output-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json","artifacts/qualification/m6-resume-child-outputs.json"]'
+        retained_json='["artifacts/m6-runner-inputs","artifacts/m6-nextflow-results","artifacts/qualification"]'
     elif [[ "$PROFILE" == m6-operational || "$PROFILE" == m6-leakage ]]; then
         reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json","artifacts/qualification/m6-resume-child-outputs.json"]'
         retained_json='["artifacts/m6-runner-inputs","artifacts/m6-nextflow-results","artifacts/qualification"]'
@@ -4046,8 +4049,8 @@ load_m6_smoke_site_contract() {
         expected_policy_id=m6_nextflow_slurm_marmic_v2
     elif [[ "$M6_SITE_ID" == raven ]]; then
         expected_profile=raven
-        expected_policy_relative=benchmarks/m6/execution-nextflow-raven-v1.yaml
-        expected_policy_id=m6_nextflow_slurm_raven_v1
+        expected_policy_relative=benchmarks/m6/execution-nextflow-raven-v2.yaml
+        expected_policy_id=m6_nextflow_slurm_raven_v2
     else
         printf 'unsupported M6 smoke site identity\n' >&2
         return 1
@@ -4111,6 +4114,7 @@ run_m6_stub_nextflow() {
             -log "$RUN/logs/nextflow-m6-smoke-${track}-${label}.log" \
             run "$RUN/source/m6_validation.nf" \
             -stub-run \
+            -work-dir "$M6_SMOKE_CACHE/work" \
             "$@" \
             -profile "$M6_NEXTFLOW_PROFILE" \
             --apptainer_cache_dir "$M6_APPTAINER_CACHE" \
@@ -4550,6 +4554,7 @@ run_m6_nextflow() {
     "$NEXTFLOW" \
         -log "$RUN/logs/nextflow-m6-${M6_TRACK}-${label}.log" \
         run "$RUN/source/m6_validation.nf" \
+        -work-dir "$M6_CACHE_ROOT/work" \
         "$@" \
         -profile "$M6_NEXTFLOW_PROFILE" \
         --apptainer_cache_dir "$M6_APPTAINER_CACHE" \
@@ -4560,6 +4565,7 @@ run_m6_nextflow() {
         --database_manifest "$M6_DATABASE_MANIFEST" \
         --phenix_manifest "$M6_PHENIX_MANIFEST" \
         --track "$M6_TRACK" \
+        --execution_purpose "$M6_EXECUTION_PURPOSE" \
         --outdir "$M6_RESULTS_ROOT" \
         --cache_root "$M6_CACHE_ROOT"
 }
@@ -4570,11 +4576,26 @@ run_m6_scientific() {
     local replay_digest cache_counts expected total cached log relative log_count
     local included=0 peak_phenix peak_jobs peak_cpu peak_memory child_jobs
     local maximum_cpu maximum_memory maximum_scheduler_hours
+    local summary_file verification_file summary_label verification_label checksums_label
 
+    M6_EXECUTION_PURPOSE=benchmark
+    summary_file=m6_scientific_summary.json
+    verification_file=m6_execution_verification.json
+    summary_label=m6-scientific-summary.json
+    verification_label=m6-execution-verification.json
+    checksums_label=m6-scientific-checksums.sha256
     if [[ "$PROFILE" == m6-operational ]]; then
         M6_TRACK=operational
     elif [[ "$PROFILE" == m6-leakage ]]; then
         M6_TRACK=leakage
+    elif [[ "$PROFILE" == m6-native-control ]]; then
+        M6_TRACK=operational
+        M6_EXECUTION_PURPOSE=native_control
+        summary_file=m6_native_control_summary.json
+        verification_file=m6_native_control_output_verification.json
+        summary_label=m6-native-control-summary.json
+        verification_label=m6-native-control-output-verification.json
+        checksums_label=m6-native-control-checksums.sha256
     else
         return 2
     fi
@@ -4599,7 +4620,9 @@ run_m6_scientific() {
         "$RUN/execution"
     [[ -f "$RUN/state/hpc-environment-status" && \
         "$(<"$RUN/state/hpc-environment-status")" == ready && \
-        "$(<"$RUN/state/m6-track")" == "$M6_TRACK" ]] || return 2
+        "$(<"$RUN/state/m6-track")" == "$M6_TRACK" && \
+        -f "$RUN/state/m6-execution-purpose" && \
+        "$(<"$RUN/state/m6-execution-purpose")" == "$M6_EXECUTION_PURPOSE" ]] || return 2
     M6_DATABASE_MANIFEST="$(<"$RUN/state/database-manifest")"
     M6_PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
     expected_database_sha="$(<"$RUN/state/database-manifest-sha256")"
@@ -4709,8 +4732,8 @@ PY
     (
         cd "$output"
         sha256sum \
-            m6_scientific_summary.json \
-            m6_execution_verification.json \
+            "$summary_file" \
+            "$verification_file" \
             m6_case_results.jsonl \
             m6_candidate_rankings.jsonl \
             m6_candidate_rankings.jsonl.gz \
@@ -4754,8 +4777,8 @@ EOF
     (
         cd "$output"
         sha256sum \
-            m6_scientific_summary.json \
-            m6_execution_verification.json \
+            "$summary_file" \
+            "$verification_file" \
             m6_case_results.jsonl \
             m6_candidate_rankings.jsonl \
             m6_candidate_rankings.jsonl.gz \
@@ -4805,6 +4828,8 @@ EOF
   "schema_version": "1.1",
   "profile": "$PROFILE",
   "track": "$M6_TRACK",
+  "execution_purpose": "$M6_EXECUTION_PURPOSE",
+  "benchmark_acceptance_claim": false,
   "execution_model": "nextflow_dsl2_slurm_fanout",
   "maximum_cpu_count": $maximum_cpu,
   "maximum_memory_gb": $maximum_memory,
@@ -4818,10 +4843,8 @@ EOF
   "execution_policy": "$M6_EXECUTION_POLICY_ID"
 }
 EOF
-    cp "$output/m6_scientific_summary.json" \
-        "$qualification/m6-scientific-summary.json"
-    cp "$output/m6_execution_verification.json" \
-        "$qualification/m6-execution-verification.json"
+    cp "$output/$summary_file" "$qualification/$summary_label"
+    cp "$output/$verification_file" "$qualification/$verification_label"
     cp "$output/m6_case_results.jsonl" \
         "$qualification/m6-case-results.jsonl"
     cp "$output/m6_candidate_rankings.jsonl.gz" \
@@ -4845,8 +4868,8 @@ EOF
     done < <(find "$output" -type f \( -name PHASER.log -o -name phaser.log \) \
         -print0 | sort -z)
     sha256sum \
-        "$qualification/m6-scientific-summary.json" \
-        "$qualification/m6-execution-verification.json" \
+        "$qualification/$summary_label" \
+        "$qualification/$verification_label" \
         "$qualification/m6-case-results.jsonl" \
         "$qualification/m6-candidate-rankings.jsonl.gz" \
         "$qualification/m6-model-policy-results.jsonl" \
@@ -4863,9 +4886,10 @@ EOF
         "$M6_PHENIX_MANIFEST" \
         "$M6_DATABASE_MANIFEST" \
         "$M6_IMPORT_ROOT/runner_manifest.json" \
-        > "$qualification/m6-scientific-checksums.sha256"
+        > "$qualification/$checksums_label"
     rm -f -- "$before" "$after"
-    printf 'm6_scientific_status=complete track=%s\n' "$M6_TRACK"
+    printf 'm6_scientific_status=complete track=%s purpose=%s\n' \
+        "$M6_TRACK" "$M6_EXECUTION_PURPOSE"
 }
 
 run_m4_copy_nextflow() {
@@ -5433,7 +5457,7 @@ case "$PROFILE" in
     control-matrix) run_control_matrix ;;
     m6-inputs) run_m6_inputs ;;
     m6-nextflow-smoke) run_m6_nextflow_smoke ;;
-    m6-operational|m6-leakage) run_m6_scientific ;;
+    m6-native-control|m6-operational|m6-leakage) run_m6_scientific ;;
     m4-copy) run_m4_copy ;;
     t12) run_t12 ;;
     database) run_database ;;
