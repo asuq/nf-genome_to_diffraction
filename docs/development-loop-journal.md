@@ -16803,3 +16803,30 @@ with a collapsed combined parent or a guessed command.
   `34736d0d6c4371252d82e821f36eed5c550cf81aa654f98936832d8bf9b20341`.
   Commit/push for exact-source CI, then prioritise the fresh real-data control.
   This local pass does not qualify native MR or the large benchmark.
+
+## 2026-09-11 - Source-binding CI passed; fresh native control running
+
+- All six CI lanes passed for
+  `413b845eb75f5efe9d0e567ae831a60db0608196` in run `34562623391`.
+  The reviewed client, deployment scripts, environment lock and scientific
+  implementation remain unchanged; the corrected Raven configuration is
+  carried by the new immutable run source without reinstalling the runtime.
+- Staged and submitted fresh control
+  `gtd-m6-native-control-20260911T044157Z-413b845eb75f-3f3a95cc` once through
+  the original client. Its independently identified Raven login controller is
+  running, all seven Phenix probes passed, and Nextflow submitted the real
+  planning task. The unchanged archive retains all 63 cases/65 objects while
+  this fixed purpose executes only the full-catalogue C001/C025 pair.
+- The prior failed run and its collected evidence remain immutable. The new
+  native run subsequently passed planning and submitted Foldseek search batches,
+  progressing beyond the previous CLI failure. No MR, measured Foldseek RSS or
+  cached-resume acceptance is claimed yet. Collect terminal evidence, freeze hashes
+  before truth comparison, and retain all native gates before the large test.
+- Resumed the reference-only four-arm draft in an isolated worktree, preserving
+  the canonical checkout for native transitions. All 39 focused prior/review/M6
+  seed checks pass without warnings; fixture type/lint and documentation checks
+  pass. Its first full gate exposed an uninitialised pinned nf-helper submodule
+  in the new worktree; retain the failed attempt, initialise that checkout and
+  rerun the gate without changing pipeline behaviour. This does not yet
+  implement reference-arm admission, native execution or actual advancement
+  accounting. Continue that bounded work alongside owned-run monitoring.
