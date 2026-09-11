@@ -67,7 +67,7 @@ def test_raven_coordinate_stage_runs_locally_with_bounded_resources(
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    log = (tmp_path / ".nextflow.log").read_text()
+    log = Path(environment["NXF_LOG_FILE"]).read_text()
     assert "executor: local" in log
     assert "executor: slurm" not in log
     with (tmp_path / "trace.tsv").open(encoding="utf-8") as handle:

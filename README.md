@@ -282,9 +282,9 @@ pixi run --locked test-contract
 pixi run --locked docs-check
 ```
 
-`test-unit` and `test-integration` use all locally visible CPUs. Embedded
-Nextflow unit tests share one lock-safe group; integration fixtures use isolated
-per-test roots. Use `test-unit-serial` or `test-integration-serial` when
+Standalone `test-unit` and `test-integration` use all locally visible CPUs.
+Embedded Nextflow unit tests share one group, and every pytest case has its own
+Nextflow history/cache/log namespace. Use `test-unit-serial` or `test-integration-serial` when
 reproducing an order-sensitive failure. A convenient pre-review gate omits the
 slow stateful workflow stubs:
 
@@ -299,10 +299,33 @@ stub/resume workflows, offline wheel inspection, and wrapper syntax:
 pixi run --locked check
 ```
 
+The local gate runs the same six groups defined by GitHub Actions, with up to
+three groups at once by default (fewer on small CPU allocations). Each group's
+checks stay ordered. The CPU budget is divided between groups, pytest workers
+are bounded, numerical libraries use one thread per process, and each Nextflow
+JVM has a 2 GB heap limit. Scientific execution settings and assertions do not
+change. Tests retain their own first-run/resume pairs and isolated work/cache
+state. Nextflow's pinned-version
+[cache/log environment settings](https://github.com/nextflow-io/nextflow/blob/v26.04.6/docs/reference/env-vars.md)
+also isolate the resume history used by these checks.
+
+Per-check stdout/stderr, exit status, timings and a complete `summary.json` are
+retained in the printed `/tmp/nf-gtd-check-*` directory. To keep a named run in
+the ignored project evidence directory or reduce concurrency:
+
+```bash
+pixi run --locked check --jobs 2 --cpus 4 --output-dir .untracked/checks/review-1
+```
+
+The output directory must be new. `--jobs 1` uses the same runner sequentially
+for diagnosis. A failed check skips only the remaining checks in its group;
+other started groups finish and keep their evidence. Any failure, interruption
+or incomplete inventory makes the complete gate fail.
+
 Run the complete gate once at a scientific integration, deployment, or release
 boundary rather than after every edit. GitHub Actions runs quality, unit,
 integration, core Nextflow, and two scientific-stub lanes in parallel; one CI
-run is required for the exact commit selected for Marmic deployment.
+run is required for the exact commit selected for HPC deployment.
 
 The repository-specific HPC wrapper is an **internal validation tool**, not a
 public research-package command. From a source checkout, invoke it only through

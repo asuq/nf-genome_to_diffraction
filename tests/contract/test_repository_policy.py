@@ -10,6 +10,7 @@ from pathlib import Path
 import gemmi
 import pytest
 import yaml
+from tests.scripts.run_check import load_check_lanes
 
 from genome_to_diffraction.schemas.results import ProcessedModelRecord
 
@@ -167,15 +168,37 @@ def test_parallel_ci_lanes_cover_every_complete_gate_leaf_once() -> None:
     with (REPOSITORY / "pixi.toml").open("rb") as handle:
         tasks = tomllib.load(handle)["tasks"]
 
-    def leaves(name: str) -> set[str]:
-        task = tasks[name]
-        if isinstance(task, dict) and "depends-on" in task:
-            return {
-                leaf for dependency in task["depends-on"] for leaf in leaves(dependency)
-            }
-        return {name}
-
-    expected = leaves("check")
+    expected = {
+        "format-check",
+        "lint",
+        "typecheck",
+        "test-unit",
+        "test-contract",
+        "test-integration",
+        "schema-check",
+        "public-panel-check",
+        "docs-check",
+        "docs-atlas-check",
+        "actionlint-check",
+        "nextflow-check",
+        "nextflow-stub",
+        "heteromer-application-stub",
+        "m6-cache-mutation-stub",
+        "composition-attempt-stub",
+        "phase3-composition-beam-stub",
+        "localisation-wave-stub",
+        "unknown-pass1-screen-stub",
+        "phase3-multicrystal-stub",
+        "phase3-foldseek-batch-stub",
+        "provider-empty-graph-stub",
+        "offline-wheel-check",
+        "hpc-wrapper-check",
+        "mr-resource-retry-check",
+    }
+    lanes = load_check_lanes(REPOSITORY)
+    assert {task for lane in lanes for task in lane.tasks} == expected
+    assert sum(len(lane.tasks) for lane in lanes) == len(expected)
+    assert tasks["check"] == "python -m tests.scripts.run_check"
     workflow = (REPOSITORY / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     for task in expected:
         assert workflow.count(f"run: pixi run --locked {task}\n") == 1

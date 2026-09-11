@@ -16691,3 +16691,49 @@ with a collapsed combined parent or a guessed command.
   This qualifies the local operational correction only. Next commit/push for
   exact-source CI, deploy the fixed remote scripts through the original client
   and start a fresh Raven stub before the native scientific control.
+
+## 2026-09-11 - Resume isolated local test-parallelisation qualification
+
+- All six CI lanes passed for `10f2ffb640981ea606a60b21863b805f4737cc6c`;
+  its fixed scripts are deployed through the original reviewed controller.
+  A fresh Raven stub is running with owned monitoring. It has not yet passed
+  native qualification, and no real-data control or large benchmark is claimed.
+- With that test submitted, resumed the requested local test-runner work in an
+  isolated worktree. The canonical main checkout stays clean and immediately
+  available for the gated native-control transition. The preserved interrupted
+  parallel attempt remains incomplete evidence, not a measured speed-up.
+- Restored only the runner, its isolated pytest state and bounded-resource
+  regressions, the Pixi entry point and related documentation. Scientific
+  source, inputs, thresholds and HPC profiles remain unchanged. The runner
+  reuses all 25 checks in the six existing CI groups and preserves each
+  first-run/resume pair, per-check evidence and explicit incomplete/failure states.
+- The focused runner/repository-policy checks pass all 73 tests. Next reproduce
+  the unit lane under the exact nested-worker settings, complete the source-
+  captured parallel gate, measure its elapsed time, and obtain exact-source CI
+  before adopting the new runner. Prioritise collection and the real Raven
+  control as soon as the active stub completes.
+- The isolated exact-budget unit probe reproduced one failure and passed the
+  other 1,676 tests. Its atlas release-blocking test still inspected the removed
+  sequential Pixi dependency array. Updated that assertion to require the atlas
+  check exactly once in the canonical CI-derived runner plan, preserving the
+  release gate. All 82 expanded atlas/runner/repository-policy checks now pass;
+  formatting, lint and type checks also pass. Complete the fresh parallel gate
+  before claiming an overall pass or timing improvement.
+- The first complete resumed gate retained all 1,184 source inputs unchanged,
+  but failed the newly added Raven integration regression: Nextflow completed
+  its local stage successfully, while the test tried to read the default log
+  instead of the isolated `NXF_LOG_FILE`. Bound that assertion to the actual
+  passed environment; the local-executor, CPU, memory, runtime and output
+  checks remain intact. Preserve this failed gate and run a new full gate after
+  focused reproduction. Do not report its elapsed time as a passed speed-up.
+- The corrected complete gate passed all 25 checks with all 1,184 captured
+  source inputs unchanged: 1,677 unit, 185 contract and 127 integration tests,
+  every scientific stub/resume/cache check, and the complete quality/package
+  group. Its three-group overlap was observed, and elapsed time was 9m22s
+  versus 14m59s for the preceding sequential milestone. This is an observed
+  reduction of about 37%, not a controlled benchmark or a guaranteed speed-up.
+  Gate log SHA-256 is
+  `9e189ce20878e420a8b91611b46e2cd5ccef78808bf231f00eacc10f4aa812c2`.
+  Commit the focused test-runner change and obtain all six exact-source CI
+  results before adopting it for subsequent full milestones. The independently
+  monitored Raven stub remains on its immutable scientific source.

@@ -3,9 +3,10 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
-import tomllib
 from pathlib import Path
 from types import ModuleType
+
+from tests.scripts.run_check import load_check_lanes
 
 REPOSITORY = Path(__file__).parents[2]
 SCRIPT = REPOSITORY / "tools/docs_atlas/build_inventory.py"
@@ -66,11 +67,8 @@ def test_inventory_is_byte_deterministic() -> None:
 
 
 def test_atlas_freshness_check_is_release_blocking() -> None:
-    with (REPOSITORY / "pixi.toml").open("rb") as handle:
-        manifest = tomllib.load(handle)
-
-    dependencies = manifest["tasks"]["check"]["depends-on"]
-    assert "docs-atlas-check" in dependencies
+    lanes = load_check_lanes(REPOSITORY)
+    assert sum(lane.tasks.count("docs-atlas-check") for lane in lanes) == 1
 
 
 def test_html_atlas_is_deterministic_and_private_path_free() -> None:
