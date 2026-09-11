@@ -16737,3 +16737,34 @@ with a collapsed combined parent or a guessed command.
   Commit the focused test-runner change and obtain all six exact-source CI
   results before adopting it for subsequent full milestones. The independently
   monitored Raven stub remains on its immutable scientific source.
+
+## 2026-09-11 - Raven stub qualified; real native control started
+
+- All six CI lanes passed for test-runner commit
+  `0e26c3ae417d16248fcc81e3e88f3c922328d753`; use the qualified parallel
+  `check` runner for subsequent complete milestones. Scientific source,
+  schemas, HPC profiles, deployment scripts and the environment lock are
+  unchanged by that test-only integration.
+- The fresh Raven stub on `10f2ffb640981ea606a60b21863b805f4737cc6c`
+  completed with exit zero and was collected. Independently checked all three
+  traces: 26 fresh operational tasks, 26 cached operational-resume tasks,
+  then six cached truthless tasks and 20 fresh leakage-track tasks. Task/hash
+  identities and before/after output hashes match; all seven qualification
+  checksum records pass. This fixed stub has three executions, not a separate
+  fourth fully cached leakage repeat.
+- Native evidence confirms 25 Slurm children and one local coordinate stage.
+  The latter requested one CPU/4 GB; the two Foldseek jobs requested 32 CPUs/
+  96 GB/24 hours, and MMseqs2 retained 32 CPUs/16 GB/24 hours. All fixed
+  per-job bounds pass. These are stub allocation/routing checks, not measured
+  real-tool memory requirements or scientific acceptance.
+- Staged and submitted the fixed C001/C025 native control from the same
+  qualified source and unchanged 63-case/65-object runner. Its independently
+  identified Raven login controller is running. All seven installed Phenix
+  command probes passed, and the real Nextflow workflow has submitted its
+  planning task. No real MR, resource or benchmark acceptance is claimed yet.
+- Next monitor and collect that owned control, freeze output hashes before
+  truth comparison, and require genuine positive MR, no exact target-absent assignment,
+  complete tool/resource evidence, measured Foldseek peak RSS including the
+  longest sequences, and an equivalent fully cached resume before the large
+  benchmark. Continue authorised development alongside monitoring; no reboot
+  pause or renewed cancelled-crystal investigation applies.
