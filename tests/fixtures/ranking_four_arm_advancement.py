@@ -48,6 +48,8 @@ _SOURCE_PATHS = (
     "tests/fixtures/ranking_four_arm_reviews.py",
     "tests/fixtures/ranking_four_arm_prepared.py",
     "tests/fixtures/ranking_four_arm_first_copy.py",
+    "tests/fixtures/ranking_four_arm_continuation.py",
+    "tests/fixtures/ranking_four_arm_finalists.py",
     "src/genome_to_diffraction/mr/phaser.py",
     "src/genome_to_diffraction/review/mr_seed.py",
     "src/genome_to_diffraction/model_registry/all_eligible.py",

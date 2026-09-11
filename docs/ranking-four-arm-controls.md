@@ -299,6 +299,36 @@ receipt-to-review join. This is local adapter qualification, not evidence of a
 real Phenix run, scheduler resources or a cached native resume. The full fixed
 Nextflow route and reference finalist/refinement/identity assembly remain open.
 
+The [prepared-copy binding](../tests/fixtures/ranking_four_arm_continuation.py)
+emits the exact prior/seed union from authenticated first-copy reviews and
+executes one dependent chain through the shared reference copy adapter. It
+derives all scientific inputs from original preparation: the unique selected
+model in the complete registry, sequence, preflight, MTZ and Phenix manifest.
+Native parameters and allocated threads are reconstructed at the original task
+paths for each successive parent. Source, upstream manifests and every native
+output byte are receipt-bound. Cross-prior chains remain separate; each paired
+authority retains at most ten union seeds and each arm still retains five.
+Complete roots need zero native copy attempts, while unsupported/failed
+attempts keep their genuine status and best authenticated parent.
+
+The [reference finalist materialiser](../tests/fixtures/ranking_four_arm_finalists.py)
+requires the exact unique union of those prepared-copy receipts, then rederives
+each arm's stage inventory. It freezes every copy receipt and materialises one
+best parent per prior/seed with the original MTZ, labels, resolution, supported
+copy count and full catalogue/locus crosswalk. It reuses the production finalist
+task only as scientific input data, never as M6 execution authority. Validation
+reconstructs all tasks and copied bytes from the original receipts; rehashing an
+altered output cannot authenticate it. Empty admission and zero recommendations
+remain separate, and this step executes neither refinement nor sequence calls.
+
+The [prepared-copy tests](../tests/unit/test_ranking_four_arm_continuation.py)
+and [finalist tests](../tests/unit/test_ranking_four_arm_finalists.py) use actual
+production preparation/review/copy implementations with synthetic external
+responses. They check prior-bound execution, sequential parents, runtime/input
+changes, missing/duplicate receipts, full-catalogue preservation and rehashed
+parent tampering. Native refinement receipts, per-arm identity assembly and the
+fixed Nextflow/controller route remain separate outstanding qualifications.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,
