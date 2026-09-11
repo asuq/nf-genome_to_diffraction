@@ -16956,3 +16956,43 @@ with a collapsed combined parent or a guessed command.
   genuine native receipts, full source/tool/resource provenance, cached resume
   and frozen outputs before truth-side evaluation. All pre-large-run, remaining
   M6, rank-recovery and release gates remain in force.
+
+## 2026-09-11 - Fixed reference plans, paired inputs and actual-result reviews qualified locally
+
+- All six exact-source CI lanes passed for the preceding advancement milestone
+  on `99bb6ba2620fa488cf8ac7b60cb644fe1818d202`, run `34570253934`.
+- Added a fixed reference planner using both original production track planners
+  and the complete verified runner. Separate channel tables select only the
+  declared five cases and their unique full catalogues. C055 remains leakage;
+  original model policies, task identities and import keys are preserved. This
+  planning subset is not a completed M6 track.
+- Materialised both admission cohorts with the complete production-written
+  model registry, unchanged original hypotheses and full physical/cap-disposition
+  inventories. Each arm retains its 25-task budget. Only identical full
+  hypotheses share an emitted first-copy task; the union is bounded at 50.
+  Reference-only hypotheses receive their own explicit task inputs.
+- The result join requires the exact complete MR union, freezes every supplied
+  file and partitions actual results into the original cohorts. Both reviews
+  use the production builder and evidence validator, followed by only the
+  explicit paired reference authority. Missing, duplicate, foreign and changed
+  evidence fails; no-hit and empty-admission states remain distinct. No human
+  decision, production authority or native success is fabricated.
+- All 25 new focused checks passed. The captured milestone then passed all
+  25 repository checks with all 1,219 source inputs unchanged: 1,764 unit,
+  185 contract and 128 integration tests, workflow/cache checks and packaging.
+  Duration was 8m47s; log SHA-256 is
+  `36bf4d6a2b469a15731ec6194892541c77209b97e13f720794fef07073555f91`.
+  Integrated worktree commit `cc5cbfd738122391e59c5cc919a5532a8dfa6743`
+  as `9218f875`. This increment changes fixtures, tests and documentation only;
+  production scientific source, workflows, HPC tools and environments are
+  unchanged from the preceding advancement milestone.
+- The immutable source-413b Raven native control remains active; the latest
+  owned observation still ends at search submissions. No new MR, measured RSS,
+  cached resume or scientific acceptance is claimed. Keep its original
+  wait/collection cycle and freeze terminal output hashes before truth comparison.
+- Next bind original prepared-case/coordinate-stage provenance to the reference
+  task inputs, qualify native first-copy execution and Nextflow fan-out, then
+  authenticated reference finalist/refinement evidence through the shared
+  scientific implementation and the reviewed fixed controller route. Local
+  synthetic fixtures are not native qualification. All pre-large-run, complete
+  M6, rank-recovery, human-review and release boundaries remain unchanged.
