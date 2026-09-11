@@ -72,6 +72,10 @@ process M6_PARTITION_DISCOVERY {
     pdb_results: List<Path>
     foldseek_results: List<Path>
 
+    stage:
+    stageAs pdb_results, 'pdb-batch??/*'
+    stageAs foldseek_results, 'foldseek-batch??/*'
+
     output:
     result: Tuple = tuple(
         catalogue[0],
@@ -524,6 +528,9 @@ process M6_AGGREGATE_TRACK {
     phenix_manifest: Path
     track: String
     execution_purpose: String
+
+    stage:
+    stageAs case_evidence, 'case??/*'
 
     output:
     result: Path = file('m6_scientific')

@@ -5779,6 +5779,30 @@ collect_run() {
             files+=("$candidate")
         fi
     done
+    # A failed first pass has not copied pipeline_info into qualification yet.
+    # Retain only its fixed raw trace; this is diagnostic, never an acceptance flag.
+    if [[ "$profile" == m6-native-control || "$profile" == m6-operational || \
+          "$profile" == m6-leakage ]]; then
+        local raw_m6_trace raw_m6_trace_resolved
+        relative=artifacts/m6-nextflow-results/pipeline_info/trace.tsv
+        raw_m6_trace="$run/$relative"
+        if [[ -e "$raw_m6_trace" || -L "$raw_m6_trace" ]]; then
+            [[ -f "$raw_m6_trace" && ! -L "$raw_m6_trace" && \
+               -r "$raw_m6_trace" && -O "$raw_m6_trace" ]] || \
+                fail transfer_failure "M6 raw trace is not a safe owned file"
+            raw_m6_trace_resolved="$(realpath -e "$raw_m6_trace" 2>"$DISCARD")" || \
+                fail transfer_failure "M6 raw trace cannot be resolved"
+            [[ "$raw_m6_trace_resolved" == "$LEGACY_ROOT/runs/$run_id/$relative" ]] || \
+                fail transfer_failure "M6 raw trace escapes its owned path"
+            size="$(file_size "$raw_m6_trace")"
+            (( size <= MAX_FILE_BYTES )) || \
+                fail transfer_failure "M6 raw trace exceeds per-file limit"
+            total=$((total + size))
+            (( total <= MAX_TOTAL_BYTES )) || \
+                fail transfer_failure "M6 raw trace exceeds total collection limit"
+            files+=("$relative")
+        fi
+    fi
     if [[ "$profile" == heteromer-smoke && \
           -f "$run/artifacts/heteromer-smoke/inputs/p6-control/preparation_manifest.json" ]]; then
         p6_dynamic_model_root="$run/artifacts/heteromer-smoke/inputs/p6-control/missing_partner_model_registry/models"

@@ -2763,6 +2763,55 @@ def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
             assert not any(name.startswith("cache/") for name in collected.getnames())
 
 
+@pytest.mark.parametrize("site", ["marmic", "raven"])
+def test_failed_m6_collection_retains_only_safe_fixed_raw_trace(
+    tmp_path: Path, site: str
+) -> None:
+    if site == "raven":
+        root, dispatcher, environment, _, _, _ = _prepare_raven_site_layout(tmp_path)
+    else:
+        dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+        root = smoke_job.parent.parent
+    run_id = "gtd-m6-native-control-20260911T120000Z-0123456789ab-01234567"
+    run = root / "runs" / run_id
+    state = run / "state"
+    state.mkdir(parents=True)
+    for name, value in (
+        ("owner-id", OWNER_ID),
+        ("profile", "m6-native-control"),
+        ("phase", "completed"),
+        ("failure-class", "test_failure"),
+    ):
+        (state / name).write_text(value + "\n", encoding="ascii")
+    relative = "artifacts/m6-nextflow-results/pipeline_info/trace.tsv"
+    trace = run / relative
+    trace.parent.mkdir(parents=True)
+    payload = b"process\tstatus\tpeak_rss\nM6_SEARCH_FOLDSEEK\tCOMPLETED\t1 GB\n"
+    trace.write_bytes(payload)
+    (trace.parent / "unlisted.txt").write_text("not collected\n", encoding="ascii")
+    command = [str(dispatcher), "collect", run_id, OWNER_ID]
+    archive = _run(command, cwd=tmp_path, environment=environment).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = collected.getnames()
+        assert names.count(relative) == 1
+        member = collected.extractfile(relative)
+        assert member is not None
+        assert member.read() == payload
+        assert not any(name.endswith("unlisted.txt") for name in names)
+        assert not any("m6-native-control-summary" in name for name in names)
+    # The exact file name does not authorise following a substituted parent.
+    original = trace.parent
+    retained = tmp_path / "retained-pipeline-info"
+    original.rename(retained)
+    original.symlink_to(retained, target_is_directory=True)
+    rejected = _run(command, cwd=tmp_path, environment=environment, success=False)
+    assert rejected.returncode != 0
+    assert _decode_protocol(rejected.stdout) == {
+        "failure_class": "transfer_failure",
+        "message": "M6 raw trace escapes its owned path",
+    }
+
+
 def test_failed_nextflow_task_diagnostics_reject_an_escaped_path(
     tmp_path: Path,
 ) -> None:

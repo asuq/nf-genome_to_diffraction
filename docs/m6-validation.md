@@ -525,6 +525,30 @@ reviewed-site `-stub-run` must also prove real child Slurm submission without
 generating acceptance evidence. The complete locked repository gate remains
 required before an immutable candidate is staged.
 
+Discovery partitioning and track aggregation stage each same-basename input
+directory under a distinct indexed parent (`pdb-batch??/*`,
+`foldseek-batch??/*`, and `case??/*`). This prevents multiple completed batch
+or case arguments from aliasing one local directory. The
+[collection-staging regression](../tests/integration/test_m6_collection_staging.py)
+executes both actual Nextflow process definitions with two distinct inputs of
+each kind and only a simulated scientific CLI. It verifies original-path and
+byte preservation plus fully cached resume. This follows Nextflow's
+[typed file-staging interface](https://docs.seqera.io/nextflow/process-typed#custom-file-staging).
+Search settings, resource allocations and the three shared-store contracts
+are unchanged. A cached directory does not certify unchanged nested files:
+the test also changes an upstream fixture member, observes the cached schedule,
+and requires the original child-output checksum verifier to reject it. No native
+acceptance follows from the simulated CLI or from task-cache status alone.
+
+For failed native-control or full-track runs, the reviewed collector also
+retains the fixed raw `artifacts/m6-nextflow-results/pipeline_info/trace.tsv`
+when present, before the successful-run qualification snapshot exists. The
+regular, readable, owned file must resolve to that exact path beneath the owned
+run; substituted parents, file symlinks and collection-size overruns fail.
+No neighbouring files are admitted. This raw trace preserves partial execution
+and resource diagnostics, not a successful M6 result or acceptance record.
+Marmic and Raven collector tests cover preservation and parent-path refusal.
+
 The local full-graph cache probe separately changes one checksum-bearing
 protocol input and requires the exact 19-task downstream closure while all 22
 unaffected tasks and child outputs remain byte-identical. It also deletes one

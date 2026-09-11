@@ -326,8 +326,43 @@ and [finalist tests](../tests/unit/test_ranking_four_arm_finalists.py) use actua
 production preparation/review/copy implementations with synthetic external
 responses. They check prior-bound execution, sequential parents, runtime/input
 changes, missing/duplicate receipts, full-catalogue preservation and rehashed
-parent tampering. Native refinement receipts, per-arm identity assembly and the
-fixed Nextflow/controller route remain separate outstanding qualifications.
+parent tampering. These checks do not establish native refinement or identity.
+
+The [reference refinement adapter](../tests/fixtures/ranking_four_arm_refinement.py)
+authenticates the original finalist union and executes exactly one prior/seed
+through the unchanged M6 refinement task. Original parent coordinates, MTZ,
+observation labels, resolution, supported copy count, complete catalogue and
+Phenix manifest remain bound. Its `rf-shared-refinement-v1` receipt binds source,
+upstream manifests, allocated threads, native command/parameters, both result
+encodings, the full catalogue FASTA, parsed metrics/crosswalk and all native
+output bytes. Tool failure, parse failure and skipped sequence assessment stay
+distinct. It retains the existing schema-1 `phenix-t12-brief-v6` protocol; it
+does not claim the optional Phase III output-Free-R-membership verification.
+T12 JSON does not contain numeric process exit codes. Keep complete original
+runtime task logs for those codes; do not reconstruct them from typed status.
+
+The [per-arm identity assembler](../tests/fixtures/ranking_four_arm_identity.py)
+requires the exact unique refinement receipt union before freezing all four
+arms. Each arm supplies only its own actually advanced seeds and complete
+selected-MR rows to the original `derive_m6_identity_decision`: zero, one and
+multiple sequence groups yield abstained, reported and ambiguous respectively.
+Refinement and sequence scores do not introduce an identity threshold. The
+`rf-arm-identity-v1` manifest preserves empty admission versus scheduled no-hit,
+stage accounting and original receipt hashes. Freeze it and its complete output
+inventory before truth comparison. It is neither an M6 track completion record
+nor a human decision or operational leakage parent. Native collection must
+also retain the upstream full logs/assets referenced by the frozen receipts.
+Each join authenticates the complete upstream union at entry and exit, then
+checks every native receipt against that same authenticated union. No validation
+state is cached across calls or shared between independent tasks.
+
+The [refinement boundary tests](../tests/unit/test_ranking_four_arm_refinement.py)
+and [identity join tests](../tests/unit/test_ranking_four_arm_identity.py) use
+actual preparation, review and shared scientific adapters with simulated
+external Phenix responses. They exercise input/command/catalogue changes,
+typed failures, complete and missing/duplicate receipt joins, per-arm isolation
+and rehashed identity alteration. Native refinement, full fixed Nextflow and
+controller execution, resource provenance and cached resume remain required.
 
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
