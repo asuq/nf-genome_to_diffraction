@@ -17275,3 +17275,36 @@ with a collapsed combined parent or a guessed command.
   the large benchmark and reference execution. Full M6, finding closure,
   retrospective rank recovery and release gates remain; no cancelled operator
   investigation, new scientific decision or GPU work has been reopened.
+
+## 2026-09-12 - Marmic compute native-control route qualified locally
+
+- All six exact-source CI lanes passed for `c04b5406`, run `34615180825`.
+  The user then directed subsequent tests to Marmic while leaving existing
+  Raven work untouched. They approved reuse of Marmic's frozen databases and
+  withdrew the proposed login-controller requirement in favour of its existing
+  compute-node Slurm controller. The older Marmic PDB sequence snapshot is
+  separately bound evidence, not a byte-identical Raven replication.
+- Enabled the existing fixed C001/C025 native-control route on Marmic through
+  the original client, model and remote-dispatcher site checks. The 2-CPU/8-GB
+  controller, 32-CPU/192-GB Foldseek policy, 128-query batch limit, full catalogues,
+  Phenix binding, scientific settings and cache contracts are unchanged.
+  Raven retains its login controller; Viper remains outside this control scope.
+- All 50 focused tests passed, including real-dispatcher Marmic staging via
+  both source transports, required Phenix inputs, Slurm submission and refusal
+  of an altered execution purpose before submission. These simulated scheduler
+  tests do not constitute native scientific or resource evidence.
+- The captured complete gate passed all 25 checks: 1,869 unit, 138 integration
+  and 185 contract tests, workflow/cache checks, quality, atlas and packaging.
+  All 1,281 source inputs remained unchanged. One check group at a time with
+  two workers took 37m40s, including 23m20s for units and 6m27s for integration.
+  No other heavy local suite overlapped, and no timeout or test setting changed.
+  Passing gate log SHA-256:
+  `ba5df3c15729e4c38bf2c0c01306e803a9807ebb7c90b7098f0f8d241abd5789`.
+- Committed the focused change and regenerated atlas as `21165bf3`. Next require
+  exact-source CI, build/deploy through the original Marmic client, validate its
+  fixed site/runtime bindings and stage one independent native control. Freeze
+  collected outputs before truth comparison; actual positive/absent outcomes,
+  measured resources and equivalent cached resume still precede larger tests.
+  No new remote deployment or job has occurred at this checkpoint. Existing
+  Raven work remains untouched with three-hour monitoring. Full M6, finding
+  closure, retrospective rank recovery and release gates remain required.
