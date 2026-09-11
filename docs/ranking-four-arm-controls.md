@@ -218,6 +218,48 @@ parents, input overrides, zero-attempt roots, no-hit recommendations, execution
 failures and separate per-arm conservation. They are not native runtime evidence.
 Full first/resume/native route qualification remains outstanding.
 
+The [fixed planner](../tests/fixtures/ranking_four_arm_plan.py) invokes both
+production track planners against the complete verified runner, then emits
+separate reference channel tables for exactly the five declared cases and their
+unique full catalogues. C055 keeps its original leakage track; the other four
+keep their operational track. Original task files, policies and catalogue
+import keys remain intact. The subset is not a completed M6 track. Source,
+original inputs and the complete emitted inventory are checksum-bound; extra,
+missing or changed files fail validation. Planning performs no scientific tool
+execution. Genuine qualification timestamps are retained, while repeated plans
+have identical scientific task data and channel tables.
+
+The [paired materialiser](../tests/fixtures/ranking_four_arm_materialisation.py)
+publishes the complete prepared model registry through the production writer
+and preserves it unchanged in both separately labelled admission cohorts.
+It writes original hypotheses, individual native-task inputs, complete physical
+inventories and explicit scheduled/deferred-copy/deferred-task dispositions.
+The first-copy union deduplicates only equal full hypotheses under the same
+authenticated inputs: at most 50 tasks per case, with each arm still limited to
+25. A previously omitted reference hypothesis receives its own task. Empty
+admission is distinct from MR execution and cannot generate an invented result.
+
+The [result-to-review fixture](../tests/fixtures/ranking_four_arm_reviews.py)
+requires exactly one completed bundle for every union task before writing the
+review bundle. It freezes every supplied result file, partitions actual results
+into the original cohorts and calls the production review builder/validator.
+Each non-empty cohort receives only its paired reference authority, never a
+production benchmark approval. A no-hit result remains a result without an
+eligible recommendation; an empty cohort receives neither review nor authority.
+Missing, duplicate, foreign or changed results fail closed. These inventories
+must be anchored by their saved digest for subsequent reuse and truth-side
+evaluation; native command/resource acceptance is still separate.
+
+The [planner tests](../tests/unit/test_ranking_four_arm_plan.py),
+[materialisation tests](../tests/unit/test_ranking_four_arm_materialisation.py)
+and [review-join tests](../tests/unit/test_ranking_four_arm_reviews.py) use the
+real production input/registry/review implementations with synthetic prepared
+data and MR. They preserve the complete 63-case runner and the 93-model/
+31-protein test inventory, prove production baseline parity and explicit
+reference-only task emission, and distinguish empty, no-hit and missing-evidence
+states. They do not qualify the native first-copy executor, a full reference
+Nextflow graph, refinement/finalist provenance, or a cached native resume.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,

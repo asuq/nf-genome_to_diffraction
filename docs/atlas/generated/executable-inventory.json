@@ -6297,7 +6297,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_e23e95e41698117e8d496cce0b39a8f72845525a28181ba1bfdbbccec34ab2bb",
+  "inventory_id": "atlasinv_d6dbc1955438913ee40797fcc567ebe5cfa154d8222599ec36462b080f99f223",
   "nextflow_files": [
     {
       "declarations": [],
@@ -62047,7 +62047,7 @@
         "typing"
       ],
       "path": "tests/fixtures/ranking_four_arm_advancement.py",
-      "sha256": "6bd124b717393984c851d10e1dcd25c7256ac458b74417960d8161c1906b51ed",
+      "sha256": "850426f73a833092f97680eafa7462ff3227f82f714ebcaa4b98d1b58855f317",
       "substantive": true,
       "subsystem": "validation",
       "symbols": [
@@ -62057,9 +62057,9 @@
           ],
           "decorators": [],
           "doc": "The original production row and independent reference annotations.",
-          "end_line": 62,
+          "end_line": 71,
           "kind": "class",
-          "line": 56,
+          "line": 65,
           "name": "ReferenceRecommendationRow",
           "public": true,
           "qualname": "ReferenceRecommendationRow"
@@ -62070,9 +62070,9 @@
           ],
           "decorators": [],
           "doc": "One declared comparison arm, preserving its complete ordered inventory.",
-          "end_line": 74,
+          "end_line": 83,
           "kind": "class",
-          "line": 65,
+          "line": 74,
           "name": "ReferenceArmRecommendations",
           "public": true,
           "qualname": "ReferenceArmRecommendations"
@@ -62085,9 +62085,9 @@
             "property"
           ],
           "doc": "",
-          "end_line": 74,
+          "end_line": 83,
           "kind": "function",
-          "line": 73,
+          "line": 82,
           "name": "recommended",
           "public": true,
           "qualname": "ReferenceArmRecommendations.recommended",
@@ -62099,9 +62099,9 @@
           ],
           "decorators": [],
           "doc": "Reference-only union authority, never production or human approval.",
-          "end_line": 114,
+          "end_line": 123,
           "kind": "class",
-          "line": 77,
+          "line": 86,
           "name": "ReferenceAdvancementManifest",
           "public": true,
           "qualname": "ReferenceAdvancementManifest"
@@ -62117,9 +62117,9 @@
             "property"
           ],
           "doc": "Execute identical solutions once while retaining separate arm lists.",
-          "end_line": 114,
+          "end_line": 123,
           "kind": "function",
-          "line": 97,
+          "line": 106,
           "name": "recommended",
           "public": true,
           "qualname": "ReferenceAdvancementManifest.recommended",
@@ -62131,9 +62131,9 @@
             "dataclass(frozen=True)"
           ],
           "doc": "Rederived reference scope plus the authenticated original review.",
-          "end_line": 123,
+          "end_line": 132,
           "kind": "class",
-          "line": 118,
+          "line": 127,
           "name": "ValidatedReferenceAdvancement",
           "public": true,
           "qualname": "ValidatedReferenceAdvancement"
@@ -62145,9 +62145,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 130,
+          "end_line": 139,
           "kind": "function",
-          "line": 126,
+          "line": 135,
           "name": "_source_sha256",
           "public": false,
           "qualname": "_source_sha256",
@@ -62177,9 +62177,9 @@
           ],
           "decorators": [],
           "doc": "",
-          "end_line": 198,
+          "end_line": 207,
           "kind": "function",
-          "line": 133,
+          "line": 142,
           "name": "_derive_manifest",
           "public": false,
           "qualname": "_derive_manifest",
@@ -62196,9 +62196,9 @@
           ],
           "decorators": [],
           "doc": "Write only a new, fully rederived reference-pair execution authority.",
-          "end_line": 221,
+          "end_line": 230,
           "kind": "function",
-          "line": 201,
+          "line": 210,
           "name": "write_reference_advancement",
           "public": true,
           "qualname": "write_reference_advancement",
@@ -62219,9 +62219,9 @@
           ],
           "decorators": [],
           "doc": "Authenticate source, complete paired recommendations and every input.",
-          "end_line": 248,
+          "end_line": 257,
           "kind": "function",
-          "line": 224,
+          "line": 233,
           "name": "validate_reference_advancement",
           "public": true,
           "qualname": "validate_reference_advancement",
@@ -62342,6 +62342,509 @@
           "public": true,
           "qualname": "validate_reference_copy_receipt",
           "signature": "def validate_reference_copy_receipt(root: Path, request: AddCopyRunRequest, admission: DiverseFirstCopyFunnelRequest, *, advancement_manifest: Path) -> tuple[str, int]"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "csv",
+        "genome_to_diffraction.benchmarks.m6_advancement",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.model_registry",
+        "genome_to_diffraction.ranking.funnel",
+        "genome_to_diffraction.schemas.base",
+        "genome_to_diffraction.schemas.results",
+        "io",
+        "pathlib",
+        "pydantic",
+        "shutil",
+        "tests.fixtures.ranking_four_arm_admission",
+        "tests.fixtures.ranking_four_arm_advancement",
+        "tests.fixtures.ranking_four_arm_plan",
+        "tests.fixtures.ranking_four_arm_reference",
+        "typing"
+      ],
+      "path": "tests/fixtures/ranking_four_arm_materialisation.py",
+      "sha256": "c6ac588c386247a17c870118cbe7d4dadf63227a10af5d2c89539c95b10a747e",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "An ordered capped cohort, not a recommendation or executed result.",
+          "end_line": 61,
+          "kind": "class",
+          "line": 52,
+          "name": "ReferenceAdmissionCohort",
+          "public": true,
+          "qualname": "ReferenceAdmissionCohort"
+        },
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "One exact shared hypothesis and an owned canonical cohort asset path.",
+          "end_line": 70,
+          "kind": "class",
+          "line": 64,
+          "name": "ReferenceFirstCopyTask",
+          "public": true,
+          "qualname": "ReferenceFirstCopyTask"
+        },
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "Source-bound paired inputs and exact union, with no MR success claim.",
+          "end_line": 91,
+          "kind": "class",
+          "line": 73,
+          "name": "ReferenceMaterialisation",
+          "public": true,
+          "qualname": "ReferenceMaterialisation"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "len",
+            "reference_admission_plan"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 107,
+          "kind": "function",
+          "line": 94,
+          "name": "_plans",
+          "public": false,
+          "qualname": "_plans",
+          "signature": "def _plans(request: DiverseFirstCopyFunnelRequest) -> tuple[ReferenceAdmissionPlan, ReferenceAdmissionPlan]"
+        },
+        {
+          "calls": [
+            "list",
+            "row.hypothesis.model_dump",
+            "row.matthews.original.model_dump"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 127,
+          "kind": "function",
+          "line": 110,
+          "name": "_physical_inventory",
+          "public": false,
+          "qualname": "_physical_inventory",
+          "signature": "def _physical_inventory(plan: ReferenceAdmissionPlan) -> list[dict[str, object]]"
+        },
+        {
+          "calls": [
+            "ReferenceAdmissionCohort",
+            "len",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 141,
+          "kind": "function",
+          "line": 130,
+          "name": "_cohort",
+          "public": false,
+          "qualname": "_cohort",
+          "signature": "def _cohort(plan: ReferenceAdmissionPlan, registry_id: str) -> ReferenceAdmissionCohort"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "content_id",
+            "entries.append",
+            "len",
+            "load_all_eligible_model_registry"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 186,
+          "kind": "function",
+          "line": 144,
+          "name": "_funnel",
+          "public": false,
+          "qualname": "_funnel",
+          "signature": "def _funnel(plan: ReferenceAdmissionPlan, root: Path) -> dict[str, object]"
+        },
+        {
+          "calls": [
+            "ReferenceFirstCopyTask",
+            "ValueError",
+            "sorted",
+            "tasks.get",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 207,
+          "kind": "function",
+          "line": 189,
+          "name": "_tasks",
+          "public": false,
+          "qualname": "_tasks",
+          "signature": "def _tasks(cohorts: tuple[ReferenceAdmissionCohort, ReferenceAdmissionCohort]) -> tuple[ReferenceFirstCopyTask, ...]"
+        },
+        {
+          "calls": [
+            "csv.writer",
+            "io.StringIO",
+            "table.getvalue",
+            "writer.writerow",
+            "writer.writerows"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 232,
+          "kind": "function",
+          "line": 210,
+          "name": "_task_table",
+          "public": false,
+          "qualname": "_task_table",
+          "signature": "def _task_table(tasks: tuple[ReferenceFirstCopyTask, ...]) -> str"
+        },
+        {
+          "calls": [
+            "content_id",
+            "manifest.model_dump"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 238,
+          "kind": "function",
+          "line": 235,
+          "name": "_identity",
+          "public": false,
+          "qualname": "_identity",
+          "signature": "def _identity(manifest: ReferenceMaterialisation) -> str"
+        },
+        {
+          "calls": [
+            "ReferenceMaterialisation",
+            "ValueError",
+            "_cohort",
+            "_diverse_model_paths",
+            "_funnel",
+            "_identity",
+            "_inventory",
+            "_load_diverse_inputs",
+            "_physical_inventory",
+            "_plans",
+            "_publish_all_eligible_models",
+            "_source_sha256",
+            "_task_table",
+            "_tasks",
+            "atomic_write_json",
+            "atomic_write_text",
+            "canonical_json_text",
+            "cohorts.append",
+            "join",
+            "manifest.model_copy",
+            "manifest.model_dump",
+            "mkdir",
+            "output.exists",
+            "output.is_symlink",
+            "output.resolve",
+            "shutil.copytree",
+            "tuple",
+            "validate_reference_materialisation"
+          ],
+          "decorators": [],
+          "doc": "Write both cohorts and the deduplicated first-copy union before execution.",
+          "end_line": 298,
+          "kind": "function",
+          "line": 241,
+          "name": "materialise_reference_cohorts",
+          "public": true,
+          "qualname": "materialise_reference_cohorts",
+          "signature": "def materialise_reference_cohorts(request: DiverseFirstCopyFunnelRequest, output: Path) -> Path"
+        },
+        {
+          "calls": [
+            "ReferenceMaterialisation.model_validate_json",
+            "ValueError",
+            "_cohort",
+            "_funnel",
+            "_identity",
+            "_inventory",
+            "_load_diverse_inputs",
+            "_object",
+            "_owned",
+            "_physical_inventory",
+            "_plans",
+            "_records",
+            "_source_sha256",
+            "_task_table",
+            "_tasks",
+            "load_all_eligible_model_registry",
+            "path.is_symlink",
+            "path.read_bytes",
+            "path.resolve",
+            "read_text",
+            "registries.append",
+            "zip"
+          ],
+          "decorators": [],
+          "doc": "Rederive both cohorts and authenticate every original and emitted asset.",
+          "end_line": 379,
+          "kind": "function",
+          "line": 301,
+          "name": "validate_reference_materialisation",
+          "public": true,
+          "qualname": "validate_reference_materialisation",
+          "signature": "def validate_reference_materialisation(path: Path, request: DiverseFirstCopyFunnelRequest) -> ReferenceMaterialisation"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "csv",
+        "dataclasses",
+        "genome_to_diffraction.benchmarks.m6_advancement",
+        "genome_to_diffraction.benchmarks.m6_nextflow",
+        "genome_to_diffraction.benchmarks.m6_scientific",
+        "genome_to_diffraction.benchmarks.m6_verification",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.schemas.base",
+        "io",
+        "pathlib",
+        "tests.fixtures.ranking_four_arm_advancement",
+        "typing"
+      ],
+      "path": "tests/fixtures/ranking_four_arm_plan.py",
+      "sha256": "93854a9e95111620d5a80b763a5263e854ded9fba55b29fdfd25ae2b60ff9886",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "bases": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "doc": "Original, independently qualified truthless runner and runtime inputs.",
+          "end_line": 64,
+          "kind": "class",
+          "line": 50,
+          "name": "ReferencePlanInputs",
+          "public": true,
+          "qualname": "ReferencePlanInputs"
+        },
+        {
+          "calls": [
+            "sha256_file"
+          ],
+          "decorators": [],
+          "doc": "Bind original inputs without introducing labels into the task graph.",
+          "end_line": 64,
+          "kind": "function",
+          "line": 57,
+          "name": "checksums",
+          "public": true,
+          "qualname": "ReferencePlanInputs.checksums",
+          "signature": "def checksums(self) -> dict[str, str]"
+        },
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "Original production task and its immutable relative directory.",
+          "end_line": 71,
+          "kind": "class",
+          "line": 67,
+          "name": "ReferenceCasePlanRow",
+          "public": true,
+          "qualname": "ReferenceCasePlanRow"
+        },
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "One unchanged full-catalogue import, shared only by identical keys.",
+          "end_line": 78,
+          "kind": "class",
+          "line": 74,
+          "name": "ReferenceCataloguePlanRow",
+          "public": true,
+          "qualname": "ReferenceCataloguePlanRow"
+        },
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "Reference subset scheduling, explicitly distinct from M6 acceptance.",
+          "end_line": 96,
+          "kind": "class",
+          "line": 81,
+          "name": "ReferenceTaskPlan",
+          "public": true,
+          "qualname": "ReferenceTaskPlan"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "_owned",
+            "as_posix",
+            "path.is_file",
+            "path.is_symlink",
+            "path.relative_to",
+            "root.rglob",
+            "sha256_file",
+            "sorted"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 108,
+          "kind": "function",
+          "line": 99,
+          "name": "_inventory",
+          "public": false,
+          "qualname": "_inventory",
+          "signature": "def _inventory(root: Path, manifest_name: str | None) -> dict[str, str]"
+        },
+        {
+          "calls": [
+            "ReferenceCasePlanRow",
+            "ReferenceCataloguePlanRow",
+            "ValueError",
+            "_load_case_task",
+            "_load_catalogue_task",
+            "_load_inventory",
+            "_object_by_role",
+            "_owned",
+            "cases.append",
+            "catalogues.get",
+            "m6_track_case_ids",
+            "sha256_file",
+            "sorted",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 162,
+          "kind": "function",
+          "line": 111,
+          "name": "_rows",
+          "public": false,
+          "qualname": "_rows",
+          "signature": "def _rows(inputs: ReferencePlanInputs, root: Path) -> tuple[tuple[ReferenceCasePlanRow, ...], tuple[ReferenceCataloguePlanRow, ...]]"
+        },
+        {
+          "calls": [
+            "case_table.getvalue",
+            "catalogue_table.getvalue",
+            "csv.writer",
+            "io.StringIO",
+            "writer.writerow",
+            "writer.writerows"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 185,
+          "kind": "function",
+          "line": 165,
+          "name": "_tables",
+          "public": false,
+          "qualname": "_tables",
+          "signature": "def _tables(cases: tuple[ReferenceCasePlanRow, ...], catalogues: tuple[ReferenceCataloguePlanRow, ...]) -> dict[str, str]"
+        },
+        {
+          "calls": [
+            "content_id",
+            "manifest.model_dump"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 189,
+          "kind": "function",
+          "line": 188,
+          "name": "_identity",
+          "public": false,
+          "qualname": "_identity",
+          "signature": "def _identity(manifest: ReferenceTaskPlan) -> str"
+        },
+        {
+          "calls": [
+            "M6TrackPlanRequest",
+            "ReferenceTaskPlan",
+            "ValueError",
+            "_identity",
+            "_inventory",
+            "_rows",
+            "_source_sha256",
+            "_tables",
+            "atomic_write_json",
+            "inputs.checksums",
+            "items",
+            "manifest.model_copy",
+            "manifest.model_dump",
+            "output.exists",
+            "output.is_symlink",
+            "output.resolve",
+            "plan_m6_nextflow_track",
+            "validate_reference_plan",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "Verify complete inputs and emit only the frozen five-case channel subset.",
+          "end_line": 227,
+          "kind": "function",
+          "line": 192,
+          "name": "plan_reference_nextflow",
+          "public": true,
+          "qualname": "plan_reference_nextflow",
+          "signature": "def plan_reference_nextflow(inputs: ReferencePlanInputs, output: Path) -> Path"
+        },
+        {
+          "calls": [
+            "ReferenceTaskPlan.model_validate_json",
+            "ValueError",
+            "_identity",
+            "_inventory",
+            "_load_inventory",
+            "_object_path",
+            "_owned",
+            "_rows",
+            "_source_sha256",
+            "_tables",
+            "as_posix",
+            "checked.add",
+            "file.is_file",
+            "file.is_symlink",
+            "file.relative_to",
+            "inputs.checksums",
+            "inputs.runner_root.resolve",
+            "is_symlink",
+            "items",
+            "path.is_symlink",
+            "path.read_bytes",
+            "path.resolve",
+            "read_text",
+            "runner.rglob",
+            "set"
+          ],
+          "decorators": [],
+          "doc": "Authenticate exact scope, inputs, source and the complete output inventory.",
+          "end_line": 276,
+          "kind": "function",
+          "line": 230,
+          "name": "validate_reference_plan",
+          "public": true,
+          "qualname": "validate_reference_plan",
+          "signature": "def validate_reference_plan(path: Path, inputs: ReferencePlanInputs) -> ReferenceTaskPlan"
         }
       ]
     },
@@ -62485,6 +62988,179 @@
           "public": true,
           "qualname": "reference_review_order.key",
           "signature": "def key(item: FirstCopyReviewEvidence) -> tuple[object, ...]"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "genome_to_diffraction.benchmarks.m6_nextflow",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.ranking",
+        "genome_to_diffraction.review.mr_seed",
+        "genome_to_diffraction.schemas.base",
+        "pathlib",
+        "shutil",
+        "tests.fixtures.ranking_four_arm_advancement",
+        "tests.fixtures.ranking_four_arm_materialisation",
+        "tests.fixtures.ranking_four_arm_plan",
+        "tests.fixtures.ranking_four_arm_reference",
+        "typing"
+      ],
+      "path": "tests/fixtures/ranking_four_arm_reviews.py",
+      "sha256": "8d91a86028479a3f2c304ef33330d22ba93d07203018de806cd7eb7b20a15bf8",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "A review/authority pair, absent only for genuinely empty admission.",
+          "end_line": 55,
+          "kind": "class",
+          "line": 49,
+          "name": "ReferenceCohortReview",
+          "public": true,
+          "qualname": "ReferenceCohortReview"
+        },
+        {
+          "bases": [
+            "ContractModel"
+          ],
+          "decorators": [],
+          "doc": "Frozen MR evidence and paired reference reviews, never native acceptance.",
+          "end_line": 74,
+          "kind": "class",
+          "line": 58,
+          "name": "ReferenceReviews",
+          "public": true,
+          "qualname": "ReferenceReviews"
+        },
+        {
+          "calls": [
+            "ValueError",
+            "_phaser_output",
+            "root.is_dir",
+            "root.is_symlink",
+            "root.resolve",
+            "seen.add",
+            "set",
+            "sorted"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 93,
+          "kind": "function",
+          "line": 77,
+          "name": "_results",
+          "public": false,
+          "qualname": "_results",
+          "signature": "def _results(materialisation: ReferenceMaterialisation, roots: tuple[Path, ...]) -> dict[str, Path]"
+        },
+        {
+          "calls": [
+            "ReferenceCohortReview"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 104,
+          "kind": "function",
+          "line": 96,
+          "name": "_cohort_review",
+          "public": false,
+          "qualname": "_cohort_review",
+          "signature": "def _cohort_review(prior: AdmissionPrior, *, empty: bool) -> ReferenceCohortReview"
+        },
+        {
+          "calls": [
+            "content_id",
+            "manifest.model_dump"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 110,
+          "kind": "function",
+          "line": 107,
+          "name": "_identity",
+          "public": false,
+          "qualname": "_identity",
+          "signature": "def _identity(manifest: ReferenceReviews) -> str"
+        },
+        {
+          "calls": [
+            "MrSeedReviewRequest",
+            "ReferenceReviews",
+            "ValueError",
+            "_cohort_review",
+            "_identity",
+            "_inventory",
+            "_phaser_output",
+            "_results",
+            "_source_sha256",
+            "atomic_write_json",
+            "atomic_write_text",
+            "build_mr_seed_review",
+            "canonical_json_text",
+            "cohorts.append",
+            "directory.mkdir",
+            "join",
+            "manifest.model_copy",
+            "manifest.model_dump",
+            "materialisation_path.resolve",
+            "originals.items",
+            "output.exists",
+            "output.is_symlink",
+            "output.resolve",
+            "results.mkdir",
+            "sha256_file",
+            "shutil.copytree",
+            "validate_reference_materialisation",
+            "validate_reference_reviews",
+            "write_reference_advancement"
+          ],
+          "decorators": [],
+          "doc": "Freeze the exact result union, then build both real cohort review pairs.",
+          "end_line": 211,
+          "kind": "function",
+          "line": 113,
+          "name": "build_reference_reviews",
+          "public": true,
+          "qualname": "build_reference_reviews",
+          "signature": "def build_reference_reviews(materialisation_path: Path, admission: DiverseFirstCopyFunnelRequest, *, source_records_jsonl: Path, first_copy_results: tuple[Path, ...], output: Path) -> Path"
+        },
+        {
+          "calls": [
+            "ReferenceReviews.model_validate_json",
+            "ValueError",
+            "_cohort_review",
+            "_identity",
+            "_inventory",
+            "_results",
+            "_source_sha256",
+            "iterdir",
+            "materialisation_path.resolve",
+            "path.is_symlink",
+            "path.read_bytes",
+            "path.resolve",
+            "results.items",
+            "sha256_file",
+            "tuple",
+            "validate_reference_advancement",
+            "validate_reference_materialisation",
+            "zip"
+          ],
+          "decorators": [],
+          "doc": "Authenticate the frozen result union and both rederived review authorities.",
+          "end_line": 266,
+          "kind": "function",
+          "line": 214,
+          "name": "validate_reference_reviews",
+          "public": true,
+          "qualname": "validate_reference_reviews",
+          "signature": "def validate_reference_reviews(path: Path, materialisation_path: Path, admission: DiverseFirstCopyFunnelRequest, *, source_records_jsonl: Path) -> ReferenceReviews"
         }
       ]
     },
@@ -101207,6 +101883,274 @@
       "cli_commands": [],
       "imports": [
         "dataclasses",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.model_registry",
+        "genome_to_diffraction.ranking",
+        "genome_to_diffraction.review.mr_seed",
+        "genome_to_diffraction.schemas.results",
+        "json",
+        "pathlib",
+        "pytest",
+        "tests.fixtures.ranking_four_arm_admission",
+        "tests.fixtures.ranking_four_arm_materialisation",
+        "tests.unit.test_ranking_four_arm_admission"
+      ],
+      "path": "tests/unit/test_ranking_four_arm_materialisation.py",
+      "sha256": "d10f522339101026a83758058c1fae181ffe08d25851f28a40461966f77d03e9",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "_fixed_inputs",
+            "canonical_json_text",
+            "json.loads",
+            "preflight.update",
+            "replace",
+            "request.mtz_preflight_jsonl.read_text",
+            "request.mtz_preflight_jsonl.write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 42,
+          "kind": "function",
+          "line": 30,
+          "name": "_known_request",
+          "public": false,
+          "qualname": "_known_request",
+          "signature": "def _known_request(request: DiverseFirstCopyFunnelRequest, *, asu_volume: float | None=None) -> DiverseFirstCopyFunnelRequest"
+        },
+        {
+          "calls": [
+            "MrHypothesis.model_validate_json",
+            "_funnel_entries",
+            "_known_request",
+            "_large_request",
+            "all",
+            "build_diverse_first_copy_funnel",
+            "json.loads",
+            "len",
+            "load_all_eligible_model_registry",
+            "materialise_reference_cohorts",
+            "path.parent.rglob",
+            "read_text",
+            "reference_admission_plan",
+            "request.matthews_hypotheses_jsonl.read_bytes",
+            "sha256_file",
+            "tuple",
+            "validate_reference_materialisation"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 94,
+          "kind": "function",
+          "line": 45,
+          "name": "test_paired_materialisation_preserves_full_models_and_production_baseline",
+          "public": true,
+          "qualname": "test_paired_materialisation_preserves_full_models_and_production_baseline",
+          "signature": "def test_paired_materialisation_preserves_full_models_and_production_baseline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None"
+        },
+        {
+          "calls": [
+            "_known_request",
+            "_small_request",
+            "len",
+            "materialise_reference_cohorts",
+            "reference_admission_plan",
+            "validate_reference_materialisation"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 118,
+          "kind": "function",
+          "line": 97,
+          "name": "test_materialisation_emits_genuine_reference_only_physical_hypotheses",
+          "public": true,
+          "qualname": "test_materialisation_emits_genuine_reference_only_physical_hypotheses",
+          "signature": "def test_materialisation_emits_genuine_reference_only_physical_hypotheses(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "_known_request",
+            "_small_request",
+            "load_all_eligible_model_registry",
+            "materialise_reference_cohorts",
+            "next",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "target.write_text",
+            "unlink",
+            "validate_reference_materialisation"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('hypothesis', 'model', 'physical', 'task', 'missing', 'foreign'))"
+          ],
+          "doc": "",
+          "end_line": 153,
+          "kind": "function",
+          "line": 124,
+          "name": "test_materialisation_rejects_changed_or_missing_output_evidence",
+          "public": true,
+          "qualname": "test_materialisation_rejects_changed_or_missing_output_evidence",
+          "signature": "def test_materialisation_rejects_changed_or_missing_output_evidence(tmp_path: Path, corruption: str) -> None"
+        },
+        {
+          "calls": [
+            "_small_request",
+            "materialise_reference_cohorts",
+            "output.exists",
+            "pytest.raises"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 161,
+          "kind": "function",
+          "line": 156,
+          "name": "test_materialisation_rejects_foreign_case_before_writing",
+          "public": true,
+          "qualname": "test_materialisation_rejects_foreign_case_before_writing",
+          "signature": "def test_materialisation_rejects_foreign_case_before_writing(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "_known_request",
+            "_small_request",
+            "all",
+            "materialise_reference_cohorts",
+            "validate_reference_materialisation"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 175,
+          "kind": "function",
+          "line": 164,
+          "name": "test_materialisation_keeps_empty_admission_separate_from_mr_success",
+          "public": true,
+          "qualname": "test_materialisation_keeps_empty_admission_separate_from_mr_success",
+          "signature": "def test_materialisation_keeps_empty_admission_separate_from_mr_success(tmp_path: Path) -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "genome_to_diffraction.benchmarks.m6_protocol",
+        "genome_to_diffraction.benchmarks.m6_runner",
+        "genome_to_diffraction.benchmarks.public_control",
+        "genome_to_diffraction.checksums",
+        "json",
+        "pathlib",
+        "pytest",
+        "tests.fixtures.ranking_four_arm_advancement",
+        "tests.fixtures.ranking_four_arm_plan",
+        "tests.unit.test_m6_benchmark"
+      ],
+      "path": "tests/unit/test_ranking_four_arm_plan.py",
+      "sha256": "c26288ec93aec4c91d3200c383800537edb0eeda19f53273e4648cc64d3021a0",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "M6RunnerBundleRequest",
+            "ReferencePlanInputs",
+            "_prepared_manifest",
+            "build_m6_runner_bundle",
+            "load_m6_protocol"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 39,
+          "kind": "function",
+          "line": 24,
+          "name": "_inputs",
+          "public": false,
+          "qualname": "_inputs",
+          "signature": "def _inputs(tmp_path: Path) -> ReferencePlanInputs"
+        },
+        {
+          "calls": [
+            "_inputs",
+            "all",
+            "first.parent.rglob",
+            "inputs.runner_root.rglob",
+            "json.loads",
+            "len",
+            "line.split",
+            "map",
+            "path.is_file",
+            "plan_reference_nextflow",
+            "read_bytes",
+            "read_text",
+            "sha256_file",
+            "splitlines",
+            "str",
+            "tuple",
+            "validate_reference_plan"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 81,
+          "kind": "function",
+          "line": 42,
+          "name": "test_reference_plan_preserves_full_runner_and_original_tracks",
+          "public": true,
+          "qualname": "test_reference_plan_preserves_full_runner_and_original_tracks",
+          "signature": "def test_reference_plan_preserves_full_runner_and_original_tracks(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "_inputs",
+            "atomic_write_json",
+            "json.loads",
+            "path.read_text",
+            "plan_reference_nextflow",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "target.read_text",
+            "validate_reference_plan",
+            "write_text"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('case', 'catalogue', 'table', 'foreign', 'source'))"
+          ],
+          "doc": "",
+          "end_line": 111,
+          "kind": "function",
+          "line": 87,
+          "name": "test_reference_plan_rejects_changed_or_foreign_outputs",
+          "public": true,
+          "qualname": "test_reference_plan_rejects_changed_or_foreign_outputs",
+          "signature": "def test_reference_plan_rejects_changed_or_foreign_outputs(tmp_path: Path, corruption: str) -> None"
+        },
+        {
+          "calls": [
+            "_inputs",
+            "json.loads",
+            "plan_reference_nextflow",
+            "pytest.raises",
+            "read_text",
+            "target.chmod",
+            "target.write_text",
+            "validate_reference_plan"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 123,
+          "kind": "function",
+          "line": 114,
+          "name": "test_reference_plan_rejects_changed_original_runner_object",
+          "public": true,
+          "qualname": "test_reference_plan_rejects_changed_original_runner_object",
+          "signature": "def test_reference_plan_rejects_changed_original_runner_object(tmp_path: Path) -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "dataclasses",
         "genome_to_diffraction.matthews.enumerate",
         "genome_to_diffraction.review.priority",
         "genome_to_diffraction.schemas.io",
@@ -101434,6 +102378,157 @@
           "public": true,
           "qualname": "test_empty_mr_is_not_fabricated_as_a_result",
           "signature": "def test_empty_mr_is_not_fabricated_as_a_result() -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.ranking",
+        "genome_to_diffraction.schemas.results",
+        "genome_to_diffraction.status",
+        "json",
+        "pathlib",
+        "pytest",
+        "shutil",
+        "tests.fixtures.ranking_four_arm_advancement",
+        "tests.fixtures.ranking_four_arm_materialisation",
+        "tests.fixtures.ranking_four_arm_reviews",
+        "tests.unit.test_m6_seed_selection",
+        "tests.unit.test_ranking_four_arm_admission",
+        "tests.unit.test_ranking_four_arm_materialisation"
+      ],
+      "path": "tests/unit/test_ranking_four_arm_reviews.py",
+      "sha256": "4bca9c231e029a02ead4226062bf84849991d17f32f156f57226120492b86762",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "_attempts",
+            "canonical_json_text",
+            "funnel.mkdir",
+            "join",
+            "materialise_reference_cohorts",
+            "shutil.copytree",
+            "validate_reference_materialisation",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 42,
+          "kind": "function",
+          "line": 28,
+          "name": "_materialised_attempts",
+          "public": false,
+          "qualname": "_materialised_attempts",
+          "signature": "def _materialised_attempts(request: DiverseFirstCopyFunnelRequest, tmp_path: Path) -> tuple[Path, tuple[Path, ...]]"
+        },
+        {
+          "calls": [
+            "_known_request",
+            "_large_request",
+            "_materialised_attempts",
+            "all",
+            "build_reference_reviews",
+            "len",
+            "path.parent.rglob",
+            "reversed",
+            "sha256_file",
+            "tuple",
+            "validate_reference_advancement",
+            "validate_reference_materialisation",
+            "validate_reference_reviews",
+            "zip"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 89,
+          "kind": "function",
+          "line": 45,
+          "name": "test_reference_reviews_partition_actual_union_and_write_no_production_authority",
+          "public": true,
+          "qualname": "test_reference_reviews_partition_actual_union_and_write_no_production_authority",
+          "signature": "def test_reference_reviews_partition_actual_union_and_write_no_production_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None"
+        },
+        {
+          "calls": [
+            "_known_request",
+            "_materialised_attempts",
+            "_small_request",
+            "atomic_write_json",
+            "build_reference_reviews",
+            "exists",
+            "glob",
+            "json.loads",
+            "next",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "read_text",
+            "target.write_text",
+            "validate_reference_reviews"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('missing', 'duplicate', 'foreign', 'raw_log', 'result'))"
+          ],
+          "doc": "",
+          "end_line": 137,
+          "kind": "function",
+          "line": 95,
+          "name": "test_reference_reviews_reject_incomplete_or_changed_result_evidence",
+          "public": true,
+          "qualname": "test_reference_reviews_reject_incomplete_or_changed_result_evidence",
+          "signature": "def test_reference_reviews_reject_incomplete_or_changed_result_evidence(tmp_path: Path, corruption: str) -> None"
+        },
+        {
+          "calls": [
+            "NormalisedMrResult.model_validate_json",
+            "_known_request",
+            "_materialised_attempts",
+            "_small_request",
+            "all",
+            "atomic_write_json",
+            "build_reference_reviews",
+            "canonical_json_text",
+            "model_copy",
+            "read_bytes",
+            "result.model_dump",
+            "validate_reference_advancement",
+            "validate_reference_reviews",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 175,
+          "kind": "function",
+          "line": 140,
+          "name": "test_reference_reviews_no_hit_results_do_not_fabricate_recommendations",
+          "public": true,
+          "qualname": "test_reference_reviews_no_hit_results_do_not_fabricate_recommendations",
+          "signature": "def test_reference_reviews_no_hit_results_do_not_fabricate_recommendations(tmp_path: Path) -> None"
+        },
+        {
+          "calls": [
+            "_known_request",
+            "_materialised_attempts",
+            "_small_request",
+            "all",
+            "build_reference_reviews",
+            "path.parent.rglob",
+            "tuple",
+            "validate_reference_reviews"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 202,
+          "kind": "function",
+          "line": 178,
+          "name": "test_reference_empty_admission_does_not_create_review_or_authority",
+          "public": true,
+          "qualname": "test_reference_empty_admission_does_not_create_review_or_authority",
+          "signature": "def test_reference_empty_admission_does_not_create_review_or_authority(tmp_path: Path) -> None"
         }
       ]
     },
