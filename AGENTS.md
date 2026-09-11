@@ -246,8 +246,7 @@ the proposed exclusive-node reservation for the former 192 GB request. Keep
 the full catalogues, existing search/scientific settings and 24-hour ceiling;
 measure peak resident memory on the representative native control before the
 large benchmark. Do not claim 96 GB is a measured minimum or increase resources
-without evidence. Marmic and Viper policies remain unchanged. Test
-parallelisation remains deferred while Raven test initiation is prioritised.
+without evidence. Marmic and Viper policies remain unchanged.
 
 The user then clarified the remaining v0.3 scientific scope: run the second
 pass on the three frozen operator datasets only to test whether each previously
@@ -282,6 +281,13 @@ the fixed C001/C025 native control on that route before larger tests; retain ful
 catalogues, truth isolation, measured resources and cached-resume gates. Do not
 extend the Raven login-process implementation, restart or cancel Raven work, or
 change scientific thresholds. Raven monitoring remains every three hours.
+
+The user subsequently directed generous use of available local resources for
+long validation runs. Use the maintained parallel check runner with an explicit
+host-appropriate CPU and group budget; do not carry forward the temporary
+two-CPU, one-group restriction. Record the resolved budget and measured duration.
+This supersedes the earlier local-test parallelisation deferral, not fixed HPC
+scientific allocations, numerical settings, source isolation or acceptance gates.
 
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 

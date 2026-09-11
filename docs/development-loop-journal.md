@@ -17335,3 +17335,29 @@ with a collapsed combined parent or a guessed command.
   The diagnostic draft still requires its full local gate and exact-source CI
   before deployment and inspection of the retained incomplete run. Existing
   Raven work and three-hour monitoring remain unchanged.
+
+## 2026-09-12 - Staging diagnostics passed the parallel local gate
+
+- The user directed generous use of local test resources. Stopped only the
+  incomplete one-group/two-CPU local gate, retaining its interrupted summary
+  and original logs. Its completed core checks are preserved, but the partial
+  unit suite is not acceptance evidence. No remote process was stopped.
+- Restarted the same 1,281 source inputs with the maintained parallel runner:
+  eight CPUs, two concurrent groups and four workers per group. All 25 checks
+  passed with source inputs unchanged: 1,869 unit, 149 integration and 185
+  contract tests, every workflow/cache check, quality, atlas and packaging.
+  Elapsed time was 43m12s; units took 43m11s and integration 8m57s. The host also
+  carried unrelated work, so this is not a controlled speed comparison.
+  Passing gate log SHA-256:
+  `edd778b4fa2a052e4cb0ecb740bc2143896370d7a2f47e5481510fc52d9670b9`.
+- Committed the focused diagnostics and regenerated atlas as `74eb2f8d`.
+  Recorded the user's local-resource direction in the repository instructions;
+  this changes neither fixed scientific resources nor test/scientific semantics.
+- The three-hour Raven observation retained the same original source and live
+  controller, with its log still ending at 34 Foldseek submissions. No native
+  result or acceptance follows from that nonterminal observation.
+- Next require all exact-source CI lanes, deploy the qualified diagnostic
+  wrapper through the original Marmic client and read the retained incomplete
+  run. Its transfer cause remains unestablished. Do not retry, submit, extend
+  timeouts or clean up before diagnosis; native outcomes, measured resources,
+  output freezing, truth isolation and cached resume still gate larger work.
