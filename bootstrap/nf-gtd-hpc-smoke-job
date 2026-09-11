@@ -4434,16 +4434,21 @@ PY
 
     child_summary="$("$RUN/source/.pixi/envs/hpc/bin/python" - \
         "$qualification/m6-nextflow-smoke-resource-evidence.json" \
-        "$M6_EXECUTION_POLICY_ID" "$M6_EXECUTION_POLICY_SHA256" <<'PY'
+        "$M6_EXECUTION_POLICY_ID" "$M6_EXECUTION_POLICY_SHA256" \
+        "$M6_EXECUTION_POLICY" <<'PY'
 import json
 import pathlib
 import re
 import sys
 
+from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
+
+policy = load_m6_execution_policy(pathlib.Path(sys.argv[4]))
 record = json.loads(pathlib.Path(sys.argv[1]).read_text())
 if (
     record.get("execution_policy_id") != sys.argv[2]
     or record.get("execution_policy_sha256") != sys.argv[3]
+    or policy.policy_id != sys.argv[2]
 ):
     raise SystemExit("M6 resource evidence used another site policy")
 jobs = record["jobs"]
@@ -4473,8 +4478,13 @@ if any(job["status"] != "COMPLETED" for job in jobs):
     raise SystemExit("M6 Slurm smoke contains an incomplete child job")
 if any(job["requested_cpus"] != 32 for job in search):
     raise SystemExit("M6 search smoke did not request 32 CPUs per job")
-if any(job["requested_memory_gb"] != 16.0 for job in search):
-    raise SystemExit("M6 search smoke did not request 16 GB per job")
+for job in search:
+    expected_memory = (
+        policy.per_job.maximum_memory_gb
+        if job["process"].endswith("M6_SEARCH_FOLDSEEK") else 16.0
+    )
+    if job["requested_memory_gb"] != expected_memory:
+        raise SystemExit("M6 search smoke memory differs from its fixed site policy")
 if any(job["requested_time_hours"] != 24.0 for job in search):
     raise SystemExit("M6 search smoke did not request 24 hours per job")
 if len({job["native_job_id"] for job in search}) != 4:
@@ -4517,8 +4527,9 @@ EOF
   "execution_policy_sha256": "$M6_EXECUTION_POLICY_SHA256",
   "acceptance_evidence": false,
   "two_case_stub_only": true,
-  "nextflow_slurm_driver_cpus": 2,
-  "nextflow_slurm_driver_memory_gb": 8.0,
+  "controller_kind": "$CONTROLLER_KIND",
+  "controller_maximum_cpus": 2,
+  "controller_maximum_memory_gb": 8.0,
   "child_job_count": $child_jobs,
   "controller_stage_task_count": 1,
   "search_child_job_count": $search_jobs,

@@ -4715,7 +4715,7 @@ nextflow_failure_workdir() {
     local run="$1"
     local application_log="$2"
     local line candidate="" expect_path=false run_resolved cache_path cache_root
-    local resolved relative phase failure_class
+    local resolved relative phase failure_class run_id
     [[ -f "$application_log" && ! -L "$application_log" && \
        -O "$application_log" ]] || return 1
     [[ -f "$run/state/phase" && ! -L "$run/state/phase" && \
@@ -4739,22 +4739,27 @@ nextflow_failure_workdir() {
         fi
     done < "$application_log"
     [[ -n "$candidate" && "$candidate" =~ $SAFE_PATH_RE ]] || return 1
+    run_id="${run##*/}"
+    [[ "$run_id" =~ $RUN_ID_RE && "$run" == "$RUNS/$run_id" ]] || return 1
     run_resolved="$(realpath -e "$run" 2>"$DISCARD")" || return 1
-    [[ "$run_resolved" == "$run" && -d "$run" && ! -L "$run" && \
+    # Startup validates Raven's configured mount alias against LEGACY_ROOT.
+    # Permit only that root alias, never a symlink within the owned run/cache.
+    [[ "$run_resolved" == "$LEGACY_ROOT/runs/$run_id" && \
+       -d "$run" && ! -L "$run" && \
        -O "$run" ]] || return 1
     cache_path="$run/cache"
     [[ -d "$cache_path" && ! -L "$cache_path" && -O "$cache_path" ]] || \
         return 1
     cache_root="$(realpath -e "$cache_path" 2>"$DISCARD")" || return 1
-    [[ "$cache_root" == "$cache_path" ]] || return 1
-    resolved="$(realpath -e "$candidate" 2>"$DISCARD")" || return 1
-    [[ "$resolved" == "$candidate" && -d "$candidate" && \
-       ! -L "$candidate" && -O "$candidate" ]] || return 1
-    path_within_root "$cache_root" "$resolved" || return 1
-    relative="${resolved#"$cache_root"/}"
+    [[ "$cache_root" == "$run_resolved/cache" ]] || return 1
+    path_within_root "$cache_path" "$candidate" || return 1
+    relative="${candidate#"$cache_path"/}"
     [[ "$relative" =~ ^[A-Za-z0-9._-]+/work/[0-9a-f]{2}/[0-9a-f]{6,}$ ]] || \
         return 1
-    printf '%s' "$resolved"
+    resolved="$(realpath -e "$candidate" 2>"$DISCARD")" || return 1
+    [[ "$resolved" == "$cache_root/$relative" && -d "$candidate" && \
+       ! -L "$candidate" && -O "$candidate" ]] || return 1
+    printf '%s' "$candidate"
 }
 
 require_database_retained_staging() {
@@ -5286,6 +5291,10 @@ collect_run() {
         logs/nextflow-m6-operational-resume.log \
         logs/nextflow-m6-leakage-first.log \
         logs/nextflow-m6-leakage-resume.log \
+        logs/nextflow-m6-smoke-operational-first.log \
+        logs/nextflow-m6-smoke-operational-resume.log \
+        logs/nextflow-m6-smoke-leakage-first.log \
+        logs/nextflow-m6-smoke-leakage-resume.log \
         artifacts/qualification/input-checksums.sha256 \
         artifacts/qualification/phenix-verification.log \
         artifacts/qualification/database_manifest.p0-revalidated.json \

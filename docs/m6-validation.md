@@ -434,6 +434,10 @@ M6 uses separate operational/open-set and leakage/hardening reviewed-site stages
 Raven uses an explicitly identified login-process driver; Marmic/Viper use their
 Slurm driver. The orchestration budget is 2 CPUs/8 GB; it is not a Slurm
 allocation on Raven. Independent child tasks are submitted to Slurm.
+Raven binds only the offline `M6_STAGE_COORDINATES` cache-materialisation task
+to the local executor, with 1 CPU, 4 GB, a 24-hour ceiling and scratch disabled.
+Its explicit process selector leaves network-acquisition allocations unchanged;
+cache misses still fail rather than fetching coordinates implicitly.
 MMseqs2 retains 32 CPUs/16 GB at all three sites. Marmic Foldseek uses
 32 CPUs/192 GB under `m6_nextflow_slurm_marmic_v2`; Viper's unchanged v1 policy
 retains 32 CPUs/16 GB. Raven v2 uses 32 CPUs/96 GB for shared CPU jobs. All other
@@ -441,6 +445,9 @@ child jobs retain their existing smaller
 allocations. The ceiling is 24 hours per Slurm
 job, not a tool timeout. Slurm controls aggregate and Phenix concurrency, which
 are measured rather than capped.
+The native stub validator checks each search tool against these fixed site
+allocations, and its summary records controller kind and resource budgets
+without labelling Raven's login process as a Slurm allocation.
 
 The operator approved the Marmic correction after a qualified production batch
 used 64.6 GiB peak RSS, exceeding the old 16-GB cap. The current

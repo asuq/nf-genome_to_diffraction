@@ -16653,3 +16653,41 @@ with a collapsed combined parent or a guessed command.
   threshold, input bundle or remote submission was changed for this clarification.
   After RF/M6 and closure qualification, implement/qualify the fixed ranking
   route before executing it. Immediate Raven native-control priorities remain.
+
+## 2026-09-11 - Raven offline-stage routing and retained failure diagnostics
+
+- The fresh `6905528b8aff` Raven stub passed Foldseek's former scheduler-memory
+  rejection, then failed when `M6_STAGE_COORDINATES` was incorrectly submitted
+  to Slurm without a runtime request. The intended offline `run_local` label
+  has no Raven binding. Collected the terminal failure, preserving signature
+  `38839fa59ac8fda840c1bfac149b7bc62172e7c380f65cf66a03871fa065b9cf`;
+  no resume, native scientific control or large benchmark passed.
+- Added a Raven-only process selector for that offline stage: local executor,
+  one CPU, 4 GB, 24 hours, no scratch, and matching resource limits. Network
+  acquisition and scientific search settings are unchanged. A real Nextflow
+  invocation of the actual stage's stub verifies its resolved local execution
+  and resource requests; it is not scientific or cluster acceptance evidence.
+- The diagnostic collector rejected the already validated site-root mount
+  alias. Confined the correction to that root's canonical identity while
+  retaining the owned run/cache path shape and rejecting nested symlinks and
+  escapes. The focused collection regressions pass. Added the four fixed M6
+  stub execution logs to the existing bounded collection list.
+- Inspection also found a stale stub-only requirement for 16 GB on every
+  search job. The validator now uses each anchored site's Foldseek policy,
+  preserving 16 GB for MMseqs2. Controller summaries record kind and budgets
+  without fabricating a Slurm allocation for Raven.
+- The focused Raven/dispatcher/resource/diagnostic slice passes all 29 tests;
+  full lint/type/format checks, wrapper syntax and real Nextflow syntax checks
+  also pass. Finish the named full source-captured gate, then commit/push for
+  exact-source CI and refresh/deploy the original controller.
+  Start a new immutable Raven stub; never resubmit either failed stub. Only
+  after complete stub/resume qualification run the full-catalogue two-case
+  native control, measure peak RSS, and qualify the large benchmark.
+- The complete `raven-local-stage-routing` milestone gate passed in 14m59s:
+  all 1,178 captured source inputs were unchanged, with 1,665 unit, 185 contract
+  and 127 integration tests plus every workflow/cache/resume, schema,
+  documentation/atlas, offline-package and wrapper check. Gate log SHA-256 is
+  `644b701e6b3205093e452a9b2c2ec5d08f171ffb32cb974e6c0f787189429e22`.
+  This qualifies the local operational correction only. Next commit/push for
+  exact-source CI, deploy the fixed remote scripts through the original client
+  and start a fresh Raven stub before the native scientific control.

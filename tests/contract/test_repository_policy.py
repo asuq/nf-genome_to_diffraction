@@ -309,6 +309,19 @@ def test_network_acquisition_processes_use_both_reviewed_controller_labels() -> 
     assert "label 'run_local'" in m6_materialisation
     assert "label 'process_network'" not in m6_materialisation
     assert "label 'needs_internet'" not in m6_materialisation
+    raven = (REPOSITORY / "conf/raven.config").read_text(encoding="utf-8")
+    raven_materialisation = raven.split("withName: M6_STAGE_COORDINATES", maxsplit=1)[
+        1
+    ].split("}", maxsplit=1)[0]
+    for directive in (
+        "executor = 'local'",
+        "cpus = 1",
+        "memory = '4 GB'",
+        "time = '24 hours'",
+        "scratch = false",
+        "resourceLimits = [cpus: 1, memory: 4.GB, time: 24.h]",
+    ):
+        assert directive in raven_materialisation
 
     login_labelled = {
         path.relative_to(REPOSITORY).as_posix()

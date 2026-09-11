@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from genome_to_diffraction.benchmarks.m6_execution import load_m6_execution_policy
 from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.hpc.client import _decode_remote_fields as _decode_protocol
 from genome_to_diffraction.hpc.identification_inputs import (
@@ -1871,7 +1872,8 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
     ):
         assert relative_path in dispatcher_text
     assert 'job["requested_cpus"] != 32' in body
-    assert 'job["requested_memory_gb"] != 16.0' in body
+    assert 'job["requested_memory_gb"] != expected_memory' in body
+    assert "policy.per_job.maximum_memory_gb" in body
     assert 'job["requested_time_hours"] != 24.0' in body
     assert 'M6_SMOKE_CACHE="$RUN/cache/m6-nextflow-smoke"' in body
     assert 'M6_SMOKE_EXECUTION="$RUN/execution/m6-nextflow-smoke"' in body
@@ -1926,6 +1928,72 @@ def test_m6_nextflow_smoke_binds_site_profile_policy_and_slurm_boundaries(
         and isinstance(row["edge_observations"], list)
         for row in contract["case_contracts"]
     )
+
+
+@pytest.mark.parametrize(
+    ("policy_name", "foldseek_memory"),
+    [
+        ("execution-nextflow-v1.yaml", 16.0),
+        ("execution-nextflow-marmic-v2.yaml", 192.0),
+        ("execution-nextflow-raven-v2.yaml", 96.0),
+    ],
+)
+def test_m6_smoke_resource_check_uses_fixed_site_search_memory(
+    tmp_path: Path, policy_name: str, foldseek_memory: float
+) -> None:
+    source = (REPOSITORY / "bootstrap/nf-gtd-hpc-smoke-job").read_text()
+    marker = (
+        '"$M6_EXECUTION_POLICY_ID" "$M6_EXECUTION_POLICY_SHA256" \\\n'
+        "        \"$M6_EXECUTION_POLICY\" <<'PY'\n"
+    )
+    validator = source.split(marker, maxsplit=1)[1].split("\nPY\n", maxsplit=1)[0]
+    policy_path = REPOSITORY / "benchmarks/m6" / policy_name
+    policy = load_m6_execution_policy(policy_path)
+    checksum = hashlib.sha256(policy_path.read_bytes()).hexdigest()
+    jobs = [
+        {
+            "process": process,
+            "status": "COMPLETED",
+            "native_job_id": str(index + 1),
+            "requested_cpus": 32 if index < 4 else 1,
+            "requested_memory_gb": foldseek_memory
+            if process == "M6_SEARCH_FOLDSEEK"
+            else 16.0,
+            "requested_time_hours": 24.0,
+        }
+        for index, process in enumerate(
+            ["M6_SEARCH_PDB"] * 2 + ["M6_SEARCH_FOLDSEEK"] * 2 + ["M6_OTHER"] * 21
+        )
+    ]
+    record = {
+        "execution_policy_id": policy.policy_id,
+        "execution_policy_sha256": checksum,
+        "jobs": jobs,
+        "controller_stages": [
+            {"process": "M6_STAGE_COORDINATES", "status": "COMPLETED"}
+        ],
+        "per_job_bounds_passed": True,
+        "child_job_count": 25,
+        "peak_running_jobs": 2,
+        "peak_aggregate_cpus": 64,
+        "peak_aggregate_memory_gb": foldseek_memory * 2,
+        "peak_concurrent_phenix_jobs": 1,
+    }
+    resource_path = tmp_path / "synthetic-resource-evidence.json"
+    resource_path.write_text(json.dumps(record))
+    command = [
+        sys.executable,
+        "-",
+        str(resource_path),
+        policy.policy_id,
+        checksum,
+        str(policy_path),
+    ]
+    _run(command, cwd=tmp_path, input_data=validator.encode())
+    jobs[2]["requested_memory_gb"] = 16.0 if foldseek_memory != 16.0 else 96.0
+    resource_path.write_text(json.dumps(record))
+    rejected = _run(command, cwd=tmp_path, input_data=validator.encode(), success=False)
+    assert b"memory differs from its fixed site policy" in rejected.stderr
 
 
 def test_m6_smoke_cache_evidence_requires_exact_cross_track_reuse(
@@ -2528,6 +2596,10 @@ def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> No
     state.mkdir(parents=True)
     (state / "owner-id").write_text(f"{OWNER_ID}\n", encoding="utf-8")
     required = {
+        "logs/nextflow-m6-smoke-operational-first.log",
+        "logs/nextflow-m6-smoke-operational-resume.log",
+        "logs/nextflow-m6-smoke-leakage-first.log",
+        "logs/nextflow-m6-smoke-leakage-resume.log",
         "artifacts/qualification/m6-nextflow-smoke-contract-evidence.json",
         "artifacts/qualification/m6-nextflow-smoke-cache-evidence.json",
         "artifacts/qualification/m6-smoke-before-resume.sha256",
@@ -2571,11 +2643,39 @@ def test_m6_nextflow_smoke_collects_v2_and_resume_evidence(tmp_path: Path) -> No
     assert "artifacts/m6-nextflow-smoke/operational/private.txt" not in names
 
 
+@pytest.mark.parametrize("root_alias", [False, True])
 def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
     tmp_path: Path,
+    root_alias: bool,
 ) -> None:
-    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
-    run = smoke_job.parent.parent / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
+    if root_alias:
+        physical, dispatcher, environment, commit, lock_sha, phenix_sha = (
+            _prepare_raven_site_layout(tmp_path)
+        )
+        root = tmp_path / "ptmp-alias"
+        root.symlink_to(physical, target_is_directory=True)
+        dispatcher.write_text(dispatcher.read_text().replace(str(physical), str(root)))
+        site_config = root / "_tooling/site.paths"
+        site_config.write_text(
+            "\n".join(
+                (
+                    "raven",
+                    str(root),
+                    str(root / "software/pixi-0.76.2/pixi"),
+                    commit,
+                    lock_sha,
+                    phenix_sha,
+                    "mmm_cpu",
+                    "raven03",
+                )
+            )
+            + "\n"
+        )
+        site_config.chmod(0o600)
+    else:
+        dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+        root = smoke_job.parent.parent
+    run = root / "runs" / M6_NEXTFLOW_SMOKE_RUN_ID
     state = run / "state"
     logs = run / "logs"
     state.mkdir(parents=True)
@@ -2635,6 +2735,29 @@ def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
     expected = {f"{task_relative}/{name}" for name in diagnostic_files}
     assert expected <= names
     assert f"{task_relative}/private.env" not in names
+    if root_alias:
+        # A second alias *inside* the cache is not the validated site-root alias.
+        nested_alias = run / "cache/other"
+        nested_alias.symlink_to(task.parents[2], target_is_directory=True)
+        nested_task = nested_alias / "work/a7" / task.name
+        application.write_text(f"Work dir:\n  {nested_task}\n", encoding="ascii")
+        rejected = _decode_protocol(
+            _run(
+                [str(dispatcher), "logs", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID, "20"],
+                cwd=tmp_path,
+                environment=environment,
+            ).stdout
+        )
+        assert rejected["diagnostic_log_path"] == ""
+        rejected_archive = _run(
+            [str(dispatcher), "collect", M6_NEXTFLOW_SMOKE_RUN_ID, OWNER_ID],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+        with tarfile.open(
+            fileobj=io.BytesIO(rejected_archive), mode="r:gz"
+        ) as collected:
+            assert not any(name.startswith("cache/") for name in collected.getnames())
 
 
 def test_failed_nextflow_task_diagnostics_reject_an_escaped_path(
