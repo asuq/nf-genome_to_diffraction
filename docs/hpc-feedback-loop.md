@@ -85,8 +85,19 @@ but executes only the fixed M6C001/M6C025 pair, with each complete catalogue:
 nf-gtd-hpc-test --config CONFIG m6-scientific-stage --revision FULL_COMMIT --archive RUNNER_TAR --confirm-archive-sha256 RUNNER_SHA256 --track operational --execution-purpose native_control
 nf-gtd-hpc-test --config CONFIG submit m6-native-control --run-id RUN_ID
 nf-gtd-hpc-test --config CONFIG status --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG logs --run-id RUN_ID --tail 200
 nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID
 ```
+
+During M6 runner staging, the same bounded `logs` command reports the recorded
+phase and temporary runner archive's observed byte size, followed by the fixed
+import log or, before that log exists, the fixed Pixi preparation log. Missing
+and zero-byte files remain distinct. These read-only observations do not prove
+transfer liveness, checksum validity, completion or scientific acceptance.
+Directories and files must be owned, canonical and non-symlinked; no arbitrary
+path argument is accepted. The requested line limit and 2-MiB byte limit still
+apply. A transport timeout does not authorise submission, retry or cleanup;
+terminal collection still requires authentic terminal or stage-failure evidence.
 
 The purpose is bound at staging and rechecked before submission and execution.
 It cannot select arbitrary cases, use leakage inputs, have an operational parent

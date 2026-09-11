@@ -17308,3 +17308,30 @@ with a collapsed combined parent or a guessed command.
   No new remote deployment or job has occurred at this checkpoint. Existing
   Raven work remains untouched with three-hour monitoring. Full M6, finding
   closure, retrospective rank recovery and release gates remain required.
+
+## 2026-09-12 - Marmic runner transfer timeout and staging diagnostics
+
+- All six exact-source CI lanes passed for `c7bc435c`, run `34648527321`;
+  the unit lane took 15m36s within its unchanged limit. Built the original client
+  and deployed its checksum-verified wrappers to Marmic through the reviewed
+  source-recovery path. The existing valid site record was retained unchanged.
+- One fresh native-control staging attempt exceeded the existing 900-second
+  transport timeout while importing the confirmed runner. No scheduler job was
+  submitted. Owned status still reported the importing phase with no terminal
+  failure record. This establishes a transport failure, not its underlying
+  cause or any native scientific/resource result. Preserve the incomplete run;
+  do not retry, submit, extend timeouts, clean up or infer remote liveness.
+- The bounded logs interface returned no staging log, and terminal collection
+  correctly refused the missing failure-class record. A two-case regression
+  reproduced the logs gap even when the fixed import or Pixi log existed.
+  Added read-only M6 staging diagnostics to the existing logs operation: the
+  recorded phase, temporary archive's observed byte size and the fixed log.
+  Missing and empty remain distinct; canonical owned regular-file checks,
+  symlink rejection, line/byte bounds and unchanged run-state checks apply.
+- All 11 focused diagnostic tests and 31 existing log/terminal-evidence
+  regressions passed. Fixed one lint-only test-line overflow; format, lint,
+  type, shell and documentation checks pass. No transfer, timeout, submission,
+  collection acceptance, scientific, resource or cache policy was changed.
+  The diagnostic draft still requires its full local gate and exact-source CI
+  before deployment and inspection of the retained incomplete run. Existing
+  Raven work and three-hour monitoring remain unchanged.

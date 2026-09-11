@@ -3201,6 +3201,155 @@ def test_nextflow_diagnostics_require_a_complete_terminal_failure_marker(
     assert truncated["diagnostic_log_path"] == ""
 
 
+def _prepare_m6_import_diagnostics(
+    tmp_path: Path,
+) -> tuple[Path, dict[str, str], Path]:
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NATIVE_CONTROL_RUN_ID
+    (run / "state").mkdir(parents=True)
+    (run / "logs").mkdir()
+    for name, value in {
+        "owner-id": OWNER_ID,
+        "profile": "m6-native-control",
+        "phase": "m6_runner_importing",
+    }.items():
+        (run / "state" / name).write_text(f"{value}\n", encoding="ascii")
+    return dispatcher, environment, run
+
+
+@pytest.mark.parametrize("log_name", ["pixi-install.log", "m6-scientific-stage.log"])
+def test_m6_import_logs_report_fixed_diagnostics_without_changing_run_state(
+    tmp_path: Path, log_name: str
+) -> None:
+    dispatcher, environment, run = _prepare_m6_import_diagnostics(tmp_path)
+    (run / "m6-runner.tar").write_bytes(b"partial")
+    (run / "logs/pixi-install.log").write_text("runtime ready\n", encoding="ascii")
+    expected_log = run / "logs" / log_name
+    expected_log.write_text("current staging detail\n", encoding="ascii")
+    before = {
+        path.relative_to(run): path.read_bytes()
+        for path in run.rglob("*")
+        if path.is_file()
+    }
+
+    result = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", M6_NATIVE_CONTROL_RUN_ID, OWNER_ID, "20"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+
+    assert result["log_path"] == str(expected_log)
+    assert result["diagnostic_log_path"] == ""
+    assert base64.b64decode(result["content_base64"]).decode() == (
+        "staging_phase=m6_runner_importing temporary_runner_archive=present "
+        "observed_bytes=7\ncurrent staging detail\n"
+    )
+    assert before == {
+        path.relative_to(run): path.read_bytes()
+        for path in run.rglob("*")
+        if path.is_file()
+    }
+    assert not (run / "state/failure-class").exists()
+    assert not (run / "state/job-id").exists()
+
+
+@pytest.mark.parametrize("archive_exists", [False, True])
+def test_m6_import_logs_distinguish_absent_from_empty_transfer(
+    tmp_path: Path, archive_exists: bool
+) -> None:
+    dispatcher, environment, run = _prepare_m6_import_diagnostics(tmp_path)
+    if archive_exists:
+        (run / "m6-runner.tar").write_bytes(b"")
+    result = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", M6_NATIVE_CONTROL_RUN_ID, OWNER_ID, "1"],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    expected = (
+        "present observed_bytes=0"
+        if archive_exists
+        else "absent observed_bytes=unavailable"
+    )
+    content = base64.b64decode(result["content_base64"]).decode()
+    assert (
+        content
+        == f"staging_phase=m6_runner_importing temporary_runner_archive={expected}\n"
+    )
+    assert result["log_path"] == ""
+
+
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [
+        "state",
+        "logs",
+        "m6-runner.tar",
+        "logs/m6-scientific-stage.log",
+        "logs/pixi-install.log",
+    ],
+)
+def test_m6_import_logs_refuse_symlinked_diagnostics(
+    tmp_path: Path, unsafe_path: str
+) -> None:
+    dispatcher, environment, run = _prepare_m6_import_diagnostics(tmp_path)
+    outside = tmp_path / "outside-diagnostic"
+    selected = run / unsafe_path
+    if selected.is_dir():
+        selected.rename(outside)
+        selected.symlink_to(outside, target_is_directory=True)
+    else:
+        outside.write_text("unrelated private content\n", encoding="ascii")
+        selected.symlink_to(outside)
+    rejected = _decode_protocol(
+        _run(
+            [str(dispatcher), "logs", M6_NATIVE_CONTROL_RUN_ID, OWNER_ID, "20"],
+            cwd=tmp_path,
+            environment=environment,
+            success=False,
+        ).stdout
+    )
+    assert rejected["failure_class"] == "wrapper_failure"
+    assert "unsafe M6 staging" in rejected["message"]
+    assert "content_base64" not in rejected
+
+
+@pytest.mark.parametrize("line_limit", [1, 3])
+def test_m6_import_logs_keep_summary_inside_line_and_byte_limits(
+    tmp_path: Path, line_limit: int
+) -> None:
+    dispatcher, environment, run = _prepare_m6_import_diagnostics(tmp_path)
+    (run / "m6-runner.tar").write_bytes(b"partial")
+    (run / "logs/m6-scientific-stage.log").write_bytes(
+        b"x" * (2 * 1024 * 1024 + 4096) + b"\nlast line\n"
+    )
+    result = _decode_protocol(
+        _run(
+            [
+                str(dispatcher),
+                "logs",
+                M6_NATIVE_CONTROL_RUN_ID,
+                OWNER_ID,
+                str(line_limit),
+            ],
+            cwd=tmp_path,
+            environment=environment,
+        ).stdout
+    )
+    content = base64.b64decode(result["content_base64"])
+    assert content.startswith(
+        b"staging_phase=m6_runner_importing temporary_runner_archive=present "
+        b"observed_bytes=7\n"
+    )
+    assert len(content) <= 2 * 1024 * 1024
+    assert len(content.splitlines()) <= line_limit
+    if line_limit > 1:
+        assert content.endswith(b"last line\n")
+
+
 def test_nextflow_logs_are_byte_bounded_and_prefer_nonempty_error(
     tmp_path: Path,
 ) -> None:

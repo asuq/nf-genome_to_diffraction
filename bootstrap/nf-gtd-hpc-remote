@@ -4882,6 +4882,54 @@ require_database_retained_staging() {
     DATABASE_RETAINED_STAGING_SYMLINK_COUNT="$link_count"
 }
 
+m6_staging_logs() {
+    local run_id="$1" run="$2" profile="$3" phase="$4" lines="$5"
+    local directory candidate stage_log=m6-scientific-stage.log log_path=""
+    local archive_state=absent archive_bytes=unavailable summary content log_bytes
+    [[ "$profile" != m6-inputs ]] || stage_log=m6-inputs-stage.log
+    for directory in "$run" "$run/state" "$run/logs"; do
+        [[ -d "$directory" && ! -L "$directory" && -O "$directory" && \
+           "$(cd "$directory" && pwd -P)" == "$directory" ]] || \
+            fail wrapper_failure "unsafe M6 staging diagnostic directory"
+    done
+    for candidate in \
+        "$run/state/owner-id" "$run/state/profile" "$run/state/phase" \
+        "$run/m6-runner.tar" "$run/logs/$stage_log" "$run/logs/pixi-install.log"; do
+        if [[ -e "$candidate" || -L "$candidate" ]]; then
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || \
+                fail wrapper_failure "unsafe M6 staging diagnostic file"
+        fi
+    done
+    if [[ -f "$run/m6-runner.tar" ]]; then
+        archive_state=present
+        archive_bytes="$(file_size "$run/m6-runner.tar")"
+        [[ "$archive_bytes" =~ $BYTE_COUNT_RE ]] || \
+            fail wrapper_failure "invalid M6 staging diagnostic byte count"
+    fi
+    # The import log is created only after receiving the runner. Before then,
+    # the fixed Pixi log is the available source/environment-stage diagnostic.
+    if [[ -f "$run/logs/$stage_log" ]]; then
+        log_path="$run/logs/$stage_log"
+    elif [[ -f "$run/logs/pixi-install.log" ]]; then
+        log_path="$run/logs/pixi-install.log"
+    fi
+    # File size is an observation, not transfer liveness or terminal evidence.
+    summary="staging_phase=$phase temporary_runner_archive=$archive_state observed_bytes=$archive_bytes"
+    log_bytes=$((MAX_LOG_BYTES - ${#summary} - 1))
+    content="$({
+        printf '%s\n' "$summary"
+        if [[ -n "$log_path" && "$lines" -gt 1 ]]; then
+            tail -n "$((lines - 1))" -- "$log_path" | tail -c "$log_bytes"
+        fi
+    } | base64 | tr -d '\n')"
+    emit operation logs
+    emit run_id "$run_id"
+    emit site_id "$SITE_ID"
+    emit log_path "$log_path"
+    emit diagnostic_log_path ""
+    emit content_base64 "$content"
+}
+
 logs_run() {
     [[ "$#" -eq 3 ]] || fail wrapper_failure "logs expects run ID, owner ID, and line count"
     local run_id="$1"
@@ -4900,6 +4948,11 @@ logs_run() {
     fi
     if [[ -f "$run/state/phase" ]]; then
         phase="$(<"$run/state/phase")"
+    fi
+    if [[ "$profile" =~ ^m6-(inputs|native-control|operational|leakage)$ && \
+          "$phase" =~ ^(staging|m6_runner_importing|staged|stage_failed)$ ]]; then
+        m6_staging_logs "$run_id" "$run" "$profile" "$phase" "$lines"
+        return
     fi
     if [[ "$profile" == database && "$phase" =~ ^(staging|staged|stage_failed)$ && \
         -f "$run/logs/database-source-stage.log" ]]; then
