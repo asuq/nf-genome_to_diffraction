@@ -161,6 +161,21 @@ on explicit synthetic mass/volume inputs. Corrupt factors, missing inventories,
 changed models and foreign scope/budgets fail closed. Input permutation does not
 change the selected cohort. These are local fixture checks, not native recovery.
 
+The [paired recommendation fixture](../tests/fixtures/ranking_four_arm_seeds.py)
+rederives that admission and requires its exact scheduled hypothesis inventory.
+It uses actual production review-package validation to authenticate MR assets
+and derive eligibility for all rows, including eligible states outside the
+production top five. Comparison ranks/recommendations are separate annotations;
+the original production rows and MR results remain unchanged. Arm D must agree
+with the production recommendation table exactly. The fixture writes neither
+execution authority nor continuation receipts. A zero-scheduled case still needs
+its native early-outcome evidence; it cannot be replaced by a manufactured review.
+The [paired tests](../tests/unit/test_ranking_four_arm_seeds.py) use explicitly
+synthetic MR and real production review validation for both admission cohorts.
+They demonstrate changed top-five membership with identical within-pair MR,
+preserved eligibility, empty recommendations for no-hit results, and rejection
+of missing/foreign cohorts, changed result/model bytes and altered review fields.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,

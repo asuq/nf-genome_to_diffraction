@@ -6282,7 +6282,7 @@
       "sha256": "445c2bc0feed00b4f19dc7eafb2acbc5f67f2e9101cdb1e0274e493a0a70f54d"
     }
   ],
-  "inventory_id": "atlasinv_6096eae3d1e11aa625b9b9654fc4220c060703ef9270df0ce4e460f79b199dc1",
+  "inventory_id": "atlasinv_3878222d08fa3f86884042f8854215cefeb48f3944d4ecf49842f8abb2b7b021",
   "nextflow_files": [
     {
       "declarations": [],
@@ -62037,6 +62037,107 @@
     },
     {
       "cli_commands": [],
+      "imports": [
+        "dataclasses",
+        "genome_to_diffraction.benchmarks.m6_advancement",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ranking.funnel",
+        "genome_to_diffraction.review.priority",
+        "genome_to_diffraction.schemas.results",
+        "hashlib",
+        "pathlib",
+        "tests.fixtures.ranking_four_arm_admission",
+        "tests.fixtures.ranking_four_arm_reference",
+        "typing"
+      ],
+      "path": "tests/fixtures/ranking_four_arm_seeds.py",
+      "sha256": "e92d56c94d8fbcfe1ebea1cd93c4154ac76b16bf244aa024df8aefc7819face8",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "bases": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "doc": "Comparison ranks, with the original validated production row unchanged.",
+          "end_line": 51,
+          "kind": "class",
+          "line": 45,
+          "name": "ReferenceSeedRow",
+          "public": true,
+          "qualname": "ReferenceSeedRow"
+        },
+        {
+          "bases": [],
+          "decorators": [
+            "dataclass(frozen=True)"
+          ],
+          "doc": "Recommendations only, not a benchmark advancement authorisation.",
+          "end_line": 65,
+          "kind": "class",
+          "line": 55,
+          "name": "ReferenceSeedPlan",
+          "public": true,
+          "qualname": "ReferenceSeedPlan"
+        },
+        {
+          "calls": [
+            "tuple"
+          ],
+          "decorators": [
+            "property"
+          ],
+          "doc": "",
+          "end_line": 65,
+          "kind": "function",
+          "line": 64,
+          "name": "recommended",
+          "public": true,
+          "qualname": "ReferenceSeedPlan.recommended",
+          "signature": "def recommended(self) -> tuple[ReferenceSeedRow, ...]"
+        },
+        {
+          "calls": [
+            "FirstCopyReviewEvidence",
+            "NormalisedMrResult.model_validate_json",
+            "ReferenceSeedPlan",
+            "ReferenceSeedRow",
+            "ValueError",
+            "_diverse_input_digests",
+            "_object",
+            "_owned",
+            "_records",
+            "_review_rows",
+            "admission.input_sha256.items",
+            "any",
+            "cast",
+            "enumerate",
+            "evidence.append",
+            "hashlib.sha256",
+            "hexdigest",
+            "reference_admission_plan",
+            "reference_review_order",
+            "result_path.read_bytes",
+            "review_manifest.resolve",
+            "rows.append",
+            "sha256_file",
+            "tuple"
+          ],
+          "decorators": [],
+          "doc": "Rederive admission, authenticate the full review, and annotate paired ranks.",
+          "end_line": 170,
+          "kind": "function",
+          "line": 68,
+          "name": "reference_seed_recommendations",
+          "public": true,
+          "qualname": "reference_seed_recommendations",
+          "signature": "def reference_seed_recommendations(request: DiverseFirstCopyFunnelRequest, *, hypotheses_jsonl: Path, review_manifest: Path, admission_prior: AdmissionPrior, review_order: ReviewOrder) -> ReferenceSeedPlan"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
       "imports": [],
       "path": "tests/integration/__init__.py",
       "sha256": "8404b8d8f6a0e517bd21df1ad37c46d298f794fd8005c753aea853d908d38a38",
@@ -100484,6 +100585,150 @@
           "public": true,
           "qualname": "test_empty_mr_is_not_fabricated_as_a_result",
           "signature": "def test_empty_mr_is_not_fabricated_as_a_result() -> None"
+        }
+      ]
+    },
+    {
+      "cli_commands": [],
+      "imports": [
+        "genome_to_diffraction.benchmarks.m6_advancement",
+        "genome_to_diffraction.benchmarks.m6_nextflow",
+        "genome_to_diffraction.checksums",
+        "genome_to_diffraction.ids",
+        "genome_to_diffraction.model_registry",
+        "genome_to_diffraction.ranking",
+        "genome_to_diffraction.ranking.funnel",
+        "genome_to_diffraction.review.mr_seed",
+        "genome_to_diffraction.schemas.results",
+        "genome_to_diffraction.status",
+        "json",
+        "pathlib",
+        "pytest",
+        "shutil",
+        "tests.fixtures.ranking_four_arm_admission",
+        "tests.fixtures.ranking_four_arm_reference",
+        "tests.fixtures.ranking_four_arm_seeds",
+        "tests.unit.test_m6_seed_selection",
+        "tests.unit.test_ranking_four_arm_admission"
+      ],
+      "path": "tests/unit/test_ranking_four_arm_seeds.py",
+      "sha256": "ebeed20bdf28509d30fd778f9bc52e9b5b7152bc8c557ed52f6a00cb645afde6",
+      "substantive": true,
+      "subsystem": "validation",
+      "symbols": [
+        {
+          "calls": [
+            "M6HypothesisGroupTask",
+            "NormalisedMrResult.model_validate",
+            "NormalisedMrResult.model_validate_json",
+            "SelectedMrSolutionEvidence",
+            "_attempts",
+            "_large_request",
+            "atomic_write_json",
+            "build_diverse_first_copy_funnel",
+            "canonical_json_text",
+            "content_id",
+            "entries.append",
+            "enumerate",
+            "funnel.mkdir",
+            "hypothesis_path.write_text",
+            "join",
+            "len",
+            "load_all_eligible_model_registry",
+            "mkdir",
+            "next",
+            "old.model_copy",
+            "read_bytes",
+            "reference_admission_plan",
+            "registry.lookup",
+            "result.model_dump",
+            "run_m6_select_seeds_task",
+            "sha256_file",
+            "shutil.copy2",
+            "shutil.copytree",
+            "sorted",
+            "task.model_dump",
+            "tuple",
+            "write_text"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 148,
+          "kind": "function",
+          "line": 35,
+          "name": "_review_case",
+          "public": false,
+          "qualname": "_review_case",
+          "signature": "def _review_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prior: AdmissionPrior, *, no_hits: bool=False) -> tuple[DiverseFirstCopyFunnelRequest, Path, Path]"
+        },
+        {
+          "calls": [
+            "_review_case",
+            "all",
+            "len",
+            "pytest.mark.parametrize",
+            "reference_seed_recommendations",
+            "tmp_path.rglob",
+            "tuple",
+            "validate_m6_advancement"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('prior', ('copy_weighted', 'solvent_density'))"
+          ],
+          "doc": "",
+          "end_line": 191,
+          "kind": "function",
+          "line": 152,
+          "name": "test_paired_reference_recommendations_use_identical_validated_evidence",
+          "public": true,
+          "qualname": "test_paired_reference_recommendations_use_identical_validated_evidence",
+          "signature": "def test_paired_reference_recommendations_use_identical_validated_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, prior: AdmissionPrior) -> None"
+        },
+        {
+          "calls": [
+            "_review_case",
+            "all",
+            "len",
+            "reference_seed_recommendations"
+          ],
+          "decorators": [],
+          "doc": "",
+          "end_line": 209,
+          "kind": "function",
+          "line": 194,
+          "name": "test_reference_no_hit_review_does_not_fabricate_recommendations",
+          "public": true,
+          "qualname": "test_reference_no_hit_review_does_not_fabricate_recommendations",
+          "signature": "def test_reference_no_hit_review_does_not_fabricate_recommendations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None"
+        },
+        {
+          "calls": [
+            "_review_case",
+            "atomic_write_json",
+            "hypotheses.read_text",
+            "hypotheses.write_text",
+            "join",
+            "json.loads",
+            "path.read_text",
+            "pytest.mark.parametrize",
+            "pytest.raises",
+            "reference_seed_recommendations",
+            "result.write_text",
+            "review.read_text",
+            "splitlines",
+            "write_text"
+          ],
+          "decorators": [
+            "pytest.mark.parametrize('corruption', ('cohort', 'result', 'model', 'manifest'))"
+          ],
+          "doc": "",
+          "end_line": 243,
+          "kind": "function",
+          "line": 213,
+          "name": "test_reference_recommendations_reject_foreign_or_changed_evidence",
+          "public": true,
+          "qualname": "test_reference_recommendations_reject_foreign_or_changed_evidence",
+          "signature": "def test_reference_recommendations_reject_foreign_or_changed_evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, corruption: str) -> None"
         }
       ]
     },
