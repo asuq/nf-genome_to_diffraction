@@ -176,6 +176,48 @@ They demonstrate changed top-five membership with identical within-pair MR,
 preserved eligibility, empty recommendations for no-hit results, and rejection
 of missing/foreign cohorts, changed result/model bytes and altered review fields.
 
+The [reference authority fixture](../tests/fixtures/ranking_four_arm_advancement.py)
+rederives both complete paired recommendation tables and binds them to the
+fixed five-case scope, source files, original review assets and admission inputs.
+Its `truth_blind_rf_reference` authority is distinct from production M6 and human
+approval. Each arm retains at most five seeds; the pair's union may contain up
+to ten authentic solutions, each executed once without changing either arm's
+budget. Changed or rehashed source/input/policy/recommendation records fail closed.
+
+The [reference copy fixture](../tests/fixtures/ranking_four_arm_copy.py) runs one
+selected seed's dependent chain through the shared production scientific input
+checks, Phaser command, parser and sequential continuation implementation.
+Independent seeds still require Nextflow fan-out. Authority is revalidated for
+every attempt, with reference-only adapter identity
+`phenix-add-copy-rf-reference-v1`; public human/Phase III/M6 routes cannot consume
+this manifest. Original model, MTZ/preflight, sequence, parent/child and parameter
+bindings remain mandatory. No human decision or production ranking switch is
+created. An already-complete root emits an authenticated zero-attempt receipt;
+it is not a native additional-copy search. Tool and parse failures retain their
+typed status and best supported parent, not a successful copy-placement claim.
+
+The [stage-accounting fixture](../tests/fixtures/ranking_four_arm_stages.py)
+requires exactly the paired union of authenticated continuation bundles, with
+no missing, duplicate or foreign seed. It reuses the production structural
+`M6StageInventory`/count definitions under explicit reference authority: unique
+sequence groups, models, sequence-group/expected-copy states and hypothesis
+tasks are distinct. Each arm has its own scheduled, recommended and actually
+advanced rows; a receipt selected only by its partner is not its advancement.
+Here, as in production M6, advanced means an authenticated continuation task,
+including an already-complete root or failed copy attempt, not scientific
+success. The separate full typed attempt inventory preserves that distinction.
+Receipt hashes include native logs as well as parent/child coordinates, results,
+commands and parameters. Freeze the inventory before truth-side evaluation;
+later changed evidence must not be accepted under the saved inventory digest.
+
+The [authority/copy tests](../tests/unit/test_ranking_four_arm_advancement.py)
+and [stage tests](../tests/unit/test_ranking_four_arm_stages.py) use the real
+shared adapters with explicitly simulated Phenix output. They exercise reference
+seeds outside production's top five, source/policy/asset tampering, sequential
+parents, input overrides, zero-attempt roots, no-hit recommendations, execution
+failures and separate per-arm conservation. They are not native runtime evidence.
+Full first/resume/native route qualification remains outstanding.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,

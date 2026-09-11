@@ -196,13 +196,41 @@ def _copy_receipt(
 ) -> tuple[str, int]:
     """Authenticate the retained parent and every native attempt in one chain."""
 
+    return _validate_copy_receipt(
+        root,
+        task=task,
+        parent_sha256=parent_sha256,
+        parent_result_sha256=parent_result_sha256,
+        mtz_sha256=mtz_sha256,
+        authority_kind="truth_blind_m6_benchmark",
+        adapter_version="phenix-add-copy-mr-v9-m6-truth-blind",
+    )
+
+
+def _validate_copy_receipt(
+    root: Path,
+    *,
+    task: dict[str, object],
+    parent_sha256: str,
+    parent_result_sha256: str,
+    mtz_sha256: str,
+    authority_kind: str,
+    adapter_version: str,
+) -> tuple[str, int]:
+    """Shared chain validation after a caller authenticates its benchmark policy.
+
+    Production always supplies the fixed M6 binding above. The isolated RF
+    reference fixture supplies its independently validated reference binding;
+    neither caller may substitute a recommendation for an execution receipt.
+    """
+
     seed_id = task["seed_solution_id"]
     if _object(root / "seed_task.json") != task:
         raise ValueError("M6 continuation receipt differs from its seed task")
     summary = _object(root / "additional_copy_series_summary.json")
     parent = _object(root / "best_parent.json")
     authority = {
-        "execution_authority_kind": "truth_blind_m6_benchmark",
+        "execution_authority_kind": authority_kind,
         "benchmark_advancement_id": task["advancement_id"],
         "benchmark_advancement_manifest_sha256": task["advancement_manifest_sha256"],
         "human_approval_granted": False,
@@ -273,7 +301,7 @@ def _copy_receipt(
             "parent_solution_id": parent_id,
             "parent_copy_count": best_count,
             "mtz_sha256": mtz_sha256,
-            "adapter_version": "phenix-add-copy-mr-v9-m6-truth-blind",
+            "adapter_version": adapter_version,
             "parameters_sha256": sha256_file(parameters),
             "search_model_sha256": task["search_model_sha256"],
             "original_first_copy_model_sha256": task["search_model_sha256"],

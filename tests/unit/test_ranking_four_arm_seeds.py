@@ -2,6 +2,7 @@
 
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,7 @@ from tests.fixtures.ranking_four_arm_admission import reference_admission_plan
 from tests.fixtures.ranking_four_arm_reference import AdmissionPrior
 from tests.fixtures.ranking_four_arm_seeds import reference_seed_recommendations
 from tests.unit.test_m6_seed_selection import _attempts
-from tests.unit.test_ranking_four_arm_admission import _large_request
+from tests.unit.test_ranking_four_arm_admission import _fixed_inputs, _large_request
 
 
 def _review_case(
@@ -38,8 +39,26 @@ def _review_case(
     prior: AdmissionPrior,
     *,
     no_hits: bool = False,
+    crystal_id: str | None = None,
+    small_cell: bool = False,
 ) -> tuple[DiverseFirstCopyFunnelRequest, Path, Path]:
     request = _large_request(tmp_path, monkeypatch)
+    if crystal_id is not None or small_cell:
+        # A renamed synthetic input exercises the fixed reference case-ID gate.
+        # It is still synthetic MR, never the actual benchmark case or truth.
+        preflight = json.loads(request.mtz_preflight_jsonl.read_text())
+        if crystal_id is not None:
+            preflight["crystal_id"] = crystal_id
+        if small_cell:
+            preflight.update(
+                asu_volume_a3=1000.0,
+                cell_volume_a3=4000.0,
+                unit_cell=[10.0, 20.0, 20.0, 90.0, 90.0, 90.0],
+            )
+        request.mtz_preflight_jsonl.write_text(canonical_json_text(preflight) + "\n")
+        request = _fixed_inputs(
+            replace(request, crystal_ids=(preflight["crystal_id"],))
+        )
     production = build_diverse_first_copy_funnel(request)
     plan = reference_admission_plan(request, admission_prior=prior)
     # Keep the original production output intact. This separate test bundle is

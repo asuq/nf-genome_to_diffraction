@@ -27,6 +27,7 @@ import json
 import logging
 import re
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import cast
@@ -161,6 +162,40 @@ class AddCopySeriesOutput:
 
 
 @dataclass(frozen=True)
+class _BenchmarkProvenance:
+    """Validated benchmark label consumed by the shared scientific executor.
+
+    Policy validation belongs to the caller, not to this internal record. The
+    public adapter creates it only after validating production M6 authority;
+    the isolated known-control reference fixture supplies its own provenance.
+    """
+
+    authority_kind: str
+    advancement_id: str
+    manifest_sha256: str
+    adapter_version: str
+
+    def command_fields(self) -> dict[str, object]:
+        return {
+            "execution_authority_kind": self.authority_kind,
+            "benchmark_advancement_id": self.advancement_id,
+            "benchmark_advancement_manifest_sha256": self.manifest_sha256,
+            "human_approval_granted": False,
+        }
+
+
+@dataclass(frozen=True)
+class _SeedAuthority:
+    """Policy-validated review context, before shared scientific input checks."""
+
+    review_id: str
+    review_root: Path
+    review_document: dict[str, object]
+    phase3_source: dict[str, object] | None = None
+    benchmark: _BenchmarkProvenance | None = None
+
+
+@dataclass(frozen=True)
 class _Resolved:
     review_id: str
     hypothesis: MrHypothesis
@@ -181,7 +216,7 @@ class _Resolved:
     phase3_hypothesis: DiffractionBoundHypothesis | None = None
     diffraction_command_binding: DiffractionCommandBinding | None = None
     resource_plan: MrResourcePlan | None = None
-    benchmark_advancement_sha256: str | None = None
+    benchmark: _BenchmarkProvenance | None = None
 
 
 def _json_object(path: Path, *, label: str) -> dict[str, object]:
@@ -236,9 +271,11 @@ def _owned(root: Path, relative: object, *, label: str) -> Path:
     return resolved
 
 
-def _resolve(request: AddCopyRunRequest) -> _Resolved:
+def _resolve_authority(request: AddCopyRunRequest) -> _SeedAuthority:
+    """Validate the existing public human, Phase III or production M6 gate."""
+
     phase3_source: dict[str, object] | None = None
-    benchmark_sha: str | None = None
+    benchmark_provenance: _BenchmarkProvenance | None = None
     if request.benchmark_advancement_manifest is not None:
         from genome_to_diffraction.benchmarks.m6_advancement import (
             validate_m6_advancement,
@@ -273,7 +310,12 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         # Historical result field name; the explicit benchmark ID is an audit
         # authority, not a human review or an invented approval decision.
         review_id = benchmark.manifest.advancement_id
-        benchmark_sha = sha256_file(request.benchmark_advancement_manifest)
+        benchmark_provenance = _BenchmarkProvenance(
+            authority_kind="truth_blind_m6_benchmark",
+            advancement_id=review_id,
+            manifest_sha256=sha256_file(request.benchmark_advancement_manifest),
+            adapter_version=_M6_ADAPTER_VERSION,
+        )
     elif request.phase3_seed_stage_manifest is None:
         if (
             request.review_validation_json is None
@@ -330,6 +372,41 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         root = phase3.review_root
         review_id = phase3.review_id
         phase3_source = phase3.model_sources[request.seed_solution_id]
+    return _SeedAuthority(
+        review_id, root, manifest, phase3_source, benchmark_provenance
+    )
+
+
+def _resolve(request: AddCopyRunRequest) -> _Resolved:
+    return _resolve_review_seed(request, _resolve_authority(request))
+
+
+def _resolve_review_seed(
+    request: AddCopyRunRequest, authority: _SeedAuthority
+) -> _Resolved:
+    """Apply the same parent, model, sequence and diffraction checks to a seed.
+
+    This private boundary is shared with the fixed reference benchmark fixture.
+    It does not grant authority or select seeds; the caller must revalidate its
+    explicit policy before every attempt, including sequential continuation.
+    """
+
+    root = authority.review_root
+    manifest = authority.review_document
+    review_id = authority.review_id
+    phase3_source = authority.phase3_source
+    if authority.benchmark is not None and (
+        authority.benchmark.advancement_id != review_id
+        or request.phase3_seed_stage_manifest is not None
+        or request.review_validation_json is not None
+        or request.review_package_manifest is not None
+        or request.diffraction_selection_json is not None
+        or request.expected_search_model_sha256 is not None
+        or phase3_source is not None
+    ):
+        raise PhaserInputError(
+            "benchmark authority rejects human/staged-model overrides"
+        )
     raw_items = manifest.get("items")
     if not isinstance(raw_items, list):
         raise PhaserInputError("MR review manifest has no items")
@@ -447,8 +524,6 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         parent_copy_count = sequential.best_supported_copy_count
         parent_result_sha = sha256_file(sequential_result_path)
         parent_llg = sequential.llg
-    if hypothesis.copy_count_expected <= parent_copy_count:
-        raise PhaserInputError("approved seed has no expected additional copy")
     groups = _jsonl_records(
         request.sequence_groups_jsonl, SequenceGroupRecord, label="sequence groups"
     )
@@ -557,7 +632,7 @@ def _resolve(request: AddCopyRunRequest) -> _Resolved:
         phase3_hypothesis=phase3_hypothesis,
         diffraction_command_binding=diffraction_binding,
         resource_plan=resource_plan,
-        benchmark_advancement_sha256=benchmark_sha,
+        benchmark=authority.benchmark,
     )
 
 
@@ -645,6 +720,14 @@ def _write_output(
 def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     """Run one approved fixed-parent search for exactly one additional copy."""
 
+    return _run_additional_copy_phaser(request, resolve=_resolve)
+
+
+def _run_additional_copy_phaser(
+    request: AddCopyRunRequest, *, resolve: Callable[[AddCopyRunRequest], _Resolved]
+) -> AddCopyRunOutput:
+    """Execute one search after the caller's explicit validated-authority route."""
+
     if request.threads < 1:
         raise ValueError("threads must be positive")
     if request.timeout_seconds is not None and request.timeout_seconds <= 0:
@@ -652,7 +735,9 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
     output = request.output_directory.resolve()
     if output.exists() and any(output.iterdir()):
         raise PhaserInputError(f"Phaser output directory is not empty: {output}")
-    resolved = _resolve(request)
+    resolved = resolve(request)
+    if resolved.hypothesis.copy_count_expected <= resolved.parent_copy_count:
+        raise PhaserInputError("approved seed has no expected additional copy")
     resource_plan = resolved.resource_plan
     if resolved.diffraction_selection is not None:
         if resource_plan is None:
@@ -677,8 +762,8 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         parameters, _parameters(resolved, sequence_fasta, request.threads)
     )
     adapter_version = (
-        _M6_ADAPTER_VERSION
-        if resolved.benchmark_advancement_sha256
+        resolved.benchmark.adapter_version
+        if resolved.benchmark is not None
         else (
             _PHASE3_ADAPTER_VERSION
             if resolved.diffraction_selection is not None
@@ -702,17 +787,8 @@ def run_additional_copy_phaser(request: AddCopyRunRequest) -> AddCopyRunOutput:
         ),
         "parameters_sha256": sha256_file(parameters),
     }
-    if resolved.benchmark_advancement_sha256 is not None:
-        attempt_identity.update(
-            {
-                "execution_authority_kind": "truth_blind_m6_benchmark",
-                "benchmark_advancement_id": resolved.review_id,
-                "benchmark_advancement_manifest_sha256": (
-                    resolved.benchmark_advancement_sha256
-                ),
-                "human_approval_granted": False,
-            }
-        )
+    if resolved.benchmark is not None:
+        attempt_identity.update(resolved.benchmark.command_fields())
     if (
         resolved.diffraction_selection is not None
         and resolved.phase3_hypothesis is not None
@@ -915,11 +991,39 @@ def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutpu
     states and without claiming that the additional copy is absent.
     """
 
+    return _run_additional_copy_series(
+        request,
+        run_attempt=run_additional_copy_phaser,
+        authority=_resolve_authority(request),
+    )
+
+
+def _run_additional_copy_series(
+    request: AddCopyRunRequest,
+    *,
+    run_attempt: Callable[[AddCopyRunRequest], AddCopyRunOutput],
+    authority: _SeedAuthority,
+) -> AddCopySeriesOutput:
+    """Shared dependent chain; every supplied attempt revalidates its authority."""
+
     root = request.output_directory.resolve()
     attempts: list[AddCopyRunOutput] = []
     current_request = request
     while True:
-        output = run_additional_copy_phaser(current_request)
+        output = run_attempt(current_request)
+        command = _json_object(output.command_json, label="additional-copy command")
+        expected_authority = (
+            authority.benchmark.command_fields()
+            if authority.benchmark is not None
+            else {}
+        )
+        if output.result.review_id != authority.review_id or any(
+            command.get(key) != value or type(command.get(key)) is not type(value)
+            for key, value in expected_authority.items()
+        ):
+            raise PhaserInputError(
+                "additional-copy authority changed during the series"
+            )
         attempts.append(output)
         result = output.result
         if not result.additional_copy_supported:
@@ -958,8 +1062,8 @@ def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutpu
     summary = root / "additional_copy_series_summary.json"
     series_identity = {
         "adapter_version": (
-            _M6_ADAPTER_VERSION
-            if request.benchmark_advancement_manifest is not None
+            authority.benchmark.adapter_version
+            if authority.benchmark is not None
             else _PHASE3_ADAPTER_VERSION
             if request.diffraction_selection_json is not None
             else _ADAPTER_VERSION
@@ -967,17 +1071,8 @@ def run_additional_copy_series(request: AddCopyRunRequest) -> AddCopySeriesOutpu
         "seed_solution_id": request.seed_solution_id,
         "attempt_ids": [item.result.attempt_id for item in attempts],
     }
-    if request.benchmark_advancement_manifest is not None:
-        series_identity.update(
-            {
-                "execution_authority_kind": "truth_blind_m6_benchmark",
-                "benchmark_advancement_id": attempts[0].result.review_id,
-                "benchmark_advancement_manifest_sha256": sha256_file(
-                    request.benchmark_advancement_manifest
-                ),
-                "human_approval_granted": False,
-            }
-        )
+    if authority.benchmark is not None:
+        series_identity.update(authority.benchmark.command_fields())
     final = attempts[-1].result
     atomic_write_json(
         summary,
