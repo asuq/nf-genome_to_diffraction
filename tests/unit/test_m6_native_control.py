@@ -181,14 +181,17 @@ def test_native_control_cannot_select_leakage_or_another_site() -> None:
     with pytest.raises(ValueError, match="fixed operational"):
         m6_execution_case_ids("leakage", "native_control")
     assert controller_kind_for_profile("raven", "m6-native-control") == "login_process"
-    for site in ("marmic", "viper-cpu"):
-        with pytest.raises(ValidationError, match="only for Raven"):
-            controller_kind_for_profile(site, "m6-native-control")
+    assert controller_kind_for_profile("marmic", "m6-native-control") == "slurm_job"
+    with pytest.raises(ValidationError, match="only for Marmic or Raven"):
+        controller_kind_for_profile("viper-cpu", "m6-native-control")
 
 
+@pytest.mark.parametrize(("site_id", "memory_gb"), [("marmic", 192.0), ("raven", 96.0)])
 def test_native_control_stage_keeps_the_confirmed_archive_and_purpose(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    site_id: str,
+    memory_gb: float,
 ) -> None:
     archive = tmp_path / ".untracked/runner.tar"
     archive.parent.mkdir()
@@ -205,9 +208,14 @@ def test_native_control_stage_keeps_the_confirmed_archive_and_purpose(
             65,
         ),
     )
-    transport = FakeTransport(stage_site_id="raven")
+    transport = FakeTransport(stage_site_id=site_id)
     controller = _controller(tmp_path, transport)
-    controller.config = _config(tmp_path, site_id="raven")
+    controller.config = _config(tmp_path, site_id=site_id)
+    if site_id == "marmic":
+        monkeypatch.setattr(
+            "genome_to_diffraction.hpc.client._fixed_heteromer_phenix_binding",
+            lambda repository: ("/approved/site/phenix/manifest.json", "a" * 64),
+        )
     result = controller.m6_scientific_stage(
         "HEAD",
         archive,
@@ -218,17 +226,23 @@ def test_native_control_stage_keeps_the_confirmed_archive_and_purpose(
     assert result["profile"] == "m6-native-control"
     assert result["execution_purpose"] == "native_control"
     assert result["case_count"] == 63 and result["object_count"] == 65
-    assert result["maximum_cpu_count"] == 32 and result["maximum_memory_gb"] == 96.0
+    assert result["maximum_cpu_count"] == 32
+    assert result["maximum_memory_gb"] == memory_gb
     assert transport.m6_scientific_archive == archive.read_bytes()
     operation, arguments = transport.calls[-1]
     assert operation == "m6-scientific-stage"
-    assert arguments[9:] == ("operational", "native_control")
+    assert arguments[9:11] == ("operational", "native_control")
+    assert arguments[11:] == (
+        ("/approved/site/phenix/manifest.json", "a" * 64) if site_id == "marmic" else ()
+    )
 
 
 @pytest.mark.parametrize(
     ("site", "track", "purpose", "parent"),
     [
-        ("marmic", "operational", "native_control", None),
+        ("viper-cpu", "operational", "native_control", None),
+        ("marmic", "leakage", "native_control", None),
+        ("marmic", "operational", "native_control", "unreviewed-parent"),
         ("raven", "leakage", "native_control", None),
         ("raven", "operational", "native_control", "unreviewed-parent"),
         ("raven", "operational", "unreviewed-purpose", None),

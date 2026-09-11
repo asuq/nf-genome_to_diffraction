@@ -66,6 +66,9 @@ M6_NEXTFLOW_SMOKE_RUN_ID = (
     "gtd-m6-nextflow-smoke-20260802T120000Z-0123456789ab-01234567"
 )
 M6_OPERATIONAL_RUN_ID = "gtd-m6-operational-20260802T120000Z-0123456789ab-01234567"
+M6_NATIVE_CONTROL_RUN_ID = (
+    "gtd-m6-native-control-20260802T120000Z-0123456789ab-01234567"
+)
 M6_LEAKAGE_RUN_ID = "gtd-m6-leakage-20260802T120001Z-0123456789ab-01234568"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
@@ -1533,10 +1536,18 @@ def test_m6_scientific_submit_uses_approved_bounded_resources(
 
 
 @pytest.mark.parametrize("source_archive", [False, True])
-@pytest.mark.parametrize("input_only", (False, True))
+@pytest.mark.parametrize(
+    ("run_id", "purpose"),
+    [
+        (M6_INPUTS_RUN_ID, None),
+        (M6_OPERATIONAL_RUN_ID, "benchmark"),
+        (M6_NATIVE_CONTROL_RUN_ID, "native_control"),
+    ],
+)
 def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
-    tmp_path: Path, source_archive: bool, input_only: bool
+    tmp_path: Path, source_archive: bool, run_id: str, purpose: str | None
 ) -> None:
+    input_only = purpose is None
     dispatcher, smoke_job, environment, commit = _prepare_remote_layout(tmp_path)
     remote_root = smoke_job.parent.parent
     site_config = dispatcher.parent / "site.paths"
@@ -1579,7 +1590,6 @@ def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
             member.size = len(payload)
             archive.addfile(member, io.BytesIO(payload))
     archive_bytes = archive_buffer.getvalue()
-    run_id = M6_INPUTS_RUN_ID if input_only else M6_OPERATIONAL_RUN_ID
     operation = "m6-inputs-stage" if input_only else "m6-scientific-stage"
     arguments = [
         run_id,
@@ -1593,7 +1603,8 @@ def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
         "1",
     ]
     if not input_only:
-        arguments.extend(["operational", "benchmark"])
+        assert purpose is not None
+        arguments.extend(["operational", purpose])
         rejected = _run(
             [str(dispatcher), operation, *arguments],
             cwd=tmp_path,
@@ -1651,10 +1662,13 @@ def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
     state = remote_root / "runs" / run_id / "state"
     assert staged["site_id"] == "marmic"
     assert (state / "site-id").read_text().strip() == "marmic"
+    assert (state / "controller-kind").read_text().strip() == "slurm_job"
     if input_only:
         assert not (state / "phenix-manifest").exists()
         assert not (state / "database-manifest").exists()
     else:
+        assert staged["execution_purpose"] == purpose
+        assert (state / "m6-execution-purpose").read_text().strip() == purpose
         assert (state / "nextflow-profile").read_text().strip() == "marmic"
         assert (state / "execution-policy-id").read_text().strip() == (
             "m6_nextflow_slurm_marmic_v2"
@@ -1667,6 +1681,38 @@ def test_marmic_m6_stage_binds_source_runner_and_required_scientific_inputs(
     if source_archive:
         assert (state / "source-archive-sha256").read_text().strip() == source_digest
         assert not mirror.exists()
+
+    if purpose == "native_control":
+        assert staged["profile"] == "m6-native-control"
+        (state / "m6-execution-purpose").write_text("benchmark\n", encoding="ascii")
+        rejected = _decode_protocol(
+            _run(
+                [str(dispatcher), "submit", run_id, OWNER_ID],
+                cwd=tmp_path,
+                environment=environment,
+                success=False,
+            ).stdout
+        )
+        assert rejected["failure_class"] == "wrapper_failure"
+        assert "purpose or runner binding changed" in rejected["message"]
+        assert not (tmp_path / "sbatch-args").exists()
+        (state / "m6-execution-purpose").write_text(
+            "native_control\n", encoding="ascii"
+        )
+        submitted = _decode_protocol(
+            _run(
+                [str(dispatcher), "submit", run_id, OWNER_ID],
+                cwd=tmp_path,
+                environment=environment,
+            ).stdout
+        )
+        assert submitted["job_id"] == "123"
+        assert submitted["site_id"] == "marmic"
+        assert not (state / "controller.json").exists()
+        submitted_arguments = (tmp_path / "sbatch-args").read_text().splitlines()
+        assert "--cpus-per-task=2" in submitted_arguments
+        assert "--mem=8G" in submitted_arguments
+        assert "--time=24:00:00" in submitted_arguments
 
 
 def test_m6_leakage_binds_only_collected_same_source_operational_cache(

@@ -371,8 +371,10 @@ def controller_kind_for_profile(site_id: str, profile: str) -> ControllerKind:
 
     validate_site_id(site_id)
     validate_profile(profile)
-    if profile == "m6-native-control" and site_id != "raven":
-        raise ValidationError("native-control execution is qualified only for Raven")
+    if profile == "m6-native-control" and site_id not in {"marmic", "raven"}:
+        raise ValidationError(
+            "native-control execution is qualified only for Marmic or Raven"
+        )
     if profile == "rf-reference" and site_id != "raven":
         raise ValidationError("reference execution is qualified only for Raven")
     if site_id != "raven" or profile in RAVEN_SLURM_PROFILES:

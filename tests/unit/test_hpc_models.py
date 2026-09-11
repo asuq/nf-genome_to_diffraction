@@ -116,6 +116,7 @@ def test_raven_keeps_the_shared_configuration_with_fixed_site_paths(
         ("raven", "rf-reference", "login_process"),
         ("raven", "m6-inputs", "slurm_job"),
         ("marmic", "m6-operational", "slurm_job"),
+        ("marmic", "m6-native-control", "slurm_job"),
         ("viper-cpu", "m6-operational", "slurm_job"),
     ],
 )

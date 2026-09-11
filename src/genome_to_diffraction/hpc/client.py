@@ -2818,12 +2818,13 @@ class HpcController:
         if execution_purpose not in {"benchmark", "native_control"}:
             raise ValidationError("M6 execution purpose is not reviewed")
         if execution_purpose == "native_control" and (
-            self.config.site_id != "raven"
+            self.config.site_id not in {"marmic", "raven"}
             or track != "operational"
             or operational_parent_run_id is not None
         ):
             raise ValidationError(
-                "native control requires Raven operational inputs without a parent"
+                "native control requires Marmic or Raven operational inputs "
+                "without a parent"
             )
         self.git.ensure_clean()
         commit = self.git.resolve_commit(revision)

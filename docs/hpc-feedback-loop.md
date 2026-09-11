@@ -90,7 +90,13 @@ nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID
 
 The purpose is bound at staging and rechecked before submission and execution.
 It cannot select arbitrary cases, use leakage inputs, have an operational parent
-or run at another site. The shared Nextflow graph verifies the full input bundle
+or run outside Marmic/Raven. Marmic uses its existing compute-node Slurm
+controller (2 CPUs, 8 GB, 24 hours) and 32-CPU/192-GB Foldseek policy; Raven
+retains its login-process controller and 32-CPU/96-GB Foldseek policy. Both keep
+at most 128 Foldseek queries per batch and the original scientific settings.
+Their input manifests bind each site's actual frozen database snapshot; an
+older Marmic PDB sequence snapshot is not labelled byte-identical to Raven's.
+The shared Nextflow graph verifies the full input bundle
 before materialising those two cases. Native-control plan, summary and verification
 identities are distinct and explicitly cannot claim full M6 acceptance.
 

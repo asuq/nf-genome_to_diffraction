@@ -161,8 +161,8 @@ controller_kind_for_profile() {
             *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
         esac
     elif [[ "$SITE_ID" == marmic || "$SITE_ID" == viper-cpu ]]; then
-        [[ "$1" != m6-native-control ]] || \
-            fail wrapper_failure "native control is qualified only for Raven"
+        [[ "$1" != m6-native-control || "$SITE_ID" == marmic ]] || \
+            fail wrapper_failure "native control is qualified only for Marmic or Raven"
         [[ "$1" != rf-reference ]] || \
             fail wrapper_failure "reference execution is qualified only for Raven"
         printf slurm_job
@@ -3676,7 +3676,7 @@ m6_runner_stage_common() {
         [[ ( "$profile" == m6-operational && "$track" == operational ) || \
            ( "$profile" == m6-leakage && "$track" == leakage ) || \
            ( "$profile" == m6-native-control && "$track" == operational && \
-             "$SITE_ID" == raven ) ]] || \
+             ( "$SITE_ID" == marmic || "$SITE_ID" == raven ) ) ]] || \
             fail wrapper_failure "invalid M6 scientific profile"
         stage_log=m6-scientific-stage.log
         if [[ "$SITE_ID" == marmic ]]; then
@@ -3910,10 +3910,10 @@ m6_scientific_stage_run() {
     if [[ "$purpose" == benchmark ]]; then
         profile="m6-${track}"
     elif [[ "$purpose" == native_control && "$track" == operational && \
-            "$SITE_ID" == raven ]]; then
+            ( "$SITE_ID" == marmic || "$SITE_ID" == raven ) ]]; then
         profile=m6-native-control
     else
-        fail wrapper_failure "native control requires Raven operational inputs"
+        fail wrapper_failure "native control requires Marmic or Raven operational inputs"
     fi
     m6_runner_stage_common \
         m6-scientific-stage "$profile" "$track" "${@:1:9}" "${@:12}"

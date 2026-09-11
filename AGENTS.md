@@ -273,6 +273,16 @@ test; qualify the appropriate fixed route before using it. Known-control/M6,
 finding-closure, exact-source and release gates remain required. The previously
 cancelled expanded/AFDB investigation is not otherwise reopened.
 
+On 2026-09-12 the user directed subsequent tests to Marmic while leaving the
+existing Raven run untouched. They approved reuse of Marmic's frozen databases
+and existing resource policy, with the PDB sequence-snapshot difference recorded
+explicitly. After initially requesting a login controller, they withdrew that
+requirement and approved the existing compute-node Slurm controller. Qualify
+the fixed C001/C025 native control on that route before larger tests; retain full
+catalogues, truth isolation, measured resources and cached-resume gates. Do not
+extend the Raven login-process implementation, restart or cancel Raven work, or
+change scientific thresholds. Raven monitoring remains every three hours.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

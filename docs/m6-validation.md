@@ -465,6 +465,13 @@ the unchanged runner, without downsampling their catalogues. It remains on the
 operational model policy, is not a third benchmark track and has separate plan
 and output adapter identities. Its explicit non-acceptance flag and distinct
 summary prevent entry into full-track collection or use as a leakage parent.
+The fixed control is supported on Marmic with its existing Slurm compute-node
+controller and on Raven with its existing login-process controller. Marmic keeps
+the approved v2 resource policy, including 32-CPU/192-GB Foldseek batches; no
+Raven allocation or login-controller identity is substituted. Each independent
+run retains its own source, input/database hashes and cache. Reusing Marmic's
+older frozen PDB sequence database produces a separately bound qualification,
+not an identical-reference replication of Raven.
 The [common-controller runbook](hpc-feedback-loop.md) specifies the native
 MR, target-absence, resource, truth-isolation and cached-resume checks needed
 before the large run; structural output verification alone is not that gate.
