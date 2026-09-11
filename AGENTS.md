@@ -177,9 +177,10 @@ not for AF01. Do not infer AF01 GPU allocation or migrate the current M6 tracks.
 The user then explicitly overrode the site choice and directed the current test
 to Raven, reusing its existing setup. Qualify the corresponding fixed M6 route
 before execution; do not reinterpret this as AF01 GPU authority or restart the
-cancelled identification work. After the requested large test is submitted and
-Raven monitoring is scheduled, pause development for the user's laptop reboot
-and monitor only the owned Raven run until the user resumes development.
+cancelled identification work. The requested large test requires saved Raven
+monitoring. The user has since completed the laptop reboot and explicitly
+removed the associated development pause; continue development alongside owned-
+run monitoring, preserving the native-control and other qualification gates.
 
 The user then instructed Codex to prepare the missing Raven databases, identified
 aria2 in the existing `download` mamba environment, and explicitly allowed raw
@@ -187,8 +188,8 @@ SSH approval requests for preparation. They requested all needed approvals befor
 leaving. A task-scoped local runner was presented for the bounded Raven upload,
 database preparation, agreed native control/large M6 test, and read-only
 monitoring/collection operations. This is not blanket SSH authority: respect the
-actual command approval, exact owned paths, immutable source/CI/control gates and
-the post-large-submission pause. Download only the required public reference set;
+actual command approval, exact owned paths and immutable source/CI/control gates.
+Download only the required public reference set;
 reuse the locked scientific environment and Phenix unchanged. No GPU/AF01 work,
 cancellation, deletion, unrelated jobs or scientific-setting changes are implied.
 Database preparation and its functional smoke are not M6 acceptance evidence.

@@ -16616,3 +16616,20 @@ with a collapsed combined parent or a guessed command.
   This is local implementation qualification only. Commit/push for exact-source
   CI, refresh/deploy the original controller, and start a fresh native Raven
   stub before the fixed real control. No new native submission is claimed.
+
+## 2026-09-11 - Reboot complete; development pause removed
+
+- The user confirmed that the laptop reboot is already complete and removed
+  the post-large-submission pause. Continue authorised development alongside
+  owned-run monitoring; this does not waive native-control, exact-source,
+  scientific-review or resource qualification gates.
+- All six CI lanes passed for `6905528b8affc3198c7ae4d1234886cc04bc0521`
+  in run `34551145931`. Refreshed and deployed the original controller, then
+  staged and started fresh Raven stub
+  `gtd-m6-nextflow-smoke-20260911T013957Z-6905528b8aff-7b71ce24`.
+  Its observed login controller is running and Nextflow has submitted Foldseek
+  children without the earlier scheduler-memory rejection. Completion, full
+  resume evidence and real native-control qualification remain pending.
+- Next collect and qualify that stub, then run the fixed full-catalogue
+  M6C001/M6C025 control before the large benchmark. Keep saved monitoring and
+  resume the deferred test-parallelisation work after Raven test initiation.
