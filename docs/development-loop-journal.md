@@ -16830,3 +16830,30 @@ with a collapsed combined parent or a guessed command.
   rerun the gate without changing pipeline behaviour. This does not yet
   implement reference-arm admission, native execution or actual advancement
   accounting. Continue that bounded work alongside owned-run monitoring.
+
+## 2026-09-11 - Four-arm reference-prior/review milestone passed
+
+- Fixed the existing RF-G4 comparison's five-case cohort and evidence rules
+  before comparison execution. The reference-only fixture recomputes solvent-
+  density versus copy-weighted retention from complete production enumeration,
+  preserves the original prior factors, and pairs review orders on identical
+  joined MR evidence. Its production baseline calls the actual review key.
+  It does not add an alternative production dispatcher or scientific policy.
+- After initialising the worktree's unchanged pinned nf-helper submodule, the
+  new captured gate passed all 25 checks: 1,697 unit, 185 contract and 128
+  integration tests, all workflow/cache/resume checks and packaging. All 1,189
+  source inputs remained unchanged. Duration was 8m20s; log SHA-256 is
+  `02f682f567aa9e70f966379930330c2d566b1c89d66e0b7e9ca3c85c8842232f`.
+  The earlier setup-failed attempt remains preserved, not relabelled as passed.
+- Committed the qualified reference increment in its isolated worktree and
+  integrated it onto main without changing production scientific source,
+  schemas, resources, HPC tooling or the active immutable native run.
+  Publish the coherent code-only increment for exact-source CI.
+- The native C001/C025 control remains in its search stage at the latest owned
+  observation. No new MR, measured Foldseek RSS or native acceptance is claimed.
+  Keep its original wait/collection cycle and all pre-large-run gates intact.
+- Next qualify reference admission against the production funnel, paired seed
+  recommendations and actual advancement receipts, then the fixed native
+  comparison route. This first reference milestone is not full RF-G4 or M6
+  acceptance. The cancelled investigation and v0.3/v0.4 review boundaries remain
+  unchanged; continue authorised development alongside owned-run monitoring.
