@@ -16888,3 +16888,32 @@ with a collapsed combined parent or a guessed command.
   Do not mislabel a reference recommendation as production authority or an
   executed seed. Continue monitoring the existing native control; its last
   log still ends at search submissions, with MR/RSS/resume gates outstanding.
+
+## 2026-09-11 - Paired reference recommendations qualified locally
+
+- All six CI lanes passed for reference admission on
+  `e2563fa64239c116557a7003a5b2ff71e47e773d`, run `34566314622`.
+- The next read-only fixture rederives each exact admission cohort, validates
+  its real review-package format and assets, and annotates both comparison
+  orders without changing production evidence or eligibility. The production
+  baseline matches the actual M6 recommendation table, while explicit synthetic
+  MR demonstrates changed top-five membership within each identical-input pair.
+  No human decision, execution authority or advancement receipt is fabricated.
+- All 73 focused checks passed. The captured paired-recommendation milestone
+  passed all 25 checks with all 1,197 source inputs unchanged: 1,712 unit,
+  185 contract and 128 integration tests, workflow/cache/resume checks and
+  packaging. Duration was 7m47s; gate log SHA-256 is
+  `9a8f0abafd609b7ce212925ba2f66652ab99403da17f062541d4a5cd75e8c186`.
+  Integrated the isolated worktree increment onto main for code-only CI.
+  Production scientific source, schemas, resources, workflows, HPC tools and
+  environment remain unchanged from the active native-control source.
+- Native control `gtd-m6-native-control-20260911T044157Z-413b845eb75f-3f3a95cc`
+  still has no new MR or resource acceptance at the latest owned observation.
+  Keep its original wait/collection cycle; freeze terminal output hashes before
+  truth comparison and require positive/absent outcomes, measured Foldseek RSS,
+  complete native provenance and cached resume before the large benchmark.
+- Next implement the explicit reference known-control authority and genuine
+  advancement accounting using the shared scientific executor, then qualify
+  the fixed native comparison route. Recommendations alone cannot close RF-G4,
+  and the production authority must not be relabelled to run reference-only
+  seeds. Preserve all v0.3 rank-recovery and v0.4 human-review boundaries.
