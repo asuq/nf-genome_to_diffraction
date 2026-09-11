@@ -292,6 +292,36 @@ def test_native_control_stage_and_submit_use_the_original_cli() -> None:
     assert submitted.profile == "m6-native-control"
 
 
+def test_rf_reference_stage_accepts_only_immutable_source_and_confirmed_runner() -> (
+    None
+):
+    parser = _build_parser()
+    arguments = [
+        "rf-reference-stage",
+        "--revision",
+        "HEAD",
+        "--archive",
+        "/tmp/runner.tar",
+        "--confirm-archive-sha256",
+        "a" * 64,
+    ]
+    staged = parser.parse_args(arguments)
+    assert staged.operation == "rf-reference-stage"
+    assert staged.archive == Path("/tmp/runner.tar")
+    assert (
+        not {"track", "execution_purpose", "case", "truth", "cpus", "parent_run_id"}
+        & vars(staged).keys()
+    )
+    for flag in ("--track", "--case", "--truth", "--cpus", "--source-branch"):
+        with pytest.raises(SystemExit):
+            parser.parse_args([*arguments, flag, "forbidden"])
+    assert parser.parse_args(["readiness", "rf-reference"]).profile == "rf-reference"
+    assert (
+        parser.parse_args(["submit", "rf-reference", "--run-id", "RUN_ID"]).profile
+        == "rf-reference"
+    )
+
+
 def test_t12_stage_accepts_only_revision_and_owned_parent() -> None:
     parser = _build_parser()
 

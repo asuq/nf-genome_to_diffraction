@@ -63,6 +63,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "m6-native-control",
             "m6-operational",
             "m6-leakage",
+            "rf-reference",
             "database",
         ),
     )
@@ -191,6 +192,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "m6-native-control",
             "m6-operational",
             "m6-leakage",
+            "rf-reference",
             "m4-copy",
             "t12",
         ),
@@ -289,6 +291,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="required collected operational parent for the leakage track",
     )
 
+    rf_reference_stage = actions.add_parser(
+        "rf-reference-stage",
+        help="stage the fixed five-case Raven reference graph from confirmed inputs",
+    )
+    rf_reference_stage.add_argument("--revision", required=True)
+    rf_reference_stage.add_argument("--archive", type=Path, required=True)
+    rf_reference_stage.add_argument("--confirm-archive-sha256", required=True)
+
     t12_stage = actions.add_parser(
         "t12-stage",
         help="stage all retained M4 copy-two parents for Viper T12",
@@ -384,6 +394,10 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             execution_purpose=args.execution_purpose,
             source_branch=args.source_branch,
             operational_parent_run_id=args.operational_parent_run_id,
+        )
+    if args.operation == "rf-reference-stage":
+        return controller.rf_reference_stage(
+            args.revision, args.archive, args.confirm_archive_sha256
         )
     if args.operation == "t12-stage":
         return controller.t12_stage(args.revision, args.parent_run)

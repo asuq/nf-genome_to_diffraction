@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference|m4-copy|t12|database)$'
 COMMIT_RE='^[0-9a-f]{40}$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 OWNER_RE='^[0-9a-f]{32}$'
@@ -157,12 +157,14 @@ controller_kind_for_profile() {
     if [[ "$SITE_ID" == raven ]]; then
         case "$1" in
             m6-inputs) printf slurm_job ;;
-            m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage) printf login_process ;;
+            m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference) printf login_process ;;
             *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
         esac
     elif [[ "$SITE_ID" == marmic || "$SITE_ID" == viper-cpu ]]; then
         [[ "$1" != m6-native-control ]] || \
             fail wrapper_failure "native control is qualified only for Raven"
+        [[ "$1" != rf-reference ]] || \
+            fail wrapper_failure "reference execution is qualified only for Raven"
         printf slurm_job
     else
         fail environment_failure "fixed HPC site is not configured"
@@ -655,7 +657,7 @@ raven_readiness() {
     [[ "$SITE_ID" == raven ]] || \
         fail environment_failure "Raven fixed site binding has not been configured"
     case "$profile" in
-        m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage) ;;
+        m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference) ;;
         *) fail wrapper_failure "profile is outside the reviewed Raven scope" ;;
     esac
     [[ "$(hostname -s)" == "${startup_site_values[7]}" ]] || \
@@ -1874,7 +1876,7 @@ stage_run_common() {
 
     if [[ "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
-          "$profile" == m6-native-control ]]; then
+          "$profile" == m6-native-control || "$profile" == rf-reference ]]; then
         local nextflow_profile execution_policy_relative execution_policy
         local execution_policy_sha256 execution_policy_id apptainer_cache
         if [[ "$SITE_ID" == viper-cpu ]]; then
@@ -2010,7 +2012,7 @@ stage_run_common() {
         p0_config_json="\"$p0_config_sha256\""
         database_manifest_json="\"$database_manifest_sha256\""
     elif [[ "$profile" == m6-operational || "$profile" == m6-leakage || \
-            "$profile" == m6-native-control ]]; then
+            "$profile" == m6-native-control || "$profile" == rf-reference ]]; then
         database_config_readiness runtime || true
         [[ "$DATABASE_CONFIG_STATUS" == ready ]] || {
             atomic_text "$run/state/phase" "stage_failed"
@@ -2080,7 +2082,7 @@ stage_run_common() {
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-inputs || "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
-          "$profile" == m6-native-control || \
+          "$profile" == m6-native-control || "$profile" == rf-reference || \
           "$profile" == m4-copy || \
           "$profile" == t12 || \
           "$profile" == database ]]; then
@@ -2115,7 +2117,7 @@ stage_run_common() {
               "$profile" == control-slice || "$profile" == control-matrix || \
               "$profile" == m6-nextflow-smoke || \
               "$profile" == m6-operational || "$profile" == m6-leakage || \
-              "$profile" == m6-native-control || \
+              "$profile" == m6-native-control || "$profile" == rf-reference || \
               "$profile" == m4-copy || \
               "$profile" == t12 ]]; then
             nextflow="$run/source/.pixi/envs/hpc/bin/nextflow"
@@ -3645,6 +3647,7 @@ m6_runner_stage_common() {
     local marmic_phenix_manifest="${13-}" marmic_phenix_sha256="${14-}"
     local source_archive_sha256="" source_archive_size="" source_helper_commit=""
     local run import_archive import_root python stage_log database_manifest
+    local runner_phase=m6_runner
     local phenix_manifest expected_database_sha expected_phenix_sha
 
     if [[ "$operation" == m6-inputs-stage ]]; then
@@ -3653,6 +3656,17 @@ m6_runner_stage_common() {
         [[ "$profile" == m6-inputs && "$track" == qualification ]] || \
             fail wrapper_failure "invalid M6 input qualification profile"
         stage_log=m6-inputs-stage.log
+        if [[ "$#" -eq 15 ]]; then
+            source_archive_sha256="${13}"
+            source_archive_size="${14}"
+            source_helper_commit="${15}"
+        fi
+    elif [[ "$operation" == rf-reference-stage ]]; then
+        [[ "$SITE_ID" == raven && "$profile" == rf-reference && -z "$track" && \
+           ( "$#" -eq 12 || "$#" -eq 15 ) ]] || \
+            fail wrapper_failure "reference staging requires its fixed Raven scope"
+        stage_log=rf-reference-stage.log
+        runner_phase=rf_runner
         if [[ "$#" -eq 15 ]]; then
             source_archive_sha256="${13}"
             source_archive_size="${14}"
@@ -3719,7 +3733,7 @@ m6_runner_stage_common() {
             "$run_id" "$commit" "$lock_sha256" "$owner_id" 1 "$profile"
     fi
     run="$(run_directory "$run_id")"
-    atomic_text "$run/state/phase" m6_runner_importing
+    atomic_text "$run/state/phase" "${runner_phase}_importing"
     import_archive="$run/m6-runner.tar"
     head -c "$archive_size" > "$import_archive" || \
         fail transfer_failure "M6 runner archive transfer failed"
@@ -3818,7 +3832,7 @@ PY
     then
         atomic_text "$run/state/phase" stage_failed
         atomic_text "$run/state/failure-class" wrapper_failure
-        append_event "$run" m6_runner_import_failed
+        append_event "$run" "${runner_phase}_import_failed"
         fail wrapper_failure "M6 runner validation or extraction failed"
     fi
     rm -f -- "$import_archive"
@@ -3826,8 +3840,16 @@ PY
     atomic_text "$run/state/m6-runner-manifest-sha256" "$manifest_sha256"
     atomic_text "$run/state/m6-runner-case-count" "$case_count"
     atomic_text "$run/state/m6-runner-object-count" "$object_count"
-    atomic_text "$run/state/m6-track" "$track"
-    if [[ "$profile" == m6-native-control ]]; then
+    if [[ "$profile" == rf-reference ]]; then
+        atomic_text "$run/state/rf-reference-scope" rf-fixed-five-v1
+    else
+        atomic_text "$run/state/m6-track" "$track"
+    fi
+    if [[ "$profile" == rf-reference ]]; then
+        [[ ! -e "$run/state/m6-track" && \
+           ! -e "$run/state/m6-execution-purpose" ]] || \
+            fail wrapper_failure "reference run contains M6 execution state"
+    elif [[ "$profile" == m6-native-control ]]; then
         atomic_text "$run/state/m6-execution-purpose" native_control
     elif [[ "$track" != qualification ]]; then
         atomic_text "$run/state/m6-execution-purpose" benchmark
@@ -3856,11 +3878,15 @@ PY
             fail environment_failure "fixed M6 scientific manifest changed"
     fi
     atomic_text "$run/state/phase" staged
-    append_event "$run" m6_runner_ready
+    append_event "$run" "${runner_phase}_ready"
     emit_stage_completion "$operation" "$run_id"
     emit protocol_id m6_independent_prokaryote_homomer_v1
-    emit track "$track"
-    if [[ "$track" != qualification ]]; then
+    if [[ "$profile" == rf-reference ]]; then
+        emit reference_scope rf-fixed-five-v1
+    else
+        emit track "$track"
+    fi
+    if [[ "$track" != qualification && "$profile" != rf-reference ]]; then
         emit execution_purpose "$(<"$run/state/m6-execution-purpose")"
     fi
     emit case_count "$case_count"
@@ -3891,6 +3917,14 @@ m6_scientific_stage_run() {
     fi
     m6_runner_stage_common \
         m6-scientific-stage "$profile" "$track" "${@:1:9}" "${@:12}"
+}
+
+rf_reference_stage_run() {
+    [[ "$#" -eq 9 || "$#" -eq 12 ]] || \
+        fail wrapper_failure "rf-reference-stage expects its fixed source/runner fields"
+    [[ "$SITE_ID" == raven ]] || \
+        fail wrapper_failure "reference execution is qualified only for Raven"
+    m6_runner_stage_common rf-reference-stage rf-reference "" "$@"
 }
 
 m6_leakage_parent_bind_run() {
@@ -4340,7 +4374,7 @@ submit_run() {
     fi
     if [[ "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
-          "$profile" == m6-native-control ]]; then
+          "$profile" == m6-native-control || "$profile" == rf-reference ]]; then
         validate_m6_smoke_site_state "$run"
     fi
     if [[ "$profile" =~ ^(m6-native-control|m6-operational|m6-leakage)$ ]]; then
@@ -4361,6 +4395,25 @@ submit_run() {
            "$(sha256sum "$run/artifacts/m6-runner-inputs/runner_manifest.json" | awk '{print $1}')" == \
            "$(<"$run/state/m6-runner-manifest-sha256")" ]] || \
             fail wrapper_failure "M6 scientific purpose or runner binding changed"
+    fi
+    if [[ "$profile" == rf-reference ]]; then
+        [[ "$SITE_ID" == raven && \
+           -f "$run/state/rf-reference-scope" && \
+           ! -L "$run/state/rf-reference-scope" && \
+           "$(<"$run/state/rf-reference-scope")" == rf-fixed-five-v1 && \
+           ! -e "$run/state/m6-track" && ! -L "$run/state/m6-track" && \
+           ! -e "$run/state/m6-execution-purpose" && \
+           ! -L "$run/state/m6-execution-purpose" && \
+           ! -e "$run/state/m6-operational-parent-run-id" && \
+           ! -L "$run/state/m6-operational-parent-run-id" && \
+           -f "$run/artifacts/m6-runner-inputs/runner_manifest.json" && \
+           ! -L "$run/artifacts/m6-runner-inputs/runner_manifest.json" && \
+           -f "$run/state/m6-runner-manifest-sha256" && \
+           ! -L "$run/state/m6-runner-manifest-sha256" && \
+           "$(<"$run/state/m6-runner-manifest-sha256")" =~ $CHECKSUM_RE && \
+           "$(sha256sum "$run/artifacts/m6-runner-inputs/runner_manifest.json" | awk '{print $1}')" == \
+           "$(<"$run/state/m6-runner-manifest-sha256")" ]] || \
+            fail wrapper_failure "reference scope or runner binding changed"
     fi
     if [[ "$profile" == m6-leakage ]]; then
         [[ -f "$run/state/m6-operational-parent-run-id" && \
@@ -4490,7 +4543,7 @@ submit_run() {
     fi
     if [[ "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
-          "$profile" == m6-native-control ]]; then
+          "$profile" == m6-native-control || "$profile" == rf-reference ]]; then
         cpus=2
         memory=8G
     fi
@@ -4505,7 +4558,7 @@ submit_run() {
           "$profile" == control-slice || "$profile" == control-matrix || \
           "$profile" == m6-nextflow-smoke || \
           "$profile" == m6-operational || "$profile" == m6-leakage || \
-          "$profile" == m6-native-control || \
+          "$profile" == m6-native-control || "$profile" == rf-reference || \
           "$profile" == m4-copy || \
           "$profile" == t12 ]]; then
         walltime=24:00:00
@@ -5782,9 +5835,12 @@ collect_run() {
     # A failed first pass has not copied pipeline_info into qualification yet.
     # Retain only its fixed raw trace; this is diagnostic, never an acceptance flag.
     if [[ "$profile" == m6-native-control || "$profile" == m6-operational || \
-          "$profile" == m6-leakage ]]; then
+          "$profile" == m6-leakage || "$profile" == rf-reference ]]; then
         local raw_m6_trace raw_m6_trace_resolved
         relative=artifacts/m6-nextflow-results/pipeline_info/trace.tsv
+        if [[ "$profile" == rf-reference ]]; then
+            relative=artifacts/rf-reference-results/pipeline_info/trace.tsv
+        fi
         raw_m6_trace="$run/$relative"
         if [[ -e "$raw_m6_trace" || -L "$raw_m6_trace" ]]; then
             [[ -f "$raw_m6_trace" && ! -L "$raw_m6_trace" && \
@@ -5801,6 +5857,81 @@ collect_run() {
             (( total <= MAX_TOTAL_BYTES )) || \
                 fail transfer_failure "M6 raw trace exceeds total collection limit"
             files+=("$relative")
+        fi
+    fi
+    if [[ "$profile" == rf-reference ]]; then
+        local rf_reference_files="" rf_reference_python
+        # Fixed diagnostics remain collectable when first-pass verification
+        # never existed. Only authenticated frozen inventories admit task assets.
+        for relative in \
+            state/rf-reference-scope \
+            state/site-id \
+            state/commit \
+            state/pixi-lock-sha256 \
+            state/nextflow-profile \
+            state/execution-policy-relative \
+            state/execution-policy-id \
+            state/execution-policy-sha256 \
+            state/database-manifest \
+            state/database-manifest-sha256 \
+            state/phenix-manifest \
+            state/phenix-manifest-sha256 \
+            logs/rf-reference-stage.log \
+            logs/rf-reference.log \
+            logs/nextflow-rf-reference-first.log \
+            logs/nextflow-rf-reference-resume.log \
+            artifacts/qualification/rf-reference-phenix-verification.log \
+            artifacts/qualification/rf-reference-first-verification.json \
+            artifacts/qualification/rf-reference-resume-verification.json \
+            artifacts/qualification/rf-reference-first-child-outputs.json \
+            artifacts/qualification/rf-reference-resume-child-outputs.json \
+            artifacts/qualification/rf-reference-first-resource-evidence.json \
+            artifacts/qualification/rf-reference-resume-resource-evidence.json \
+            artifacts/qualification/rf-reference-first-pipeline-info/trace.tsv \
+            artifacts/qualification/rf-reference-first-pipeline-info/report.html \
+            artifacts/qualification/rf-reference-first-pipeline-info/timeline.html \
+            artifacts/qualification/rf-reference-first-pipeline-info/dag.html \
+            artifacts/qualification/rf-reference-resume-pipeline-info/trace.tsv \
+            artifacts/qualification/rf-reference-resume-pipeline-info/report.html \
+            artifacts/qualification/rf-reference-resume-pipeline-info/timeline.html \
+            artifacts/qualification/rf-reference-resume-pipeline-info/dag.html; do
+            candidate="$run/$relative"
+            if [[ -e "$candidate" || -L "$candidate" ]]; then
+                [[ -f "$candidate" && ! -L "$candidate" && -r "$candidate" && \
+                   -O "$candidate" && \
+                   "$(realpath -e "$candidate")" == "$LEGACY_ROOT/runs/$run_id/$relative" ]] || \
+                    fail transfer_failure "reference diagnostic path is unsafe"
+                size="$(file_size "$candidate")"
+                total=$((total + size))
+                (( size <= MAX_FILE_BYTES && total <= MAX_TOTAL_BYTES )) || \
+                    fail transfer_failure "reference diagnostics exceed collection limits"
+                files+=("$relative")
+            fi
+        done
+        if [[ -e "$run/state/controller-result.json" || \
+              -e "$run/artifacts/qualification/rf-reference-first-verification.json" ]]; then
+            rf_reference_python="$run/source/.pixi/envs/hpc/bin/python"
+            [[ -x "$rf_reference_python" ]] || \
+                fail environment_failure "reference collection lacks its pinned runtime"
+            rf_reference_files="$(
+                PYTHONPATH="$run/source/src" PYTHONDONTWRITEBYTECODE=1 \
+                    "$rf_reference_python" -P \
+                    -m genome_to_diffraction.hpc.rf_reference_evidence --run-root "$run"
+            )" || fail transfer_failure "reference frozen native collection validation failed"
+            if [[ -n "$rf_reference_files" ]]; then
+                while IFS= read -r relative; do
+                    candidate="$run/$relative"
+                    [[ -f "$candidate" && ! -L "$candidate" && \
+                       -O "$candidate" && \
+                       "$(realpath -e "$candidate")" == "$LEGACY_ROOT/runs/$run_id/$relative" ]] || \
+                        fail transfer_failure "reference native payload path changed"
+                    size="$(file_size "$candidate")"
+                    total=$((total + size))
+                    (( size <= MAX_FILE_BYTES && total <= MAX_TOTAL_BYTES )) || \
+                        fail transfer_failure "reference native payload exceeds collection limits"
+                    files+=("$relative")
+                done <<< "$rf_reference_files"
+            fi
         fi
     fi
     if [[ "$profile" == heteromer-smoke && \
@@ -7079,6 +7210,7 @@ main() {
         control-matrix-stage) control_matrix_stage_run "$@" ;;
         m6-inputs-stage) m6_inputs_stage_run "$@" ;;
         m6-scientific-stage) m6_scientific_stage_run "$@" ;;
+        rf-reference-stage) rf_reference_stage_run "$@" ;;
         m6-leakage-parent-bind) m6_leakage_parent_bind_run "$@" ;;
         t12-stage) t12_stage_run "$@" ;;
         database-stage) database_stage_run "$@" ;;

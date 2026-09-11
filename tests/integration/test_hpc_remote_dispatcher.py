@@ -2173,9 +2173,11 @@ def _prepare_raven_site_layout(
 
 
 @pytest.mark.parametrize("tamper_purpose", [False, True])
-def test_raven_native_control_stage_and_purpose_bound_submit(
+@pytest.mark.parametrize("profile", ["m6-native-control", "rf-reference"])
+def test_raven_runner_stage_and_scope_bound_submit(
     tmp_path: Path,
     tamper_purpose: bool,
+    profile: str,
 ) -> None:
     root, dispatcher, environment, commit, lock_sha, phenix_sha = (
         _prepare_raven_site_layout(tmp_path)
@@ -2256,12 +2258,15 @@ def test_raven_native_control_stage_and_purpose_bound_submit(
             item.size = len(content)
             archive.addfile(item, io.BytesIO(content))
     archive = buffer.getvalue()
-    run_id = f"gtd-m6-native-control-20260911T000000Z-{commit[:12]}-01234567"
+    run_id = f"gtd-{profile}-20260911T000000Z-{commit[:12]}-01234567"
+    operation = (
+        "rf-reference-stage" if profile == "rf-reference" else "m6-scientific-stage"
+    )
     staged = _decode_protocol(
         _run(
             [
                 str(dispatcher),
-                "m6-scientific-stage",
+                operation,
                 run_id,
                 commit,
                 lock_sha,
@@ -2271,8 +2276,11 @@ def test_raven_native_control_stage_and_purpose_bound_submit(
                 hashlib.sha256(runner).hexdigest(),
                 "63",
                 "1",
-                "operational",
-                "native_control",
+                *(
+                    ["operational", "native_control"]
+                    if profile != "rf-reference"
+                    else []
+                ),
             ],
             cwd=root,
             environment=environment,
@@ -2280,9 +2288,15 @@ def test_raven_native_control_stage_and_purpose_bound_submit(
         ).stdout
     )
     run = root / "runs" / run_id
-    assert staged["operation"] == "m6-scientific-stage"
-    assert staged["profile"] == "m6-native-control"
-    assert staged["execution_purpose"] == "native_control"
+    assert staged["operation"] == operation
+    assert staged["profile"] == profile
+    if profile == "rf-reference":
+        assert staged["reference_scope"] == "rf-fixed-five-v1"
+        assert "track" not in staged and "execution_purpose" not in staged
+        assert not (run / "state/m6-track").exists()
+        assert not (run / "state/m6-execution-purpose").exists()
+    else:
+        assert staged["execution_purpose"] == "native_control"
     assert (run / "state/controller-kind").read_text().strip() == "login_process"
     assert (
         run / "artifacts/m6-runner-inputs/runner_manifest.json"
@@ -2303,12 +2317,129 @@ def test_raven_native_control_stage_and_purpose_bound_submit(
         ).stdout
     )
     if tamper_purpose:
-        assert submitted["message"] == "M6 scientific purpose or runner binding changed"
+        assert submitted["message"] == (
+            "reference scope or runner binding changed"
+            if profile == "rf-reference"
+            else "M6 scientific purpose or runner binding changed"
+        )
         assert not (run / "logs/test-login-arguments").exists()
     else:
         assert submitted["controller_kind"] == "login_process"
         assert (run / "logs/test-login-arguments").is_file()
+        if profile == "rf-reference":
+            _run_rf_reference_body_simulation(root, run, binary, environment)
     assert not (tmp_path / "sbatch-args").exists()
+
+
+def _run_rf_reference_body_simulation(
+    root: Path, run: Path, binary: Path, environment: dict[str, str]
+) -> None:
+    """Execute the actual body with explicitly simulated tools/verifier only."""
+
+    simulator = root / "reference-body-simulator.py"
+    simulator.write_text(
+        "import hashlib, json, os, pathlib, sys\n"
+        "mode, *args = sys.argv[1:]\n"
+        f"run = pathlib.Path({str(run)!r})\n"
+        "q = run / 'artifacts/qualification'\n"
+        "q.mkdir(parents=True, exist_ok=True)\n"
+        "events = run / 'logs/test-reference-body-events.jsonl'\n"
+        "def value(flag):\n"
+        "    return args[args.index(flag) + 1]\n"
+        "if mode == 'phenix':\n"
+        "    assert args[:5] == ['--log-format', 'json', '--no-progress', "
+        "'phenix', 'verify']\n"
+        "    assert '--no-command-timeout' in args\n"
+        "    pathlib.Path(value('--verification-log')).write_text("
+        "'simulated probe only\\n')\n"
+        "    event = {'stage': 'probe', 'arguments': args}\n"
+        "elif mode == 'nextflow':\n"
+        "    label = 'resume' if '-resume' in args else 'first'\n"
+        "    assert value('run') == str(run / 'source/rf_reference.nf')\n"
+        "    assert value('-profile') == 'raven'\n"
+        "    assert value('-work-dir') == str(run / 'cache/rf-reference/work')\n"
+        "    assert value('--cache_root') == str(run / 'cache/rf-reference')\n"
+        "    assert value('--runner_root') == str(run / 'artifacts/m6-runner-inputs')\n"
+        "    assert value('--software_lock') == str(run / 'source/pixi.lock')\n"
+        "    assert value('--execution_policy') == str(run / "
+        "'source/benchmarks/m6/execution-nextflow-raven-v2.yaml')\n"
+        "    assert '--track' not in args and '--execution_purpose' not in args "
+        "and '-stub-run' not in args\n"
+        "    assert pathlib.Path.cwd() == run / 'execution/rf-reference'\n"
+        "    output = pathlib.Path(value('--outdir')) / 'pipeline_info'\n"
+        "    output.mkdir(parents=True, exist_ok=True)\n"
+        "    (output / 'trace.tsv').write_text(label + ' simulated trace only\\n')\n"
+        "    pathlib.Path(value('-log')).write_text('simulated nextflow only\\n')\n"
+        "    event = {'stage': 'nextflow-' + label, 'arguments': args}\n"
+        "elif mode == 'verify':\n"
+        "    assert args[:3] == ['-P', '-m', "
+        "'tests.fixtures.ranking_four_arm_native']\n"
+        "    assert value('--run-root') == str(run)\n"
+        "    assert os.environ['PYTHONPATH'] == "
+        "str(run / 'source/src') + ':' + str(run / 'source')\n"
+        "    label = value('--phase')\n"
+        "    if label == 'resume':\n"
+        "        first = q / 'rf-reference-first-verification.json'\n"
+        "        assert value('--first-verification-sha256') == "
+        "hashlib.sha256(first.read_bytes()).hexdigest()\n"
+        "    else:\n"
+        "        assert label == 'first' "
+        "and '--first-verification-sha256' not in args\n"
+        "    assert (q / ('rf-reference-' + label + "
+        "'-pipeline-info/trace.tsv')).is_file()\n"
+        "    for suffix in ['verification', 'child-outputs', 'resource-evidence']:\n"
+        "        (q / ('rf-reference-' + label + '-' + suffix + '.json'))"
+        ".write_text(json.dumps({'simulation_only': True, 'phase': label}))\n"
+        "    event = {'stage': 'verify-' + label, 'arguments': args}\n"
+        "else:\n"
+        "    raise AssertionError(mode)\n"
+        "with events.open('a') as handle:\n"
+        "    handle.write(json.dumps(event) + '\\n')\n"
+    )
+    for name, mode in (
+        ("genome-to-diffraction", "phenix"),
+        ("nextflow", "nextflow"),
+        ("python", "verify"),
+    ):
+        _write_executable(
+            binary / name,
+            "#!/usr/bin/env bash\nset -euo pipefail\n"
+            f"exec {shlex.quote(sys.executable)} {shlex.quote(str(simulator))} "
+            f'{mode} "$@"\n',
+        )
+    (run / "state/controller.json").write_text('{"simulation_only":true}\n')
+    _run(
+        [
+            str(root / "_tooling/nf-gtd-hpc-smoke-job"),
+            run.name,
+            str(root),
+            "rf-reference",
+        ],
+        cwd=root,
+        environment={**environment, "GTD_CONTROLLER_KIND": "login_process"},
+    )
+    events = [
+        json.loads(line)
+        for line in (run / "logs/test-reference-body-events.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert [row["stage"] for row in events] == [
+        "probe",
+        "nextflow-first",
+        "verify-first",
+        "nextflow-resume",
+        "verify-resume",
+    ]
+    body = json.loads((run / "state/body-result.json").read_bytes())
+    assert body["controller_kind"] == "login_process" and body["exit_code"] == 0
+    assert len(body["structured_test_reports"]) == 6
+    assert all(
+        (run / relative).is_file() for relative in body["structured_test_reports"]
+    )
+    assert "job_id" not in body
+    assert not (run / "state/m6-track").exists()
+    assert not (run / "state/m6-execution-purpose").exists()
 
 
 @pytest.mark.parametrize("tampering", [None, "runtime_link", "site_digest"])
@@ -2763,27 +2894,38 @@ def test_failed_nextflow_task_diagnostics_are_bounded_and_collected(
             assert not any(name.startswith("cache/") for name in collected.getnames())
 
 
-@pytest.mark.parametrize("site", ["marmic", "raven"])
-def test_failed_m6_collection_retains_only_safe_fixed_raw_trace(
-    tmp_path: Path, site: str
+@pytest.mark.parametrize(
+    ("site", "profile"),
+    [
+        ("marmic", "m6-native-control"),
+        ("raven", "m6-native-control"),
+        ("raven", "rf-reference"),
+    ],
+)
+def test_failed_scientific_collection_retains_only_safe_fixed_raw_trace(
+    tmp_path: Path, site: str, profile: str
 ) -> None:
     if site == "raven":
         root, dispatcher, environment, _, _, _ = _prepare_raven_site_layout(tmp_path)
     else:
         dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
         root = smoke_job.parent.parent
-    run_id = "gtd-m6-native-control-20260911T120000Z-0123456789ab-01234567"
+    run_id = f"gtd-{profile}-20260911T120000Z-0123456789ab-01234567"
     run = root / "runs" / run_id
     state = run / "state"
     state.mkdir(parents=True)
     for name, value in (
         ("owner-id", OWNER_ID),
-        ("profile", "m6-native-control"),
+        ("profile", profile),
         ("phase", "completed"),
         ("failure-class", "test_failure"),
     ):
         (state / name).write_text(value + "\n", encoding="ascii")
-    relative = "artifacts/m6-nextflow-results/pipeline_info/trace.tsv"
+    relative = (
+        "artifacts/rf-reference-results/pipeline_info/trace.tsv"
+        if profile == "rf-reference"
+        else "artifacts/m6-nextflow-results/pipeline_info/trace.tsv"
+    )
     trace = run / relative
     trace.parent.mkdir(parents=True)
     payload = b"process\tstatus\tpeak_rss\nM6_SEARCH_FOLDSEEK\tCOMPLETED\t1 GB\n"
@@ -2809,6 +2951,51 @@ def test_failed_m6_collection_retains_only_safe_fixed_raw_trace(
     assert _decode_protocol(rejected.stdout) == {
         "failure_class": "transfer_failure",
         "message": "M6 raw trace escapes its owned path",
+    }
+
+
+def test_reference_collection_executes_original_inventory_helper_and_checks_exit(
+    tmp_path: Path,
+) -> None:
+    from tests.unit.test_rf_reference_evidence import (
+        _freeze_synthetic_collection,
+        _terminal_reference,
+    )
+
+    root, dispatcher, environment, commit, _, _ = _prepare_raven_site_layout(tmp_path)
+    run = _terminal_reference(root, success=True)
+    work, _ = _freeze_synthetic_collection(run)
+    for name, value in (
+        ("profile", "rf-reference"),
+        ("phase", "completed"),
+        ("failure-class", "success"),
+    ):
+        (run / "state" / name).write_text(value + "\n")
+    runtime = root / "sources" / commit
+    (run / "source").symlink_to(runtime, target_is_directory=True)
+    _write_executable(
+        runtime / ".pixi/envs/hpc/bin/python",
+        f'#!/usr/bin/env bash\nexec {shlex.quote(sys.executable)} "$@"\n',
+    )
+    unlisted = run / "artifacts/not-in-frozen-inventory.txt"
+    unlisted.write_text("must not be collected\n")
+    command = [str(dispatcher), "collect", run.name, "a" * 32]
+    archive = _run(command, cwd=tmp_path, environment=environment).stdout
+    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
+        names = collected.getnames()
+        assert (work / ".command.err").relative_to(run).as_posix() in names
+        assert (work / "output/result.json").relative_to(run).as_posix() in names
+        assert (
+            "artifacts/qualification/rf-reference-inputs/runner_manifest.json" in names
+        )
+        assert unlisted.relative_to(run).as_posix() not in names
+    # Transport fixture only: a real helper error must prevent a partial archive.
+    (work / ".command.err").write_text("changed after its frozen checksum\n")
+    rejected = _run(command, cwd=tmp_path, environment=environment, success=False)
+    assert rejected.returncode != 0
+    assert _decode_protocol(rejected.stdout) == {
+        "failure_class": "transfer_failure",
+        "message": "reference frozen native collection validation failed",
     }
 
 

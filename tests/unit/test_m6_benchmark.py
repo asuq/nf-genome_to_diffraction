@@ -2571,6 +2571,36 @@ def test_m6_leakage_child_evidence_accepts_only_truthless_first_cache(
         )
 
 
+def test_reference_copy_and_refine_resource_tasks_are_counted_as_phenix(
+    tmp_path: Path,
+) -> None:
+    trace = tmp_path / "trace.tsv"
+    header = (
+        "process\ttag\tstatus\tnative_id\tcpus\tmemory\ttime\tstart\t"
+        "complete\tpeak_rss\t%cpu\n"
+    )
+    processes = ("RF_FIRST_COPY", "RF_COPY", "RF_REFINE", "RF_FINALISTS")
+    trace.write_text(
+        header
+        + "".join(
+            f"RF_REFERENCE_WORKFLOW:{process}\tcase\tCOMPLETED\t{index}\t"
+            "2\t4 GB\t24h\t2026-09-11T00:00:00+00:00\t"
+            "2026-09-11T00:10:00+00:00\t1 GB\t100%\n"
+            for index, process in enumerate(processes, start=101)
+        )
+    )
+    evidence = collect_m6_resource_evidence(
+        M6ResourceEvidenceRequest(
+            policy=RAVEN_EXECUTION_POLICY,
+            trace=trace,
+            output=tmp_path / "rf-resource-evidence.json",
+        )
+    )
+    assert [job.phenix_job for job in evidence.jobs] == [True, True, True, False]
+    assert evidence.peak_concurrent_phenix_jobs == 3
+    assert evidence.per_job_bounds_passed
+
+
 @pytest.mark.parametrize(
     ("policy_path", "site_id", "policy_id", "queue_size", "submit_rate_limit"),
     [

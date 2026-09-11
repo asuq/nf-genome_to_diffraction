@@ -427,6 +427,71 @@ test establishes native reference execution. Full repository and exact-source
 CI gates, the reviewed original-client profile, native provenance/resume and
 frozen-output truth comparison remain required before reference acceptance.
 
+### Original-client native reference boundary
+
+The distinct Raven-only `rf-reference` route is exposed through the original
+client's fixed [`rf-reference-stage` interface](hpc-feedback-loop.md#fixed-four-arm-reference-profile).
+It reuses the original truthless runner archive and existing runtime/resource
+bindings, without assigning the mixed five-case graph an M6 track, benchmark
+purpose or operational-parent role. The only scientific scope is the frozen
+cohort above. No case, answer, resource or ranking override is exposed.
+
+The [native verifier](../tests/fixtures/ranking_four_arm_native.py) binds the
+original live controller, immutable Git/helper source, lock, full runner,
+database, policy and verified Phenix executable/environment checksums. Its only
+subprocess is read-only Git inspection; it does not schedule science. Original
+transport paths must remain in the owned task graph or match the exact bound
+external input. Both first and resume passes call the complete original
+five-case scientific validator before evaluating native command provenance.
+
+The [upstream verifier](../tests/fixtures/ranking_four_arm_native_discovery.py)
+requires the complete process/tag universe, with each context bound to its
+actual original trace output. It reuses the production metadata-only batching
+and partitioning functions in a temporary directory and requires byte-identical
+batch plans and catalogue partitions. Every native batch must retain exactly
+its planned queries, original resources, raw results and command-log hashes.
+The original per-case policy must consume those complete partitions. These
+checks neither execute searches nor replace any original scientific output.
+
+The [native evidence reader](../src/genome_to_diffraction/hpc/rf_reference_evidence.py)
+checks trace ownership and task-directory hashes before reading payloads.
+The declared catalogue-import and search-batch file links must retain their
+exact filenames, task tags and one original planner directory; mixed catalogue
+tracks and another batch's inputs fail. Indexed PDB/Foldseek partition links
+must cover the complete
+unique original producer set. Their exact link-to-producer mapping is frozen
+and rechecked on resume and collection; only these authenticated input parents
+are excluded from output traversal. Original producer bytes remain inventoried,
+and symlinks within generated outputs are still refused.
+Every first-copy, copy and refinement receipt must join exactly to its original
+task, tag and allocated threads. Original recorded arguments must match the
+ordered Phenix logger invocation/finish pairs, including numeric tool exits.
+An already-complete first placement can have zero copy invocations; the original
+authenticated zero-attempt receipt is required. A failed refinement must not
+gain an invented sequence-check invocation. Scientific failures retain their
+original typed results, and task exit zero is not evidence of a native hit.
+
+Native outputs, all seven task logs, the published exact-case result and nine
+byte-identical original input/provenance copies are frozen together. The
+original first trace is retained for allocation and measured-resource evidence;
+the shared reader recognises RF copy/refinement tasks as Phenix work. The driver
+passes the first verification SHA explicitly into resume. Every task must then
+be cached, and the source, original inputs, result, native commands/resources,
+child bytes and logs must match. No native path or result is rewritten on replay.
+
+The terminal dispatcher retrieves only fixed diagnostics plus the fully bounded
+frozen file inventories, never an unrestricted work directory. Missing or changed
+native assets are refused; failed/partial runs do not become successful results.
+The phase verification records remain evidence containers, with native/M6
+acceptance, truth comparison and human approval false. Full local and exact-CI
+qualification, real Phenix execution, all cohort/coverage checks and frozen-output
+truth-side assessment remain necessary. Simulator tests are not native proof.
+Focused tests cover a complete five-case original-science first/cached replay,
+an omitted search batch, original-path and receipt/command joins, create-only
+input copies, and the actual terminal collector's helper/exit-code boundary.
+The actual Nextflow graph regression checks all declared nested staging through
+this inventory reader on fresh and fully cached runs; it remains simulated science.
+
 The current fixed M6 production route implements arm D, not the complete
 reference comparison. Before submitting comparison work, qualify the isolated
 reference fixture, its admission/retention parity checks, paired-output joins,

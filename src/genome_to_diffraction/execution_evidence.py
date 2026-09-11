@@ -14,7 +14,13 @@ from collections.abc import Mapping
 from datetime import datetime
 
 RAVEN_LOGIN_PROFILES = frozenset(
-    {"m6-nextflow-smoke", "m6-native-control", "m6-operational", "m6-leakage"}
+    {
+        "m6-nextflow-smoke",
+        "m6-native-control",
+        "m6-operational",
+        "m6-leakage",
+        "rf-reference",
+    }
 )
 
 

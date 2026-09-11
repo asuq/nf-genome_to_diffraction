@@ -103,6 +103,59 @@ before the large run. No-memory-measurement and no-execution outcomes are not a
 passed native resource qualification. The fixed scientific case partitions and
 the later four-arm ranking comparison are unchanged.
 
+### Fixed four-arm reference profile
+
+The separate `rf-reference` profile uses this same original client and Raven
+login controller. It is not an M6 track or an operational leakage parent.
+First complete the native C001/C025 resource control, the reference profile's
+local milestone gate and exact-source CI; deploy the qualified immutable source
+before using the following fixed interface:
+
+```text
+nf-gtd-hpc-test --config CONFIG readiness rf-reference
+nf-gtd-hpc-test --config CONFIG rf-reference-stage --revision FULL_COMMIT --archive RUNNER_TAR --confirm-archive-sha256 RUNNER_SHA256
+nf-gtd-hpc-test --config CONFIG submit rf-reference --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG status --run-id RUN_ID
+nf-gtd-hpc-test --config CONFIG logs --run-id RUN_ID --tail 200
+nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID
+```
+
+Staging accepts only an immutable pushed `main` revision and the original
+checksum-confirmed 63-case opaque runner archive. The graph selects exactly
+M6C001, M6C010, M6C055, M6C025 and M6C037 with their original tracks and complete
+catalogues. There are no case, truth, parent, resource, track, execution-purpose
+or scientific-setting arguments. The fixed scope is `rf-fixed-five-v1`.
+Existing M6 archive formatting and Raven resource-policy names describe genuine
+shared formats/resources, not an invented M6 execution claim. Marmic/Viper
+staging and foreign M6 track/purpose/parent state are refused.
+
+The body verifies the original Phenix runtime, executes the root reference
+graph, validates original scientific/native evidence and freezes its first
+verification SHA before a fully cached resume. Both passes revalidate every
+original scientific receipt. The six phase-specific verification, child-output
+and resource reports live under `artifacts/qualification/rf-reference-*`.
+Both passes also require the complete traced task/search-batch universe and
+byte-identical metadata rederivation of batching and catalogue partitions;
+this verification never re-executes a search or changes a native output.
+Declared catalogue/batch file links must retain their exact original planned
+task and filenames. Indexed partition-input links must map one-to-one to every
+original traced search producer; that mapping is frozen and checked again on resume and
+collection. Input links are not collected as outputs, and generated output
+symlinks remain invalid.
+The complete task outputs and seven task logs remain under the run-owned
+`cache/rf-reference/work`; no operational-parent cache is used. Original absolute
+native command paths are preserved. Nine byte-identical input/provenance copies
+under `artifacts/qualification/rf-reference-inputs` accompany the result.
+
+Terminal collection admits native/published/input-copy files only from their
+checked frozen inventories, with ownership, full-path, type, checksum and
+128 MiB/file plus 12 GiB total bounds. A failure before first verification can
+retain fixed logs and the one raw trace without inventing success or collecting
+neighbouring files. Missing or changed frozen evidence fails closed. All
+reference reports keep benchmark/native acceptance, truth comparison and human
+approval false; the separate [four-arm assessment](ranking-four-arm-controls.md)
+must evaluate the frozen results and required coverage before acceptance.
+
 ### Existing database bootstrap handover
 
 The already launched September one-CPU database bootstrap is not a standard

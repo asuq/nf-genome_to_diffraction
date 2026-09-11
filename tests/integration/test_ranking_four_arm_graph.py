@@ -10,6 +10,10 @@ import pytest
 
 from genome_to_diffraction.benchmarks.public_control import PublicControlError
 from genome_to_diffraction.checksums import sha256_file
+from genome_to_diffraction.hpc.rf_reference_evidence import (
+    reference_native_file_inventory,
+    reference_staged_search_inputs,
+)
 from tests.fixtures.ranking_four_arm_advancement import REFERENCE_CASE_IDS
 from tests.fixtures.ranking_four_arm_execution import (
     ReferenceChildOutputRequest,
@@ -41,7 +45,7 @@ def test_reference_graph_keeps_all_cases_fans_out_and_resumes(tmp_path: Path) ->
         "-ansi-log",
         "false",
         "-w",
-        str(tmp_path / "work"),
+        str(tmp_path / "cache/rf-reference/work"),
         "--runner_root",
         str(inputs.runner_root),
         "--protocol",
@@ -84,6 +88,12 @@ def test_reference_graph_keeps_all_cases_fans_out_and_resumes(tmp_path: Path) ->
 
     first = run("first", resume=False)
     assert {row["status"] for row in first} == {"COMPLETED"}
+    # Actual Nextflow staging/filesystem proof with explicitly simulated science;
+    # numeric local executor IDs are not native Raven/Phenix acceptance.
+    original_inputs = reference_staged_search_inputs(tmp_path, tuple(first))
+    original_files = reference_native_file_inventory(tmp_path, tuple(first))
+    assert len(original_inputs) == 15
+    assert not (set(original_files) & set(original_inputs))
     counts = Counter(row["process"].split(":")[-1] for row in first)
     assert counts == Counter(
         {
@@ -131,6 +141,8 @@ def test_reference_graph_keeps_all_cases_fans_out_and_resumes(tmp_path: Path) ->
     resumed = run("resume", resume=True)
     assert len(resumed) == len(first)
     assert {row["status"] for row in resumed} == {"CACHED"}
+    assert reference_staged_search_inputs(tmp_path, tuple(resumed)) == original_inputs
+    assert reference_native_file_inventory(tmp_path, tuple(resumed)) == original_files
     assert {(row["process"], row["hash"]) for row in resumed} == {
         (row["process"], row["hash"]) for row in first
     }

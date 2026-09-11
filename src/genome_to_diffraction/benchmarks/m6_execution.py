@@ -472,7 +472,8 @@ def collect_m6_resource_evidence(
                 phenix_job=any(
                     token in process
                     for token in ("FIRST_COPY", "ADDITIONAL_COPY", "REFINEMENT")
-                ),
+                )
+                or process.rsplit(":", maxsplit=1)[-1] in {"RF_COPY", "RF_REFINE"},
             )
             if process.rsplit(":", maxsplit=1)[-1] == "M6_STAGE_COORDINATES":
                 if (

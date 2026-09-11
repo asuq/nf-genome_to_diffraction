@@ -126,6 +126,9 @@ class FakeTransport:
     m6_inputs_stage_error: RemoteOperationError | None = None
     m6_scientific_archive: bytes = b""
     m6_scientific_stage_error: RemoteOperationError | None = None
+    rf_reference_archive: bytes = b""
+    rf_reference_stage_error: RemoteOperationError | None = None
+    rf_reference_response_overrides: dict[str, str] = field(default_factory=dict)
     deploy_error: RemoteOperationError | None = None
     stage_error: RemoteOperationError | None = None
     stage_site_id: str = "marmic"
@@ -419,6 +422,29 @@ class FakeTransport:
             else f"m6-{arguments[9]}",
             "track": arguments[9],
             "execution_purpose": arguments[10],
+        }
+
+    def rf_reference_stage(
+        self, arguments: Sequence[str], archive_path: Path
+    ) -> dict[str, str]:
+        self.calls.append(("rf-reference-stage", tuple(arguments)))
+        if self.rf_reference_stage_error is not None:
+            error = self.rf_reference_stage_error
+            self.rf_reference_stage_error = None
+            raise error
+        self.rf_reference_archive = archive_path.read_bytes()
+        return {
+            "run_id": arguments[0],
+            "operation": "rf-reference-stage",
+            "site_id": self.stage_site_id,
+            "profile": "rf-reference",
+            "controller_kind": "login_process",
+            "reference_scope": "rf-fixed-five-v1",
+            "archive_sha256": arguments[4],
+            "manifest_sha256": arguments[6],
+            "case_count": arguments[7],
+            "object_count": arguments[8],
+            **self.rf_reference_response_overrides,
         }
 
     def t12_stage(
@@ -830,6 +856,81 @@ def _controller(tmp_path: Path, transport: FakeTransport) -> HpcController:
         git=FakeGit(repository=tmp_path),
         progress=False,
     )
+
+
+@pytest.mark.parametrize("source_archive", [False, True])
+def test_rf_reference_stage_has_no_track_or_scientific_overrides(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, source_archive: bool
+) -> None:
+    transport = FakeTransport(stage_site_id="raven")
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id="raven")
+    (tmp_path / "benchmarks/m6/protocol.yaml").write_bytes(
+        (REPOSITORY / "benchmarks/m6/protocol.yaml").read_bytes()
+    )
+    archive = tmp_path / ".untracked/runner.tar"
+    archive.parent.mkdir()
+    archive.write_bytes(b"confirmed runner")
+    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+
+    def inspect(
+        candidate: Path, *, protocol: Path, expected_sha256: str
+    ) -> tuple[Path, str, int, str, int, int]:
+        assert candidate == archive
+        assert protocol == tmp_path / "benchmarks/m6/protocol.yaml"
+        assert expected_sha256 == digest
+        return archive, digest, archive.stat().st_size, "9" * 64, 63, 65
+
+    monkeypatch.setattr(
+        "genome_to_diffraction.hpc.client._inspect_m6_runner_archive", inspect
+    )
+    if source_archive:
+        transport.rf_reference_stage_error = RemoteOperationError(
+            "bare Git mirror is absent", failure_class=FailureClass.FILESYSTEM_FAILURE
+        )
+    result = controller.rf_reference_stage("HEAD", archive, digest)
+    assert result["profile"] == "rf-reference"
+    assert result["reference_scope"] == "rf-fixed-five-v1"
+    assert result["execution_policy_id"] == "m6_nextflow_slurm_raven_v2"
+    assert not {"track", "execution_purpose", "parent_run_id"} & result.keys()
+    assert transport.rf_reference_archive == (
+        b"source archive" + archive.read_bytes()
+        if source_archive
+        else archive.read_bytes()
+    )
+    assert len(transport.calls) == (2 if source_archive else 1)
+    for operation, arguments in transport.calls:
+        assert operation == "rf-reference-stage"
+        assert len(arguments) in {9, 12}
+        assert arguments[4:9] == (digest, "16", "9" * 64, "63", "65")
+    record = LocalRunRecord.from_json(
+        json.loads(Path(str(result["local_record"])).read_text())
+    )
+    assert record.profile == "rf-reference"
+    assert record.parent_run_id is None
+
+    # A rehashed/mislabelled reply must not be returned as a valid reference run.
+    transport.rf_reference_response_overrides = {"track": "operational"}
+    with pytest.raises(RemoteOperationError, match="scope differs"):
+        controller.rf_reference_stage("HEAD", archive, digest)
+    transport.rf_reference_response_overrides = {"manifest_sha256": "8" * 64}
+    with pytest.raises(RemoteOperationError, match="scope differs"):
+        controller.rf_reference_stage("HEAD", archive, digest)
+    transport.rf_reference_response_overrides = {"site_id": "marmic"}
+    with pytest.raises(RemoteOperationError, match="scope differs"):
+        controller.rf_reference_stage("HEAD", archive, digest)
+
+
+@pytest.mark.parametrize("site", ["marmic", "viper-cpu"])
+def test_rf_reference_stage_rejects_other_sites_before_transport(
+    tmp_path: Path, site: str
+) -> None:
+    transport = FakeTransport(stage_site_id=site)
+    controller = _controller(tmp_path, transport)
+    controller.config = _config(tmp_path, site_id=site)
+    with pytest.raises(ValidationError, match="only for Raven"):
+        controller.rf_reference_stage("HEAD", tmp_path / "missing.tar", "1" * 64)
+    assert transport.calls == []
 
 
 def test_identification_stage_attaches_source_bound_complete_inputs(

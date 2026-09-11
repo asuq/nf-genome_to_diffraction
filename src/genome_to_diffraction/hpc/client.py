@@ -182,13 +182,14 @@ _FAILURE_APPLICATION_LOGS = frozenset(
         "logs/m6-native-control.log",
         "logs/m6-operational.log",
         "logs/m6-leakage.log",
+        "logs/rf-reference.log",
         "logs/m4-copy.log",
         "logs/t12.log",
         "logs/database.log",
     }
 )
 _SIGNATURE_RUN_ID_RE = re.compile(
-    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)-"
+    r"gtd-(?:smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference|m4-copy|t12|database)-"
     r"[0-9]{8}T[0-9]{6}Z-"
     r"[0-9a-f]{12}-[0-9a-f]{8}"
 )
@@ -692,6 +693,13 @@ class TextTransport(Protocol):
         source_records_path: Path,
     ) -> dict[str, str]:
         """Stream only the fixed catalogue source-record crosswalk for T12."""
+
+    def rf_reference_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream confirmed runner inputs to the fixed reference profile."""
 
 
 class GitRepository(Protocol):
@@ -1731,6 +1739,45 @@ class SshTransport:
             )
         return fields
 
+    def rf_reference_stage(
+        self,
+        arguments: Sequence[str],
+        archive_path: Path,
+    ) -> dict[str, str]:
+        """Stream confirmed inputs to the one fixed reference stage operation."""
+
+        try:
+            with archive_path.open("rb") as handle:
+                result = subprocess.run(
+                    self._command("rf-reference-stage", arguments),
+                    stdin=handle,
+                    check=False,
+                    capture_output=True,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "remote reference staging exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        fields = _decode_remote_fields(result.stdout)
+        if result.returncode != 0:
+            message = (
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote reference staging failed"
+            )
+            raise RemoteOperationError(
+                message,
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if not fields:
+            raise RemoteOperationError(
+                "remote reference staging returned no structured fields",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return fields
+
     def t12_stage(
         self,
         arguments: Sequence[str],
@@ -2617,8 +2664,10 @@ class HpcController:
             stage = self.transport.m6_inputs_stage
         elif record.profile in {"m6-native-control", "m6-operational", "m6-leakage"}:
             stage = self.transport.m6_scientific_stage
+        elif record.profile == "rf-reference":
+            stage = self.transport.rf_reference_stage
         else:
-            raise ValidationError("source/runner staging requires a fixed M6 profile")
+            raise ValidationError("source/runner staging requires a fixed profile")
         try:
             return stage(arguments, archive_path)
         except RemoteOperationError as error:
@@ -2950,6 +2999,123 @@ class HpcController:
             "execution_policy_sha256": sha256_file(policy_path),
             "archive_sha256": archive_sha256,
             "manifest_sha256": manifest_sha256,
+            "local_record": str(local_path),
+        }
+
+    def rf_reference_stage(
+        self,
+        revision: str,
+        archive: Path,
+        expected_archive_sha256: str,
+    ) -> dict[str, object]:
+        """Stage the fixed reference graph without track or scientific overrides.
+
+        The confirmed 63-case M6 runner is an input format, not a benchmark
+        execution claim. The graph selects its original five cases itself.
+        """
+
+        controller_kind_for_profile(self.config.site_id, "rf-reference")
+        self.git.ensure_clean()
+        commit = self.git.resolve_commit(revision)
+        self.git.ensure_reachable_from_origin_main(commit)
+        policy_relative = PurePosixPath("benchmarks/m6") / M6_SITE_POLICIES["raven"][1]
+        policy_path = self.config.repository.joinpath(*policy_relative.parts)
+        protocol_path = self.config.repository / "benchmarks/m6/protocol.yaml"
+        for relative in (
+            policy_relative,
+            PurePosixPath("benchmarks/m6/protocol.yaml"),
+            PurePosixPath("pixi.lock"),
+        ):
+            path = self.config.repository.joinpath(*relative.parts)
+            if path.is_symlink() or not path.is_file():
+                raise ValidationError("reference source binding is unavailable")
+            if path.read_bytes() != self.git.read_file_at_commit(commit, relative):
+                raise ValidationError("reference binding differs from staged source")
+        execution_policy = load_m6_execution_policy(policy_path)
+        if execution_policy.site_id != "raven":
+            raise ValidationError("reference execution policy belongs to another site")
+        untracked_root = (self.config.repository / ".untracked").resolve(strict=True)
+        try:
+            archive.resolve(strict=True).relative_to(untracked_root)
+        except (OSError, ValueError) as error:
+            raise ValidationError(
+                "reference runner archive must be below repository .untracked"
+            ) from error
+        (
+            archive_path,
+            archive_sha256,
+            archive_size,
+            manifest_sha256,
+            case_count,
+            object_count,
+        ) = _inspect_m6_runner_archive(
+            archive, protocol=protocol_path, expected_sha256=expected_archive_sha256
+        )
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+        run_id = f"gtd-rf-reference-{timestamp}-{commit[:12]}-{secrets.token_hex(4)}"
+        record = LocalRunRecord(
+            run_id=run_id,
+            site_id="raven",
+            commit=commit,
+            owner_id=secrets.token_hex(16),
+            profile="rf-reference",
+            iteration=1,
+            parent_run_id=None,
+        )
+        local_path = record.write(self.config.local_state_root)
+        self.logger.info(
+            "staging fixed five-case reference graph",
+            extra={
+                "run_id": run_id,
+                "archive_sha256": archive_sha256,
+                "runner_case_count": case_count,
+                "object_count": object_count,
+            },
+        )
+        remote = self._stage_m6_runner(
+            record,
+            [
+                run_id,
+                commit,
+                sha256_file(self.config.repository / "pixi.lock"),
+                record.owner_id,
+                archive_sha256,
+                str(archive_size),
+                manifest_sha256,
+                str(case_count),
+                str(object_count),
+            ],
+            archive_path,
+        )
+        expected_fields = {
+            "run_id": run_id,
+            "site_id": "raven",
+            "profile": "rf-reference",
+            "controller_kind": "login_process",
+            "reference_scope": "rf-fixed-five-v1",
+            "archive_sha256": archive_sha256,
+            "manifest_sha256": manifest_sha256,
+            "case_count": str(case_count),
+            "object_count": str(object_count),
+        }
+        if (
+            any(remote.get(key) != value for key, value in expected_fields.items())
+            or "track" in remote
+            or "execution_purpose" in remote
+        ):
+            raise RemoteOperationError(
+                "reference stage identity, input binding or scope differs",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+        return {
+            **remote,
+            "operation": "rf-reference-stage",
+            "commit": commit,
+            "source_branch": "main",
+            "case_count": case_count,
+            "object_count": object_count,
+            "execution_policy_id": execution_policy.policy_id,
+            "execution_policy_sha256": sha256_file(policy_path),
             "local_record": str(local_path),
         }
 
@@ -3758,6 +3924,7 @@ class HpcController:
                             "m6-native-control",
                             "m6-operational",
                             "m6-leakage",
+                            "rf-reference",
                             "m4-copy",
                             "t12",
                         }

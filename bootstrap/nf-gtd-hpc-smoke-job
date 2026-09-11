@@ -4,8 +4,8 @@
 set -euo pipefail
 umask 077
 
-RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
-PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|m4-copy|t12|database)$'
+RUN_ID_RE='^gtd-(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference|m4-copy|t12|database)-[0-9]{8}T[0-9]{6}Z-[0-9a-f]{12}-[0-9a-f]{8}$'
+PROFILE_RE='^(smoke|p0|p1|p2-diverse|p2-control|p2|heteromer-smoke|phase3-phenix-probe|phase3-network-probe|unknown-discovery|unknown-screen|identification-screen|unknown-single-component|unknown-pass2|control-slice|control-matrix|m6-inputs|m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference|m4-copy|t12|database)$'
 CHECKSUM_RE='^[0-9a-f]{64}$'
 INTEGER_RE='^[0-9]+$'
 BYTE_COUNT_RE='^(0|[1-9][0-9]*)$'
@@ -25,7 +25,7 @@ PROFILE="${3-}"
 CONTROLLER_KIND="${GTD_CONTROLLER_KIND:-slurm_job}"
 if [[ "$CONTROLLER_KIND" == login_process ]]; then
     [[ -z "${SLURM_JOB_ID:-}" && \
-       "$PROFILE" =~ ^(m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage)$ ]] || {
+       "$PROFILE" =~ ^(m6-nextflow-smoke|m6-native-control|m6-operational|m6-leakage|rf-reference)$ ]] || {
         printf 'login controller cannot carry a Slurm allocation or unreviewed profile\n' >&2
         exit 2
     }
@@ -244,6 +244,9 @@ finalise() {
     elif [[ "$PROFILE" == m6-operational || "$PROFILE" == m6-leakage ]]; then
         reports_json='["artifacts/qualification/m6-scientific-summary.json","artifacts/qualification/m6-execution-verification.json","artifacts/qualification/m6-resume-check.json","artifacts/qualification/m6-runtime-provenance.json","artifacts/qualification/m6-resume-child-outputs.json"]'
         retained_json='["artifacts/m6-runner-inputs","artifacts/m6-nextflow-results","artifacts/qualification"]'
+    elif [[ "$PROFILE" == rf-reference ]]; then
+        reports_json='["artifacts/qualification/rf-reference-first-verification.json","artifacts/qualification/rf-reference-resume-verification.json","artifacts/qualification/rf-reference-first-child-outputs.json","artifacts/qualification/rf-reference-resume-child-outputs.json","artifacts/qualification/rf-reference-first-resource-evidence.json","artifacts/qualification/rf-reference-resume-resource-evidence.json"]'
+        retained_json='["artifacts/m6-runner-inputs","artifacts/rf-reference-results","artifacts/qualification","cache/rf-reference/work"]'
     elif [[ "$PROFILE" == m4-copy ]]; then
         reports_json='["artifacts/qualification/m4-copy-summary.json","artifacts/qualification/m4-copy-resume-check.json"]'
         retained_json='["artifacts/m4-copy-inputs","artifacts/m4-copy","artifacts/qualification"]'
@@ -4586,6 +4589,95 @@ run_m6_nextflow() {
         --cache_root "$M6_CACHE_ROOT"
 }
 
+run_rf_reference_nextflow() {
+    local label="$1"
+    shift
+    (
+        cd "$RUN/execution/rf-reference"
+        "$NEXTFLOW" \
+            -log "$RUN/logs/nextflow-rf-reference-${label}.log" \
+            run "$RUN/source/rf_reference.nf" \
+            -work-dir "$RUN/cache/rf-reference/work" \
+            "$@" \
+            -profile raven \
+            --apptainer_cache_dir "$M6_APPTAINER_CACHE" \
+            --runner_root "$RUN/artifacts/m6-runner-inputs" \
+            --protocol "$RUN/source/benchmarks/m6/protocol.yaml" \
+            --execution_policy "$M6_EXECUTION_POLICY" \
+            --software_lock "$RUN/source/pixi.lock" \
+            --database_manifest "$RF_DATABASE_MANIFEST" \
+            --phenix_manifest "$RF_PHENIX_MANIFEST" \
+            --outdir "$RUN/artifacts/rf-reference-results" \
+            --cache_root "$RUN/cache/rf-reference"
+    )
+}
+
+run_rf_reference() {
+    local qualification="$RUN/artifacts/qualification"
+    local expected_database_sha expected_phenix_sha first_sha state_name
+    load_m6_smoke_site_contract || return 2
+    [[ "$M6_SITE_ID" == raven && "$CONTROLLER_KIND" == login_process && \
+       "$(<"$RUN/state/rf-reference-scope")" == rf-fixed-five-v1 && \
+       "$(<"$RUN/state/hpc-environment-status")" == ready ]] || return 2
+    for state_name in m6-track m6-execution-purpose m6-operational-parent-run-id \
+        m6-operational-precheck-sha256 m6-shared-cache-dir job-id; do
+        [[ ! -e "$RUN/state/$state_name" && ! -L "$RUN/state/$state_name" ]] || {
+            printf 'reference run contains foreign M6 or Slurm state\n' >&2
+            return 2
+        }
+    done
+    RF_DATABASE_MANIFEST="$(<"$RUN/state/database-manifest")"
+    RF_PHENIX_MANIFEST="$(<"$RUN/state/phenix-manifest")"
+    expected_database_sha="$(<"$RUN/state/database-manifest-sha256")"
+    expected_phenix_sha="$(<"$RUN/state/phenix-manifest-sha256")"
+    [[ "$RF_DATABASE_MANIFEST" =~ $SAFE_PATH_RE && \
+       -f "$RF_DATABASE_MANIFEST" && ! -L "$RF_DATABASE_MANIFEST" && \
+       "$expected_database_sha" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$RF_DATABASE_MANIFEST" | awk '{print $1}')" == \
+       "$expected_database_sha" && \
+       "$RF_PHENIX_MANIFEST" =~ $SAFE_PATH_RE && \
+       -f "$RF_PHENIX_MANIFEST" && ! -L "$RF_PHENIX_MANIFEST" && \
+       "$expected_phenix_sha" =~ $CHECKSUM_RE && \
+       "$(sha256sum "$RF_PHENIX_MANIFEST" | awk '{print $1}')" == \
+       "$expected_phenix_sha" ]] || return 2
+    validate_m6_driver || return 2
+    GTD="$RUN/source/.pixi/envs/hpc/bin/genome-to-diffraction"
+    NEXTFLOW="$RUN/source/.pixi/envs/hpc/bin/nextflow"
+    JAVA_CMD="$RUN/source/.pixi/envs/hpc/lib/jvm/bin/java"
+    [[ -x "$GTD" && -x "$NEXTFLOW" && -x "$JAVA_CMD" ]] || return 2
+    export PATH="$RUN/source/.pixi/envs/hpc/bin:${PATH:-/usr/bin:/bin}"
+    export JAVA_CMD NXF_HOME="$RUN/cache/nextflow-home"
+    export NXF_APPTAINER_CACHEDIR="$M6_APPTAINER_CACHE"
+    unset NF_HELPER_VIPER_COMPUTE_CONTROLLER
+    mkdir -p "$qualification" "$RUN/artifacts/rf-reference-results" \
+        "$RUN/cache/rf-reference" "$RUN/execution/rf-reference"
+    PHASE=test
+    printf 'phase=rf_reference_phenix_verify profile=rf-reference\n'
+    "$GTD" --log-format json --no-progress phenix verify \
+        --manifest "$RF_PHENIX_MANIFEST" \
+        --verification-log "$qualification/rf-reference-phenix-verification.log" \
+        --no-command-timeout
+    printf 'phase=rf_reference_first profile=rf-reference scope=rf-fixed-five-v1\n'
+    run_rf_reference_nextflow first
+    cp -a "$RUN/artifacts/rf-reference-results/pipeline_info" \
+        "$qualification/rf-reference-first-pipeline-info"
+    PYTHONPATH="$RUN/source/src:$RUN/source" \
+        "$RUN/source/.pixi/envs/hpc/bin/python" -P \
+        -m tests.fixtures.ranking_four_arm_native --run-root "$RUN" --phase first
+    first_sha="$(sha256sum "$qualification/rf-reference-first-verification.json" | \
+        awk '{print $1}')"
+    [[ "$first_sha" =~ $CHECKSUM_RE ]] || return 4
+    printf 'phase=rf_reference_resume profile=rf-reference scope=rf-fixed-five-v1\n'
+    run_rf_reference_nextflow resume -resume
+    cp -a "$RUN/artifacts/rf-reference-results/pipeline_info" \
+        "$qualification/rf-reference-resume-pipeline-info"
+    PYTHONPATH="$RUN/source/src:$RUN/source" \
+        "$RUN/source/.pixi/envs/hpc/bin/python" -P \
+        -m tests.fixtures.ranking_four_arm_native --run-root "$RUN" --phase resume \
+        --first-verification-sha256 "$first_sha"
+    printf 'rf_reference_status=complete truth_compared=false benchmark_acceptance=false\n'
+}
+
 run_m6_scientific() {
     local qualification="$RUN/artifacts/qualification"
     local expected_database_sha expected_phenix_sha output before after
@@ -5474,6 +5566,7 @@ case "$PROFILE" in
     m6-inputs) run_m6_inputs ;;
     m6-nextflow-smoke) run_m6_nextflow_smoke ;;
     m6-native-control|m6-operational|m6-leakage) run_m6_scientific ;;
+    rf-reference) run_rf_reference ;;
     m4-copy) run_m4_copy ;;
     t12) run_t12 ;;
     database) run_database ;;
