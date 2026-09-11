@@ -17180,3 +17180,49 @@ with a collapsed combined parent or a guessed command.
   still requires positive/absent outcomes, native provenance, measured resources
   and equivalent cached resume. Reference CLI/graph drafts remain unqualified;
   full M6, retrospective rank recovery, human-review and release gates remain.
+
+## 2026-09-11 - Fixed five-case reference graph qualified
+
+- All six exact-source CI lanes passed for `87802f3b`, run `34593194567`.
+  The original client deployed that source, recollected the failed source-413b
+  control's fixed raw trace and started one fresh immutable native control.
+  Its owned login controller remains running; no new native scientific,
+  cached-resume or large-benchmark acceptance is claimed.
+- The preserved failed control's 34 Foldseek tasks had measured peak RSS of
+  21.0-23.2 GB as rounded in the trace. The longest reported runtime was 2m50s;
+  the longest submission-to-completion duration was 5h30m13s and mostly preceded
+  task start. These are failed-run diagnostics, not acceptance or evidence that
+  the approved 96 GB allocation is a measured minimum. No resource setting was
+  changed, and no MR ran in that failed control.
+- Qualified the separate fixed five-case reference Nextflow graph, original-path
+  contexts and one-stage fixture CLI. Original catalogue/search/preflight/model
+  preparation definitions and shared-store contracts are unchanged. Independent
+  first-copy hypotheses, prior-bound copy chains and finalists remain scheduler
+  items. Genuine early preparation, empty admission and scheduled no-hit retain
+  distinct outcomes; no missing identity or scientific decision is invented.
+- The exact-case assembler revalidates every original input and scientific
+  receipt before freezing its output. The reference-only child checkpoint binds
+  original source/result bytes, every child output and seven complete task logs.
+  Fully cached resume must match an externally frozen first-checkpoint SHA.
+  The fixed graph stub passes 49 fresh and 49 cached tasks and rejects missing
+  or changed outputs/logs. Simulated Phenix and graph stubs are not native proof.
+- The first complete gate failed only because the closed root-entry-point
+  contract omitted the new reference entry. Preserved that result: 17 passed,
+  one failed and seven skipped checks, with all 1,269 source inputs unchanged.
+  Added the one intentional owner; all 61 focused policy contracts passed.
+  The complete corrected gate then passed all 25 checks: 1,814 unit, 185 contract
+  and 132 integration tests, every workflow/cache check, atlas and packaging.
+  All 1,269 source inputs remained unchanged. One group at a time with two
+  workers took 25m37s; separate lightweight profile metadata tests overlapped,
+  but no other full scientific suite ran locally. Passing gate log SHA-256:
+  `1d42c80dd81d0ed0977dec96567419e5a063d9758baa0314a5aed715ae99e1b4`.
+- Integrated worktree commit `644289bcc2065e6704b857e0d94c06c35808db34`
+  as `3d5a97e4`; exact-source code-only CI follows this journal update.
+  Do not deploy into or alter the active source-87802 native control.
+- The distinct original-client Raven reference profile is still a separate
+  uncommitted draft. Fixed scope/staging tests and 17 native log/path tests pass;
+  native body and full verifier are drafted, but bounded collection and complete
+  profile qualification remain. It cannot be launched or used as an M6 leakage
+  parent. Next finish this profile while monitoring the owned native control,
+  collect terminal evidence before truth comparison and retain all full-M6,
+  retrospective rank-recovery, human-review and release gates.
