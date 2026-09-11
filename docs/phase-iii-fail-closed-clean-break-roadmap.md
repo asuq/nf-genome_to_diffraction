@@ -29,6 +29,14 @@ homomer, and 9ECN controls retain their original interpretation; MR scores and
 packing never establish sequence identity. Immutable historical v0.1/v0.2
 evidence remains readable but does not justify an active compatibility writer.
 
+The user's 2026-09-11 scope clarification limits the v0.3 second pass to
+rank-one recovery of the three supervisor-confirmed candidates. It does not
+authorise unknown-crystal continuation. The closure safeguards remain required,
+but the existing composition-oriented second-pass executor described below is
+v0.4 continuation infrastructure, not the ranking-only release test. The
+[canonical v0.3 roadmap](v0.3-roadmap.md) defines the current pass/fail/pause
+condition and evaluation-side truth isolation.
+
 ## RG0 - Record the review and close the planning bypass
 
 Scope: `FCB-P0-08` and every new finding inventory entry.
@@ -302,7 +310,7 @@ Acceptance: old and new ledger rows are all `Fixed`, `Superseded`, or `Deleted`;
 real evidence exists wherever a row previously said "fixed locally" or
 "qualification pending".
 
-## RG7 - Authorise the second unknown-dataset pass once
+## RG7 - Qualify the second-pass rank-recovery boundary
 
 Dependencies: RG0--RG6 complete; complete original finding ledger; final known
 control and M6 evidence; immutable supervised unknown-pass-1 evidence.
@@ -320,9 +328,20 @@ Run one named integration gate, rather than the full suite after every change:
 4. The owned 6RTZ/3U7Q/9ECN, wrong-component/homomer, M6 operational/leakage,
    and unknown-pass-1 records retain complete checksums and unchanged policy.
 5. One exact-source CI run and reviewed gate record authorise the fixed
-   pass-2 profile; stale, missing, or different-source gate records fail.
+   ranking-only second-pass route; stale, missing, or different-source gate
+   records fail. Its executor must be qualified separately from the existing
+   composition-continuation profile below.
 
-Only after this checkpoint may `PH7` launch the bounded second unknown pass.
+For v0.3, only after this checkpoint may the qualified ranking-only second pass
+run. Require all three supervisor-confirmed candidates to rank first again,
+using complete new output evidence frozen before truth comparison. Success
+requires no additional human approval; failure or inconclusive evidence pauses
+development/release progression for the user. This scope does not execute
+unknown-crystal continuation or create new sequence/composition claims.
+
+### Existing continuation implementation - deferred to v0.4
+
+The earlier `PH7` design launched a bounded unknown-crystal continuation.
 The pass retains at most six distinct components, three parent states per
 depth, 25 attempts per depth, and 100 additional-component attempts per
 crystal. Depths four to six remain provisional; human final composition and

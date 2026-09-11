@@ -16633,3 +16633,23 @@ with a collapsed combined parent or a guessed command.
 - Next collect and qualify that stub, then run the fixed full-catalogue
   M6C001/M6C025 control before the large benchmark. Keep saved monitoring and
   resume the deferred test-parallelisation work after Raven test initiation.
+
+## 2026-09-11 - v0.3 rank-recovery test and v0.4 continuation boundary
+
+- The user resolved the remaining release-scope question: the unknown-data
+  second pass must test whether each of the three supervisor-confirmed correct
+  candidates ranks first again. Successful complete recovery needs no further
+  approval; failure or inconclusive evidence requires a pause for the user.
+- Unknown-crystal continuation is outside v0.3 execution scope. New A-seed,
+  copy/composition and final sequence decisions belong to v0.4, after which the
+  user plans further samples. Their production review safeguards stay intact.
+- Updated the authoritative instructions, v0.3 roadmap, successor plan and RG7
+  scope. The retained handoff's distinction between pilot recovery and general
+  validation still applies: freeze expected identities separately from ranking,
+  compare only after output checksums are fixed, and never tune to these known
+  outcomes. Existing M6, known-control, source and closure gates remain required.
+- The existing `unknown-pass2` executor performs composition continuation; it
+  is not the newly approved ranking-only test. No scientific code, runtime,
+  threshold, input bundle or remote submission was changed for this clarification.
+  After RF/M6 and closure qualification, implement/qualify the fixed ranking
+  route before executing it. Immediate Raven native-control priorities remain.

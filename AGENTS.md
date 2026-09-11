@@ -249,6 +249,30 @@ large benchmark. Do not claim 96 GB is a measured minimum or increase resources
 without evidence. Marmic and Viper policies remain unchanged. Test
 parallelisation remains deferred while Raven test initiation is prioritised.
 
+The user then clarified the remaining v0.3 scientific scope: run the second
+pass on the three frozen operator datasets only to test whether each previously
+rank-one, supervisor-confirmed correct candidate ranks first again. This is
+retrospective rank-recovery qualification, not unknown-crystal continuation or
+general accuracy validation. Freeze expected candidate identities separately
+from ranking inputs, use the qualified production ranking, and compare only
+after the new output inventory/checksums are fixed. Do not tune the ranking to
+these known outcomes or relabel a previous result as a fresh second pass.
+All proteins, including the confirmed candidates, stay in their catalogues;
+only the expected-answer labels are kept out of the ranking calculation.
+If all three recover the expected rank-one candidates with complete valid
+execution evidence, mark this test complete and continue without asking for
+another human approval. Otherwise preserve the evidence and pause for the user;
+do not silently alter the criterion, rerank, or proceed toward release.
+
+Unknown-crystal continuation, new A-seed approvals, copy/composition expansion
+and new final sequence/composition decisions are outside v0.3 execution scope.
+They belong to v0.4, after which the user intends to supply further samples.
+Their production human-review contracts remain intact. The existing
+`unknown-pass2` composition profile is not the newly authorised ranking-only
+test; qualify the appropriate fixed route before using it. Known-control/M6,
+finding-closure, exact-source and release gates remain required. The previously
+cancelled expanded/AFDB investigation is not otherwise reopened.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.
