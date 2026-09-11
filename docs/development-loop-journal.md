@@ -17040,3 +17040,51 @@ with a collapsed combined parent or a guessed command.
   and reviewed original-client route. The first-copy tests are not native
   Phenix qualification. All native-control, full M6, rank-recovery, human-review
   and release gates remain required.
+
+## 2026-09-11 - Original-input reference continuation and finalists qualified locally
+
+- All six exact-source CI lanes passed for the preceding prepared/first-copy
+  milestone on `8a78a1c6aeccfc6d6695900da2a3f25dec9c3442`, run `34576465070`.
+- Bound each prior/seed copy task to original preparation, the complete
+  authenticated first-copy receipt union and its paired review authority.
+  The unchanged shared copy implementation retains original model/sequence,
+  MTZ, runtime, allocated threads and successive native parent parameters.
+  Cross-prior chains remain separate; per-arm and paired-union budgets are
+  unchanged. Empty recommendations emit no tasks, while complete roots and
+  unsupported or failed attempts retain their actual evidence.
+- Added a reference-only finalist join requiring the exact unique copy-receipt
+  union. It rederives each arm's stage inventory and freezes authentic best
+  parents with original MTZ, labels, resolution, supported copy count and full
+  catalogue/locus crosswalk. Missing or duplicate receipts and rehashed altered
+  parents fail closed. Production finalist records are scientific input data,
+  not M6 authority; this increment runs no refinement or sequence assessment.
+- All 11 focused checks passed. The first captured full gate retained two
+  30-second timeouts in unchanged heteromer smoke tests; both subsequently
+  passed in serial isolation with their original limits. A complete recheck
+  then passed all 25 checks: 1,797 unit, 185 contract and 128 integration tests,
+  workflow/cache checks and packaging, with all 1,235 source inputs unchanged.
+  It used one group at a time with two workers, taking 39m04s. Only after unit,
+  integration and quality groups had passed did a separate two-CPU scheduling
+  probe overlap the remaining stubs; no timeout or test was changed or omitted.
+  The passing log SHA-256 is
+  `9c7f44c81e23375a20831b6dd8dca1cf8dd44fd357e23d3ba2710dec04fc9b53`.
+  The failed run is retained separately and is not relabelled as a pass.
+- Integrated worktree commit `8f6e9fc32569fb2d1bb4bd1b510128ce0bcb93d3`
+  as `e3da93e5`. This increment changes reference fixtures, tests and
+  documentation only; production scientific source, workflows, HPC tools and
+  environments are unchanged. Code-only exact CI follows this journal update.
+- Separately reproduced loss of case consumers at the original M6 catalogue
+  joins: four preflights yielded only one active and one early-exit continuation.
+  A distinct worktree corrects the two broadcasts and has demonstrated all 41
+  stub tasks, fully cached resume, six-only truthless cross-track reuse and the
+  expected cache-mutation/missing-child safeguards. Its complete source gate,
+  integration and exact CI remain separate; this is not native acceptance.
+- The immutable source-413b Raven control remains active; latest bounded logs
+  still end at search submissions. No new MR, peak RSS, cached native resume or
+  scientific acceptance is claimed. Keep terminal collection and frozen output
+  hashes before truth comparison, and preserve the large-run hold.
+- Next qualify and integrate the shared-catalogue broadcast correction, then
+  reference refinement receipts, per-arm identity and fixed Nextflow/controller
+  execution. Keep the original runtime/source bindings and real empty/no-hit
+  distinctions. All native-control, full M6, rank-recovery, human-review and
+  release gates remain required; the cancelled investigation is not reopened.
