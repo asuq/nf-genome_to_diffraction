@@ -16917,3 +16917,42 @@ with a collapsed combined parent or a guessed command.
   the fixed native comparison route. Recommendations alone cannot close RF-G4,
   and the production authority must not be relabelled to run reference-only
   seeds. Preserve all v0.3 rank-recovery and v0.4 human-review boundaries.
+
+## 2026-09-11 - Reference authority and actual per-arm advancement qualified locally
+
+- All six exact-source CI lanes passed for paired recommendations on
+  `f2adb67399bda118a97bc3539615deca69764ce5`, run `34567598166`.
+- Added distinct source/input-bound reference authority for each paired
+  known-control cohort. Both complete recommendation tables are rederived;
+  each arm keeps its five-seed cap while identical within-pair solutions may
+  share one authenticated continuation chain. No production or human approval
+  is generated, and the public production authority paths remain fixed.
+- Extracted the common scientific seed resolver, native copy executor and
+  receipt validator without changing Phaser settings, parser or supported
+  production output identities. Reference fixtures invoke those shared paths
+  with their own authority and adapter identity, revalidated on every attempt.
+  Parent/model/sequence/MTZ/preflight and native command/parameter/result/log
+  checks remain mandatory. An already-complete root has zero native attempts;
+  failed execution retains its typed status and best supported parent.
+- Per-arm stage accounting requires the exact paired union of genuine receipts,
+  never recommendations alone. It reuses production cardinality definitions
+  while counting only each arm's own scheduled and selected states. Full typed
+  copy results distinguish advancement from a successful additional-copy search.
+  Tests use simulated Phenix, not native acceptance evidence.
+- Six new stage checks and 60 authority/production regression checks passed.
+  The captured milestone then passed all 25 checks with all 1,207 source inputs
+  unchanged: 1,739 unit, 185 contract and 128 integration tests, scientific
+  workflow/cache checks and packaging. Duration was 8m46s; log SHA-256 is
+  `c9f57e555014c5bb5cd2445ec8ed5310d4671245e99974621593add163998b8d`.
+  Integrated the coherent worktree increment on main for code-only exact CI.
+- The existing source-413b native C001/C025 run remains immutable and active;
+  its latest owned observation still ends at search submissions. No new MR,
+  measured RSS, cached-resume or scientific acceptance is claimed. This source
+  increment is not deployed into that run or qualified by its earlier source.
+- Next materialise both reference admission cohorts and their real-result
+  joins through a separately qualified fixed Nextflow route. Preserve the
+  original operational/leakage case tracks: the five-case cohort includes
+  C055 from leakage. A reference subset is not a completed M6 track. Require
+  genuine native receipts, full source/tool/resource provenance, cached resume
+  and frozen outputs before truth-side evaluation. All pre-large-run, remaining
+  M6, rank-recovery and release gates remain in force.
