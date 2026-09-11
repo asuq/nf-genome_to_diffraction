@@ -17226,3 +17226,52 @@ with a collapsed combined parent or a guessed command.
   parent. Next finish this profile while monitoring the owned native control,
   collect terminal evidence before truth comparison and retain all full-M6,
   retrospective rank-recovery, human-review and release gates.
+
+## 2026-09-12 - Original-client reference profile qualified locally
+
+- All six exact-source CI lanes passed for `88a34848`, run `34601419096`.
+  Added the distinct Raven-only reference route to the original HPC client,
+  with fixed five-case selection from the complete confirmed runner archive.
+  It retains the existing runtime, resources and scientific settings, represents
+  its controller as a login process, and cannot become an M6 track or leakage
+  parent. No new scientific, resource, case or truth override is exposed.
+- Both native verification phases revalidate original five-case science and
+  complete upstream task/query/partition provenance. Original first-copy, copy
+  and refinement receipts must match their actual ordered Phenix commands and
+  numeric exits. Original source/input/result bytes, task logs, measured resource
+  records and input-provenance copies are frozen together. Resume requires the
+  externally frozen first receipt and a completely cached equivalent graph.
+- The bounded terminal collector authenticates those original frozen assets;
+  changed, foreign, oversized or incomplete successful-run evidence fails.
+  Failed runs before first verification retain only fixed diagnostics. No
+  verification record itself grants native/M6 acceptance, truth comparison or
+  human approval. Simulated commands and local graph tests are not native proof.
+- The original complete profile gate passed all 25 checks, but a separate
+  actual-staging probe found that its new inventory refused valid nested input
+  links. Preserved the passing baseline unchanged before correcting the reader.
+  The first real graph regression exposed the additional catalogue/batch file
+  layouts; its 36-passed/one-failed result is also retained. The canonical reader
+  now authenticates every declared staged input against its original producer
+  and planned task, freezes that mapping and rechecks it on resume/collection.
+  Generated output symlinks remain invalid; original scientific staging and
+  cache semantics were not changed.
+- Corrected focused graph/science/collection tests passed 37 checks, followed
+  by all 39 final reader tests. The actual Nextflow graph retained 49 fresh and
+  49 cached tasks with 15 authenticated nested input links. The corrected full
+  gate then passed all 25 checks: 1,865 unit, 185 contract and 136 integration
+  tests, every workflow/cache check, atlas and packaging. All 1,281 source inputs
+  remained unchanged. One group at a time with two workers took 40m20s, including
+  25m43s for units and 6m24s for integration; no other heavy local suite overlapped,
+  and no timeout, test or scientific setting was changed. Passing log SHA-256:
+  `b3993703a06487fa541e58803da7a4b24998045bcbc5d8a5e741e7a82a062c11`.
+- Integrated worktree commit `a8daff099b278c73d751e19c897909d0a7c98fa7`
+  as `a76c7b8e`; exact-source code-only CI follows this journal update.
+  The original source-87802 native control remains running, with bounded logs
+  still ending at Foldseek submissions. Do not deploy this newer source into
+  that owned run or infer new MR, resource or scientific acceptance from it.
+- Next require all exact CI lanes, continue original native-control monitoring,
+  and collect/freeze its terminal evidence before truth comparison. Native
+  positive/absent outcomes, complete tool/resources and cached resume still gate
+  the large benchmark and reference execution. Full M6, finding closure,
+  retrospective rank recovery and release gates remain; no cancelled operator
+  investigation, new scientific decision or GPU work has been reopened.
