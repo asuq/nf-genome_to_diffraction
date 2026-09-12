@@ -17651,3 +17651,32 @@ with a collapsed combined parent or a guessed command.
   preflight and ongoing free-space checks. These limits are not yet approved;
   remote headroom remains unmeasured. No cache publication or new native execution
   has occurred. Native control/resume, RF/M6, rank-recovery and release gates remain.
+
+## 2026-09-12 - Read-only bounded coordinate-import qualification core
+
+- Following approval of the 3 GiB compressed-total, 128 MiB per-object and
+  12 GiB additional-disk budgets, implemented a strict content-addressed
+  prefetch manifest bound to the complete original request and its authenticated
+  inspection. Only the fixed divided-mmCIF public endpoint and exact missing-ID
+  file set are admitted. A 1 GiB streaming expanded-gzip guard rejects malformed,
+  truncated, empty or oversized content before the unchanged entity parser.
+- Local pre-upload qualification checks every originally missing mapping, with
+  exact entry/author-chain/entity/SEQRES evidence. Its small exact-key memo exists
+  only within one call; complete entry/exit input authentication retains tamper
+  detection. Already cached case mappings remain for the remote union check.
+- Factored a read-only publication preflight shared with the existing per-ID
+  publisher. The import plan authenticates the fresh baseline, checks every
+  destination before any write, and validates the full prospective cache with
+  unchanged date/digest preference and case-local first-object reuse. Older
+  objects may remain necessary for another case; a newer object's later-hit
+  conflict cannot be rescued with a different object.
+- Locked focused validation passed 145 tests in 12.09 seconds, serial with
+  numerical-library threads limited to one. Ruff and targeted type checks passed.
+  Coverage includes exact conservation, provenance and inode preservation,
+  malformed/unsafe inputs, byte bounds, stale inspection, late cache collisions,
+  cross-case compatibility and memo tampering. Scientific resolver and benchmark
+  source files remain unchanged.
+- Next integrate the independent acquisition and original-client bridge, qualify
+  their storage/transport/partial-I/O receipts and full post-import reinspection,
+  then run the named combined gate before exact-source deployment. These local
+  tests neither acquire public coordinates nor establish native acceptance.
