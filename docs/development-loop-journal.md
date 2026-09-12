@@ -17680,3 +17680,45 @@ with a collapsed combined parent or a guessed command.
   their storage/transport/partial-I/O receipts and full post-import reinspection,
   then run the named combined gate before exact-source deployment. These local
   tests neither acquire public coordinates nor establish native acceptance.
+
+## 2026-09-12 - Original-client bounded acquisition and import integrated
+
+- Integrated the independently qualified staged downloader and fixed Marmic
+  storage/import bridge. Acquisition uses the existing HTTP implementation with
+  redirect refusal before following another URL, original retrieval evidence,
+  serial write-time quotas and complete local missing-mapping qualification.
+  Its 74 focused tests passed in 6.847 seconds. No public endpoint was contacted.
+- Added the bounded two-way USTAR header guard: reject extension/link/non-file
+  headers before their declared payload can be read. The archive and core pair
+  passed 88 tests in 2.44 seconds. The combined remote/core/archive tests passed
+  100 cases in 22.27 seconds, including actual synthetic dispatcher execution,
+  storage grouping, all-destination preflight, partial I/O retention and logs.
+- The original client now authenticates saved inspections and remote headroom
+  before any local acquisition, freezes the exact complete bundle/archive and
+  completion receipt, and imports only those fixed owned-run paths. It validates
+  every returned retrieval and original ordered mapping; formerly missing mappings
+  must use their imported objects. Local parsing independently verifies imported
+  entity claims, while unchanged cached mappings retain their exact prior evidence.
+  No job is submitted by either operation.
+- Live response/stderr capture is bounded. Local failed attempts remain separate
+  from verified results and cannot be replayed automatically. Explicit UTC text,
+  raw content identities, payload bytes and complete receipt bindings are checked.
+  The 51 client-boundary tests passed in 6.04 seconds using two local workers,
+  including the real remote helper with synthetic data and simulated public
+  acquisition. Focused type and lint checks passed. These counts overlap other
+  focused suites and must not be summed into independent coverage claims.
+- The user additionally authorised starting v0.4 in parallel on `dev_v0.4` with
+  maximal useful subagent/worktree use. Its initial fork is the last fully
+  qualified source, not a released v0.3 reference. Separate workers now address
+  WP1 outcomes, WP0 setup and WP4 atlas provenance; completed outcome work is
+  followed by the distinct P12 subprocess/logging slice. No v0.4 source is
+  implicitly backported into this import milestone.
+- The integrated coordinate/cache/HTTP/original-client suites passed 449 tests in
+  30.22 seconds with two local workers and numerical-library threads fixed at one.
+  This is focused software qualification, not the complete repository gate.
+- Next regenerate the integration atlas and run one complete frozen-source local
+  gate, then exact-source CI/deployment. Stage
+  and inspect a fresh native control before storage preflight and acquisition.
+  Current installed source and the previously staged run remain unchanged; no
+  coordinate bodies, shared-cache imports or new native jobs have occurred.
+  Native control/resume, RF/M6, rank recovery and release acceptance remain open.

@@ -164,9 +164,52 @@ cache metadata failures abort, while the resolver's first-hit format/mapping
 rejection can still yield qualified absence. This is not a full malformed-mmCIF
 audit. Later same-entry hits must use the first chosen object. Availability is
 an observation, not a lasting cache-validity promise or scientific acceptance.
-Measure missing-object counts and acquisition byte bounds before implementing
-the remaining import boundary; preserve every requested mapping and the native
-control/cached-resume gates before larger execution.
+After the separately approved import implementation passes its source/CI/deployment
+gates, use a fresh qualified staged control and its new complete inspection. The
+original client provides two fixed operations; neither accepts arbitrary paths,
+URLs, case subsets or caller-selected resource limits:
+
+```text
+nf-gtd-hpc-test --config CONFIG coordinate-prefetch --run-id NEW_RUN_ID --request-run-id ORIGINAL_RUN_ID --confirm-inspection-sha256 INSPECTION_SHA256
+nf-gtd-hpc-test --config CONFIG coordinate-import --run-id NEW_RUN_ID --request-run-id ORIGINAL_RUN_ID --confirm-prefetch-manifest-sha256 PREFETCH_MANIFEST_SHA256
+```
+
+The approved limits are 3 GiB total compressed coordinate data, 128 MiB per object,
+and 12 GiB additional disk per machine. The plain import archive has a separate
+3.25 GiB bound including its manifest and TAR overhead. These limits do not change
+ordinary collection or request-inspection limits. The original-client storage
+preflight authenticates the current owned run/inspection/cache and measures free
+space before acquisition. Remote reserves are 8 GiB for run artifacts and 4 GiB
+for cache publication, combined when both paths share a filesystem. Import checks
+current free space and allocated growth again; preflight is not a quota guarantee.
+
+Prefetch sends only the complete inspected missing public PDB-ID set to the fixed
+RCSB divided-mmCIF endpoint, never catalogue sequences, diffraction or truth data.
+It uses one serial redirect-disabled attempt per object and enforces write-time
+size/free-space limits. Original HTTP metadata, checksums and failed partials are
+retained in new owned local staging. A streaming 1 GiB expanded-gzip/object safety
+guard precedes the unchanged entity parser. All originally missing author-chain,
+entity and frozen-SEQRES mappings must pass locally before the complete immutable
+bundle and confirmed plain archive become ready for import.
+
+The remote importer accepts only regular USTAR headers and the exact manifest/object
+inventory. It verifies current source/database/cache state, every proposed ordered
+mapping in both cases, and every publication destination before the first shared
+write. Existing objects and provenance cannot be overwritten. Per-object receipts
+preserve partial publication evidence if an I/O failure occurs; this is not an
+all-or-nothing batch transaction. Success requires full offline reinspection equal
+to the prevalidated proposal. The two-file response is checked against the complete
+imported provenance, actual local coordinate bytes, original mappings and exact
+run/source bindings before a local verified result is published.
+
+Import transport uses the existing 45-minute operation timeout with bounded live
+response/stderr capture. An existing acquisition/import attempt cannot be replayed
+automatically, including after a timeout with uncertain remote completion. Preserve
+local staging and retrieve the fixed owned import log through `logs`; bounded
+import control records are included in ordinary collection. Do not clean up,
+repair a cache entry or relabel failed evidence to advance. No native job is
+submitted by either operation. Require complete cache verification, then the fixed
+native control and cached resume before larger RF/M6 execution.
 
 The purpose is bound at staging and rechecked before submission and execution.
 It cannot select arbitrary cases, use leakage inputs, have an operational parent

@@ -9,6 +9,7 @@ import logging
 import os
 import re
 import secrets
+import selectors
 import shlex
 import shutil
 import subprocess
@@ -51,9 +52,22 @@ from genome_to_diffraction.hpc.identification_inputs import (
     build_identification_input_bundle,
 )
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
+from genome_to_diffraction.hpc.m6_coordinate_download import acquire_coordinate_prefetch
+from genome_to_diffraction.hpc.m6_coordinate_import_client import (
+    build_prefetch_archive,
+    load_saved_inspection,
+    validate_import_response,
+    validate_prefetch_receipt,
+    validate_storage_preflight,
+)
 from genome_to_diffraction.hpc.m6_coordinate_inspection_client import (
     build_request_archive,
     validate_inspection_response,
+)
+from genome_to_diffraction.hpc.m6_coordinate_prefetch import (
+    MAX_PREFETCH_MANIFEST_BYTES,
+    PrefetchManifest,
+    load_prefetch_bundle,
 )
 from genome_to_diffraction.hpc.m6_coordinate_requests import (
     extract_request_archive,
@@ -98,6 +112,7 @@ from genome_to_diffraction.hpc.unknown_pass2_inputs import (
 from genome_to_diffraction.hpc.unknown_single_inputs import (
     build_unknown_single_component_input_bundle,
 )
+from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.matthews.probability import PRIOR_BACKEND
 from genome_to_diffraction.review import (
     SequenceCheckpointRequest,
@@ -109,6 +124,7 @@ from genome_to_diffraction.schemas.io import (
     parse_json_document,
 )
 from genome_to_diffraction.status import InputContractError
+from genome_to_diffraction.time import utc_now_iso
 
 _TERMINAL_STATES = frozenset(
     {
@@ -606,6 +622,11 @@ class TextTransport(Protocol):
         self, arguments: Sequence[str], archive: Path, destination: Path
     ) -> None:
         """Stream the fixed producer archive and receive the two-file report."""
+
+    def coordinate_import(
+        self, arguments: Sequence[str], archive: Path, destination: Path
+    ) -> None:
+        """Stream the fixed coordinate bundle and receive complete import evidence."""
 
     def t12_review_collect(
         self,
@@ -1253,6 +1274,115 @@ class SshTransport:
         if destination.stat().st_size > MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES:
             raise RemoteOperationError(
                 "coordinate inspection response exceeds the byte limit",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            )
+
+    def coordinate_import(
+        self, arguments: Sequence[str], archive: Path, destination: Path
+    ) -> None:
+        """Import a confirmed bounded bundle through the fixed owned-run route."""
+
+        if destination.exists() or destination.is_symlink():
+            raise ValidationError("coordinate import response must be absent")
+        try:
+            with archive.open("rb") as source, destination.open("xb") as output:
+                command = self._command("import-coordinate-cache", arguments)
+                deadline = time.monotonic() + SSH_OPERATION_TIMEOUT_SECONDS
+                stderr = bytearray()
+                written = 0
+                with subprocess.Popen(
+                    command,
+                    stdin=source,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                ) as process:
+                    assert process.stdout is not None and process.stderr is not None
+                    try:
+                        with selectors.DefaultSelector() as selector:
+                            selector.register(
+                                process.stdout, selectors.EVENT_READ, "stdout"
+                            )
+                            selector.register(
+                                process.stderr, selectors.EVENT_READ, "stderr"
+                            )
+                            while selector.get_map():
+                                remaining = deadline - time.monotonic()
+                                if remaining <= 0:
+                                    raise subprocess.TimeoutExpired(
+                                        command, SSH_OPERATION_TIMEOUT_SECONDS
+                                    )
+                                for key, _ in selector.select(remaining):
+                                    stream = (
+                                        process.stdout
+                                        if key.data == "stdout"
+                                        else process.stderr
+                                    )
+                                    chunk = os.read(stream.fileno(), 1024 * 1024)
+                                    if not chunk:
+                                        selector.unregister(stream)
+                                        continue
+                                    if key.data == "stderr":
+                                        if len(stderr) + len(chunk) > MAX_LOG_BYTES:
+                                            raise RemoteOperationError(
+                                                "coordinate import stderr "
+                                                "exceeds its bound",
+                                                failure_class=FailureClass.TRANSFER_FAILURE,
+                                            )
+                                        stderr.extend(chunk)
+                                    else:
+                                        if (
+                                            written + len(chunk)
+                                            > MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES
+                                        ):
+                                            raise RemoteOperationError(
+                                                "coordinate import response "
+                                                "exceeds the byte limit",
+                                                failure_class=FailureClass.TRANSFER_FAILURE,
+                                            )
+                                        if shutil.disk_usage(
+                                            destination.parent
+                                        ).free < (
+                                            len(chunk) + MAX_REVIEW_ARTIFACT_TOTAL_BYTES
+                                        ):
+                                            raise RemoteOperationError(
+                                                "coordinate import response "
+                                                "has insufficient local space",
+                                                failure_class=FailureClass.TRANSFER_FAILURE,
+                                            )
+                                        output.write(chunk)
+                                        written += len(chunk)
+                            process.wait(
+                                timeout=max(deadline - time.monotonic(), 0.001)
+                            )
+                    finally:
+                        # Stop only this local transport, never a remote scientific job.
+                        # Any partially published remote batch remains evidence.
+                        if process.poll() is None:
+                            process.kill()
+                            process.wait()
+                    return_code = process.returncode
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "coordinate import exceeded the fixed transport timeout; "
+                "preserve the attempt and inspect its owned log",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if return_code != 0:
+            payload = (
+                destination.read_bytes()
+                if destination.stat().st_size <= MAX_LOG_BYTES
+                else b""
+            )
+            fields = _decode_remote_fields(payload) if payload else {}
+            raise RemoteOperationError(
+                fields.get("message")
+                or stderr.decode("utf-8", errors="replace").strip()
+                or "remote coordinate import failed; preserve its evidence",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if destination.stat().st_size > MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES:
+            raise RemoteOperationError(
+                "coordinate import response exceeds the byte limit",
                 failure_class=FailureClass.TRANSFER_FAILURE,
             )
 
@@ -4315,6 +4445,311 @@ class HpcController:
             "run_id": run_id,
             "request_run_id": request_run_id,
             "destination": str(destination),
+            **summary,
+        }
+
+    def _coordinate_import_runs(
+        self, run_id: str, request_run_id: str
+    ) -> tuple[LocalRunRecord, LocalRunRecord, Path, Path]:
+        """Resolve only the fixed new/original local native-control namespaces."""
+
+        record = self._owned_run(run_id)
+        original = self._owned_run(request_run_id)
+        if run_id == request_run_id or any(
+            value.site_id != "marmic" or value.profile != "m6-native-control"
+            for value in (record, original)
+        ):
+            raise ValidationError(
+                "coordinate import requires distinct owned Marmic controls"
+            )
+        for relative in (
+            "pixi.lock",
+            "src/genome_to_diffraction/benchmarks/m6_nextflow.py",
+            "src/genome_to_diffraction/structure_search/pdb_coordinates.py",
+        ):
+            if self.git.read_file_at_commit(record.commit, PurePosixPath(relative)) != (
+                self.git.read_file_at_commit(original.commit, PurePosixPath(relative))
+            ):
+                raise ValidationError(
+                    "coordinate import selector/runtime source changed"
+                )
+        parent = self.config.local_state_root / run_id
+        original_parent = self.config.local_state_root / request_run_id
+        if any(
+            path.is_symlink() or path.resolve(strict=True) != path
+            for path in (parent, original_parent)
+        ):
+            raise ValidationError(
+                "coordinate import local run directory is not link-free"
+            )
+        return record, original, parent, original_parent / "coordinate-requests"
+
+    def coordinate_prefetch(
+        self,
+        run_id: str,
+        *,
+        request_run_id: str,
+        confirm_inspection_sha256: str,
+    ) -> dict[str, object]:
+        """Acquire only the complete missing set after authenticated remote headroom."""
+
+        record, original, parent, snapshot = self._coordinate_import_runs(
+            run_id, request_run_id
+        )
+        inspection_root = parent / "coordinate-inspection"
+        inventory, report = load_saved_inspection(
+            inspection_root,
+            snapshot,
+            record=record,
+            request_record=original,
+            confirmed_inspection_sha256=confirm_inspection_sha256,
+        )
+        if not report.missing_pdb_ids:
+            raise ValidationError(
+                "coordinate cache inspection is already complete; no prefetch needed"
+            )
+        destination = parent / "coordinate-prefetch"
+        storage_path = parent / "coordinate-prefetch-storage.json"
+        if any(
+            path.exists() or path.is_symlink() for path in (destination, storage_path)
+        ):
+            raise ValidationError(
+                "coordinate prefetch already has evidence; preserve the attempt"
+            )
+        remote = self.transport.run(
+            "coordinate-import-preflight",
+            [
+                record.run_id,
+                record.owner_id,
+                original.run_id,
+                original.owner_id,
+                confirm_inspection_sha256,
+            ],
+        )
+        storage = validate_storage_preflight(
+            remote,
+            record=record,
+            request_record=original,
+            inventory=inventory,
+            report=report,
+            inspection_sha256=confirm_inspection_sha256,
+        )
+        if self._coordinate_import_runs(run_id, request_run_id) != (
+            record,
+            original,
+            parent,
+            snapshot,
+        ):
+            raise ValidationError(
+                "coordinate prefetch local ownership changed during preflight"
+            )
+        with storage_path.open("x", encoding="ascii") as handle:
+            handle.write(canonical_json_text(storage) + "\n")
+        storage_path.chmod(0o444)
+        self.logger.info(
+            "acquiring only inspected public PDB IDs; no catalogue sequences "
+            "or diffraction data are sent",
+            extra={"run_id": run_id, "missing_pdb_count": len(report.missing_pdb_ids)},
+        )
+        manifest_path = acquire_coordinate_prefetch(
+            snapshot,
+            inspection_root / "inspection.json",
+            destination,
+            expected_inventory_sha256=report.request_inventory_sha256,
+            expected_inspection_sha256=confirm_inspection_sha256,
+            progress=self.progress,
+        )
+        if manifest_path != destination / "bundle/prefetch_manifest.json":
+            raise ValidationError(
+                "coordinate acquisition returned an unexpected bundle path"
+            )
+        manifest_sha256 = sha256_file(manifest_path)
+        archive = destination / "coordinate-import.tar"
+        manifest = build_prefetch_archive(
+            manifest_path.parent,
+            archive,
+            snapshot=snapshot,
+            inspection_path=inspection_root / "inspection.json",
+            confirmed_manifest_sha256=manifest_sha256,
+            confirmed_inventory_sha256=report.request_inventory_sha256,
+            confirmed_inspection_sha256=confirm_inspection_sha256,
+        )
+        # Reauthenticate new/original bindings after the potentially long acquisition.
+        if self._coordinate_import_runs(run_id, request_run_id) != (
+            record,
+            original,
+            parent,
+            snapshot,
+        ):
+            raise ValidationError("coordinate prefetch local run ownership changed")
+        load_saved_inspection(
+            inspection_root,
+            snapshot,
+            record=record,
+            request_record=original,
+            confirmed_inspection_sha256=confirm_inspection_sha256,
+        )
+        receipt = {
+            "schema_version": "1.0",
+            "adapter_version": "m6-coordinate-prefetch-receipt-v1",
+            "run_id": record.run_id,
+            "commit": record.commit,
+            "request_run_id": original.run_id,
+            "producer_commit": original.commit,
+            "request_inventory_sha256": report.request_inventory_sha256,
+            "inspection_sha256": confirm_inspection_sha256,
+            "prefetch_manifest_sha256": manifest_sha256,
+            "prefetch_id": manifest.prefetch_id,
+            "archive_sha256": sha256_file(archive),
+            "archive_size_bytes": archive.stat().st_size,
+            "storage_preflight_sha256": sha256_file(storage_path),
+            "object_count": len(manifest.objects),
+            "total_coordinate_bytes": manifest.total_size_bytes,
+            "completed_at": utc_now_iso(),
+            "network_acquisition_performed": True,
+            "cache_import_performed": False,
+            "status": "ready",
+        }
+        receipt["receipt_id"] = content_id("m6coordprefetch_", receipt)
+        receipt_path = destination / "prefetch_receipt.json"
+        if receipt_path.exists() or receipt_path.is_symlink():
+            raise ValidationError(
+                "coordinate prefetch receipt appeared during acquisition"
+            )
+        with receipt_path.open("x", encoding="ascii") as handle:
+            handle.write(canonical_json_text(receipt) + "\n")
+        receipt_path.chmod(0o444)
+        return {
+            "operation": "coordinate-prefetch",
+            "run_id": run_id,
+            "request_run_id": request_run_id,
+            "destination": str(destination),
+            "prefetch_manifest_sha256": manifest_sha256,
+            "prefetch_id": manifest.prefetch_id,
+            "object_count": len(manifest.objects),
+            "total_coordinate_bytes": manifest.total_size_bytes,
+            "archive_sha256": receipt["archive_sha256"],
+            "archive_size_bytes": receipt["archive_size_bytes"],
+            "network_acquisition_performed": True,
+            "cache_import_performed": False,
+        }
+
+    def coordinate_import(
+        self,
+        run_id: str,
+        *,
+        request_run_id: str,
+        confirm_prefetch_manifest_sha256: str,
+    ) -> dict[str, object]:
+        """Import one confirmed fixed local bundle, preserving every failed attempt."""
+
+        record, original, parent, snapshot = self._coordinate_import_runs(
+            run_id, request_run_id
+        )
+        if re.fullmatch(r"[0-9a-f]{64}", confirm_prefetch_manifest_sha256) is None:
+            raise ValidationError(
+                "confirm the exact coordinate prefetch manifest checksum"
+            )
+        prefetch_root = parent / "coordinate-prefetch"
+        manifest_path = prefetch_root / "bundle/prefetch_manifest.json"
+        if (
+            manifest_path.is_symlink()
+            or not manifest_path.is_file()
+            or manifest_path.resolve(strict=True) != manifest_path
+            or not 0 < manifest_path.stat().st_size <= MAX_PREFETCH_MANIFEST_BYTES
+            or sha256_file(manifest_path) != confirm_prefetch_manifest_sha256
+        ):
+            raise ValidationError("coordinate prefetch manifest changed or is unsafe")
+        manifest = PrefetchManifest.model_validate_json(manifest_path.read_bytes())
+        inspection_root = parent / "coordinate-inspection"
+        _, report = load_saved_inspection(
+            inspection_root,
+            snapshot,
+            record=record,
+            request_record=original,
+            confirmed_inspection_sha256=manifest.inspection_sha256,
+        )
+        load_prefetch_bundle(
+            manifest_path.parent,
+            snapshot,
+            inspection_root / "inspection.json",
+            expected_manifest_sha256=confirm_prefetch_manifest_sha256,
+            expected_inventory_sha256=report.request_inventory_sha256,
+            expected_inspection_sha256=manifest.inspection_sha256,
+        )
+        receipt = validate_prefetch_receipt(
+            prefetch_root,
+            record=record,
+            request_record=original,
+            manifest=manifest,
+            confirmed_manifest_sha256=confirm_prefetch_manifest_sha256,
+        )
+        attempt = parent / "coordinate-import"
+        if attempt.exists() or attempt.is_symlink():
+            raise ValidationError(
+                "coordinate import already has evidence; preserve the attempt"
+            )
+        attempt.mkdir()
+        archive = prefetch_root / "coordinate-import.tar"
+        response = attempt / "response.tar.gz"
+        output = attempt / "response-payload"
+        # No TemporaryDirectory: failed uploads or responses are immutable evidence,
+        # not permission to repeat a potentially partially published batch.
+        self.transport.coordinate_import(
+            [
+                record.run_id,
+                record.owner_id,
+                original.run_id,
+                original.owner_id,
+                manifest.inspection_sha256,
+                receipt.archive_sha256,
+                str(receipt.archive_size_bytes),
+                confirm_prefetch_manifest_sha256,
+            ],
+            archive,
+            response,
+        )
+        summary = validate_import_response(
+            response,
+            output,
+            snapshot=snapshot,
+            inspection_path=inspection_root / "inspection.json",
+            bundle_root=manifest_path.parent,
+            upload_archive=archive,
+            record=record,
+            request_record=original,
+            confirmed_manifest_sha256=confirm_prefetch_manifest_sha256,
+            confirmed_inventory_sha256=report.request_inventory_sha256,
+            confirmed_inspection_sha256=manifest.inspection_sha256,
+        )
+        if self._coordinate_import_runs(run_id, request_run_id) != (
+            record,
+            original,
+            parent,
+            snapshot,
+        ):
+            raise ValidationError(
+                "coordinate import local ownership changed during transfer"
+            )
+        load_saved_inspection(
+            inspection_root,
+            snapshot,
+            record=record,
+            request_record=original,
+            confirmed_inspection_sha256=manifest.inspection_sha256,
+        )
+        for path in output.iterdir():
+            path.chmod(0o444)
+        response.chmod(0o444)
+        verified = attempt / "verified"
+        if verified.exists() or verified.is_symlink():
+            raise ValidationError("coordinate import verified output already exists")
+        output.rename(verified)
+        return {
+            "operation": "coordinate-import",
+            "run_id": run_id,
+            "request_run_id": request_run_id,
+            "destination": str(verified),
             **summary,
         }
 

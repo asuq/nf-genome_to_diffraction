@@ -3,6 +3,7 @@
 import argparse
 import json
 import sys
+import tarfile
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -11,8 +12,10 @@ from genome_to_diffraction.hpc.client import HpcController
 from genome_to_diffraction.hpc.models import (
     HpcConfig,
     HpcInterfaceError,
+    ValidationError,
 )
 from genome_to_diffraction.logging import configure_logging, parse_log_level
+from genome_to_diffraction.status import GenomeToDiffractionError
 
 DEFAULT_CONFIG = Path.home() / ".config" / "nf-gtd-hpc-test" / "config.json"
 
@@ -221,6 +224,22 @@ def _build_parser() -> argparse.ArgumentParser:
     coordinate_inspect.add_argument("--run-id", required=True)
     coordinate_inspect.add_argument("--request-run-id", required=True)
     coordinate_inspect.add_argument("--confirm-request-inventory-sha256", required=True)
+
+    coordinate_prefetch = actions.add_parser(
+        "coordinate-prefetch",
+        help="acquire the complete inspected missing set into bounded local staging",
+    )
+    coordinate_prefetch.add_argument("--run-id", required=True)
+    coordinate_prefetch.add_argument("--request-run-id", required=True)
+    coordinate_prefetch.add_argument("--confirm-inspection-sha256", required=True)
+
+    coordinate_import = actions.add_parser(
+        "coordinate-import",
+        help="import the fixed validated coordinate bundle and reinspect every mapping",
+    )
+    coordinate_import.add_argument("--run-id", required=True)
+    coordinate_import.add_argument("--request-run-id", required=True)
+    coordinate_import.add_argument("--confirm-prefetch-manifest-sha256", required=True)
 
     logs = actions.add_parser("logs", help="retrieve a bounded log tail")
     logs.add_argument("--run-id", required=True)
@@ -433,6 +452,23 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             request_run_id=args.request_run_id,
             confirm_request_inventory_sha256=args.confirm_request_inventory_sha256,
         )
+    if args.operation in {"coordinate-prefetch", "coordinate-import"}:
+        try:
+            if args.operation == "coordinate-prefetch":
+                return controller.coordinate_prefetch(
+                    args.run_id,
+                    request_run_id=args.request_run_id,
+                    confirm_inspection_sha256=args.confirm_inspection_sha256,
+                )
+            return controller.coordinate_import(
+                args.run_id,
+                request_run_id=args.request_run_id,
+                confirm_prefetch_manifest_sha256=args.confirm_prefetch_manifest_sha256,
+            )
+        except (GenomeToDiffractionError, ValueError, tarfile.TarError) as error:
+            raise ValidationError(
+                f"coordinate prerequisite failed; preserve its evidence: {error}"
+            ) from error
     if args.operation == "review-collect":
         return controller.review_collect(args.run_id)
     if args.operation == "t12-review-collect":

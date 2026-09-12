@@ -301,6 +301,15 @@ boundary and the native control with cached resume before larger execution.
 The original Raven run is now terminal and must not be restarted under this
 Marmic prerequisite approval.
 
+After the complete public size survey, the user explicitly approved dedicated
+coordinate-import limits of 3 GiB total compressed coordinate data, 128 MiB per
+object and 12 GiB additional disk use per machine, with strict free-space checks.
+Apply these limits to the original-client prefetch/import route; inspect actual
+remote headroom before acquisition and recheck it before/during import. This does
+not raise unrelated transfer limits, authorise arbitrary paths or URLs, weaken
+frozen entity/SEQRES validation, or permit larger scientific execution before
+complete cache validation and native-control/resume qualification.
+
 The user subsequently requested faster progress and explicitly authorised
 subagents and worktrees. This supersedes the earlier subagent prohibition;
 partition independent work, preserve source isolation and record bounded local
@@ -313,6 +322,15 @@ and exit, retain independent public-entry validation, and do not introduce a
 persistent checksum cache, weaken identity assertions or change scientific
 policy. Qualify the bounded change and report matched timings as observations,
 not an established whole-suite performance improvement.
+
+The user's latest direction starts v0.4 development in parallel on the separate
+branch `dev_v0.4`, using subagents and worktrees as extensively as available
+resources permit. Keep v0.3 qualification and release work on `main`; integrate
+successor changes only into `dev_v0.4`. This overrides the earlier main-only and
+strictly sequential development directions for v0.4, not scientific dependencies,
+GPU access, human-review decisions, release gates or remote command permissions.
+The v0.4 development fork is qualified source, not a released v0.3 reference.
+Preserve active worktrees and finish bounded handoffs before reassigning workers.
 
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
