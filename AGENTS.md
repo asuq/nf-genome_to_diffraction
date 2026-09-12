@@ -339,6 +339,14 @@ not spawn, reassign or resume subagents after collection. The separate `main`
 and `dev_v0.4` branches and existing worktrees remain; this does not cancel the
 development programme or relax any scientific, source or permission gate.
 
+The user subsequently approved 120-second test-only hang guards for the longer
+mock heteromer smoke and collection commands after two distinct 30-second
+timeouts under full local validation. Retain the helper's shorter default for
+other commands, the deliberate short-timeout regression and every scientific
+assertion. This does not change real HPC/Phenix deadlines, permit unbounded
+execution or retries, or convert earlier failed gates into successful ones.
+Require a complete passing validation run after this bounded harness change.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

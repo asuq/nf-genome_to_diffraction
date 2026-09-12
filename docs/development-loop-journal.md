@@ -17889,3 +17889,27 @@ with a collapsed combined parent or a guessed command.
   next complete gate. Original-client staging diagnostics, complete coordinate
   qualification, native control/resume, RF/M6, rank recovery and release remain
   open. Continue with the primary agent alone.
+
+## 2026-09-12 - Approved bounded mock-command hang guards
+
+- The user confirmed completion of the missing-coordinate cache while keeping
+  the search database frozen, then approved 120-second hang guards for the
+  longer mocked smoke/collection operations. This does not authorise a database
+  snapshot replacement or a Raven restart.
+- Applied that test-only limit explicitly to two full heteromer smoke-job calls
+  and four heteromer collection calls. The shared helper retains its 30-second
+  default, other explicit command limits are unchanged, and the real 0.1-second
+  blocking-command regression remains intact. No subprocess retry or unlimited
+  deadline was introduced; production scripts, HPC/Phenix limits and scientific
+  commands, thresholds and assertions are unchanged.
+- Added four fast checks that verify default 30-second and explicit 120-second
+  forwarding with both stdin modes. All 13 focused helper/heteromer checks passed
+  in 50.33 seconds with four local workers and one numerical thread. Lint,
+  formatting, targeted types and whitespace checks pass.
+- The larger guard is an explicitly approved accommodation for full-test
+  execution, not a measured minimum or proof of the earlier slowdown's cause.
+  Preserve both earlier failed full gates and all unchanged-deadline timing
+  observations. Next regenerate the atlas and qualify this scoped change in one
+  new frozen-source complete gate before exact-source CI and deployment. Coordinate
+  import, native control/resume and all downstream scientific/release gates remain
+  open. Continue alone, without changing remote command permissions.

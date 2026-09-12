@@ -73,6 +73,9 @@ M6_LEAKAGE_RUN_ID = "gtd-m6-leakage-20260802T120001Z-0123456789ab-01234568"
 DATABASE_RUN_ID = "gtd-database-20260802T120000Z-0123456789ab-01234567"
 T12_RUN_ID = "gtd-t12-20260802T120000Z-0123456789ab-01234567"
 OWNER_ID = "1" * 32
+# User-approved hang guard for full mocked heteromer execution/collection only.
+# This is not a performance assertion or a native HPC/Phenix deadline.
+HETEROMER_MOCK_TIMEOUT_SECONDS = 120.0
 
 
 @pytest.fixture(autouse=True)
@@ -149,6 +152,35 @@ def test_run_times_out_blocking_command(tmp_path: Path) -> None:
             cwd=tmp_path,
             timeout_seconds=0.1,
         )
+
+
+@pytest.mark.parametrize("close_stdin", [False, True])
+@pytest.mark.parametrize("long_command", [False, True])
+def test_run_preserves_mock_command_deadlines(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    close_stdin: bool,
+    long_command: bool,
+) -> None:
+    observed: dict[str, object] = {}
+
+    def fake_run(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        observed.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, b"", b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    if long_command:
+        _run(
+            ["mock-command"],
+            cwd=tmp_path,
+            close_stdin=close_stdin,
+            timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
+        )
+    else:
+        _run(["mock-command"], cwd=tmp_path, close_stdin=close_stdin)
+    assert observed["timeout"] == (120.0 if long_command else 30.0)
 
 
 def _git(repository: Path, *arguments: str) -> str:
@@ -7621,6 +7653,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         [str(smoke_job), HETEROMER_RUN_ID, str(remote_root), "heteromer-smoke"],
         cwd=tmp_path,
         environment=job_environment,
+        timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
     )
 
     summary = json.loads(
@@ -7812,6 +7845,7 @@ def test_heteromer_smoke_runs_6rtz_checkpoint_and_3u7q_joint_copy_chain(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
         cwd=tmp_path,
         environment=environment,
+        timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
         member_names = collected.getnames()
@@ -7946,6 +7980,7 @@ def test_heteromer_collection_accepts_large_3u7q_mtz_evidence(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
         cwd=tmp_path,
         environment=environment,
+        timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
         names = set(collected.getnames())
@@ -8009,6 +8044,7 @@ def test_heteromer_collection_retains_partial_9ecn_parent_evidence(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
         cwd=tmp_path,
         environment=environment,
+        timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
         names = set(collected.getnames())
@@ -8059,6 +8095,7 @@ def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
         [str(smoke_job), HETEROMER_RUN_ID, str(remote_root), "heteromer-smoke"],
         cwd=tmp_path,
         environment=job_environment,
+        timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
     )
     run = remote_root / "runs" / HETEROMER_RUN_ID
     checksum_paths = {
@@ -8083,6 +8120,7 @@ def test_heteromer_p6_no_hit_omits_only_conditional_solution_assets(
         [str(dispatcher), "collect", HETEROMER_RUN_ID, OWNER_ID],
         cwd=tmp_path,
         environment=environment,
+        timeout_seconds=HETEROMER_MOCK_TIMEOUT_SECONDS,
     ).stdout
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as collected:
         names = set(collected.getnames())
