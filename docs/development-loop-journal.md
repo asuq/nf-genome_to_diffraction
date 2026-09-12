@@ -17722,3 +17722,22 @@ with a collapsed combined parent or a guessed command.
   Current installed source and the previously staged run remain unchanged; no
   coordinate bodies, shared-cache imports or new native jobs have occurred.
   Native control/resume, RF/M6, rank recovery and release acceptance remain open.
+
+## 2026-09-12 - Complete bounded coordinate-import local gate passed
+
+- The named import milestone passed all 25 maintained checks in 17 minutes
+  36 seconds with eight CPUs, two groups and four workers per group. Results:
+  2,140 unit, 185 contract and 153 integration tests, plus all workflow/quality
+  checks. All 1,317 captured source inputs remained unchanged, including the
+  regenerated 491-file atlas. Implementation HEAD was
+  `6c324d8c654338d069cc8db1c004fe175beaba91`.
+- Source-manifest checksum:
+  `08d0d9bd6b18e8b5662d0fbb323cabecc063658499adeb0683b926d1e6f12dd2`.
+  This is software qualification, not native-control, coordinate-content or
+  scientific acceptance. No public coordinate bodies, cache imports or new
+  scientific jobs have occurred.
+- Next require exact-source CI, rebuild/deploy the original client, and stage a
+  fresh control for authenticated inspection and measured storage preflight.
+  Only then perform the approved bounded acquisition/import and native/resume
+  checks. The separate v0.4 workers may resume focused tests; neither branch's
+  local progress closes the other's native or release gates.
