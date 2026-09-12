@@ -18050,3 +18050,26 @@ with a collapsed combined parent or a guessed command.
   estimates before selecting any accounting correction. Preserve the staged
   run and failed preflight; no public downloads, import or native submission
   have occurred. Continue alone under the existing command boundaries.
+
+## 2026-09-13 - Complete local qualification of bounded layout diagnostics
+
+- All 25 checks passed in 1,023.045 seconds with eight CPUs, two groups, four
+  workers per group, one numerical thread and two-GiB Nextflow heaps. Unit tests
+  passed all 2,157 cases in 960.30 seconds, integration all 176 in 382.01 seconds,
+  and contracts all 185 in 8.83 seconds. All workflow stubs, quality checks and
+  packaging gates passed. These are observed timings, not a performance claim.
+- All 1,326 captured source inputs remained unchanged throughout qualification.
+  Source-manifest SHA-256:
+  `157250b397db381b469fd2c522d4168f2570582dd7b14efce91b4c892eb7e048`.
+  Complete-gate log SHA-256:
+  `867eccd2fdc8e154d8ad599b0fc4068782e63da7778ba2d7804f81647c51aa51`.
+  The deterministic atlas check passed for all 495 generated files, with
+  inventory `atlasinv_a5a59a7fda01be60131229e1045a0fb52b65b723c7507e081b334a1ec81fbb72`.
+- Next require all six private CI groups on the exact immutable revision before
+  rebuilding/deploying the original client and staging the same fixed control.
+  A fresh inspection must bind that run to the complete original requests before
+  its storage preflight can provide the new numeric diagnostics. Do not modify
+  earlier remote source or replay the unchanged failed run. The rejection,
+  accounting, reserve split, coordinate/disk caps and scientific policies remain
+  unchanged; actual Marmic layout feasibility is still unmeasured. No downloads,
+  import, native submission, Raven restart or successor-worktree change occurred.
