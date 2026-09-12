@@ -195,9 +195,14 @@ and 12 GiB additional disk per machine. The plain import archive has a separate
 3.25 GiB bound including its manifest and TAR overhead. These limits do not change
 ordinary collection or request-inspection limits. The original-client storage
 preflight authenticates the current owned run/inspection/cache and measures free
-space before acquisition. Remote reserves are 8 GiB for run artifacts and 4 GiB
-for cache publication, combined when both paths share a filesystem. Import checks
-current free space and allocated growth again; preflight is not a quota guarantee.
+space before acquisition. Remote reservations retain the conservative bounds for
+the complete missing-entry inventory and each root's reported statvfs fragment
+size. The artifact bound is reserved first; cache publication receives the remainder
+of the unchanged 12 GiB total. Layouts whose combined bounds exceed that total fail
+before writes. The v2 storage report records both root/device/fragment-size bindings
+so the client independently rederives the exact reservations, combined when both
+roots share a filesystem. Import checks current free space and allocated growth
+again; preflight is not a quota or physical-allocation-granularity guarantee.
 
 Prefetch sends only the complete inspected missing public PDB-ID set to the fixed
 RCSB divided-mmCIF endpoint, never catalogue sequences, diffraction or truth data.

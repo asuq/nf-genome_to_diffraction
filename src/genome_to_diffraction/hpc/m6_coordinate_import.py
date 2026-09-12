@@ -3,8 +3,10 @@
 Both operations authenticate a fresh staged native-control inspection and its
 original failed producer. Storage preflight observes available filesystem space;
 it is not a reservation or quota guarantee. The approved 12 GiB additional-disk
-budget is split into 8 GiB for archive/extraction/control reports and 4 GiB for
-cache objects/atomic publication/metadata. Shared devices require the sum.
+budget reserves the conservative artifact bound and assigns the remainder to
+cache publication, admitting only layouts whose combined bounds fit the cap.
+Shared devices require the sum. The client rederives the same reservations from
+the authenticated missing-entry count and reported per-root fragment sizes.
 Rejected layouts report the raw statvfs fragment sizes and estimated peaks in
 the owned failure log. These diagnostics are not a free-space or quota guarantee.
 
@@ -65,6 +67,9 @@ from genome_to_diffraction.hpc.m6_coordinate_prefetch import (
     authenticate_inspection,
     prevalidate_proposed_cache,
 )
+from genome_to_diffraction.hpc.m6_coordinate_storage import (
+    coordinate_storage_reservations,
+)
 from genome_to_diffraction.hpc.models import (
     MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES,
     MAX_REVIEW_ARTIFACT_FILE_BYTES,
@@ -75,8 +80,6 @@ from genome_to_diffraction.ids import canonical_json_text, content_id
 from genome_to_diffraction.structure_search.pdb_coordinates import _resources
 from genome_to_diffraction.time import utc_now_iso
 
-ARTIFACT_RESERVE_BYTES = 8 * 1024**3
-CACHE_RESERVE_BYTES = MAX_ADDITIONAL_DISK_BYTES - ARTIFACT_RESERVE_BYTES
 IMPORT_RELATIVE = Path("artifacts/m6-coordinate-import")
 RESPONSE_FILES = ("postinspection.json", "import_bundle.json")
 _Role = Literal["artifacts", "cache"]
@@ -194,16 +197,12 @@ def _allocated(path: Path) -> int:
 
 
 class _Space:
-    """Track this attempt's allocated blocks against fixed per-filesystem reserves."""
+    """Track allocated growth against layout-derived, fixed-total reservations."""
 
     def __init__(self, context: _Context):
         self.roots: dict[_Role, Path] = {
             "artifacts": context.new / "artifacts",
             "cache": context.cache_root,
-        }
-        self.limits: dict[_Role, int] = {
-            "artifacts": ARTIFACT_RESERVE_BYTES,
-            "cache": CACHE_RESERVE_BYTES,
         }
         self.identities = {
             role: _filesystem(path)[:2] for role, path in self.roots.items()
@@ -212,46 +211,22 @@ class _Space:
         self.growth: dict[_Role, dict[Path, int]] = {"artifacts": {}, "cache": {}}
         for role, path in self.roots.items():
             self.watch(role, (path,))
-        count = len(context.report.missing_pdb_ids)
-        units = {role: os.statvfs(path).f_frsize for role, path in self.roots.items()}
-        if any(value <= 0 for value in units.values()):
-            raise ValidationError(
-                "coordinate import filesystem allocation unit is unknown"
-            )
-        # The fixed archive and extraction maxima, bounded reports plus one
-        # atomic report copy, and response spool fit in the artifact reserve.
-        artifact_peak = (
-            MAX_PREFETCH_ARCHIVE_BYTES
-            + MAX_COORDINATE_TOTAL_BYTES
-            + MAX_PREFETCH_MANIFEST_BYTES
-            + MAX_REVIEW_ARTIFACT_TOTAL_BYTES
-            + MAX_REVIEW_ARTIFACT_FILE_BYTES
-            + MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES
-            + (count + 32) * units["artifacts"]
+        self.layout = {
+            role: {
+                "device": self.identities[role][0],
+                "frsize_bytes": os.statvfs(path).f_frsize,
+            }
+            for role, path in self.roots.items()
+        }
+        artifact_reserve, cache_reserve = coordinate_storage_reservations(
+            len(context.report.missing_pdb_ids),
+            artifacts_frsize_bytes=self.layout["artifacts"]["frsize_bytes"],
+            cache_frsize_bytes=self.layout["cache"]["frsize_bytes"],
         )
-        # Cache sidecars reuse manifest provenance. The extra fixed fields and
-        # digest-index JSON fit in 1 KiB/entry; eight allocation units/entry plus
-        # the bounded shard directories reserve namespace and rounding overhead.
-        cache_peak = (
-            MAX_COORDINATE_TOTAL_BYTES
-            + MAX_COORDINATE_OBJECT_BYTES
-            + MAX_PREFETCH_MANIFEST_BYTES
-            + count * 1024
-            + (8 * count + 512) * units["cache"]
-        )
-        if artifact_peak > ARTIFACT_RESERVE_BYTES or cache_peak > CACHE_RESERVE_BYTES:
-            raise ValidationError(
-                "coordinate import declared layout cannot fit the approved disk budget"
-                f"; missing_pdb_count={count}"
-                f" artifacts_frsize_bytes={units['artifacts']}"
-                f" cache_frsize_bytes={units['cache']}"
-                f" artifacts_estimated_peak_bytes={artifact_peak}"
-                f" cache_estimated_peak_bytes={cache_peak}"
-                f" total_estimated_peak_bytes={artifact_peak + cache_peak}"
-                f" artifacts_reserve_bytes={ARTIFACT_RESERVE_BYTES}"
-                f" cache_reserve_bytes={CACHE_RESERVE_BYTES}"
-                f" additional_disk_limit_bytes={MAX_ADDITIONAL_DISK_BYTES}"
-            )
+        self.limits: dict[_Role, int] = {
+            "artifacts": artifact_reserve,
+            "cache": cache_reserve,
+        }
 
     def _paths(self, role: _Role, paths: Iterable[Path]) -> set[Path]:
         root = self.roots[role]
@@ -334,7 +309,7 @@ def _json_bytes(document: object) -> bytes:
 def _storage_report(context: _Context, space: _Space) -> dict[str, object]:
     report = {
         "schema_version": "1.0",
-        "adapter_version": "m6-coordinate-storage-preflight-v1",
+        "adapter_version": "m6-coordinate-storage-preflight-v2",
         "run_id": context.new.name,
         "commit": context.commit,
         "request_run_id": context.old.name,
@@ -345,6 +320,7 @@ def _storage_report(context: _Context, space: _Space) -> dict[str, object]:
         "coordinate_total_limit_bytes": MAX_COORDINATE_TOTAL_BYTES,
         "coordinate_object_limit_bytes": MAX_COORDINATE_OBJECT_BYTES,
         "additional_disk_limit_bytes": MAX_ADDITIONAL_DISK_BYTES,
+        "layout": space.layout,
         "filesystems": space.check(),
         "checked_at": utc_now_iso(),
     }

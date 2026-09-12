@@ -18103,3 +18103,31 @@ with a collapsed combined parent or a guessed command.
   the cap. Complete cache validation, native control and cached resume still
   precede larger scientific execution. Raven and the successor worktree remain
   untouched; continue with the primary agent alone.
+
+## 2026-09-13 - Layout-derived reservations within the unchanged coordinate cap
+
+- Replaced the internal eight/four-GiB split with one shared, deterministic
+  calculation. The existing conservative artifact bound is reserved first and
+  cache publication receives the remainder of the unchanged 12-GiB total.
+  Combined bounds above the cap still fail before writes. Neither peak formula,
+  coordinate/object limit, allocation-unit interpretation nor scientific policy
+  changed. No alternate allocation strategy or compatibility branch was added.
+- The storage preflight adapter is now v2, with explicit artifact/cache device
+  and fragment-size bindings. The original client independently rederives the
+  reservations from those values and its authenticated complete missing-entry
+  count, then verifies exact per-device aggregation and current free space.
+  Superseded fixed-split validation was removed; old-version reports are rejected.
+  Current-growth, ownership, no-overwrite, complete-mapping and failure-evidence
+  checks remain intact. Scientific coordinate-cache keys and records are unchanged.
+- Four full-count admission regressions first failed on the former split. With
+  the new calculation, all 172 focused import/client/prefetch/archive tests pass
+  in 23.06 seconds using four workers. Coverage includes the observed 32-KiB
+  geometry, different root units, shared/separate devices, exact headroom and
+  one-byte-short rejection, pending-growth limits, over-total layouts and bounded
+  diagnostics. Client tests reject shifted reservations with an unchanged sum,
+  missing/invalid layout fields, device mismatches and changed caps/source.
+- Lint and targeted type checks pass. Next regenerate the atlas and run one
+  complete frozen-source qualification at the existing eight-CPU/two-group budget,
+  followed by exact private CI and the original immutable deployment/staging
+  route. No new remote operation, coordinate acquisition/import or native job
+  has occurred; prior diagnostic failures remain preserved.

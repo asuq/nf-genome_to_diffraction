@@ -113,11 +113,12 @@ def test_storage_preflight_is_read_only_and_aggregates_real_devices(
         return device, path.stat().st_ino, 20 * 1024**3
 
     monkeypatch.setattr(remote, "_filesystem", filesystem)
+    monkeypatch.setattr(
+        remote.os, "statvfs", lambda _path: SimpleNamespace(f_frsize=4096)
+    )
     report = _preflight(fixture)
     expected = (
-        [remote.ARTIFACT_RESERVE_BYTES, remote.CACHE_RESERVE_BYTES]
-        if separate
-        else [remote.MAX_ADDITIONAL_DISK_BYTES]
+        [8055296000, 4829605888] if separate else [remote.MAX_ADDITIONAL_DISK_BYTES]
     )
     filesystems = report["filesystems"]
     assert isinstance(filesystems, list)
@@ -131,9 +132,96 @@ def test_storage_preflight_is_read_only_and_aggregates_real_devices(
 
 
 @pytest.mark.parametrize(
+    ("artifact_unit", "artifact_reserve", "cache_reserve"),
+    [(32768, 8193671168, 4691230720), (4096, 8072474624, 4812427264)],
+)
+@pytest.mark.parametrize("separate", [False, True])
+def test_full_count_reservations_fit_the_unchanged_total_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    artifact_unit: int,
+    artifact_reserve: int,
+    cache_reserve: int,
+    separate: bool,
+) -> None:
+    fixture = _import_fixture(tmp_path)
+    context = remote._context(
+        fixture.base.new, fixture.base.old, NEW_OWNER, OLD_OWNER, fixture.inspection_sha
+    )
+    # Isolate allocation arithmetic, not scientific mapping validation.
+    context = replace(
+        context,
+        report=context.report.model_copy(
+            update={
+                "missing_pdb_ids": [f"{index + 0x1000:04X}" for index in range(4195)]
+            }
+        ),
+    )
+    units = {context.new / "artifacts": artifact_unit, context.cache_root: 32768}
+    free = {1: 12 * 1024**3, 2: 12 * 1024**3}
+
+    def filesystem(path: Path) -> tuple[int, int, int]:
+        device = 2 if separate and path == context.cache_root else 1
+        return device, path.stat().st_ino, free[device]
+
+    monkeypatch.setattr(remote, "_filesystem", filesystem)
+    monkeypatch.setattr(
+        remote.os, "statvfs", lambda path: SimpleNamespace(f_frsize=units[path])
+    )
+    before = _file_digests(tmp_path)
+    space = remote._Space(context)
+    assert space.limits == {"artifacts": artifact_reserve, "cache": cache_reserve}
+    assert sum(space.limits.values()) == 12 * 1024**3
+    report = remote._storage_report(context, space)
+    expected = [artifact_reserve, cache_reserve] if separate else [12 * 1024**3]
+    filesystems = report["filesystems"]
+    assert isinstance(filesystems, list)
+    assert [row["required_bytes"] for row in filesystems] == expected
+    assert report["adapter_version"] == "m6-coordinate-storage-preflight-v2"
+    assert report["layout"] == {
+        "artifacts": {"device": 1, "frsize_bytes": artifact_unit},
+        "cache": {"device": 2 if separate else 1, "frsize_bytes": 32768},
+    }
+    with pytest.raises(ValidationError, match="additional-disk allocation"):
+        space.check("cache", cache_reserve + 1)
+    if separate:
+        free[1], free[2] = artifact_reserve, cache_reserve
+    expected_at_limit = (
+        [
+            {
+                "device": 1,
+                "free_bytes": artifact_reserve,
+                "required_bytes": artifact_reserve,
+            },
+            {"device": 2, "free_bytes": cache_reserve, "required_bytes": cache_reserve},
+        ]
+        if separate
+        else filesystems
+    )
+    assert space.check() == expected_at_limit
+    free[2 if separate else 1] -= 1
+    with pytest.raises(ValidationError, match="headroom"):
+        space.check()
+    assert _file_digests(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    ("count", "artifact_unit", "cache_unit"),
+    [(-1, 32768, 32768), (True, 32768, 32768), (4195, 0, 32768), (4195, 32768, True)],
+)
+def test_storage_reservations_reject_unknown_or_invalid_inputs(
+    count: int, artifact_unit: int, cache_unit: int
+) -> None:
+    with pytest.raises(ValidationError):
+        remote.coordinate_storage_reservations(
+            count, artifacts_frsize_bytes=artifact_unit, cache_frsize_bytes=cache_unit
+        )
+
+
+@pytest.mark.parametrize(
     ("artifact_unit", "cache_unit", "artifact_peak", "cache_peak"),
     [
-        (4096, 32768, 8072474624, 4610427904),
+        (4096, 65536, 8072474624, 5726899200),
         (1048576, 1048576, 12487491584, 39221038080),
     ],
 )
@@ -183,8 +271,6 @@ def test_full_count_layout_failure_reports_bounded_arithmetic_without_writes(
         "artifacts_estimated_peak_bytes": artifact_peak,
         "cache_estimated_peak_bytes": cache_peak,
         "total_estimated_peak_bytes": artifact_peak + cache_peak,
-        "artifacts_reserve_bytes": 8 * 1024**3,
-        "cache_reserve_bytes": 4 * 1024**3,
         "additional_disk_limit_bytes": 12 * 1024**3,
     }
     assert all(f"{key}={value}" in message for key, value in expected.items())

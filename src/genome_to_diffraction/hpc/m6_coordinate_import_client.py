@@ -43,6 +43,9 @@ from genome_to_diffraction.hpc.m6_coordinate_prefetch import (
     load_prefetch_bundle,
 )
 from genome_to_diffraction.hpc.m6_coordinate_requests import CASES
+from genome_to_diffraction.hpc.m6_coordinate_storage import (
+    coordinate_storage_reservations,
+)
 from genome_to_diffraction.hpc.models import (
     MAX_REVIEW_ARTIFACT_FILE_BYTES,
     MAX_REVIEW_ARTIFACT_TOTAL_BYTES,
@@ -65,9 +68,19 @@ class _Filesystem(ContractModel):
     required_bytes: int = Field(gt=0)
 
 
+class _StorageRoot(ContractModel):
+    device: int = Field(ge=0)
+    frsize_bytes: int = Field(gt=0)
+
+
+class _StorageLayout(ContractModel):
+    artifacts: _StorageRoot
+    cache: _StorageRoot
+
+
 class _StoragePreflight(ContractModel):
     schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-coordinate-storage-preflight-v1"]
+    adapter_version: Literal["m6-coordinate-storage-preflight-v2"]
     run_id: str
     commit: str
     request_run_id: str
@@ -78,6 +91,7 @@ class _StoragePreflight(ContractModel):
     coordinate_total_limit_bytes: int
     coordinate_object_limit_bytes: int
     additional_disk_limit_bytes: int
+    layout: _StorageLayout
     filesystems: list[_Filesystem]
     checked_at: UtcTimestamp
     preflight_id: str
@@ -223,7 +237,7 @@ def validate_storage_preflight(
     report: _Report,
     inspection_sha256: str,
 ) -> dict[str, object]:
-    """Check exact fixed limits and sufficient observed space on each filesystem."""
+    """Rederive exact reservations and check observed space on each filesystem."""
 
     if (
         set(fields) != {"operation", "run_id", "status", "storage_preflight"}
@@ -254,14 +268,25 @@ def validate_storage_preflight(
             "coordinate storage scope, source or approved limit changed"
         )
     filesystems = preflight.filesystems
-    reservations = sorted(item.required_bytes for item in filesystems)
+    reservations = coordinate_storage_reservations(
+        len(report.missing_pdb_ids),
+        artifacts_frsize_bytes=preflight.layout.artifacts.frsize_bytes,
+        cache_frsize_bytes=preflight.layout.cache.frsize_bytes,
+    )
+    expected: dict[int, int] = {}
+    for root, required in zip(
+        (preflight.layout.artifacts, preflight.layout.cache), reservations, strict=True
+    ):
+        expected[root.device] = expected.get(root.device, 0) + required
     if (
         len(filesystems) not in {1, 2}
         or len({item.device for item in filesystems}) != len(filesystems)
-        or reservations not in ([12 * 1024**3], [4 * 1024**3, 8 * 1024**3])
+        or {item.device: item.required_bytes for item in filesystems} != expected
         or any(item.free_bytes < item.required_bytes for item in filesystems)
     ):
-        raise ValidationError("coordinate storage does not meet the fixed reservations")
+        raise ValidationError(
+            "coordinate storage does not meet the derived reservations"
+        )
     return raw
 
 

@@ -26,6 +26,9 @@ from genome_to_diffraction.hpc.m6_coordinate_prefetch import (
     prevalidate_proposed_cache,
 )
 from genome_to_diffraction.hpc.m6_coordinate_requests import CASES
+from genome_to_diffraction.hpc.m6_coordinate_storage import (
+    coordinate_storage_reservations,
+)
 from genome_to_diffraction.hpc.models import (
     FailureClass,
     LocalRunRecord,
@@ -310,9 +313,14 @@ def test_missing_case_cannot_falsely_claim_other_cases_older_coordinate(
 
 
 def _storage(fixture: dict[str, Any], *, split: bool = False) -> dict[str, str]:
+    reservations = coordinate_storage_reservations(
+        len(fixture["original_report"].missing_pdb_ids),
+        artifacts_frsize_bytes=32768,
+        cache_frsize_bytes=32768,
+    )
     document = {
         "schema_version": "1.0",
-        "adapter_version": "m6-coordinate-storage-preflight-v1",
+        "adapter_version": "m6-coordinate-storage-preflight-v2",
         "run_id": fixture["record"].run_id,
         "commit": COMMIT,
         "request_run_id": fixture["original"].run_id,
@@ -323,13 +331,17 @@ def _storage(fixture: dict[str, Any], *, split: bool = False) -> dict[str, str]:
         "coordinate_total_limit_bytes": 3 * 1024**3,
         "coordinate_object_limit_bytes": 128 * 1024**2,
         "additional_disk_limit_bytes": 12 * 1024**3,
+        "layout": {
+            "artifacts": {"device": 0, "frsize_bytes": 32768},
+            "cache": {"device": 1 if split else 0, "frsize_bytes": 32768},
+        },
         "filesystems": [
             {
                 "device": number,
                 "free_bytes": 20 * 1024**3,
-                "required_bytes": amount * 1024**3,
+                "required_bytes": amount,
             }
-            for number, amount in enumerate([8, 4] if split else [12])
+            for number, amount in enumerate(reservations if split else [12 * 1024**3])
         ],
         "checked_at": "2026-09-12T06:00:00Z",
     }
@@ -343,26 +355,77 @@ def _storage(fixture: dict[str, Any], *, split: bool = False) -> dict[str, str]:
 
 
 @pytest.mark.parametrize(
-    "mutation", ["none", "split", "free", "cap", "device", "reserve", "source", "bool"]
+    "mutation",
+    [
+        "none",
+        "split",
+        "full_count",
+        "full_count_split",
+        "free",
+        "cap",
+        "object_cap",
+        "disk_cap",
+        "device",
+        "reserve",
+        "reserve_shift",
+        "source",
+        "bool",
+        "layout_missing",
+        "root_device",
+        "frsize_zero",
+        "frsize_bool",
+        "layout_over_budget",
+        "old_adapter",
+    ],
 )
 def test_storage_preflight_checks_exact_caps_and_current_filesystems(
     tmp_path: Path, mutation: str
 ) -> None:
     fixture = _fixture(tmp_path)
-    fields = _storage(fixture, split=mutation in {"split", "device"})
+    if mutation in {"full_count", "full_count_split"}:
+        # The public client passes an already authenticated report; isolate its
+        # layout cardinality here, independently of scientific mapping validation.
+        fixture["original_report"] = fixture["original_report"].model_copy(
+            update={
+                "missing_pdb_ids": [f"{index + 0x1000:04X}" for index in range(4195)]
+            }
+        )
+    fields = _storage(
+        fixture,
+        split=mutation in {"split", "full_count_split", "device", "reserve_shift"},
+    )
     document = json.loads(fields["storage_preflight"])
     if mutation == "free":
         document["filesystems"][0]["free_bytes"] = 0
     elif mutation == "cap":
         document["coordinate_total_limit_bytes"] += 1
+    elif mutation == "object_cap":
+        document["coordinate_object_limit_bytes"] += 1
+    elif mutation == "disk_cap":
+        document["additional_disk_limit_bytes"] += 1
     elif mutation == "device":
         document["filesystems"][1]["device"] = document["filesystems"][0]["device"]
     elif mutation == "reserve":
         document["filesystems"][0]["required_bytes"] -= 1
+    elif mutation == "reserve_shift":
+        document["filesystems"][0]["required_bytes"] -= 1
+        document["filesystems"][1]["required_bytes"] += 1
     elif mutation == "source":
         document["commit"] = "0" * 40
     elif mutation == "bool":
         document["filesystems"][0]["free_bytes"] = True
+    elif mutation == "layout_missing":
+        document["layout"].pop("cache")
+    elif mutation == "root_device":
+        document["layout"]["artifacts"]["device"] = 99
+    elif mutation == "frsize_zero":
+        document["layout"]["cache"]["frsize_bytes"] = 0
+    elif mutation == "frsize_bool":
+        document["layout"]["cache"]["frsize_bytes"] = True
+    elif mutation == "layout_over_budget":
+        document["layout"]["cache"]["frsize_bytes"] = 64 * 1024**2
+    elif mutation == "old_adapter":
+        document["adapter_version"] = "m6-coordinate-storage-preflight-v1"
     _identity(document, "preflight_id", "m6coordstorage_")
     fields["storage_preflight"] = canonical_json_text(document)
     kwargs = {
@@ -372,7 +435,7 @@ def test_storage_preflight_checks_exact_caps_and_current_filesystems(
         "report": fixture["original_report"],
         "inspection_sha256": fixture["bindings"]["expected_inspection_sha256"],
     }
-    if mutation in {"none", "split"}:
+    if mutation in {"none", "split", "full_count", "full_count_split"}:
         assert validate_storage_preflight(fields, **kwargs)["run_id"] == NEW_RUN_ID
     else:
         with pytest.raises((ValidationError, ModelValidationError)):
