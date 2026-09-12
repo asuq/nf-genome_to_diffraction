@@ -17424,3 +17424,42 @@ with a collapsed combined parent or a guessed command.
 - Next obtain direction on that bounded prerequisite. Keep both Marmic runs,
   the frozen search snapshots, original Raven monitoring and all remaining
   native, M6, retrospective rank-recovery and release gates intact.
+
+## 2026-09-12 - Test-performance assessment and coordinate-plan approval
+
+- Read the supplied performance handover and verified its repository identity.
+  The relevant test infrastructure is unchanged from its reviewed `c7bc435c`
+  source. Captured all 2,203 unique test IDs at `bc499279`: 1,869 unit, 185
+  contract and 149 integration, including the existing affinity markers.
+- Measured three non-overlapping complete-unit invocations on the same
+  eight-CPU/24-GiB host with owned temporary state and unchanged source. The
+  inherited-policy run took 936.795 seconds; adding durations/JUnit took
+  882.381 seconds; a reporting-enabled trial with the four numerical thread
+  limits set to one took 813.904 seconds. All 1,869 tests passed each time, and
+  both JUnit inventories exactly match the original IDs with no errors or skips.
+  One observation per configuration is insufficient for a reliable speed-up or
+  reporting-overhead claim. No test defaults, dependency or scientific setting
+  was changed; matched repetitions and any candidate full gate remain pending.
+- Duration evidence identifies ungrouped reference identity, refinement and
+  native-copy/refinement tests as the largest individual costs, about 649,
+  549 and 542 seconds in the inherited-policy reporting run. Their costs did
+  not improve under one-thread limits in this trial. The Nextflow and Phenix
+  affinity protections remain intact; adding workers or removing those groups
+  is not an established solution. Preserve all upstream integrity assertions
+  when investigating the expensive reference-workflow scenarios.
+- The user explicitly approved the separate bounded coordinate-prefetch/import
+  plan, preserving frozen search snapshots and scientific thresholds. Record
+  that authority and keep implementation separate from performance comparisons.
+  The proposed test-execution source patch has not been implemented.
+- The due Raven observation found the original source-87802 control terminal
+  failed as well. Its C001 error reports unavailable qualified PDB coordinate
+  `8PH9`. Collected its original evidence, signature:
+  `79a7a2599665fc1486956068dffe0b24fafa8ee8c4a2a302ce6b293f4b9bb84b`.
+  All 34 Foldseek tasks completed with recorded 32-CPU/96-GB/one-day requests;
+  both coordinate stages failed. Neither native control is accepted. No run
+  was modified or restarted, and routine polling of terminal Raven work ends.
+- Next implement the approved original-client coordinate-request export and
+  bounded prefetch/import prerequisite. Inspect the actual complete request
+  inventory and storage limits first, preserve both sites' failed evidence and
+  all scientific/release gates, and continue source-isolated performance work
+  without presenting a changed workload as a matched optimisation benchmark.

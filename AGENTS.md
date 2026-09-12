@@ -289,6 +289,18 @@ two-CPU, one-group restriction. Record the resolved budget and measured duration
 This supersedes the earlier local-test parallelisation deferral, not fixed HPC
 scientific allocations, numerical settings, source isolation or acceptance gates.
 
+The user subsequently approved bounded coordinate prefetch/import for the fixed
+Marmic native control. Freeze the complete original truthless request inventory,
+obtain only missing qualified public PDB objects outside the offline scientific
+controller, and import through the original checksum-verified client/cache
+format. Preserve frozen search snapshots, entity/SEQRES mappings, scientific
+thresholds and all prior-run evidence. Do not drop missing candidates, special-
+case only the first missing identifier, overwrite existing cache objects, add
+arbitrary URL/path execution, or broaden command/raw-SSH authority. Qualify the
+boundary and the native control with cached resume before larger execution.
+The original Raven run is now terminal and must not be restarted under this
+Marmic prerequisite approval.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.
