@@ -18073,3 +18073,33 @@ with a collapsed combined parent or a guessed command.
   accounting, reserve split, coordinate/disk caps and scientific policies remain
   unchanged; actual Marmic layout feasibility is still unmeasured. No downloads,
   import, native submission, Raven restart or successor-worktree change occurred.
+
+## 2026-09-13 - Exact-source Marmic diagnostics isolate the internal reserve split
+
+- All six CI groups passed on the exact locally qualified revision. Rebuilt the
+  original client, deployed its checksum-verified tools and completed fresh
+  immutable staging of the unchanged runner. Verified runner-ready evidence,
+  the manifest and all nonempty state fields. The fixed two-case control and
+  Marmic scientific resource policy remain unchanged; no job was submitted.
+- Fresh inspection again authenticated all 17,412 requested mappings and 4,195
+  missing PDB entries, with none cached. Its report content hash matches the
+  prior inspection because the requests and cache state are unchanged; its new
+  bundle independently binds the current run. No old binding was substituted.
+- The new owned preflight log reports raw statvfs fragment sizes of 32,768 bytes
+  for both artifact and cache roots. The unchanged conservative estimates are
+  8,193,671,168 artifact bytes and 4,610,427,904 cache bytes: 12,804,099,072 bytes
+  combined, below the approved 12,884,901,888-byte total. The cache estimate alone
+  exceeds the internal four-GiB reservation by 315,460,608 bytes, explaining the
+  rejection. These are computed bounds, not measured disk use or proof of free
+  space, quota headroom or physical allocation granularity.
+- Prefetch failed before a successful storage report, local acquisition state
+  or any public coordinate body. No shared-cache import or native execution
+  occurred. Preserve this and all earlier attempts; do not repeat unchanged
+  prefetch or modify immutable remote source.
+- Next review and qualify the smallest reservation/accounting correction within
+  the unchanged 12-GiB total. Retain the conservative peak bounds, per-filesystem
+  free-space checks, coordinate/object limits and full-inventory validation.
+  Do not lower estimates, reinterpret allocation units speculatively or raise
+  the cap. Complete cache validation, native control and cached resume still
+  precede larger scientific execution. Raven and the successor worktree remain
+  untouched; continue with the primary agent alone.
