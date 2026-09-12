@@ -18131,3 +18131,26 @@ with a collapsed combined parent or a guessed command.
   followed by exact private CI and the original immutable deployment/staging
   route. No new remote operation, coordinate acquisition/import or native job
   has occurred; prior diagnostic failures remain preserved.
+
+## 2026-09-13 - Complete local qualification of layout-derived reservations
+
+- All 25 checks passed in 1,030.967 seconds with the recorded eight-CPU,
+  two-group budget, four workers per group, one numerical thread and two-GiB
+  Nextflow heaps. Unit tests passed all 2,176 cases in 959.92 seconds, integration
+  all 176 in 386.68 seconds and contracts all 185 in 8.11 seconds. Workflow stubs,
+  quality, offline packaging and wrapper checks passed; timings are observations.
+- All 1,328 captured source inputs remained unchanged throughout qualification.
+  Source-manifest SHA-256:
+  `c4985e3f66ed50b9741085b2cf274a5b1d2ee147e1ad98a436be3f972b379604`.
+  Complete-gate log SHA-256:
+  `1b64282e2db6bc6f392bdd5e8e3542a0d268cbea33228b9d6f5acafde19a7b89`.
+  The deterministic atlas check passed for all 496 generated files, including
+  the new shared calculation module. Inventory:
+  `atlasinv_e526be3464ac40d89b05719cda1ebd946f5eedaa10e016f88d989f64e18f50c8`.
+- Next require all six private CI groups on the exact revision before rebuilding
+  and deploying the original client and staging a fresh immutable fixed control.
+  Only its freshly bound inspection and successful v2 storage preflight may
+  precede acquisition. Local tests do not establish actual current headroom,
+  coordinate validity or native scientific acceptance. The 12-GiB disk total,
+  coordinate/object limits, conservative peak bounds and scientific policies
+  remain unchanged. No new remote acquisition, import or scientific job occurred.
