@@ -17491,3 +17491,21 @@ with a collapsed combined parent or a guessed command.
   refresh/deploy only through the original reviewed client. Freeze both original
   request inventories before completing bounded public-PDB prefetch/import.
   Native MR/outcome, cached-resume, larger M6/RF and release gates remain open.
+
+## 2026-09-12 - Coordinate-request export local qualification
+
+- The named full gate passed all 25 checks in 24 minutes 13 seconds with an
+  explicit eight-CPU, two-group budget: 1,891 unit, 185 contract and 153
+  integration tests, plus every maintained workflow and quality check. All 1,285
+  captured source inputs were unchanged. Committed those exact inputs as
+  `8f148acd43a8e2f9d787ad4578cb5c38a17664bb`.
+- This gate validates the new export boundary, not model availability or native
+  scientific acceptance. The expanded test inventory is not a matched timing
+  comparison with the earlier performance trials. No performance defaults,
+  scientific selectors, frozen databases or remote evidence changed.
+- Next require successful exact-source CI, refresh the original client and
+  deploy the qualified dispatcher through its existing Marmic route. Collect
+  both original C001/C025 request inventories into a separate immutable snapshot,
+  then measure cache availability before bounded public-PDB prefetch/import.
+  Preserve both failed native controls and the native/cached-resume gates before
+  larger execution; do not restart Raven or the cancelled operator programme.
