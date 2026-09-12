@@ -108,6 +108,7 @@ process RUN_PHASE3_FIRST_COPY_PHASER {
     def outputName = "phase3_first_copy_${item[1]}_${item[13].baseName}"
     """
     # Scientific output contract: phenix-first-copy-mr-v13-selected-evidence
+    # Operational exit contract: first-copy-transient-75-v1
     genome-to-diffraction \
         --no-progress \
         --log-format json \

@@ -70,6 +70,7 @@ process RF_FIRST_COPY {
 
     script:
     """
+    # Operational exit contract: first-copy-transient-75-v1
     PYTHONPATH='${projectDir}/src:${projectDir}' \
         python -P -m tests.fixtures.ranking_four_arm_cli \
         --source-root '${projectDir}' first-copy \

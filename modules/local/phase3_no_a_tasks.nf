@@ -22,6 +22,7 @@ process RUN_PHASE3_NO_A_FIRST_COPY {
     def registryRoot = item[4].parent
     """
     # Scientific output contract: phenix-first-copy-mr-v13-selected-evidence
+    # Operational exit contract: first-copy-transient-75-v1
     genome-to-diffraction --no-progress --log-format json \
         mr first-copy \
         --hypotheses '${item[2]}/mr_hypotheses.jsonl' \

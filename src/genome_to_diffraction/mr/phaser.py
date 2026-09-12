@@ -19,6 +19,11 @@ TFZ > 5. It annotates and ranks parsed solutions but does not discard them or
 approve them. Final packing, placed-copy checks, raw metrics, and advisories are
 preserved independently for human review.
 
+An observed native exit 75 retains its failed-tool result and logs before raising
+the existing transient-infrastructure category. Nextflow, never this adapter,
+owns the bounded retry. First-copy task scripts separately version this operational
+exit contract; scientific command/result identities are unchanged.
+
 The opt-in Phase III path additionally verifies a schema-v2 diffraction
 selection and a bound hypothesis identity, either independently confirmed or
 derived from the same complete immutable task inputs. Observation labels, space
@@ -93,6 +98,7 @@ from genome_to_diffraction.status import (
     ExecutionStatus,
     InputContractError,
     ResultParseError,
+    TransientInfrastructureError,
 )
 from genome_to_diffraction.time import utc_now_iso
 
@@ -184,6 +190,22 @@ class PhaserRunOutput:
     result_json: Path
     result_jsonl: Path
     command_json: Path
+
+
+class PhaserTransientExecutionError(TransientInfrastructureError):
+    """An observed inner exit 75 with its already published native evidence.
+
+    The existing CLI/Nextflow transient contract owns retry decisions. An outer
+    receipt writer may retain and authenticate ``output`` before re-raising;
+    it must not convert this operational failure into a successful task.
+    """
+
+    def __init__(self, output: PhaserRunOutput) -> None:
+        self.output = output
+        super().__init__(
+            "first-copy Phaser exited with transient status 75; "
+            f"native evidence retained at {output.result_json}"
+        )
 
 
 @dataclass(frozen=True)
@@ -1148,7 +1170,10 @@ def run_first_copy_phaser(request: PhaserRunRequest) -> PhaserRunOutput:
                 "exit_status": completed.returncode,
             },
         )
-        return _write_result(output, result, command_json)
+        retained = _write_result(output, result, command_json)
+        if completed.returncode == 75:
+            raise PhaserTransientExecutionError(retained)
+        return retained
     try:
         log_text = read_phaser_evidence_text(raw_log)
         parsed = parse_completed_phaser_outputs(log_text, output)

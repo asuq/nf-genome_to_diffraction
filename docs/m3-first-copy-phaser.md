@@ -188,6 +188,24 @@ qualification wrapper additionally fails unless the normalised execution status
 is `completed_hit` or `completed_no_hit`; a schema-valid tool, parser, or
 infrastructure failure is collectable evidence but cannot qualify the route.
 
+An actually observed inner Phaser exit `75` is propagated through the existing
+transient-infrastructure exception and CLI exit `75`, after the command, raw log
+and both normalised result files have been written. The typed result remains
+`failed_tool_execution`; it is not relabelled as a no-hit. The RF first-copy
+boundary additionally writes and authenticates its complete receipt before
+propagating that same signal. Nextflow's existing one-retry rule owns recovery
+and exhaustion; no Python retry loop or new resource policy is introduced.
+
+The public, Phase III, M6 and RF first-copy script bodies carry operational
+contract `first-copy-transient-75-v1`, invalidating earlier failed-as-success
+cache entries without changing scientific commands or result schemas. Focused
+tests run the actual adapter and CLI with only Phenix mocked; a real local
+Nextflow fixture checks retry then success, exhausted failure, retained attempt
+evidence and cached resume. Native and complete repository qualification remain
+separate. This bounded repair does not close the analogous add-copy, partner,
+multi-fixed or composition propagation findings, or classify exits `137`/`-9`
+as OOM or transient failures.
+
 ## Nextflow boundary, cache, and outputs
 
 `qualification.nf --qualification_stage first_copy` takes coordinate sources,

@@ -23,6 +23,7 @@ process RUN_FIRST_COPY_PHASER {
         : "--model-preparation-manifest '${prepared_models}/model_preparation_manifest.json'"
     """
     # Scientific output contract: phenix-first-copy-mr-v9-selected-evidence
+    # Operational exit contract: first-copy-transient-75-v1
     genome-to-diffraction \
         --no-progress \
         --log-format json \

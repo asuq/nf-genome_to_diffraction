@@ -4,9 +4,9 @@ Exactly one emitted hypothesis, its complete production-written model registry,
 original prepared case and Phenix manifest determine the task. Nextflow owns
 independent task scheduling and the supplied positive CPU allocation. This
 adapter does not alter Phaser settings, expected composition, initial searched
-copy count, score annotation, parser or failure semantics. A separate reference
-receipt binds the unchanged native command and all output bytes; it grants no
-review approval or M6 acceptance.
+copy count, score annotation, parser or scientific failure classifications. A
+separate reference receipt binds the unchanged native command and all output
+bytes; it grants no review approval or M6 acceptance.
 
 The content key binds reference preparation, hypothesis, source and threads.
 Validation rederives admission and command construction, checks the two typed
@@ -14,6 +14,8 @@ result encodings and selected native assets, and rejects changed/foreign inputs
 or outputs. Tool/parse/no-hit outcomes retain their original types. Native runtime
 and scheduler/resume qualification remain separate from tests, which simulate
 only the external Phenix response using frozen representative output.
+An observed first-copy exit 75 still produces a fully authenticated receipt before
+the existing transient retry signal reaches the RF CLI and Nextflow.
 """
 
 from dataclasses import dataclass
@@ -44,6 +46,7 @@ from genome_to_diffraction.ids import content_id
 from genome_to_diffraction.mr.phaser import (
     _ADAPTER_VERSION,
     PhaserRunRequest,
+    PhaserTransientExecutionError,
     _command,
     _resolve_inputs,
     read_selected_solution_evidence,
@@ -242,7 +245,12 @@ def run_reference_first_copy_task(request: ReferenceFirstCopyRequest) -> Path:
     before = _input_digests(request)
     source = _source_sha256()
     prepared_id, task, native_request = _request(request)
-    native = run_first_copy_phaser(native_request)
+    retry_error: PhaserTransientExecutionError | None = None
+    try:
+        native = run_first_copy_phaser(native_request)
+    except PhaserTransientExecutionError as error:
+        native = error.output
+        retry_error = error
     result = _result(native_request)
     if (
         result != native.result
@@ -268,6 +276,8 @@ def run_reference_first_copy_task(request: ReferenceFirstCopyRequest) -> Path:
     path = output / _MANIFEST
     atomic_write_json(path, receipt.model_dump(mode="json"))
     validate_reference_first_copy_task(path, request)
+    if retry_error is not None:
+        raise retry_error
     return path
 
 

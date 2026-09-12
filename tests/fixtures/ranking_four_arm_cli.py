@@ -72,6 +72,7 @@ from tests.fixtures.ranking_four_arm_refinement import (
 from genome_to_diffraction.checksums import atomic_write_json
 from genome_to_diffraction.logging import configure_logging
 from genome_to_diffraction.schemas.base import ContractModel
+from genome_to_diffraction.status import TransientInfrastructureError
 
 
 def validate_module_origins(source_root: Path) -> None:
@@ -378,7 +379,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.output.exists() or args.output.is_symlink():
         raise ValueError("reference CLI output must not already exist")
     output = args.output.resolve()
-    args.handler(args, output)
+    try:
+        args.handler(args, output)
+    except TransientInfrastructureError as error:
+        logger.error(
+            "reference stage requires the existing transient retry",
+            extra={"stage": args.stage, "output": output, "error": str(error)},
+        )
+        return 75
     logger.info(
         "reference stage completed", extra={"stage": args.stage, "output": output}
     )
