@@ -18154,3 +18154,31 @@ with a collapsed combined parent or a guessed command.
   coordinate validity or native scientific acceptance. The 12-GiB disk total,
   coordinate/object limits, conservative peak bounds and scientific policies
   remain unchanged. No new remote acquisition, import or scientific job occurred.
+
+## 2026-09-13 - Exact-source storage admission passes on Marmic
+
+- All six private CI groups passed on the exact locally qualified revision.
+  Rebuilt the original client, deployed its checksum-verified tools and staged
+  the unchanged runner in a fresh immutable native-control namespace. Verified
+  the runner-ready event, manifest and all required nonempty state fields. The
+  fixed C001/C025 cases, full catalogues and Marmic resource policy are unchanged.
+- Fresh inspection authenticated all 17,412 requested mappings and 4,195 missing
+  PDB entries, with none cached. The report content hash is unchanged because the
+  requests/cache state is unchanged; its new bundle binds the new staged run.
+- The v2 preflight passed on the actual shared artifact/cache filesystem, with
+  both raw statvfs fragment sizes equal to 32,768 bytes. At the check it reported
+  195,923,705,856 free bytes against the unchanged 12,884,901,888-byte reservation.
+  The original client independently verified the layout-derived reservations,
+  source bindings and current free space. This resolves the earlier internal
+  reserve-split rejection, not quota guarantees or future-space availability.
+- Local headroom admission also passed, and the original client started bounded
+  acquisition of the complete missing public PDB-ID set. Only those public IDs
+  are sent; catalogue sequences, diffraction and truth remain local. Acquisition
+  remains serial, redirect-disabled and single-attempt, with unchanged compressed,
+  per-object and additional-disk limits. Initial objects are retained with their
+  original retrieval provenance; complete acquisition/mapping validation is pending.
+- Next inspect that existing acquisition's terminal result without replaying it.
+  Only its complete validated manifest/archive may precede original-client import,
+  full offline cache reinspection, native control, measured-resource qualification
+  and cached resume. No shared-cache import or scientific job was submitted.
+  Preserve all earlier failures; Raven and the successor worktree are untouched.
