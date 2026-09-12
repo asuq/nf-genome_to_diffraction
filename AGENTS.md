@@ -332,6 +332,13 @@ GPU access, human-review decisions, release gates or remote command permissions.
 The v0.4 development fork is qualified source, not a released v0.3 reference.
 Preserve active worktrees and finish bounded handoffs before reassigning workers.
 
+The user subsequently directed collection of the current subagent work followed
+by an end to subagent use. Finish only the existing bounded handoffs, preserve
+unfinished source and evidence, and continue with the primary agent alone. Do
+not spawn, reassign or resume subagents after collection. The separate `main`
+and `dev_v0.4` branches and existing worktrees remain; this does not cancel the
+development programme or relax any scientific, source or permission gate.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

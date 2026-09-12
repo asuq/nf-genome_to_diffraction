@@ -17741,3 +17741,29 @@ with a collapsed combined parent or a guessed command.
   Only then perform the approved bounded acquisition/import and native/resume
   checks. The separate v0.4 workers may resume focused tests; neither branch's
   local progress closes the other's native or release gates.
+
+## 2026-09-12 - Exact-source deployment, incomplete native staging and agent handoff
+
+- All six CI jobs passed for `a494d2a97567a7483490c02d46fc76343aea9c72`
+  in run `34680716027`. Rebuilt and checksum-deployed the original Marmic client
+  and dispatcher from that source after the complete local gate.
+- The new frozen-input native-control staging attempt reached its fixed
+  900-second transport timeout. Read-only owned diagnostics subsequently report
+  a staged base environment, but the authenticated coordinate inspection rejects
+  incomplete or unsafe fixed-run state. This is not complete M6 input staging,
+  coordinate-content qualification or native acceptance. No scientific job,
+  public coordinate acquisition or cache import was launched. Retain the attempt;
+  do not infer success from the generic staged status or replay it automatically.
+- The user directed collection of existing subagent work followed by primary-
+  agent-only development. Preserve branch/worktree separation and unfinished
+  evidence; do not assign more subagent work after the bounded handoffs.
+- A focused v0.4 audit reproduced an inner retry-status propagation defect in
+  code shared by this line's first-copy RF/M6 path: native exit 75 can be retained
+  as a failed-tool result while the public CLI returns zero. This is mocked-tool
+  reproduction, not a claim about an observed native run. No fix or new resource/
+  signal classification has been implemented; genuine no-hit and deterministic
+  failure controls remain distinct. Review and correct the concrete pre-release
+  boundary before its qualification, preserving complete failure evidence.
+- Next finish collecting the v0.4 handoffs, continue alone, diagnose the incomplete
+  staging through the existing interface, and resolve the scoped retry defect.
+  Native-control/resume, RF/M6, rank recovery and release gates remain open.
