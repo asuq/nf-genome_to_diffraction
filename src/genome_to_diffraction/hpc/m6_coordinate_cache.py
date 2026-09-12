@@ -86,6 +86,44 @@ def _frozen_file(root: Path, relative: str) -> Path:
     return target
 
 
+def load_frozen_request_inventory(
+    snapshot: Path,
+    *,
+    expected_inventory_sha256: str,
+) -> _Inventory:
+    """Authenticate the complete frozen file set without opening a remote cache."""
+
+    if snapshot.is_symlink() or not snapshot.is_dir():
+        raise ValidationError("coordinate request snapshot is not a regular directory")
+    root = snapshot.resolve(strict=True)
+    inventory_path = _frozen_file(root, "request_inventory.json")
+    if sha256_file(inventory_path) != expected_inventory_sha256:
+        raise ValidationError("coordinate request inventory checksum changed")
+    inventory = _Inventory.model_validate(
+        load_json_document(inventory_path), strict=True
+    )
+    if inventory.inventory_id != content_id(
+        "m6coords_", inventory.model_dump(mode="json", exclude={"inventory_id"})
+    ):
+        raise ValidationError("coordinate request inventory identity changed")
+    if set(inventory.cases) != set(CASES):
+        raise ValidationError("coordinate request inventory lacks the fixed two cases")
+    expected_files = set(inventory.input_and_request_sha256) | {
+        "request_inventory.json"
+    }
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if not path.is_dir() or path.is_symlink()
+    }
+    if actual_files != expected_files:
+        raise ValidationError("coordinate snapshot file inventory changed")
+    for name, expected_sha256 in inventory.input_and_request_sha256.items():
+        if sha256_file(_frozen_file(root, name)) != expected_sha256:
+            raise ValidationError("coordinate snapshot input checksum changed")
+    return inventory
+
+
 def inspect_coordinate_cache(
     snapshot: Path,
     database_manifest: Path,
@@ -100,38 +138,16 @@ def inspect_coordinate_cache(
     ``missing``; an incompatible later hit aborts rather than selecting another file.
     """
 
-    if snapshot.is_symlink() or not snapshot.is_dir():
-        raise ValidationError("coordinate request snapshot is not a regular directory")
+    inventory = load_frozen_request_inventory(
+        snapshot, expected_inventory_sha256=expected_inventory_sha256
+    )
     root = snapshot.resolve(strict=True)
-    inventory_path = _frozen_file(root, "request_inventory.json")
-    if sha256_file(inventory_path) != expected_inventory_sha256:
-        raise ValidationError("coordinate request inventory checksum changed")
-    inventory = _Inventory.model_validate(load_json_document(inventory_path))
-    if inventory.inventory_id != content_id(
-        "m6coords_", inventory.model_dump(mode="json", exclude={"inventory_id"})
-    ):
-        raise ValidationError("coordinate request inventory identity changed")
-    if set(inventory.cases) != set(CASES):
-        raise ValidationError("coordinate request inventory lacks the fixed two cases")
     if (
         database_manifest.is_symlink()
         or not database_manifest.is_file()
         or sha256_file(database_manifest) != inventory.database_manifest_sha256
     ):
         raise ValidationError("coordinate inspection database binding changed")
-    expected_files = set(inventory.input_and_request_sha256) | {
-        "request_inventory.json"
-    }
-    actual_files = {
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if not path.is_dir() or path.is_symlink()
-    }
-    if actual_files != expected_files:
-        raise ValidationError("coordinate snapshot file inventory changed")
-    for name, expected_sha256 in inventory.input_and_request_sha256.items():
-        if sha256_file(_frozen_file(root, name)) != expected_sha256:
-            raise ValidationError("coordinate snapshot input checksum changed")
     sequence_resource, foldseek_resource, cache_resource = _resources(database_manifest)
     expected_database_ids = {
         _DIRECT_PROVIDER: sequence_resource.database_id,

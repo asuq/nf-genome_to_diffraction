@@ -132,6 +132,42 @@ controller remains offline and frozen search snapshots/thresholds are unchanged.
 Tests cover complete inventories beyond 25 mappings, producer and command joins,
 checksum/path/archive bounds, ownership/terminal guards and non-overwrite.
 
+After the inspection implementation passes its source/CI/deployment gates,
+stage a fresh fixed Marmic native control from that qualified source, without
+submitting it. Inspect its shared cache against the frozen original requests:
+
+```text
+nf-gtd-hpc-test --config CONFIG coordinate-inspect --run-id NEW_RUN_ID --request-run-id ORIGINAL_RUN_ID --confirm-request-inventory-sha256 FROZEN_INVENTORY_SHA256
+```
+
+Both runs must be owned Marmic native controls. The new run must still be staged
+with no scientific controller/job result; the original remains terminal failed.
+Their frozen database, lock and scientific selector bindings must agree. The
+client uploads only the original bounded producer evidence, not caller-provided
+paths or a selected subset. The new run's pinned runtime rederives the complete
+inventory and compares its exact checksum before inspecting the cache offline.
+Original source/run and local request-snapshot bytes are never replaced.
+
+The remote inspection publishes once under the new run and returns only
+`inspection.json` and `inspection_bundle.json`. The client validates their exact
+file set, bounds, hashes, content IDs, source/run/request/database bindings and
+every ordered hit before publishing a separate local `coordinate-inspection`
+directory. Its console result contains scalar counts; the report retains every
+cached/missing mapping and cached-object qualification. Missing IDs are the union
+across both cases, not a per-case sum. The fixed transport timeout is 15 minutes.
+An existing inspection is not overwritten; a failed or interrupted operation
+requires inspection of its evidence, not an automatic retry or cleanup.
+
+This observation does not download, import, repair or overwrite cache objects.
+The unchanged offline resolver determines qualified availability; checksum and
+cache metadata failures abort, while the resolver's first-hit format/mapping
+rejection can still yield qualified absence. This is not a full malformed-mmCIF
+audit. Later same-entry hits must use the first chosen object. Availability is
+an observation, not a lasting cache-validity promise or scientific acceptance.
+Measure missing-object counts and acquisition byte bounds before implementing
+the remaining import boundary; preserve every requested mapping and the native
+control/cached-resume gates before larger execution.
+
 The purpose is bound at staging and rechecked before submission and execution.
 It cannot select arbitrary cases, use leakage inputs, have an operational parent
 or run outside Marmic/Raven. Marmic uses its existing compute-node Slurm

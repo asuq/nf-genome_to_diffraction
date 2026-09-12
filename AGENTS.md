@@ -301,6 +301,19 @@ boundary and the native control with cached resume before larger execution.
 The original Raven run is now terminal and must not be restarted under this
 Marmic prerequisite approval.
 
+The user subsequently requested faster progress and explicitly authorised
+subagents and worktrees. This supersedes the earlier subagent prohibition;
+partition independent work, preserve source isolation and record bounded local
+resource use. It does not expand remote command, GPU or scientific authority.
+
+The user also explicitly approved the profiled RF validation optimisation:
+reuse authenticated continuation context within one call while retaining all
+upstream checks and tamper detection. Authenticate the complete inputs at entry
+and exit, retain independent public-entry validation, and do not introduce a
+persistent checksum cache, weaken identity assertions or change scientific
+policy. Qualify the bounded change and report matched timings as observations,
+not an established whole-suite performance improvement.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

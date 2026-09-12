@@ -17528,3 +17528,45 @@ with a collapsed combined parent or a guessed command.
 - Next integrate this focused worktree patch with the coordinate import boundary,
   then regenerate the atlas and run the named combined gate once. No remote
   operation, public download, deployment, source push or native job was performed.
+
+## 2026-09-12 - Real request snapshot and original-client cache inspection
+
+- Exact-source export CI passed all six jobs. Refreshed the original client and
+  deployed source `14322ece4f53ed17a98b587a0274e25ab7d07ca0` through its reviewed
+  Marmic route. The original failed native control and its terminal collection
+  remain unchanged; the separate complete request snapshot is read-only.
+- The actual inventory contains 4,195 distinct PDB entries across both cases.
+  Each case retains 2,968 eligible groups, 12,493 accepted hits and all 8,706
+  selected coordinate mappings. The union is not a candidate-pruning budget and
+  is not a model-availability or scientific-acceptance result. Inventory checksum:
+  `6bc2344039dd0c15d76b88114582e021fc147be1c51f3d264dbc0362a83903d2`.
+- Added the original-client `coordinate-inspect` boundary for a freshly staged,
+  unsubmitted fixed Marmic native control and the confirmed original request
+  snapshot. Its local upload sends only original producer evidence; its two-file
+  response must preserve every ordered hit, cached/missing distinction, count,
+  source/run/database binding, checksum and content identity before publication.
+  Existing snapshots and observations cannot be overwritten. This route neither
+  downloads public objects nor imports or repairs the coordinate cache.
+- Focused original-client, CLI, request and cache tests passed 273 cases using
+  two local workers. Ruff, focused type checks and Markdown checks passed; an
+  independent read-only review found no actionable defects. The real retained
+  snapshot also passed upload/extraction checks: all 39 original archive members
+  fit in 6,211,507 compressed bytes. These are request-evidence bytes, not the
+  size of the missing coordinate payloads. No remote inspection occurred yet.
+- The user explicitly authorised independent subagents/worktrees and a bounded,
+  profiled call-local RF validation-context optimisation with all original
+  integrity checks retained. Remote inspection and RF regression qualification
+  proceed in separate worktrees, without changing scientific policy, test
+  defaults, source ownership or command permissions.
+- Integrated the separately reviewed remote inspection bridge. Its 32 focused
+  checks passed, including actual dispatcher-to-pinned-module execution,
+  preservation of original evidence and bounded inspection-log retrieval. The
+  combined coordinate boundary passed 83 tests after integration; focused type
+  checks passed as well. No real remote inspection or acquisition occurred.
+- Next integrate the separately qualified RF patch, regenerate the
+  atlas and run one named combined complete local gate, then exact-source CI.
+  Refresh/deploy only that qualified source, stage the new control without
+  submitting it, and inspect missing-object availability before defining the
+  acquisition byte budget. Native-control, cached-resume, larger M6/RF and release
+  gates remain open. Preserve the terminal Raven evidence and cancelled operator
+  programme without restarting either.

@@ -237,6 +237,12 @@ class FakeTransport:
         self.calls.append((operation, (run_id, owner_id)))
         destination.write_bytes(self.archive)
 
+    def coordinate_inspect(
+        self, arguments: Sequence[str], archive: Path, destination: Path
+    ) -> None:
+        self.calls.append(("inspect-coordinate-cache", tuple(arguments)))
+        destination.write_bytes(self.archive)
+
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         self.calls.append(("review-collect", (run_id, owner_id, manifest_sha256)))
         return self.review_archive

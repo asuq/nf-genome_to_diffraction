@@ -51,6 +51,10 @@ from genome_to_diffraction.hpc.identification_inputs import (
     build_identification_input_bundle,
 )
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
+from genome_to_diffraction.hpc.m6_coordinate_inspection_client import (
+    build_request_archive,
+    validate_inspection_response,
+)
 from genome_to_diffraction.hpc.m6_coordinate_requests import (
     extract_request_archive,
     freeze_request_inventory,
@@ -597,6 +601,11 @@ class TextTransport(Protocol):
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
         """Return manifest-selected and checksum-gated MR review assets."""
+
+    def coordinate_inspect(
+        self, arguments: Sequence[str], archive: Path, destination: Path
+    ) -> None:
+        """Stream the fixed producer archive and receive the two-file report."""
 
     def t12_review_collect(
         self,
@@ -1204,6 +1213,47 @@ class SshTransport:
             raise RemoteOperationError(
                 message or "remote artefact collection failed",
                 failure_class=_failure_class(fields.get("failure_class")),
+            )
+
+    def coordinate_inspect(
+        self, arguments: Sequence[str], archive: Path, destination: Path
+    ) -> None:
+        """Inspect only an owned staged control using a bounded producer upload."""
+
+        if destination.exists() or destination.is_symlink():
+            raise ValidationError("inspection response destination must be absent")
+        try:
+            with archive.open("rb") as source, destination.open("xb") as output:
+                result = subprocess.run(
+                    self._command("inspect-coordinate-cache", arguments),
+                    check=False,
+                    stdin=source,
+                    stdout=output,
+                    stderr=subprocess.PIPE,
+                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                )
+        except subprocess.TimeoutExpired as error:
+            raise RemoteOperationError(
+                "coordinate inspection exceeded the fixed transport timeout",
+                failure_class=FailureClass.TRANSFER_FAILURE,
+            ) from error
+        if result.returncode != 0:
+            payload = (
+                destination.read_bytes()
+                if destination.stat().st_size <= MAX_LOG_BYTES
+                else b""
+            )
+            fields = _decode_remote_fields(payload) if payload else {}
+            raise RemoteOperationError(
+                fields.get("message")
+                or result.stderr.decode("utf-8", errors="replace").strip()
+                or "remote coordinate inspection failed",
+                failure_class=_failure_class(fields.get("failure_class")),
+            )
+        if destination.stat().st_size > MAX_REVIEW_ARTIFACT_ARCHIVE_BYTES:
+            raise RemoteOperationError(
+                "coordinate inspection response exceeds the byte limit",
+                failure_class=FailureClass.TRANSFER_FAILURE,
             )
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:
@@ -4170,6 +4220,102 @@ class HpcController:
             "inventory_id": inventory["inventory_id"],
             "distinct_pdb_count": inventory["distinct_pdb_count"],
             "cases": inventory["cases"],
+        }
+
+    def coordinate_inspect(
+        self,
+        run_id: str,
+        *,
+        request_run_id: str,
+        confirm_request_inventory_sha256: str,
+    ) -> dict[str, object]:
+        """Preserve the original snapshot and publish a complete cache observation."""
+
+        record = self._owned_run(run_id)
+        original = self._owned_run(request_run_id)
+        if run_id == request_run_id or any(
+            value.site_id != "marmic" or value.profile != "m6-native-control"
+            for value in (record, original)
+        ):
+            raise ValidationError(
+                "coordinate inspection requires distinct owned Marmic native controls"
+            )
+        for relative in (
+            "pixi.lock",
+            "src/genome_to_diffraction/benchmarks/m6_nextflow.py",
+            "src/genome_to_diffraction/structure_search/pdb_coordinates.py",
+        ):
+            if self.git.read_file_at_commit(
+                record.commit, PurePosixPath(relative)
+            ) != self.git.read_file_at_commit(original.commit, PurePosixPath(relative)):
+                raise ValidationError(
+                    "coordinate inspection producer selector/runtime source changed"
+                )
+        parent = self.config.local_state_root / run_id
+        destination = parent / "coordinate-inspection"
+        snapshot = self.config.local_state_root / request_run_id / "coordinate-requests"
+        if parent.is_symlink() or parent.resolve(strict=True) != parent:
+            raise ValidationError(
+                "coordinate inspection run directory must be link-free"
+            )
+        if destination.exists() or destination.is_symlink():
+            raise ValidationError("coordinate inspection already exists; preserve it")
+        with tempfile.TemporaryDirectory(
+            prefix=".coordinate-inspection-", dir=parent
+        ) as temporary:
+            root = Path(temporary)
+            archive = root / "requests.tar.gz"
+            response = root / "inspection.tar.gz"
+            output = root / "report"
+            try:
+                build_request_archive(
+                    snapshot,
+                    archive,
+                    record=original,
+                    confirmed_sha256=confirm_request_inventory_sha256,
+                )
+                self.transport.coordinate_inspect(
+                    [
+                        record.run_id,
+                        record.owner_id,
+                        original.run_id,
+                        original.owner_id,
+                        sha256_file(archive),
+                        str(archive.stat().st_size),
+                        confirm_request_inventory_sha256,
+                    ],
+                    archive,
+                    response,
+                )
+                summary = validate_inspection_response(
+                    response,
+                    output,
+                    snapshot=snapshot,
+                    record=record,
+                    request_record=original,
+                    request_archive=archive,
+                    confirmed_sha256=confirm_request_inventory_sha256,
+                )
+            except (
+                InputContractError,
+                ValueError,
+                KeyError,
+                tarfile.TarError,
+            ) as error:
+                raise ValidationError(
+                    f"invalid coordinate inspection evidence: {error}"
+                ) from error
+            for path in output.iterdir():
+                path.chmod(0o444)
+            if destination.exists() or destination.is_symlink():
+                raise ValidationError("coordinate inspection appeared during transfer")
+            output.rename(destination)
+        return {
+            "operation": "coordinate-inspect",
+            "run_id": run_id,
+            "request_run_id": request_run_id,
+            "destination": str(destination),
+            **summary,
         }
 
     def review_collect(self, run_id: str) -> dict[str, object]:

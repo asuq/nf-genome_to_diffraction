@@ -214,6 +214,14 @@ def _build_parser() -> argparse.ArgumentParser:
                 help="freeze complete model requests from the failed Marmic control",
             )
 
+    coordinate_inspect = actions.add_parser(
+        "coordinate-inspect",
+        help="inspect every frozen coordinate request against a staged Marmic control",
+    )
+    coordinate_inspect.add_argument("--run-id", required=True)
+    coordinate_inspect.add_argument("--request-run-id", required=True)
+    coordinate_inspect.add_argument("--confirm-request-inventory-sha256", required=True)
+
     logs = actions.add_parser("logs", help="retrieve a bounded log tail")
     logs.add_argument("--run-id", required=True)
     logs.add_argument("--tail", type=int, default=200)
@@ -419,6 +427,12 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
         if args.coordinate_requests:
             return controller.collect_coordinate_requests(args.run_id)
         return controller.collect(args.run_id)
+    if args.operation == "coordinate-inspect":
+        return controller.coordinate_inspect(
+            args.run_id,
+            request_run_id=args.request_run_id,
+            confirm_request_inventory_sha256=args.confirm_request_inventory_sha256,
+        )
     if args.operation == "review-collect":
         return controller.review_collect(args.run_id)
     if args.operation == "t12-review-collect":
