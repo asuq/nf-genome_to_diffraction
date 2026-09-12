@@ -17767,3 +17767,40 @@ with a collapsed combined parent or a guessed command.
 - Next finish collecting the v0.4 handoffs, continue alone, diagnose the incomplete
   staging through the existing interface, and resolve the scoped retry defect.
   Native-control/resume, RF/M6, rank recovery and release gates remain open.
+
+## 2026-09-12 - First-copy inner transient status preserved after evidence publication
+
+- Working alone, corrected the first-copy vertical slice of C02 in `2868c3d8`.
+  Only an actually observed native exit 75 raises the existing transient category,
+  after raw logs, command and both typed result encodings are saved. The result
+  remains a failed-tool outcome. RF additionally authenticates and writes its
+  original receipt before propagating the signal; its CLI now returns 75 for
+  explicitly classified transient exceptions. No rejection-string parsing or
+  independent retry engine was added.
+- Five first-copy rendered task scripts version the operational exit contract,
+  preventing earlier failed-as-success cache entries from bypassing the fix.
+  Scientific commands, schemas, scores, resource/retry policy, the coordinate
+  selectors and the software lock are unchanged.
+- Four focused reproductions failed before the correction while two no-hit/tool-
+  failure controls passed. After correction, 90 focused adapter/RF/CLI checks
+  passed in 126.80 seconds with two workers and numerical threads one. Three
+  real local Nextflow checks passed in 17.23 seconds: one 75 then success, two
+  exhausted 75 attempts, no retry for genuine no-hit/deterministic failure, and
+  byte-identical cached resume. Hypothesis identity, requested threads and
+  hypothesis/sequence/MTZ input checksums remain unchanged. Only native Phenix
+  was mocked.
+- The first test draft confused native and capture fixture streams; corrected
+  the fixture arguments and exact JSONL filename before recording the red/green
+  comparison. A new Nextflow fixture initially used a reserved output identifier;
+  fixed that syntax before the passing scheduler checks. Lint, types, formatting,
+  documentation and whitespace checks pass; the complete gate is not yet run.
+- Integrated the same bounded patch into v0.4 as `361c7af2`, retaining both its
+  P12 capture and new exit-contract markers. The resolved branch passed 37 focused
+  capture/exit/Nextflow checks in 45.40 seconds plus workflow syntax validation.
+  This does not backport P12 to main or establish native Phenix acceptance.
+- The broader add-copy/partner/multi-fixed/composition and kill-signal findings
+  remain open. No signal was reclassified as OOM, no resource policy changed,
+  and no source was pushed or deployed. Owned Marmic staging diagnostics remain
+  unchanged: base environment installed, no runner-import log or temporary archive.
+  Next diagnose that attachment hold through the existing bounded interface,
+  combine the required fixes for the next frozen-source gate, and continue alone.
