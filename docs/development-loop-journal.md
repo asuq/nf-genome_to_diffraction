@@ -17617,3 +17617,37 @@ with a collapsed combined parent or a guessed command.
   Measure missing counts and coordinate/storage bounds before acquisition/import;
   preserve complete mapping validation, prior evidence and native/cached-resume
   gates before larger M6/RF execution.
+
+## 2026-09-12 - Marmic cache inspection and complete public size survey
+
+- Exact-source CI passed all six jobs for
+  `5a62ba5df112ad7cfae1fd81b96001c0ee2d6118`. Rebuilt the original client and
+  deployed its reviewed Marmic dispatcher. The same frozen native-control runner
+  was staged successfully in a new owned run; it remains unsubmitted.
+- The authenticated offline inspection succeeded against the original complete
+  request inventory and unchanged database binding. Both cases have zero
+  qualified cached mappings: all 8,706 mappings per case need coordinates,
+  representing 4,195 distinct public PDB entries. This does not establish that
+  no same-ID files physically exist. Inspection checksum:
+  `17fa0dc5f61c9b8a2b7456f01fa1e355a5a1cdec9de9b4cf410edaab8b1ec159`.
+- A four-request-concurrency HEAD-only survey measured the complete missing set.
+  Its first pass retained one HTTP 503; one separately recorded bounded recheck
+  succeeded. The original failure and first-pass bytes remain unchanged. One
+  initial entry uses a clearly labelled transcription of the independently
+  observed complete HEAD response; the other effective records retain raw curl
+  metadata. No coordinate bodies were acquired.
+- All 4,195 effective size observations sum to 2,060,286,604 compressed bytes
+  (1.9188 GiB); the largest object is 15,352,474 bytes. Independent read-only
+  verification passed exact inventory conservation and evidence checksums.
+  Combined metadata-summary checksum:
+  `2b1e0a89f4916ae2342972060fb1390a66289023973ef12dee92d2227e7ca5cd`.
+  HTTP metadata is not coordinate-content or frozen-SEQRES qualification.
+- Next confirm the dedicated coordinate-import budget, then implement and qualify
+  staged acquisition, complete proposed-cache validation, original-client import
+  and full offline reinspection. The measured payload exceeds the existing
+  512 MiB request-inspection boundary; the separate general collection ceiling
+  is not an import authorisation. Proposed limits are 3 GiB compressed coordinate
+  data, 128 MiB per object and 12 GiB additional disk use per machine, with
+  preflight and ongoing free-space checks. These limits are not yet approved;
+  remote headroom remains unmeasured. No cache publication or new native execution
+  has occurred. Native control/resume, RF/M6, rank-recovery and release gates remain.
