@@ -4886,6 +4886,18 @@ m6_staging_logs() {
     local run_id="$1" run="$2" profile="$3" phase="$4" lines="$5"
     local directory candidate stage_log=m6-scientific-stage.log log_path=""
     local archive_state=absent archive_bytes=unavailable summary content log_bytes
+    local name missing_state="" empty_state="" manifest_state=absent
+    local event_journal=absent event_bytes event_times
+    event_times="stage_started_at=unavailable source_archive_verified_at=unavailable"
+    event_times+=" environment_ready_at=unavailable base_stage_completed_at=unavailable runner_ready_at=unavailable"
+    local -a state_names=(
+        site-id controller-kind m6-runner-archive-sha256
+        m6-runner-manifest-sha256 m6-runner-case-count m6-runner-object-count m6-track
+    )
+    if [[ "$profile" != m6-inputs ]]; then
+        state_names+=(m6-execution-purpose database-manifest database-manifest-sha256
+            phenix-manifest phenix-manifest-sha256)
+    fi
     [[ "$profile" != m6-inputs ]] || stage_log=m6-inputs-stage.log
     if [[ "$SITE_ID" == marmic && "$profile" == m6-native-control && \
           "$phase" == staged && \
@@ -4905,12 +4917,75 @@ m6_staging_logs() {
     done
     for candidate in \
         "$run/state/owner-id" "$run/state/profile" "$run/state/phase" \
-        "$run/m6-runner.tar" "$run/logs/$stage_log" "$run/logs/pixi-install.log"; do
+        "$run/m6-runner.tar" "$run/logs/$stage_log" "$run/logs/pixi-install.log" \
+        "$run/events.jsonl"; do
         if [[ -e "$candidate" || -L "$candidate" ]]; then
             [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || \
                 fail wrapper_failure "unsafe M6 staging diagnostic file"
         fi
     done
+    for name in "${state_names[@]}"; do
+        candidate="$run/state/$name"
+        if [[ -e "$candidate" || -L "$candidate" ]]; then
+            [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || \
+                fail wrapper_failure "unsafe M6 staging diagnostic state: $name"
+            [[ -s "$candidate" ]] || empty_state+="${empty_state:+,}$name"
+        else
+            missing_state+="${missing_state:+,}$name"
+        fi
+    done
+    for directory in "$run/artifacts" "$run/artifacts/m6-runner-inputs"; do
+        if [[ -e "$directory" || -L "$directory" ]]; then
+            [[ -d "$directory" && ! -L "$directory" && -O "$directory" && \
+               "$(cd "$directory" && pwd -P)" == "$directory" ]] || \
+                fail wrapper_failure "unsafe M6 staging diagnostic runner directory"
+        fi
+    done
+    candidate="$run/artifacts/m6-runner-inputs/runner_manifest.json"
+    if [[ -e "$candidate" || -L "$candidate" ]]; then
+        [[ -f "$candidate" && ! -L "$candidate" && -O "$candidate" ]] || \
+            fail wrapper_failure "unsafe M6 staging diagnostic runner manifest"
+        manifest_state=empty
+        [[ ! -s "$candidate" ]] || manifest_state=present
+    fi
+    if [[ -f "$run/events.jsonl" ]]; then
+        event_bytes="$(file_size "$run/events.jsonl")"
+        [[ "$event_bytes" =~ $BYTE_COUNT_RE && ${#event_bytes} -le 9 ]] || \
+            fail wrapper_failure "invalid M6 staging event-journal size"
+        (( event_bytes <= MAX_LOG_BYTES )) || \
+            fail wrapper_failure "M6 staging event journal exceeds the fixed log bound"
+        event_journal=empty
+        if (( event_bytes > 0 )); then
+            event_journal=present
+        fi
+        # This reads only append_event's exact record format, even before Pixi
+        # exists. Cap the stream too, so concurrent growth cannot extend the read.
+        event_times="$(
+            head -c "$((MAX_LOG_BYTES + 1))" -- "$run/events.jsonl" |
+            LC_ALL=C awk -v maximum="$MAX_LOG_BYTES" '
+                function observed(name) {
+                    return (name in times) ? times[name] : "unavailable"
+                }
+                {
+                    total += length($0) + 1
+                    if (total > maximum || $0 !~ /^\{"event":"[a-z][a-z0-9_-]*","timestamp":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z"\}$/) {
+                        invalid = 1; exit 1
+                    }
+                    split($0, fields, "\"")
+                    event = fields[4]
+                    if (event ~ /^(stage_started|stage_source_archive_verified|stage_hpc_environment_ready|stage_completed|m6_runner_ready)$/) {
+                        if (event in times) { invalid = 1; exit 1 }
+                        times[event] = fields[8]
+                    }
+                }
+                END {
+                    if (!invalid) {
+                        printf "stage_started_at=%s source_archive_verified_at=%s environment_ready_at=%s base_stage_completed_at=%s runner_ready_at=%s", observed("stage_started"), observed("stage_source_archive_verified"), observed("stage_hpc_environment_ready"), observed("stage_completed"), observed("m6_runner_ready")
+                    }
+                }
+            '
+        )" || fail wrapper_failure "malformed, oversized or ambiguous M6 staging event journal"
+    fi
     if [[ -f "$run/m6-runner.tar" ]]; then
         archive_state=present
         archive_bytes="$(file_size "$run/m6-runner.tar")"
@@ -4926,6 +5001,9 @@ m6_staging_logs() {
     fi
     # File size is an observation, not transfer liveness or terminal evidence.
     summary="staging_phase=$phase temporary_runner_archive=$archive_state observed_bytes=$archive_bytes"
+    summary+=" missing_state_files=${missing_state:-none} empty_state_files=${empty_state:-none}"
+    summary+=" runner_manifest_state=$manifest_state event_journal=$event_journal"
+    summary+=" $event_times"
     log_bytes=$((MAX_LOG_BYTES - ${#summary} - 1))
     content="$({
         printf '%s\n' "$summary"

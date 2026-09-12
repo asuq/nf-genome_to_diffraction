@@ -17804,3 +17804,42 @@ with a collapsed combined parent or a guessed command.
   unchanged: base environment installed, no runner-import log or temporary archive.
   Next diagnose that attachment hold through the existing bounded interface,
   combine the required fixes for the next frozen-source gate, and continue alone.
+
+## 2026-09-12 - Raven terminal state reconfirmed; bounded staging diagnostics extended
+
+- At the user's request, rechecked the exact original Raven native control via
+  the original client. It remains terminal failed, exit 1/test-failure, with the
+  same source and login-process identity. Retained evidence attributes the failure
+  to unavailable qualified PDB coordinates before MR; 45 of 47 tasks completed,
+  including all 34 Foldseek batches, while both coordinate stages failed. This
+  is not a completed scientific benchmark. No restart, cancellation or remote
+  mutation occurred.
+- Extended only the existing M6 staging `logs` summary with missing/empty fixed
+  state-file observations, runner-manifest presence and five recorded stage
+  timestamps. No state values, arbitrary paths, unrelated event payloads or new
+  command interface are exposed. Presence and recorded timestamps do not grant
+  staging, checksum, liveness or scientific acceptance.
+- The owned canonical event journal is input-byte bounded and checked using its
+  existing writer's exact format before any diagnostic payload is emitted.
+  Malformed, oversized, NUL-containing or duplicate selected records fail closed.
+  Symlinked state/manifest/journal paths are refused; input-qualification profiles
+  do not acquire invented scientific-purpose requirements. No state is mutated.
+- All 27 focused actual-dispatcher checks passed in 52.07 seconds using four
+  local workers and one numerical thread each. Lint, formatting, targeted types
+  and shell syntax pass. Existing archive/log line and byte bounds remain tested.
+- Static tracing additionally found a deadline-class mismatch: M6 scientific
+  staging includes immutable source and environment preparation, but used the
+  15-minute input-transfer deadline instead of the existing 45-minute source-
+  staging allowance. Four transport regressions reproduce this mismatch. Aligned
+  only that fixed operation with the existing source allowance; scientific job
+  wall times, retry counts and other transfer limits are unchanged. This does
+  not establish where the earlier run spent its time or authorise a replay.
+- The corrected original-client suite passed all 186 tests in 5.50 seconds with
+  four workers and one numerical thread each, including timeout classification,
+  one-attempt transport and preservation of the confirmed archive. No source-
+  or input-staging timeout failure was converted into successful completion.
+- Next regenerate the main atlas and run one frozen-source full gate combining
+  this diagnostic boundary and the first-copy retry repair, followed by exact-
+  source CI and original-client deployment. Then inspect the retained Marmic
+  attempt; do not retry, repair or launch science before the
+  actual missing-state/timing evidence supports the next action. Continue alone.

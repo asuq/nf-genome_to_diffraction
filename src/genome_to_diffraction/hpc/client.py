@@ -1900,7 +1900,7 @@ class SshTransport:
         arguments: Sequence[str],
         archive_path: Path,
     ) -> dict[str, str]:
-        """Stream one confirmed runner to a fixed M6 scientific profile."""
+        """Stage source/environment and one runner within the source-stage deadline."""
 
         try:
             with archive_path.open("rb") as handle:
@@ -1909,7 +1909,7 @@ class SshTransport:
                     stdin=handle,
                     check=False,
                     capture_output=True,
-                    timeout=P0_INPUT_STAGE_TIMEOUT_SECONDS,
+                    timeout=P0_STAGE_TIMEOUT_SECONDS,
                 )
         except subprocess.TimeoutExpired as error:
             raise RemoteOperationError(

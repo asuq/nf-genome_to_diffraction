@@ -90,14 +90,30 @@ nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID
 ```
 
 During M6 runner staging, the same bounded `logs` command reports the recorded
-phase and temporary runner archive's observed byte size, followed by the fixed
-import log or, before that log exists, the fixed Pixi preparation log. Missing
-and zero-byte files remain distinct. These read-only observations do not prove
-transfer liveness, checksum validity, completion or scientific acceptance.
+phase and temporary runner archive's observed byte size. Its summary also lists
+missing or empty fixed state files, the fixed runner-manifest file's presence,
+and recorded timestamps for source start/archive verification, environment
+readiness, base-stage completion and runner readiness. State-file contents and
+unrelated event payloads are never returned. Only the owned event writer's exact
+record format is read, with a 2-MiB input ceiling; malformed or duplicate selected
+events fail explicitly. Missing event timestamps remain unavailable.
+
+The summary is followed by the fixed import log or, before that log exists, the
+fixed Pixi preparation log. Missing and zero-byte files remain distinct. These
+read-only observations do not prove transfer liveness, checksum validity,
+completion or scientific acceptance. In particular, a generic `staged` base
+environment or present manifest is not proof that M6 runner attachment passed.
 Directories and files must be owned, canonical and non-symlinked; no arbitrary
 path argument is accepted. The requested line limit and 2-MiB byte limit still
 apply. A transport timeout does not authorise submission, retry or cleanup;
 terminal collection still requires authentic terminal or stage-failure evidence.
+
+`m6-scientific-stage` creates its immutable checkout and locked environment before
+attaching the runner, so its bounded transport uses the existing 45-minute
+source/environment staging allowance, not the 15-minute input-transfer allowance.
+This is a client transport deadline, not a scientific-task wall time or permission
+to retry. Other transfer limits, source/ownership checks and scheduler policies
+are unchanged.
 
 For the approved missing-coordinate prerequisite, first collect the terminal
 failed Marmic native control normally, then use the same client:

@@ -3297,10 +3297,12 @@ def test_m6_import_logs_report_fixed_diagnostics_without_changing_run_state(
 
     assert result["log_path"] == str(expected_log)
     assert result["diagnostic_log_path"] == ""
-    assert base64.b64decode(result["content_base64"]).decode() == (
-        "staging_phase=m6_runner_importing temporary_runner_archive=present "
-        "observed_bytes=7\ncurrent staging detail\n"
-    )
+    summary, detail = base64.b64decode(result["content_base64"]).decode().split("\n", 1)
+    fields = dict(field.split("=", 1) for field in summary.split())
+    assert fields["staging_phase"] == "m6_runner_importing"
+    assert fields["temporary_runner_archive"] == "present"
+    assert fields["observed_bytes"] == "7"
+    assert detail == "current staging detail\n"
     assert before == {
         path.relative_to(run): path.read_bytes()
         for path in run.rglob("*")
@@ -3324,16 +3326,14 @@ def test_m6_import_logs_distinguish_absent_from_empty_transfer(
             environment=environment,
         ).stdout
     )
-    expected = (
-        "present observed_bytes=0"
-        if archive_exists
-        else "absent observed_bytes=unavailable"
-    )
     content = base64.b64decode(result["content_base64"]).decode()
-    assert (
-        content
-        == f"staging_phase=m6_runner_importing temporary_runner_archive={expected}\n"
+    assert len(content.splitlines()) == 1
+    fields = dict(field.split("=", 1) for field in content.strip().split())
+    assert fields["staging_phase"] == "m6_runner_importing"
+    assert fields["temporary_runner_archive"] == (
+        "present" if archive_exists else "absent"
     )
+    assert fields["observed_bytes"] == ("0" if archive_exists else "unavailable")
     assert result["log_path"] == ""
 
 
@@ -3397,7 +3397,7 @@ def test_m6_import_logs_keep_summary_inside_line_and_byte_limits(
     content = base64.b64decode(result["content_base64"])
     assert content.startswith(
         b"staging_phase=m6_runner_importing temporary_runner_archive=present "
-        b"observed_bytes=7\n"
+        b"observed_bytes=7 "
     )
     assert len(content) <= 2 * 1024 * 1024
     assert len(content.splitlines()) <= line_limit

@@ -1142,6 +1142,67 @@ def _write_fixed_p0_inputs(repository: Path) -> str:
     return hashlib.sha256(spec_path.read_bytes()).hexdigest()
 
 
+@pytest.mark.parametrize("source_archive", (False, True))
+@pytest.mark.parametrize("times_out", (False, True))
+def test_m6_scientific_transport_uses_source_environment_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_archive: bool,
+    times_out: bool,
+) -> None:
+    archive = tmp_path / "confirmed-runner.bin"
+    archive.write_bytes(
+        b"confirmed source and runner" if source_archive else b"confirmed runner"
+    )
+    arguments = [
+        "gtd-m6-native-control-20260912T000000Z-111111111111-01234567",
+        "1" * 40,
+        "2" * 64,
+        "3" * 32,
+        "4" * 64,
+        str(archive.stat().st_size),
+        "5" * 64,
+        "63",
+        "65",
+        "operational",
+        "native_control",
+        "/approved/phenix.json",
+        "6" * 64,
+    ]
+    if source_archive:
+        arguments.extend(("7" * 64, "10", "8" * 40))
+    observed: list[int] = []
+
+    def respond(
+        command: Sequence[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        timeout = kwargs["timeout"]
+        assert isinstance(timeout, int)
+        observed.append(timeout)
+        assert "m6-scientific-stage" in command[-1]
+        if times_out:
+            raise subprocess.TimeoutExpired(command, timeout)
+        payload = b"operation\t" + base64.b64encode(b"m6-scientific-stage") + b"\n"
+        return subprocess.CompletedProcess(command, 0, payload, b"")
+
+    monkeypatch.setattr("genome_to_diffraction.hpc.client.subprocess.run", respond)
+    transport = SshTransport(_config(tmp_path))
+    if times_out:
+        with pytest.raises(
+            RemoteOperationError, match="fixed transport timeout"
+        ) as error:
+            transport.m6_scientific_stage(arguments, archive)
+        assert error.value.failure_class is FailureClass.TRANSFER_FAILURE
+    else:
+        assert transport.m6_scientific_stage(arguments, archive) == {
+            "operation": "m6-scientific-stage"
+        }
+    assert observed == [P0_STAGE_TIMEOUT_SECONDS]
+    assert archive.read_bytes() == (
+        b"confirmed source and runner" if source_archive else b"confirmed runner"
+    )
+
+
 def test_ssh_transport_is_noninteractive_and_has_hard_timeouts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
