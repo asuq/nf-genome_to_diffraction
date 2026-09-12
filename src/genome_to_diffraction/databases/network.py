@@ -46,6 +46,21 @@ class DownloadMetadata:
     sha256: str
 
 
+class _RejectRedirects(urllib.request.HTTPRedirectHandler):
+    """Stop fixed-endpoint acquisitions before following another URL."""
+
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        raise DatabaseError("public-resource download redirects are disabled")
+
+
 @dataclass(frozen=True)
 class _PartialState:
     requested_url: str
@@ -365,11 +380,23 @@ def download_public_resource(
     minimum_free_bytes: int,
     progress: bool,
     retries: int = 3,
+    allow_redirects: bool = True,
 ) -> DownloadMetadata:
-    """Download atomically, resuming only a validator-bound verified prefix."""
+    """Download atomically, resuming only a validator-bound verified prefix.
+
+    Fixed-endpoint callers may disable redirects. A per-call rejecting opener
+    fails before following a redirect, without retrying it or changing global state.
+    """
 
     if retries < 1:
         raise ValueError("download retries must be positive")
+    if type(allow_redirects) is not bool:
+        raise ValueError("download redirect policy must be boolean")
+    open_url = (
+        urllib.request.urlopen
+        if allow_redirects
+        else urllib.request.build_opener(_RejectRedirects()).open
+    )
     try:
         destination.absolute().relative_to(storage_root.absolute())
     except ValueError as error:
@@ -447,7 +474,7 @@ def download_public_resource(
                 request_headers["If-Range"] = prior_state.validator_value
             request = urllib.request.Request(url, headers=request_headers)
             try:
-                with urllib.request.urlopen(request, timeout=60) as response:
+                with open_url(request, timeout=60) as response:
                     status_value = getattr(response, "status", None)
                     status = 200 if status_value is None else int(status_value)
                     response_headers = {

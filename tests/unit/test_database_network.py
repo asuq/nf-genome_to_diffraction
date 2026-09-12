@@ -307,6 +307,27 @@ def test_effective_redirect_url_and_size_are_recorded(tmp_path: Path) -> None:
     assert metadata.sha256 == hashlib.sha256(state.final_payload).hexdigest()
 
 
+def test_fixed_endpoint_policy_rejects_redirect_without_retry_or_body_write(
+    tmp_path: Path,
+) -> None:
+    with _serve("complete") as (base_url, state):
+        destination = tmp_path / "staging" / "resource.bin"
+        with pytest.raises(DatabaseError, match="redirects are disabled"):
+            download_public_resource(
+                f"{base_url}/redirect",
+                destination,
+                storage_root=tmp_path,
+                storage_limit_bytes=10_000_000,
+                minimum_free_bytes=0,
+                progress=False,
+                retries=3,
+                allow_redirects=False,
+            )
+        assert state.request_count == 1
+        assert not destination.exists()
+        assert not list(destination.parent.glob(".*.partial*"))
+
+
 def test_nonidentity_content_encoding_is_rejected(tmp_path: Path) -> None:
     with (
         _serve("encoded") as (base_url, _),
