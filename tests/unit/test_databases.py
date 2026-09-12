@@ -796,6 +796,165 @@ def test_coordinate_cache_publication_is_atomic_reusable_and_verified(
         )
 
 
+def _published_pdb_cache(
+    tmp_path: Path,
+) -> tuple[Path, Callable[[], CachedCoordinate], dict[str, Path]]:
+    root = tmp_path / "coordinate cache"
+    initialise_coordinate_cache(root, progress=False)
+    source = tmp_path / "1ubq.cif.gz"
+    _write_pdb_coordinate(source)
+
+    def publish() -> CachedCoordinate:
+        return publish_pdb_coordinate(
+            root,
+            source,
+            pdb_id="1UBQ",
+            requested_url="https://files.rcsb.org/download/1ubq.cif.gz",
+            source_url="https://files.rcsb.org/download/1ubq.cif.gz",
+            retrieved_at="2026-08-02T00:00:00Z",
+            etag=None,
+            last_modified=None,
+            content_type="application/gzip",
+            progress=False,
+        )
+
+    record = publish()
+    paths = {
+        "object": root / record.object_relative_path,
+        "index": root / "digest_index" / f"{record.object_sha256}.json",
+        "metadata": root / record.metadata_relative_path,
+    }
+    return root, publish, paths
+
+
+def test_pdb_publication_preserves_existing_bytes_and_file_identity(
+    tmp_path: Path,
+) -> None:
+    root, publish, paths = _published_pdb_cache(tmp_path)
+    for name in ("index", "metadata"):
+        path = paths[name]
+        document = json.loads(path.read_text(encoding="ascii"))
+        path.write_text(json.dumps(document, indent=4), encoding="ascii")
+    before = {
+        name: (path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns)
+        for name, path in paths.items()
+    }
+
+    record = publish()
+
+    assert {
+        name: (path.read_bytes(), path.stat().st_ino, path.stat().st_mtime_ns)
+        for name, path in paths.items()
+    } == before
+    assert record.metadata_sha256 == hashlib.sha256(before["metadata"][0]).hexdigest()
+    verify_cached_pdb_coordinate(
+        root, record.as_json(), full_checksum=True, progress=False
+    )
+
+
+@pytest.mark.parametrize("record_name", ("object", "index", "metadata"))
+def test_pdb_publication_rejects_conflicting_records_without_repair(
+    tmp_path: Path, record_name: str
+) -> None:
+    _root, publish, paths = _published_pdb_cache(tmp_path)
+    path = paths[record_name]
+    if record_name == "object":
+        path.write_bytes(b"corrupted coordinate")
+    else:
+        document = json.loads(path.read_text(encoding="ascii"))
+        document["object_sha256"] = "0" * 64
+        path.write_text(json.dumps(document), encoding="ascii")
+        # Existing conflicts must fail before missing cache content is recreated.
+        paths["object"].unlink()
+        if record_name == "metadata":
+            paths["index"].unlink()
+    before = {
+        name: path.read_bytes() if path.exists() else None
+        for name, path in paths.items()
+    }
+
+    with pytest.raises(DatabaseError, match=r"checksum mismatch|collision"):
+        publish()
+
+    assert {
+        name: path.read_bytes() if path.exists() else None
+        for name, path in paths.items()
+    } == before
+
+
+@pytest.mark.parametrize("record_name", ("index", "metadata"))
+def test_pdb_publication_rejects_malformed_records_without_repair(
+    tmp_path: Path, record_name: str
+) -> None:
+    _root, publish, paths = _published_pdb_cache(tmp_path)
+    paths[record_name].write_bytes(b"{invalid-json\n")
+    before = {name: path.read_bytes() for name, path in paths.items()}
+
+    with pytest.raises(DatabaseError, match=r"invalid.*JSON"):
+        publish()
+
+    assert {name: path.read_bytes() for name, path in paths.items()} == before
+
+
+@pytest.mark.parametrize("record_name", ("object", "index", "metadata"))
+@pytest.mark.parametrize("unsafe_kind", ("symlink", "dangling-symlink", "directory"))
+def test_pdb_publication_rejects_unsafe_record_destinations(
+    tmp_path: Path, record_name: str, unsafe_kind: str
+) -> None:
+    _root, publish, paths = _published_pdb_cache(tmp_path)
+    path = paths[record_name]
+    original = tmp_path / "original-record"
+    path.rename(original)
+    original_bytes = original.read_bytes()
+    if unsafe_kind == "directory":
+        path.mkdir()
+    else:
+        path.symlink_to(
+            original if unsafe_kind == "symlink" else tmp_path / "absent-record"
+        )
+    before = {
+        name: path.read_bytes() for name, path in paths.items() if name != record_name
+    }
+
+    with pytest.raises(DatabaseError, match="unsafe"):
+        publish()
+
+    assert original.read_bytes() == original_bytes
+    assert {
+        name: path.read_bytes() for name, path in paths.items() if name != record_name
+    } == before
+    if unsafe_kind == "directory":
+        assert path.is_dir() and not list(path.iterdir())
+    else:
+        assert path.is_symlink()
+        assert not (tmp_path / "absent-record").exists()
+
+
+@pytest.mark.parametrize(
+    "directory_name", ("root", "object", "index", "metadata", "locks")
+)
+def test_pdb_publication_rejects_aliased_parent_directories(
+    tmp_path: Path, directory_name: str
+) -> None:
+    root, publish, paths = _published_pdb_cache(tmp_path)
+    if directory_name == "root":
+        directory = root
+    elif directory_name == "locks":
+        directory = root / "pdb" / "locks"
+    else:
+        directory = paths[directory_name].parent
+    original = tmp_path / "original-directory"
+    directory.rename(original)
+    directory.symlink_to(original, target_is_directory=True)
+    before = {name: path.read_bytes() for name, path in paths.items()}
+
+    with pytest.raises(DatabaseError, match="publication directory is unsafe"):
+        publish()
+
+    assert directory.is_symlink()
+    assert {name: path.read_bytes() for name, path in paths.items()} == before
+
+
 def test_inventory_records_internal_symlinks_and_detects_retargeting(
     tmp_path: Path,
 ) -> None:

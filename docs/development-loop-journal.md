@@ -17509,3 +17509,22 @@ with a collapsed combined parent or a guessed command.
   then measure cache availability before bounded public-PDB prefetch/import.
   Preserve both failed native controls and the native/cached-resume gates before
   larger execution; do not restart Raven or the cancelled operator programme.
+
+## 2026-09-12 - PDB cache publication preserves existing records
+
+- Hardened only the PDB publisher for the approved bounded coordinate import.
+  Existing valid coordinate objects, digest-index records and retrieval metadata
+  retain their exact bytes and file identity, including semantically equivalent
+  JSON formatting. The returned qualification keeps the actual metadata checksum.
+- Check every existing affected record before adding missing content. Reject
+  checksum conflicts, metadata/index collisions, malformed JSON, symlink or
+  non-regular records, and symlinked publication directories without repair.
+  Preserve the established cache layout, per-source lock and AFDB behaviour;
+  no scientific selector, threshold, database snapshot or runtime default changed.
+- Focused cache/publication regressions passed 24 tests; the database unit module
+  passed 76 tests with one pytest worker using the unchanged locked runtime.
+  Focused Ruff format/lint and type checks passed. These are synthetic integrity
+  checks, not a cache import, native-control outcome or acceptance gate.
+- Next integrate this focused worktree patch with the coordinate import boundary,
+  then regenerate the atlas and run the named combined gate once. No remote
+  operation, public download, deployment, source push or native job was performed.

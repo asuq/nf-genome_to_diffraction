@@ -207,6 +207,18 @@ def _atomic_copy(source: Path, destination: Path, *, progress: bool) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _validate_pdb_publication_path(root: Path, path: Path, label: str) -> bool:
+    """Reject aliased destinations and report whether a regular record exists."""
+
+    for relative_parent in reversed(path.relative_to(root).parents):
+        parent = root / relative_parent
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise DatabaseError(f"cached PDB publication directory is unsafe: {parent}")
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise DatabaseError(f"{label} is unsafe: {path}")
+    return path.exists()
+
+
 def publish_pdb_coordinate(
     root: Path,
     source: Path,
@@ -220,7 +232,7 @@ def publish_pdb_coordinate(
     content_type: str | None,
     progress: bool = True,
 ) -> CachedCoordinate:
-    """Atomically publish one verified public PDB mmCIF object into the cache."""
+    """Publish a PDB object without replacing existing objects or provenance."""
 
     verify_coordinate_cache(root)
     if _PDB_ID.fullmatch(pdb_id) is None:
@@ -249,33 +261,36 @@ def publish_pdb_coordinate(
     metadata_relative = Path("pdb") / "metadata" / normalised_id / f"{metadata_id}.json"
     object_path = root / object_relative
     metadata_path = root / metadata_relative
+    index_path = root / "digest_index" / f"{digest}.json"
+    expected_index = {
+        "schema_version": "1.0",
+        "provider": "pdb",
+        "object_relative_path": object_relative.as_posix(),
+        "object_sha256": digest,
+        "size_bytes": size_bytes,
+    }
     lock_path = root / "pdb" / "locks" / f"{normalised_id}.lock"
+    _validate_pdb_publication_path(root, lock_path, "cached PDB publication lock")
     with exclusive_lock(lock_path, progress=progress):
-        if object_path.exists():
-            if object_path.is_symlink() or not object_path.is_file():
-                raise DatabaseError(f"cached PDB object is unsafe: {object_path}")
-            if sha256_file(object_path, progress=progress, logger=_LOGGER) != digest:
-                raise DatabaseError(
-                    f"cached PDB object checksum mismatch: {object_path}"
-                )
-        else:
-            _atomic_copy(source, object_path, progress=progress)
-            if sha256_file(object_path, progress=False) != digest:
-                raise DatabaseError(
-                    f"published PDB object checksum mismatch: {object_path}"
-                )
-        index_path = root / "digest_index" / f"{digest}.json"
-        atomic_write_json(
-            index_path,
-            {
-                "schema_version": "1.0",
-                "provider": "pdb",
-                "object_relative_path": object_relative.as_posix(),
-                "object_sha256": digest,
-                "size_bytes": size_bytes,
-            },
+        object_exists = _validate_pdb_publication_path(
+            root, object_path, "cached PDB object"
         )
-        if metadata_path.exists():
+        index_exists = _validate_pdb_publication_path(
+            root, index_path, "coordinate digest index"
+        )
+        metadata_exists = _validate_pdb_publication_path(
+            root, metadata_path, "cached PDB coordinate metadata"
+        )
+        if (
+            object_exists
+            and sha256_file(object_path, progress=progress, logger=_LOGGER) != digest
+        ):
+            raise DatabaseError(f"cached PDB object checksum mismatch: {object_path}")
+        if index_exists:
+            existing_index = _load_json_document(index_path, "coordinate digest index")
+            if existing_index != expected_index:
+                raise DatabaseError(f"coordinate digest index collision: {index_path}")
+        if metadata_exists:
             existing_metadata = _load_json_document(
                 metadata_path, "cached PDB coordinate metadata"
             )
@@ -283,7 +298,17 @@ def publish_pdb_coordinate(
                 raise DatabaseError(
                     f"cached PDB coordinate metadata collision: {metadata_path}"
                 )
-        else:
+
+        # Validate every existing record before adding any missing cache content.
+        if not object_exists:
+            _atomic_copy(source, object_path, progress=progress)
+            if sha256_file(object_path, progress=False) != digest:
+                raise DatabaseError(
+                    f"published PDB object checksum mismatch: {object_path}"
+                )
+        if not index_exists:
+            atomic_write_json(index_path, expected_index)
+        if not metadata_exists:
             atomic_write_json(metadata_path, metadata)
         metadata_sha256 = sha256_file(metadata_path, progress=False)
     record = CachedCoordinate(
