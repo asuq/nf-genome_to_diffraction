@@ -17969,3 +17969,29 @@ with a collapsed combined parent or a guessed command.
   unchanged-isolation evidence. Do not push, deploy, import coordinates or start
   native scientific execution before the full local and exact-source CI gates
   genuinely pass. Continue with the primary agent alone.
+
+## 2026-09-12 - Complete local qualification after bounded guard extensions
+
+- The new frozen-source gate passed all 25 checks in 1,116.0 seconds, using the
+  recorded eight-CPU/two-group budget, four workers per group, one numerical
+  thread and two-GiB Nextflow heaps. Unit testing passed all 2,155 cases in
+  1,051.71 seconds, integration passed all 176 in 429.86 seconds, and contract
+  testing passed all 185 in 8.75 seconds. Every workflow stub, quality and
+  packaging check passed. Earlier failed gates remain separate failed evidence.
+- All 1,326 captured source inputs stayed unchanged through the run. Source-
+  manifest SHA-256:
+  `d8345c90a3ebd3a13e020200799f044d40bba776f5245a6a691c5f21c876d00d`.
+  Complete-gate log SHA-256:
+  `4ad2b276f99bf918682dbaec754de3528da64583cb4a7735e828ca636f01f204`.
+  This establishes local qualification of the approved bounded guards; the
+  observed duration is not a causal performance claim or a native Phenix result.
+- Refreshed the generated atlas against the qualified source. Its inventory is
+  `atlasinv_2178936b729ffdf27eb3d7e8e3bcc1d2d5f401bbac06c09eab95af336cfcac3b`;
+  all 495 generated files pass the deterministic check. The manifest adds the
+  four expected first-copy retry/staging-diagnostic test pages and removes none.
+- Next send only code and documentation to the existing private remote and
+  require all six CI groups on that exact revision before rebuilding/deploying
+  the original client. Inspect the retained partial Marmic staging evidence
+  first, then follow the qualified complete-coordinate-cache and native-control/
+  cached-resume sequence. No public coordinate bodies, scientific jobs, real
+  HPC limit changes or Raven restarts were introduced by this local gate.
