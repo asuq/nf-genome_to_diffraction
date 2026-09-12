@@ -4,6 +4,7 @@ import gzip
 import io
 import json
 import random
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, replace
 from http.client import HTTPMessage
@@ -130,6 +131,7 @@ def _http(
     redirect: bool = False,
     changed_url: bool = False,
     lose_headroom: bool = False,
+    fail_open_pdb_id: str | None = None,
 ) -> tuple[list[str], list[int]]:
     calls: list[str] = []
     free = [20 * 1024**3]
@@ -158,6 +160,10 @@ def _http(
                 f"{pdb_id[1:3].lower()}/{pdb_id.lower()}.cif.gz"
             )
             calls.append(pdb_id)
+            if pdb_id == fail_open_pdb_id:
+                raise urllib.error.URLError(
+                    ConnectionResetError(54, "Connection reset by peer")
+                )
             if redirect:
                 with io.BytesIO() as redirect_body:
                     handler.redirect_request(

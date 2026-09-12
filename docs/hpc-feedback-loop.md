@@ -232,6 +232,51 @@ repair a cache entry or relabel failed evidence to advance. No native job is
 submitted by either operation. Require complete cache verification, then the fixed
 native control and cached resume before larger RF/M6 execution.
 
+The separately approved continuation preserves one original failed acquisition
+with a nonempty serial prefix of completed objects and a next request that failed
+before any body or retrieval record. It is not a general retry or partial-download
+engine. First confirm that the original local acquisition process has terminated;
+file layout alone cannot prove termination. Inspect its retained evidence locally
+through the original client:
+
+```text
+nf-gtd-hpc-test --config CONFIG coordinate-prefetch-retained --run-id FAILED_ACQUISITION_RUN_ID --request-run-id ORIGINAL_RUN_ID --confirm-inspection-sha256 INSPECTION_SHA256
+```
+
+This read-only operation reauthenticates the owned run, original request snapshot,
+saved inspection and historical storage admission. It rehashes every retained
+file, verifies all original fixed-URL retrieval metadata and the exact serial
+prefix, and returns `retained_prefetch_sha256` for explicit confirmation. Active
+download locks, extra files, partial bodies, missing provenance, changed caps,
+completed bundles and earlier continuations are rejected. The old headroom report
+is historical evidence, not current capacity. No HTTP or remote operation occurs.
+
+After the continuation source passes local/CI/deployment qualification, stage and
+inspect a fresh immutable native control. Its full request/inspection inventory
+must agree with the original acquisition. Then explicitly confirm the retained
+inventory while starting the new acquisition:
+
+```text
+nf-gtd-hpc-test --config CONFIG coordinate-prefetch --run-id NEW_RUN_ID --request-run-id ORIGINAL_RUN_ID --confirm-inspection-sha256 INSPECTION_SHA256 --continue-from-run-id FAILED_ACQUISITION_RUN_ID --confirm-retained-prefetch-sha256 RETAINED_PREFETCH_SHA256
+```
+
+Both continuation arguments are required together. The source, new control and
+original request run must be distinct. The client rechecks actual remote and local
+headroom, copies verified retained objects and their exact request/retrieval bytes
+into new owned staging, and attempts each remaining public ID once. It does not
+move, hard-link, overwrite or redownload completed objects. Retained allocation,
+new staging and archive packaging count toward the unchanged 12-GiB disk limit.
+The complete gzip/entity/SEQRES validation still covers retained and new objects.
+Old evidence is rechecked across copying, acquisition and completion boundaries.
+
+The new v2 completion receipt binds `retained-prefetch.json` (or explicitly null
+for an original acquisition); import verifies its content identity and preserved
+object provenance against the complete bundle. Old v1 completion receipts are
+rejected; scientific bundle/cache formats are unchanged. An interrupted or failed
+continuation remains a separate failed attempt, with no automatic replay, chaining,
+partial import or cleanup. Full import reinspection, native control and cached
+resume remain mandatory before larger scientific execution.
+
 The purpose is bound at staging and rechecked before submission and execution.
 It cannot select arbitrary cases, use leakage inputs, have an operational parent
 or run outside Marmic/Raven. Marmic uses its existing compute-node Slurm

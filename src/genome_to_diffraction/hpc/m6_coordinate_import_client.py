@@ -27,6 +27,10 @@ from genome_to_diffraction.hpc.m6_coordinate_archive import (
     extract_import_response_archive,
 )
 from genome_to_diffraction.hpc.m6_coordinate_cache import _frozen_file, _Inventory
+from genome_to_diffraction.hpc.m6_coordinate_continuation import (
+    allocated_staging_bytes,
+    load_retained_prefetch,
+)
 from genome_to_diffraction.hpc.m6_coordinate_inspection_client import (
     _Bundle,
     _Coordinate,
@@ -127,7 +131,7 @@ class _ImportBundle(ContractModel):
 
 class _PrefetchReceipt(ContractModel):
     schema_version: Literal["1.0"]
-    adapter_version: Literal["m6-coordinate-prefetch-receipt-v1"]
+    adapter_version: Literal["m6-coordinate-prefetch-receipt-v2"]
     run_id: str
     commit: str
     request_run_id: str
@@ -139,6 +143,7 @@ class _PrefetchReceipt(ContractModel):
     archive_sha256: Sha256Hex
     archive_size_bytes: int = Field(gt=0, le=MAX_PREFETCH_ARCHIVE_BYTES)
     storage_preflight_sha256: Sha256Hex
+    retained_prefetch_sha256: Sha256Hex | None
     object_count: int = Field(gt=0)
     total_coordinate_bytes: int = Field(gt=0, le=MAX_COORDINATE_TOTAL_BYTES)
     completed_at: UtcTimestamp
@@ -299,6 +304,7 @@ def build_prefetch_archive(
     confirmed_manifest_sha256: str,
     confirmed_inventory_sha256: str,
     confirmed_inspection_sha256: str,
+    retained_staging_bytes: int = 0,
 ) -> PrefetchManifest:
     """Package the complete canonical bundle as plain tar with verified member bytes."""
 
@@ -325,6 +331,23 @@ def build_prefetch_archive(
     ) * 10240
     if expected_size > MAX_PREFETCH_ARCHIVE_BYTES:
         raise ValidationError("coordinate import archive exceeds the approved bound")
+    if (
+        type(retained_staging_bytes) is not int
+        or not 0 <= retained_staging_bytes <= MAX_COORDINATE_TOTAL_BYTES
+    ):
+        raise ValidationError(
+            "coordinate archive retained-staging reservation is invalid"
+        )
+    if (
+        allocated_staging_bytes(archive.parent)
+        + retained_staging_bytes
+        + expected_size
+        + MAX_REVIEW_ARTIFACT_TOTAL_BYTES
+        > MAX_ADDITIONAL_DISK_BYTES
+    ):
+        raise ValidationError(
+            "coordinate archive and retained evidence exceed the additional-disk cap"
+        )
     if (
         archive.exists()
         or archive.is_symlink()
@@ -357,6 +380,16 @@ def build_prefetch_archive(
             ):
                 raise ValidationError(
                     "local space changed during coordinate archive packaging"
+                )
+            if (
+                allocated_staging_bytes(archive.parent)
+                + retained_staging_bytes
+                + size
+                + MAX_REVIEW_ARTIFACT_TOTAL_BYTES
+                > MAX_ADDITIONAL_DISK_BYTES
+            ):
+                raise ValidationError(
+                    "coordinate archive retained-evidence disk reservation changed"
                 )
             member = tarfile.TarInfo(name)
             member.size = size
@@ -413,6 +446,33 @@ def validate_prefetch_receipt(
         prefetch_root / "coordinate-import.tar", maximum=MAX_PREFETCH_ARCHIVE_BYTES
     )
     storage = _regular_file(prefetch_root.parent / "coordinate-prefetch-storage.json")
+    retained_path = prefetch_root / "retained-prefetch.json"
+    if receipt.retained_prefetch_sha256 is None:
+        if retained_path.exists() or retained_path.is_symlink():
+            raise ValidationError(
+                "coordinate receipt omits retained acquisition evidence"
+            )
+    else:
+        retained = load_retained_prefetch(
+            retained_path, receipt.retained_prefetch_sha256
+        )
+        if (
+            retained.run_id in {record.run_id, request_record.run_id}
+            or retained.request_run_id != request_record.run_id
+            or retained.producer_commit != request_record.commit
+            or retained.request_owner_id != request_record.owner_id
+            or retained.request_inventory_sha256 != manifest.request_inventory_sha256
+            or retained.inspection_sha256 != manifest.inspection_sha256
+            or not 0 < len(retained.objects) < len(manifest.objects)
+            or retained.failed_request_pdb_id not in manifest.objects
+            or any(
+                manifest.objects.get(pdb_id) != value
+                for pdb_id, value in retained.objects.items()
+            )
+        ):
+            raise ValidationError(
+                "coordinate receipt retained acquisition bindings changed"
+            )
     if (
         receipt.run_id != record.run_id
         or receipt.commit != record.commit

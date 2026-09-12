@@ -18207,3 +18207,41 @@ with a collapsed combined parent or a guessed command.
   full final validation. Do not silently replay the failed command or add a retry
   chain. Continue independent authorised successor work only where the explicit
   dependency/stop gates permit; this failure does not satisfy any release gate.
+
+## 2026-09-13 - Approved, evidence-preserving coordinate continuation
+
+- The user approved implementing and qualifying a checksum-verified continuation
+  for the remaining entries while preserving completed objects and the failed
+  attempt. Implemented one explicit original-client path: local retained-evidence
+  inspection returns a confirmed content digest; a fresh owned acquisition copies
+  that verified prefix and requests only the remainder. No old remote source or
+  acquisition tree is edited. No arbitrary paths/URLs, retry chain or new remote
+  dispatcher operation is introduced.
+- The retained manifest binds original run/owner/source/request identities,
+  every file digest, exact HTTP/UTC provenance, the complete serial prefix and
+  measured allocated bytes. Rejects active downloader locks, links, extra or
+  partial files, changed caps/bindings, finished bundles and continuation chains.
+  Operator-confirmed termination is still required; file layout is not proof.
+  Rechecks retained evidence before/after copying and across acquisition/completion.
+- Retained and new allocated staging space and archive packaging share the
+  unchanged 12-GiB allowance, with fresh remote/local headroom checks. Retained
+  objects receive the same complete gzip/entity/SEQRES qualification as new ones.
+  The original-client v2 completion receipt binds retained provenance; import
+  checks it against the complete bundle. Scientific cache/bundle formats and all
+  coordinate, native-job and scientific-policy limits are unchanged.
+- All 218 focused continuation/download/import/archive checks pass in 72.95 seconds
+  with four workers. The new continuation test first reproduced the unsupported
+  entry point; mutation tests cover original bytes/provenance, copy/exit checks,
+  active locks, exact prefix conservation, global disk accounting, replay/chain
+  refusal and complete gzip/mapping qualification. Original-client simulated HTTP
+  tests pass through the real storage/import/reinspection boundary. Two test-
+  construction issues were corrected without changing production safeguards:
+  the remote fixture initially had only one PDB entry, and direct writes could
+  not mutate deliberately read-only records. Failure evidence remains preserved.
+- A read-only local smoke against the real failed acquisition reauthenticated all
+  2,852 retained objects, 1,152,685,350 coordinate bytes and 1,185,615,872 allocated
+  staging bytes. Its next request is the observed failed entry. This performed no
+  HTTP request, remote operation, copy, import or scientific job. Lint and targeted
+  types pass. Next require the full frozen-source gate, exact private CI and fresh
+  immutable deployment/staging before the approved real continuation, followed by
+  complete cache, native-control and cached-resume qualification.

@@ -232,6 +232,16 @@ def _build_parser() -> argparse.ArgumentParser:
     coordinate_prefetch.add_argument("--run-id", required=True)
     coordinate_prefetch.add_argument("--request-run-id", required=True)
     coordinate_prefetch.add_argument("--confirm-inspection-sha256", required=True)
+    coordinate_prefetch.add_argument("--continue-from-run-id")
+    coordinate_prefetch.add_argument("--confirm-retained-prefetch-sha256")
+
+    coordinate_retained = actions.add_parser(
+        "coordinate-prefetch-retained",
+        help="inspect retained bytes after operator-confirmed acquisition termination",
+    )
+    coordinate_retained.add_argument("--run-id", required=True)
+    coordinate_retained.add_argument("--request-run-id", required=True)
+    coordinate_retained.add_argument("--confirm-inspection-sha256", required=True)
 
     coordinate_import = actions.add_parser(
         "coordinate-import",
@@ -452,13 +462,25 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
             request_run_id=args.request_run_id,
             confirm_request_inventory_sha256=args.confirm_request_inventory_sha256,
         )
-    if args.operation in {"coordinate-prefetch", "coordinate-import"}:
+    if args.operation in {
+        "coordinate-prefetch",
+        "coordinate-prefetch-retained",
+        "coordinate-import",
+    }:
         try:
+            if args.operation == "coordinate-prefetch-retained":
+                return controller.coordinate_prefetch_retained(
+                    args.run_id,
+                    request_run_id=args.request_run_id,
+                    confirm_inspection_sha256=args.confirm_inspection_sha256,
+                )
             if args.operation == "coordinate-prefetch":
                 return controller.coordinate_prefetch(
                     args.run_id,
                     request_run_id=args.request_run_id,
                     confirm_inspection_sha256=args.confirm_inspection_sha256,
+                    continue_from_run_id=args.continue_from_run_id,
+                    confirm_retained_prefetch_sha256=args.confirm_retained_prefetch_sha256,
                 )
             return controller.coordinate_import(
                 args.run_id,

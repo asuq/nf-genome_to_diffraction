@@ -5,6 +5,7 @@ import json
 import shutil
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from genome_to_diffraction.hpc import client as client_module
 from genome_to_diffraction.hpc.cli import _build_parser
 from genome_to_diffraction.hpc.client import SshTransport
 from genome_to_diffraction.hpc.m6_coordinate_cache import inspect_coordinate_cache
+from genome_to_diffraction.hpc.m6_coordinate_download import acquire_coordinate_prefetch
 from genome_to_diffraction.hpc.m6_coordinate_import_client import (
     build_prefetch_archive,
     validate_import_response,
@@ -44,7 +46,8 @@ from tests.unit.test_hpc_client import (
     _config,
     _controller,
 )
-from tests.unit.test_m6_coordinate_cache import _publish, _snapshot
+from tests.unit.test_m6_coordinate_cache import _file_digests, _publish, _snapshot
+from tests.unit.test_m6_coordinate_download import _http
 from tests.unit.test_m6_coordinate_import import _import_fixture
 from tests.unit.test_m6_coordinate_inspection import NEW_OWNER, OLD_OWNER
 from tests.unit.test_m6_coordinate_inspection_client import NEW_RUN_ID
@@ -446,6 +449,7 @@ def test_storage_preflight_checks_exact_caps_and_current_filesystems(
     "operation,confirmation",
     [
         ("coordinate-prefetch", "--confirm-inspection-sha256"),
+        ("coordinate-prefetch-retained", "--confirm-inspection-sha256"),
         ("coordinate-import", "--confirm-prefetch-manifest-sha256"),
     ],
 )
@@ -511,13 +515,49 @@ def test_transport_bounds_live_response_and_preserves_partial_bytes(
 
 
 @pytest.mark.parametrize("failure", ["none", "headroom", "receipt", "transport"])
+@pytest.mark.parametrize("continuation", [False, True])
 def test_original_controller_prefetch_import_with_real_remote_boundary(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
+    continuation: bool,
 ) -> None:
     from genome_to_diffraction.hpc import m6_coordinate_import as remote
 
+    if continuation:
+        from tests.unit import test_m6_coordinate_requests as request_fixture
+
+        original_catalogue = request_fixture._catalogue
+
+        def two_templates(root: Path):
+            catalogue, policy, groups = original_catalogue(root)
+            # Preserve all 93 hits and producer bindings, but require two PDB entries
+            # so a real first success followed by a transport failure is possible.
+            hits = [
+                _hit(
+                    group,
+                    hit_id=f"hit_{index}_{rank}",
+                    rank=rank,
+                    pdb_id="1ABC" if rank == 1 else "2ABC",
+                    source_sequence="ACDE" if rank == 1 else "ACDF",
+                    identity=sum(
+                        a == b
+                        for a, b in zip(
+                            group.sequence, "ACDE" if rank == 1 else "ACDF", strict=True
+                        )
+                    )
+                    / 4,
+                )
+                for index, group in enumerate(groups[:-1])
+                for rank in (1, 2, 3)
+            ]
+            (policy / "policy/accepted_structural_hits.jsonl").write_text(
+                "".join(canonical_json_text(hit) + "\n" for hit in hits),
+                encoding="ascii",
+            )
+            return catalogue, policy, groups
+
+        monkeypatch.setattr(request_fixture, "_catalogue", two_templates)
     fixture = _import_fixture(tmp_path / "remote")
     base = fixture.base
     publications = base.new / "artifacts/m6-coordinate-inspection"
@@ -605,6 +645,75 @@ def test_original_controller_prefetch_import_with_real_remote_boundary(
     for name in ("inspection.json", "inspection_bundle.json"):
         shutil.copy2(publications / name, inspection_root / name)
 
+    continuation_kwargs: dict[str, str] = {}
+    failed_parent = None
+    retained_before = None
+    http_calls = None
+    if continuation:
+        from genome_to_diffraction.databases.common import DatabaseError
+
+        current = controller._owned_run(base.new.name)
+        failed = replace(
+            current, run_id=current.run_id[:-8] + "33333333", owner_id="3" * 32
+        )
+        failed.write(controller.config.local_state_root)
+        failed_parent = controller.config.local_state_root / failed.run_id
+        failed_inspection = failed_parent / "coordinate-inspection"
+        shutil.copytree(inspection_root, failed_inspection)
+        binding_path = failed_inspection / "inspection_bundle.json"
+        binding = json.loads(binding_path.read_text())
+        binding["run_id"] = failed.run_id
+        _identity(binding, "bundle_id", "m6inspect_")
+        atomic_write_json(binding_path, binding)
+        historical = remote.storage_preflight(
+            base.new,
+            base.old,
+            new_owner=NEW_OWNER,
+            old_owner=OLD_OWNER,
+            inspection_sha256=fixture.inspection_sha,
+        )
+        historical["run_id"] = failed.run_id
+        _identity(historical, "preflight_id", "m6coordstorage_")
+        atomic_write_json(
+            failed_parent / "coordinate-prefetch-storage.json", historical
+        )
+        calls, _ = _http(monkeypatch, fail_open_pdb_id="2ABC")
+        with pytest.raises(DatabaseError, match="Connection reset by peer"):
+            acquire_coordinate_prefetch(
+                snapshot,
+                failed_inspection / "inspection.json",
+                failed_parent / "coordinate-prefetch",
+                expected_inventory_sha256=base.inventory_sha256,
+                expected_inspection_sha256=fixture.inspection_sha,
+            )
+        assert calls == ["1ABC", "2ABC"]
+        retained_before = _file_digests(failed_parent)
+        inspected = controller.coordinate_prefetch_retained(
+            failed.run_id,
+            request_run_id=base.old.name,
+            confirm_inspection_sha256=fixture.inspection_sha,
+        )
+        assert inspected["retained_object_count"] == 1
+        assert inspected["network_acquisition_performed"] is False
+        assert _file_digests(failed_parent) == retained_before
+        continuation_kwargs = {
+            "continue_from_run_id": failed.run_id,
+            "confirm_retained_prefetch_sha256": str(
+                inspected["retained_prefetch_sha256"]
+            ),
+        }
+        http_calls, _ = _http(monkeypatch)
+        with pytest.raises(ValidationError, match="exact retained"):
+            controller.coordinate_prefetch(
+                base.new.name,
+                request_run_id=base.old.name,
+                confirm_inspection_sha256=fixture.inspection_sha,
+                continue_from_run_id=failed.run_id,
+                confirm_retained_prefetch_sha256="0" * 64,
+            )
+        assert http_calls == []
+        assert not (parent / "coordinate-prefetch-storage.json").exists()
+
     def acquire(
         snapshot_path: Path, inspection_path: Path, staging_root: Path, **kwargs: Any
     ) -> Path:
@@ -614,6 +723,10 @@ def test_original_controller_prefetch_import_with_real_remote_boundary(
         assert kwargs["expected_inventory_sha256"] == base.inventory_sha256
         assert kwargs["expected_inspection_sha256"] == fixture.inspection_sha
         downloads.append(staging_root)
+        if continuation:
+            return acquire_coordinate_prefetch(
+                snapshot_path, inspection_path, staging_root, **kwargs
+            )
         staging_root.mkdir()
         shutil.copytree(
             tmp_path / "remote/local-prefetch-builder/prefetch bundle",
@@ -633,6 +746,7 @@ def test_original_controller_prefetch_import_with_real_remote_boundary(
                 base.new.name,
                 request_run_id=base.old.name,
                 confirm_inspection_sha256=fixture.inspection_sha,
+                **continuation_kwargs,
             )
         assert not downloads and not transfer_calls
         assert not (parent / "coordinate-prefetch").exists()
@@ -641,15 +755,27 @@ def test_original_controller_prefetch_import_with_real_remote_boundary(
         base.new.name,
         request_run_id=base.old.name,
         confirm_inspection_sha256=fixture.inspection_sha,
+        **continuation_kwargs,
     )
     assert len(downloads) == 1
     assert prefetched["cache_import_performed"] is False
     assert not (base.new / "state/job-id").exists()
+    if continuation:
+        assert failed_parent is not None
+        assert http_calls == ["2ABC"]
+        assert _file_digests(failed_parent) == retained_before
     if failure == "receipt":
-        receipt_path = parent / "coordinate-prefetch/prefetch_receipt.json"
+        receipt_path = (
+            parent
+            / "coordinate-prefetch"
+            / ("retained-prefetch.json" if continuation else "prefetch_receipt.json")
+        )
         receipt = json.loads(receipt_path.read_text())
-        receipt["archive_sha256"] = "0" * 64
-        _identity(receipt, "receipt_id", "m6coordprefetch_")
+        if continuation:
+            receipt["objects"]["1ABC"]["etag"] = '"changed-original-provenance"'
+        else:
+            receipt["archive_sha256"] = "0" * 64
+            _identity(receipt, "receipt_id", "m6coordprefetch_")
         atomic_write_json(receipt_path, receipt)
     arguments = {
         "request_run_id": base.old.name,

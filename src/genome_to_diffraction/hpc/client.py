@@ -52,6 +52,10 @@ from genome_to_diffraction.hpc.identification_inputs import (
     build_identification_input_bundle,
 )
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
+from genome_to_diffraction.hpc.m6_coordinate_continuation import (
+    RetainedPrefetch,
+    inspect_retained_prefetch,
+)
 from genome_to_diffraction.hpc.m6_coordinate_download import acquire_coordinate_prefetch
 from genome_to_diffraction.hpc.m6_coordinate_import_client import (
     build_prefetch_archive,
@@ -4484,12 +4488,96 @@ class HpcController:
             )
         return record, original, parent, original_parent / "coordinate-requests"
 
+    def _retained_coordinate_prefetch(
+        self, run_id: str, request_run_id: str, inspection_sha256: str
+    ) -> tuple[Path, RetainedPrefetch]:
+        record, original, parent, snapshot = self._coordinate_import_runs(
+            run_id, request_run_id
+        )
+        inventory, report = load_saved_inspection(
+            parent / "coordinate-inspection",
+            snapshot,
+            record=record,
+            request_record=original,
+            confirmed_inspection_sha256=inspection_sha256,
+        )
+        storage_path = parent / "coordinate-prefetch-storage.json"
+        if (
+            storage_path.is_symlink()
+            or not storage_path.is_file()
+            or storage_path.resolve(strict=True) != storage_path
+            or storage_path.stat().st_nlink != 1
+            or not 0 < storage_path.stat().st_size <= 64 * 1024
+        ):
+            raise ValidationError(
+                "retained acquisition storage evidence is unsafe or missing"
+            )
+        # Historical admission binds the old attempt; it is not current headroom.
+        validate_storage_preflight(
+            {
+                "operation": "coordinate-import-preflight",
+                "run_id": run_id,
+                "status": "ready",
+                "storage_preflight": storage_path.read_text(encoding="ascii"),
+            },
+            record=record,
+            request_record=original,
+            inventory=inventory,
+            report=report,
+            inspection_sha256=inspection_sha256,
+        )
+        root = parent / "coordinate-prefetch"
+        retained = inspect_retained_prefetch(
+            root,
+            snapshot,
+            parent / "coordinate-inspection/inspection.json",
+            record=record,
+            request_record=original,
+            expected_inventory_sha256=report.request_inventory_sha256,
+            expected_inspection_sha256=inspection_sha256,
+        )
+        if self._coordinate_import_runs(run_id, request_run_id) != (
+            record,
+            original,
+            parent,
+            snapshot,
+        ):
+            raise ValidationError(
+                "retained acquisition run ownership changed during inspection"
+            )
+        return root, retained
+
+    def coordinate_prefetch_retained(
+        self, run_id: str, *, request_run_id: str, confirm_inspection_sha256: str
+    ) -> dict[str, object]:
+        """Inspect for explicit continuation confirmation, without replay or HTTP."""
+
+        _, retained = self._retained_coordinate_prefetch(
+            run_id, request_run_id, confirm_inspection_sha256
+        )
+        return {
+            "operation": "coordinate-prefetch-retained",
+            "run_id": run_id,
+            "request_run_id": request_run_id,
+            "retained_id": retained.retained_id,
+            "retained_prefetch_sha256": retained.checksum(),
+            "retained_object_count": len(retained.objects),
+            "retained_coordinate_bytes": retained.total_coordinate_bytes,
+            "retained_allocated_bytes": retained.allocated_bytes,
+            "next_request_pdb_id": retained.failed_request_pdb_id,
+            "operator_confirmed_termination_required": True,
+            "network_acquisition_performed": False,
+            "cache_import_performed": False,
+        }
+
     def coordinate_prefetch(
         self,
         run_id: str,
         *,
         request_run_id: str,
         confirm_inspection_sha256: str,
+        continue_from_run_id: str | None = None,
+        confirm_retained_prefetch_sha256: str | None = None,
     ) -> dict[str, object]:
         """Acquire only the complete missing set after authenticated remote headroom."""
 
@@ -4508,6 +4596,24 @@ class HpcController:
             raise ValidationError(
                 "coordinate cache inspection is already complete; no prefetch needed"
             )
+        if (continue_from_run_id is None) != (confirm_retained_prefetch_sha256 is None):
+            raise ValidationError(
+                "coordinate continuation requires an owned source and confirmation"
+            )
+        retained_source = None
+        retained = None
+        if continue_from_run_id is not None:
+            if continue_from_run_id in {run_id, request_run_id}:
+                raise ValidationError(
+                    "coordinate continuation requires a distinct failed acquisition"
+                )
+            retained_source, retained = self._retained_coordinate_prefetch(
+                continue_from_run_id, request_run_id, confirm_inspection_sha256
+            )
+            if retained.checksum() != confirm_retained_prefetch_sha256:
+                raise ValidationError(
+                    "confirm the exact retained prefetch inventory checksum"
+                )
         destination = parent / "coordinate-prefetch"
         storage_path = parent / "coordinate-prefetch-storage.json"
         if any(
@@ -4558,6 +4664,9 @@ class HpcController:
             expected_inventory_sha256=report.request_inventory_sha256,
             expected_inspection_sha256=confirm_inspection_sha256,
             progress=self.progress,
+            retained_source=retained_source,
+            retained=retained,
+            confirmed_retained_sha256=confirm_retained_prefetch_sha256,
         )
         if manifest_path != destination / "bundle/prefetch_manifest.json":
             raise ValidationError(
@@ -4573,6 +4682,9 @@ class HpcController:
             confirmed_manifest_sha256=manifest_sha256,
             confirmed_inventory_sha256=report.request_inventory_sha256,
             confirmed_inspection_sha256=confirm_inspection_sha256,
+            retained_staging_bytes=retained.allocated_bytes
+            if retained is not None
+            else 0,
         )
         # Reauthenticate new/original bindings after the potentially long acquisition.
         if self._coordinate_import_runs(run_id, request_run_id) != (
@@ -4589,9 +4701,17 @@ class HpcController:
             request_record=original,
             confirmed_inspection_sha256=confirm_inspection_sha256,
         )
+        if continue_from_run_id is not None:
+            _, rechecked_retained = self._retained_coordinate_prefetch(
+                continue_from_run_id, request_run_id, confirm_inspection_sha256
+            )
+            if rechecked_retained != retained:
+                raise ValidationError(
+                    "retained acquisition changed during continuation"
+                )
         receipt = {
             "schema_version": "1.0",
-            "adapter_version": "m6-coordinate-prefetch-receipt-v1",
+            "adapter_version": "m6-coordinate-prefetch-receipt-v2",
             "run_id": record.run_id,
             "commit": record.commit,
             "request_run_id": original.run_id,
@@ -4603,6 +4723,7 @@ class HpcController:
             "archive_sha256": sha256_file(archive),
             "archive_size_bytes": archive.stat().st_size,
             "storage_preflight_sha256": sha256_file(storage_path),
+            "retained_prefetch_sha256": confirm_retained_prefetch_sha256,
             "object_count": len(manifest.objects),
             "total_coordinate_bytes": manifest.total_size_bytes,
             "completed_at": utc_now_iso(),

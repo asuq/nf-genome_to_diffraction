@@ -354,6 +354,16 @@ Nextflow cases. Keep their failure/mutation assertions, the shorter helper
 default and deliberate short-timeout regression. Real HPC/Phenix deadlines and
 scientific policy remain unchanged; a complete passing gate is still required.
 
+The user subsequently approved implementing and qualifying a checksum-verified
+continuation of the interrupted coordinate acquisition. Preserve all completed
+objects and the original failed attempt, authenticate their original retrieval
+provenance, and fetch only the remaining entries into fresh owned staging through
+the original client. Count retained and new evidence within the unchanged disk
+cap, recheck actual headroom and require complete gzip/entity/SEQRES qualification
+before import. This is one explicitly confirmed continuation, not automatic replay,
+a retry chain, partial-cache publication or permission to modify old remote source.
+Exact-source local/CI/deployment and native-control/cached-resume gates still apply.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

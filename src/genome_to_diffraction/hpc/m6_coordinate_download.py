@@ -25,8 +25,18 @@ cache-validity claim: the original client must still qualify the complete remote
 cache union and reinspection before use. Tests cover authenticated conservation,
 fixed URLs, strict redirects, streaming quotas/headroom, partial preservation,
 metadata/byte changes and full local mapping qualification without public traffic.
+
+An explicitly confirmed original failed prefix can seed one fresh acquisition.
+Copy its authenticated objects and original request/retrieval bytes, count the
+retained allocated space with new writes, and acquire only the remaining IDs.
+Rehash the old evidence before/after copying and before final publication. The
+original tree is never modified, linked into the new tree or treated as a complete
+bundle. A failed continuation cannot be implicitly replayed or chained. The
+complete bundle uses the unchanged scientific manifest/cache format; its original-
+client v2 completion receipt additionally binds the retained-evidence inventory.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -40,6 +50,11 @@ from tqdm import tqdm
 from genome_to_diffraction.checksums import atomic_write_bytes, sha256_file
 from genome_to_diffraction.databases.common import StorageLimitError
 from genome_to_diffraction.databases.network import download_public_resource
+from genome_to_diffraction.hpc.m6_coordinate_continuation import (
+    RetainedPrefetch,
+    allocated_staging_bytes,
+    verify_retained_prefetch,
+)
 from genome_to_diffraction.hpc.m6_coordinate_prefetch import (
     MAX_ADDITIONAL_DISK_BYTES,
     MAX_COORDINATE_OBJECT_BYTES,
@@ -110,7 +125,23 @@ def _headroom(root: Path, minimum: int, *, pending_bytes: int = 0) -> int:
     return free
 
 
-def _write_record(root: Path, path: Path, document: object) -> None:
+def _additional_disk(root: Path, retained_bytes: int, pending_bytes: int = 0) -> None:
+    unit = os.statvfs(root).f_frsize
+    if unit <= 0:
+        raise StorageLimitError("coordinate staging has invalid allocation geometry")
+    pending = ((pending_bytes + unit - 1) // unit) * unit
+    if (
+        allocated_staging_bytes(root) + retained_bytes + pending
+        > MAX_ADDITIONAL_DISK_BYTES
+    ):
+        raise StorageLimitError(
+            "coordinate acquisition and retained evidence exceed additional-disk cap"
+        )
+
+
+def _write_record(
+    root: Path, path: Path, document: object, *, retained_bytes: int = 0
+) -> None:
     if path.exists() or path.is_symlink():
         raise ValidationError("coordinate acquisition record already exists")
     payload = (
@@ -121,8 +152,7 @@ def _write_record(root: Path, path: Path, document: object) -> None:
     ).encode("ascii")
     if len(payload) > MAX_PREFETCH_MANIFEST_BYTES:
         raise StorageLimitError("coordinate acquisition metadata exceeds its byte cap")
-    if _stage_bytes(root) + len(payload) > MAX_ADDITIONAL_DISK_BYTES:
-        raise StorageLimitError("coordinate acquisition exceeds additional-disk cap")
+    _additional_disk(root, retained_bytes, len(payload))
     _headroom(
         root,
         MAX_ADDITIONAL_DISK_BYTES - MAX_COORDINATE_TOTAL_BYTES,
@@ -130,6 +160,45 @@ def _write_record(root: Path, path: Path, document: object) -> None:
     )
     atomic_write_bytes(path, payload)
     path.chmod(0o444)
+
+
+def _copy_retained(
+    source_root: Path, staging: Path, retained: RetainedPrefetch
+) -> None:
+    """Copy verified originals without links, moves or replacing original metadata."""
+
+    minimum = MAX_ADDITIONAL_DISK_BYTES - MAX_COORDINATE_TOTAL_BYTES
+    for pdb_id in retained.objects:
+        token = pdb_id.lower()
+        for relative in (
+            f".pending-bundle/objects/{token}.cif.gz",
+            f"retrievals/{token}.request.json",
+            f"retrievals/{token}.retrieval.json",
+        ):
+            expected = retained.files[relative]
+            source = source_root / relative
+            target = staging / relative
+            _additional_disk(staging, retained.allocated_bytes, expected.size_bytes)
+            _headroom(staging, minimum, pending_bytes=expected.size_bytes)
+            digest = hashlib.sha256()
+            size = 0
+            with source.open("rb") as incoming, target.open("xb") as output:
+                while chunk := incoming.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > expected.size_bytes:
+                        raise ValidationError("retained object grew during copying")
+                    _headroom(staging, minimum, pending_bytes=len(chunk))
+                    digest.update(chunk)
+                    output.write(chunk)
+            if (
+                size != expected.size_bytes
+                or digest.hexdigest() != expected.sha256
+                or sha256_file(target) != expected.sha256
+            ):
+                raise ValidationError("retained bytes changed during copying")
+            target.chmod(0o444)
+    verify_retained_prefetch(source_root, retained)
+    _additional_disk(staging, retained.allocated_bytes)
 
 
 def acquire_coordinate_prefetch(
@@ -140,6 +209,9 @@ def acquire_coordinate_prefetch(
     expected_inventory_sha256: str,
     expected_inspection_sha256: str,
     progress: bool = False,
+    retained_source: Path | None = None,
+    retained: RetainedPrefetch | None = None,
+    confirmed_retained_sha256: str | None = None,
 ) -> Path:
     """Freeze all missing coordinate objects, never a subset or a cache publication."""
 
@@ -151,6 +223,35 @@ def acquire_coordinate_prefetch(
         expected_inventory_sha256=expected_inventory_sha256,
         expected_inspection_sha256=expected_inspection_sha256,
     )
+    continuation_arguments = (retained_source, retained, confirmed_retained_sha256)
+    if any(value is not None for value in continuation_arguments) and any(
+        value is None for value in continuation_arguments
+    ):
+        raise ValidationError(
+            "coordinate continuation requires source, inventory and confirmation"
+        )
+    retained_bytes = 0
+    if retained is not None:
+        assert retained_source is not None
+        if (
+            retained.checksum() != confirmed_retained_sha256
+            or retained.retained_id
+            != content_id(
+                "m6coordretained_",
+                retained.model_dump(mode="json", exclude={"retained_id"}),
+            )
+            or retained.request_inventory_sha256 != expected_inventory_sha256
+            or retained.inspection_sha256 != expected_inspection_sha256
+            or list(retained.objects) != report.missing_pdb_ids[: len(retained.objects)]
+            or not 0 < len(retained.objects) < len(report.missing_pdb_ids)
+            or retained.failed_request_pdb_id
+            != report.missing_pdb_ids[len(retained.objects)]
+        ):
+            raise ValidationError(
+                "coordinate continuation confirmation or inventory changed"
+            )
+        verify_retained_prefetch(retained_source, retained)
+        retained_bytes = retained.allocated_bytes
     parent = _new_staging_parent(staging_root)
     _headroom(parent, MAX_ADDITIONAL_DISK_BYTES)
     staging_root.mkdir(mode=0o700)
@@ -159,8 +260,10 @@ def acquire_coordinate_prefetch(
     retrievals = staging_root / "retrievals"
     for directory in (pending, pending / "objects", incoming, retrievals):
         directory.mkdir(mode=0o700)
-    objects: dict[str, PrefetchedCoordinate] = {}
-    completed_bytes = 0
+    objects: dict[str, PrefetchedCoordinate] = (
+        dict(retained.objects) if retained is not None else {}
+    )
+    completed_bytes = retained.total_coordinate_bytes if retained is not None else 0
     current_id: str | None = None
     minimum_free = MAX_ADDITIONAL_DISK_BYTES - MAX_COORDINATE_TOTAL_BYTES
     try:
@@ -182,14 +285,27 @@ def acquire_coordinate_prefetch(
                 "additional_disk_limit_bytes": MAX_ADDITIONAL_DISK_BYTES,
                 "minimum_free_bytes": minimum_free,
             },
+            retained_bytes=retained_bytes,
         )
+        if retained is not None:
+            assert retained_source is not None
+            _write_record(
+                staging_root,
+                staging_root / "retained-prefetch.json",
+                retained.model_dump(mode="json"),
+                retained_bytes=retained_bytes,
+            )
+            _copy_retained(retained_source, staging_root, retained)
         with tqdm(
             total=len(report.missing_pdb_ids),
+            initial=len(objects),
             desc="Prefetch PDB coordinates",
             unit="entry",
             disable=not progress,
         ) as bar:
-            for index, pdb_id in enumerate(report.missing_pdb_ids, start=1):
+            for index, pdb_id in enumerate(
+                report.missing_pdb_ids[len(objects) :], start=len(objects) + 1
+            ):
                 current_id = pdb_id
                 url = fixed_pdb_url(pdb_id)
                 source = incoming / f"{pdb_id.lower()}.cif.gz"
@@ -201,6 +317,7 @@ def acquire_coordinate_prefetch(
                         "requested_url": url,
                         "requested_at": utc_now_iso(),
                     },
+                    retained_bytes=retained_bytes,
                 )
                 used = _stage_bytes(staging_root)
                 if used >= MAX_COORDINATE_TOTAL_BYTES:
@@ -208,6 +325,9 @@ def acquire_coordinate_prefetch(
                         "coordinate acquisition staging cap is exhausted"
                     )
                 _headroom(staging_root, minimum_free)
+                _additional_disk(
+                    staging_root, retained_bytes, MAX_COORDINATE_OBJECT_BYTES
+                )
                 _LOGGER.info(
                     "coordinate prefetch object started",
                     extra={
@@ -240,6 +360,7 @@ def acquire_coordinate_prefetch(
                         "retrieved_at": retrieved_at,
                         **asdict(metadata),
                     },
+                    retained_bytes=retained_bytes,
                 )
                 state = source.lstat()
                 if (
@@ -311,7 +432,12 @@ def acquire_coordinate_prefetch(
             }
         )
         manifest_path = pending / PREFETCH_MANIFEST
-        _write_record(staging_root, manifest_path, manifest.model_dump(mode="json"))
+        _write_record(
+            staging_root,
+            manifest_path,
+            manifest.model_dump(mode="json"),
+            retained_bytes=retained_bytes,
+        )
         manifest_sha256 = sha256_file(manifest_path)
         _headroom(staging_root, minimum_free)
         _LOGGER.info(
@@ -326,8 +452,10 @@ def acquire_coordinate_prefetch(
             expected_inventory_sha256=expected_inventory_sha256,
             expected_inspection_sha256=expected_inspection_sha256,
         )
-        if _stage_bytes(staging_root) > MAX_ADDITIONAL_DISK_BYTES:
-            raise StorageLimitError("coordinate staging exceeds additional-disk cap")
+        _additional_disk(staging_root, retained_bytes)
+        if retained is not None:
+            assert retained_source is not None
+            verify_retained_prefetch(retained_source, retained)
         _headroom(staging_root, minimum_free)
         for path in (pending / "objects").iterdir():
             path.chmod(0o444)
