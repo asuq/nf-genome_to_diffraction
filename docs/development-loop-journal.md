@@ -18182,3 +18182,28 @@ with a collapsed combined parent or a guessed command.
   full offline cache reinspection, native control, measured-resource qualification
   and cached resume. No shared-cache import or scientific job was submitted.
   Preserve all earlier failures; Raven and the successor worktree are untouched.
+
+## 2026-09-13 - Persistent v0.4 release objective and preserved acquisition failure
+
+- The user reaffirmed continued development through the completed v0.4 release
+  and requested rewriting the existing scheduled task. Updated and verified that
+  same three-hour thread task with active implementation, qualification and release
+  progression, explicit completion criteria and unchanged permission, resource,
+  scientific and primary-agent-only safeguards. Intermediate milestones do not
+  complete the objective; live identities remain in the procedure/evidence records.
+- The existing coordinate acquisition subsequently returned failure: the fixed
+  public request for 5TM0 encountered a connection reset after its single allowed
+  attempt. Preserved the error, request and all staged objects without retrying,
+  overwriting or deleting evidence. This is a transport failure, not a renewed
+  storage-admission rejection or evidence of a scientific mapping defect.
+- Read-only audit reverified the retrieval bindings and SHA-256 checksums of all
+  2,852 completed objects, totalling 1,152,685,350 compressed bytes. They form the
+  exact serial prefix of the 4,195-entry inventory, leaving 1,343 unacquired.
+  No qualified bundle, manifest, archive or ready receipt exists. Complete gzip
+  and frozen-entity/SEQRES mapping qualification did not run; no shared-cache import
+  or native scientific job followed.
+- Recovery requires review of a bounded, checksum-verified continuation preserving
+  completed objects and the failed attempt, with unchanged acquisition caps and
+  full final validation. Do not silently replay the failed command or add a retry
+  chain. Continue independent authorised successor work only where the explicit
+  dependency/stop gates permit; this failure does not satisfy any release gate.
