@@ -17570,3 +17570,50 @@ with a collapsed combined parent or a guessed command.
   acquisition byte budget. Native-control, cached-resume, larger M6/RF and release
   gates remain open. Preserve the terminal Raven evidence and cancelled operator
   programme without restarting either.
+
+## 2026-09-12 - Bounded RF context reuse integrated
+
+- Integrated the approved profiled optimisation into the source-bound RF
+  reference workflow. One finalist assembly reuses its authenticated context
+  and complete task union only within that call. Public entry points still
+  authenticate independently; every native receipt, command, input and source
+  check remains, with complete upstream reauthentication before publication.
+  There is no persistent checksum cache or scientific-policy change.
+- Preserved all 2,229 original collected test IDs and affinity groups. Added
+  only two late-mutation cases: an original first-copy log and equivalent parsed
+  review JSON with changed bytes. Both fail before finalist publication. The
+  existing identity workflow's six-check assertion is unchanged.
+- The exact identity test passed in 301.922 seconds before the change and
+  78.769 seconds on the final worktree source, using the same unprofiled serial,
+  one-thread wrapper and fresh owned state. These are single observations on a
+  shared host, not a stable or whole-suite speed-up claim. An earlier candidate
+  took 76.344 seconds and passed 183 RF/reference tests; after the final
+  ownership-first ordering adjustment, the identity and four finalist boundary
+  cases passed again. Do not relabel that earlier broad run as the final source.
+- Root reviewed the patch and retained its exact source-digest invalidation;
+  result semantics, scientific commands, schema/adapter versions, test defaults,
+  dependencies and fixed-HPC settings are unchanged. Native RF comparison and
+  scientific acceptance remain outstanding.
+- Next run the named combined coordinate-inspection/RF local gate with eight
+  CPUs and two concurrent groups, followed by exact-source CI and reviewed
+  deployment. Only then stage the fresh unsubmitted Marmic control and inspect
+  cache availability. No coordinate download/import or new native submission
+  has occurred, and the earlier failed evidence remains immutable.
+
+## 2026-09-12 - Combined inspection and RF local qualification
+
+- The named combined gate passed all 25 maintained checks in 17 minutes
+  42 seconds with eight CPUs and two concurrent groups: 1,974 unit, 185 contract
+  and 153 integration tests, plus all workflow and quality checks. All 1,297
+  captured source inputs stayed unchanged, including the regenerated atlas.
+  Implementation HEAD was `7a59c1ce2b607f591c77a2b36a511f544a1e6f52`;
+  the final combined gate now covers the final RF ownership-order adjustment.
+- This expanded gate is not a matched performance experiment or native scientific
+  acceptance. Inspection has not yet been deployed or run against the real shared
+  cache. No coordinate acquisition, import or new native submission occurred.
+- Next require exact-source CI, rebuild the original client and deploy through
+  its reviewed Marmic route. Stage the same frozen native-control runner without
+  submitting it, then inspect all original requests against the bound cache.
+  Measure missing counts and coordinate/storage bounds before acquisition/import;
+  preserve complete mapping validation, prior evidence and native/cached-resume
+  gates before larger M6/RF execution.
