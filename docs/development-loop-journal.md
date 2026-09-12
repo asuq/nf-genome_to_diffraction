@@ -17392,3 +17392,35 @@ with a collapsed combined parent or a guessed command.
   fully cached equivalent resume before any larger benchmark. Retain the older
   Marmic database snapshot explicitly. Continue the separate three-hour Raven
   observations; no cancelled investigation or GPU work has been reopened.
+
+## 2026-09-12 - Native coordinate-cache prerequisite exposed
+
+- The launch entry above records startup, not acceptance. The native control
+  subsequently failed with exit one at coordinate staging. Collected its
+  authenticated terminal evidence; failure signature:
+  `c27cded97c20649609a7b0a5ba3cf796e9c8ca13844d988cbf721505e90346e6`.
+- The retained trace contains 47 tasks: 45 completed and both coordinate-stage
+  tasks failed. All 34 Foldseek tasks completed with recorded 32-CPU, 192-GB,
+  one-day allocations and non-missing peak-RSS observations. These partial
+  execution records are not complete native-control or resource acceptance.
+- The captured C025 error reports PDB coordinate `8PH9` unavailable from the
+  qualified offline cache. Do not infer C001's missing identifier from that
+  error, convert this failure into a scientific no-hit, or claim MR/resume.
+- The actual bound database manifest matches the original prepared manifest;
+  its distinct full-verification record has a different file checksum. The
+  coordinate-cache resource qualifies its layout and a 1UBQ smoke object, not
+  a complete PDB mirror. The offline resolver requires a checksum-valid cached
+  object with the appropriate entity and frozen SEQRES mapping. An incompatible
+  object with the same PDB identifier is not sufficient.
+- The missing prerequisite is bounded acquisition of the observed eligible
+  coordinates before offline materialisation. Prepared a proposal to export
+  and freeze the complete original truthless request inventory, prefetch only
+  missing qualified public PDB objects outside scientific compute execution,
+  and import them through the original checksum-verified client/cache format.
+  It needs approval before changing the acquisition boundary, followed by
+  focused ownership/provenance tests, the parallel gate, exact-source CI and
+  fresh native-control/cached-resume qualification. No prefetch, cache mutation,
+  further submission, scientific-policy change or truth comparison occurred.
+- Next obtain direction on that bounded prerequisite. Keep both Marmic runs,
+  the frozen search snapshots, original Raven monitoring and all remaining
+  native, M6, retrospective rank-recovery and release gates intact.
