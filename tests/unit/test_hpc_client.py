@@ -230,8 +230,11 @@ class FakeTransport:
         run_id: str,
         owner_id: str,
         destination: Path,
+        *,
+        coordinate_requests: bool = False,
     ) -> None:
-        self.calls.append(("collect", (run_id, owner_id)))
+        operation = "collect-coordinate-requests" if coordinate_requests else "collect"
+        self.calls.append((operation, (run_id, owner_id)))
         destination.write_bytes(self.archive)
 
     def review_collect(self, run_id: str, owner_id: str, manifest_sha256: str) -> bytes:

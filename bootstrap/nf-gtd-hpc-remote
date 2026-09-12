@@ -5185,6 +5185,136 @@ EOF
     emit total_bytes "$total_bytes"
 }
 
+collect_coordinate_requests() {
+    [[ "$#" -eq 2 ]] || \
+        fail wrapper_failure "collect-coordinate-requests expects run ID and owner ID"
+    local run_id="$1" owner_id="$2" run python
+    require_owned_run "$run_id" "$owner_id"
+    run="$(run_directory "$run_id")"
+    [[ "$SITE_ID" == marmic && "$(<"$run/state/profile")" == m6-native-control && \
+       "$(<"$run/state/phase")" == completed && \
+       "$(<"$run/state/failure-class")" == test_failure ]] || \
+        fail wrapper_failure "coordinate requests require a failed Marmic native control"
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || fail environment_failure "coordinate collection lacks its pinned runtime"
+    # Read-only boundary glue: enumerate fixed producer files, never run scientific
+    # code, follow task input links, or modify the old run and its source checkout.
+    "$python" -I - "$run" "$MAX_REVIEW_FILE_BYTES" "$MAX_REVIEW_TOTAL_BYTES" <<'PY'
+import csv
+import hashlib
+import io
+import json
+import os
+import re
+import stat
+import sys
+import tarfile
+from collections import Counter
+from pathlib import Path
+
+run = Path(sys.argv[1]).resolve(strict=True)
+file_limit, total_limit = map(int, sys.argv[2:])
+payloads = {}
+total = 0
+
+def add(relative):
+    global total
+    if relative in payloads:
+        return payloads[relative]
+    path = run / relative
+    if not path.is_relative_to(run) or ".." in path.parts:
+        raise ValueError("coordinate producer path escapes the run")
+    for part in (path, *path.parents):
+        if part == run:
+            break
+        mode = part.lstat()
+        if stat.S_ISLNK(mode.st_mode) or mode.st_uid != os.getuid():
+            raise ValueError("coordinate producer path is not owned and link-free")
+    metadata = path.stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > file_limit:
+        raise ValueError("coordinate producer is not a bounded regular file")
+    total += metadata.st_size
+    if total > total_limit:
+        raise ValueError("complete coordinate request inputs exceed collection limit")
+    with path.open("rb") as handle:
+        data = handle.read(file_limit + 1)
+    if len(data) != metadata.st_size:
+        raise ValueError("coordinate producer size changed during collection")
+    payloads[relative] = data
+    return data
+
+for name in (
+    "manifest.json", "state/phase", "state/failure-class", "state/job-id",
+    "state/job-result.json", "state/controller-kind", "state/m6-execution-purpose",
+    "state/m6-track", "state/m6-runner-manifest-sha256",
+    "artifacts/m6-runner-inputs/runner_manifest.json",
+):
+    add(name)
+trace_name = "artifacts/m6-nextflow-results/pipeline_info/trace.tsv"
+rows = list(csv.DictReader(io.StringIO(add(trace_name).decode("utf-8")), delimiter="\t"))
+counts = Counter(row["process"] for row in rows)
+for process, count in (("M6_PLAN_TRACK", 1), ("M6_IMPORT_CATALOGUE", 2),
+                       ("M6_PARTITION_DISCOVERY", 2), ("M6_APPLY_POLICY", 2),
+                       ("M6_STAGE_COORDINATES", 2)):
+    if counts["M6_VALIDATION_WORKFLOW:" + process] != count:
+        raise ValueError("coordinate producer trace inventory is incomplete")
+
+def task(process, tag, status):
+    selected = [row for row in rows if row["process"] == "M6_VALIDATION_WORKFLOW:" + process
+                and row["tag"] == tag]
+    if len(selected) != 1 or selected[0]["status"] != status or selected[0]["attempt"] != "1":
+        raise ValueError("coordinate producer trace identity or outcome is ambiguous")
+    row = selected[0]
+    relative = Path(row["workdir"]).relative_to(run).as_posix()
+    if re.fullmatch(r"cache/m6-nextflow-operational/work/[0-9a-f]{2}/[0-9a-f]{30}", relative) is None:
+        raise ValueError("coordinate producer is outside the fixed owned work tree")
+    if row["hash"] != relative.split("/")[-2] + "/" + relative.split("/")[-1][:6]:
+        raise ValueError("coordinate producer work hash differs from trace")
+    if row["exit"] != ("0" if status == "COMPLETED" else "1"):
+        raise ValueError("coordinate producer trace exit contradicts outcome")
+    return relative
+
+plan = task("M6_PLAN_TRACK", "m6-plan:operational", "COMPLETED") + "/m6_track_plan"
+for name in ("track_plan.json", "case_tasks.tsv", "catalogue_tasks.tsv"):
+    add(plan + "/" + name)
+for case_id in ("M6C001", "M6C025"):
+    case = json.loads(add(plan + "/case_tasks/" + case_id + "/task.json"))
+    key = case["catalogue_key"]
+    if case["case_id"] != case_id or re.fullmatch(r"[0-9a-f]{64}", key) is None:
+        raise ValueError("coordinate case/catalogue identity changed")
+    catalogue = task("M6_IMPORT_CATALOGUE", "m6-import:" + key, "COMPLETED") + "/m6_catalogue_bundle"
+    for name in ("bundle_manifest.json", "catalogue_task.json", "catalogue/sequence_groups.jsonl",
+                 "catalogue/source_records.jsonl", "catalogue/catalogue_import_manifest.json"):
+        add(catalogue + "/" + name)
+    policy = task("M6_APPLY_POLICY", "m6-policy:" + case_id, "COMPLETED") + "/m6_policy_bundle"
+    for name in ("bundle_manifest.json", "case_task.json", "policy/accepted_structural_hits.jsonl"):
+        add(policy + "/" + name)
+    partition = task("M6_PARTITION_DISCOVERY", "m6-partition:" + key, "COMPLETED") + "/m6_discovery_partition"
+    for provider in ("pdb_bundle", "foldseek_bundle"):
+        add(partition + "/" + provider + "/bundle_manifest.json")
+    failed = task("M6_STAGE_COORDINATES", "m6-coordinate-stage:" + case_id, "FAILED")
+    add(failed + "/.command.sh")
+
+inventory = {
+    "schema_version": "1.0",
+    "adapter_version": "m6-coordinate-request-collection-v1",
+    "run_id": run.name,
+    "remote_run_root": str(run),
+    "files": {name: {"sha256": hashlib.sha256(data).hexdigest(), "size_bytes": len(data)}
+              for name, data in sorted(payloads.items())},
+}
+payloads["coordinate_request_collection.json"] = (json.dumps(inventory, sort_keys=True) + "\n").encode("ascii")
+if sum(map(len, payloads.values())) > total_limit:
+    raise ValueError("coordinate request archive exceeds collection limit")
+with tarfile.open(fileobj=sys.stdout.buffer, mode="w|gz") as archive:
+    for name, data in sorted(payloads.items()):
+        member = tarfile.TarInfo(name)
+        member.size = len(data)
+        member.mode = 0o444
+        archive.addfile(member, io.BytesIO(data))
+PY
+}
+
 collect_run() {
     [[ "$#" -eq 2 ]] || fail wrapper_failure "collect expects run ID and owner ID"
     local run_id="$1"
@@ -7273,6 +7403,7 @@ main() {
         status) status_run "$@" ;;
         logs) logs_run "$@" ;;
         collect) collect_run "$@" ;;
+        collect-coordinate-requests) collect_coordinate_requests "$@" ;;
         review-collect) review_collect_run "$@" ;;
         t12-review-collect) t12_review_collect_run "$@" ;;
         cancel) cancel_run "$@" ;;

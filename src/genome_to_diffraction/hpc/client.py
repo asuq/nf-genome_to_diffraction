@@ -19,6 +19,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
+from importlib.resources import files as package_files
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
@@ -50,6 +51,10 @@ from genome_to_diffraction.hpc.identification_inputs import (
     build_identification_input_bundle,
 )
 from genome_to_diffraction.hpc.m4_import import build_fixed_m4_import_bundle
+from genome_to_diffraction.hpc.m6_coordinate_requests import (
+    extract_request_archive,
+    freeze_request_inventory,
+)
 from genome_to_diffraction.hpc.models import (
     COMMIT_PATTERN,
     MAX_ARTIFACT_FILE_BYTES,
@@ -99,6 +104,7 @@ from genome_to_diffraction.schemas.io import (
     load_json_document,
     parse_json_document,
 )
+from genome_to_diffraction.status import InputContractError
 
 _TERMINAL_STATES = frozenset(
     {
@@ -584,6 +590,8 @@ class TextTransport(Protocol):
         run_id: str,
         owner_id: str,
         destination: Path,
+        *,
+        coordinate_requests: bool = False,
     ) -> None:
         """Stream the fixed whitelisted archive to one new local file."""
 
@@ -1155,6 +1163,8 @@ class SshTransport:
         run_id: str,
         owner_id: str,
         destination: Path,
+        *,
+        coordinate_requests: bool = False,
     ) -> None:
         """Stream the fixed remote archive without buffering it in memory."""
 
@@ -1163,7 +1173,12 @@ class SshTransport:
         try:
             with destination.open("xb") as output:
                 result = subprocess.run(
-                    self._command("collect", [run_id, owner_id]),
+                    self._command(
+                        "collect-coordinate-requests"
+                        if coordinate_requests
+                        else "collect",
+                        [run_id, owner_id],
+                    ),
                     check=False,
                     stdout=output,
                     stderr=subprocess.PIPE,
@@ -4061,6 +4076,100 @@ class HpcController:
             "destination": str(destination),
             "files": files,
             "failure_signature": failure_signature,
+        }
+
+    def collect_coordinate_requests(self, run_id: str) -> dict[str, object]:
+        """Freeze complete requests separately from a failed Marmic collection."""
+
+        record = self._owned_run(run_id)
+        if record.site_id != "marmic" or record.profile != "m6-native-control":
+            raise ValidationError("coordinate requests require a Marmic native control")
+        parent = self.config.local_state_root / run_id
+        prior = parent / "collected"
+        destination = parent / "coordinate-requests"
+        if not prior.is_dir() or prior.is_symlink():
+            raise ValidationError("collect the terminal native control first")
+        if destination.exists() or destination.is_symlink():
+            raise ValidationError(
+                "coordinate request snapshot already exists; preserve it"
+            )
+        # The failed run keeps its original scientific implementation. Do not
+        # rederive requests with different local selection or join semantics.
+        for relative in (
+            "benchmarks/m6_nextflow.py",
+            "structure_search/pdb_coordinates.py",
+        ):
+            original = self.git.read_file_at_commit(
+                record.commit, PurePosixPath("src/genome_to_diffraction") / relative
+            )
+            if (
+                original
+                != package_files("genome_to_diffraction")
+                .joinpath(relative)
+                .read_bytes()
+            ):
+                raise ValidationError(
+                    "coordinate request derivation differs from the producer source"
+                )
+        lock_sha256 = hashlib.sha256(
+            self.git.read_file_at_commit(record.commit, PurePosixPath("pixi.lock"))
+        ).hexdigest()
+        remote_root = (
+            PurePosixPath(self.config.remote_dispatcher).parents[1] / "runs" / run_id
+        )
+        with tempfile.TemporaryDirectory(
+            prefix=".coordinate-requests-", dir=parent
+        ) as temporary:
+            archive = Path(temporary) / "requests.tar.gz"
+            self.transport.collect_to_path(
+                run_id, record.owner_id, archive, coordinate_requests=True
+            )
+            snapshot = Path(temporary) / "snapshot"
+            try:
+                collection = extract_request_archive(archive, snapshot)
+                terminal = _validated_owned_terminal_result(
+                    archive, record, source_lock_sha256=lock_sha256
+                )
+                if (
+                    terminal.get("failure_class") != "test_failure"
+                    or terminal.get("exit_code") != 1
+                ):
+                    raise ValidationError(
+                        "coordinate requests require the failed native control"
+                    )
+                inventory = freeze_request_inventory(
+                    snapshot,
+                    collection=collection,
+                    prior=prior,
+                    remote_root=remote_root,
+                    run_id=run_id,
+                    source_commit=record.commit,
+                )
+            except (
+                InputContractError,
+                ValueError,
+                KeyError,
+                tarfile.TarError,
+            ) as error:
+                raise ValidationError(
+                    f"invalid coordinate request evidence: {error}"
+                ) from error
+            for path in snapshot.rglob("*"):
+                if path.is_file():
+                    path.chmod(0o444)
+            if destination.exists() or destination.is_symlink():
+                raise ValidationError(
+                    "coordinate request snapshot appeared during collection"
+                )
+            snapshot.rename(destination)
+        return {
+            "operation": "collect",
+            "collection_kind": "coordinate_requests",
+            "run_id": run_id,
+            "destination": str(destination),
+            "inventory_id": inventory["inventory_id"],
+            "distinct_pdb_count": inventory["distinct_pdb_count"],
+            "cases": inventory["cases"],
         }
 
     def review_collect(self, run_id: str) -> dict[str, object]:

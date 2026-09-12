@@ -3000,6 +3000,61 @@ def test_failed_scientific_collection_retains_only_safe_fixed_raw_trace(
     }
 
 
+@pytest.mark.parametrize("invalid", [None, "owner", "active", "extra_argument"])
+def test_coordinate_collection_is_read_only_and_fixed_to_owned_terminal_control(
+    tmp_path: Path,
+    invalid: str | None,
+) -> None:
+    from tests.unit.test_m6_coordinate_requests import _failed_coordinate_tree
+
+    dispatcher, smoke_job, environment, _ = _prepare_remote_layout(tmp_path)
+    run = smoke_job.parent.parent / "runs" / M6_NATIVE_CONTROL_RUN_ID
+    _failed_coordinate_tree(run)
+    python = run / "source/.pixi/envs/hpc/bin/python"
+    python.parent.mkdir(parents=True)
+    python.symlink_to(sys.executable)
+    marker = run / "source/original-source-marker"
+    marker.write_text("original immutable producer source\n")
+    command = [str(dispatcher), "collect-coordinate-requests", run.name, OWNER_ID]
+    if invalid == "owner":
+        command[-1] = "2" * 32
+    elif invalid == "active":
+        (run / "state/phase").write_text("running\n")
+    elif invalid == "extra_argument":
+        command.append("/unreviewed/path")
+    before = {
+        path.relative_to(run): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in run.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    }
+    result = _run(
+        command, cwd=tmp_path, environment=environment, success=invalid is None
+    )
+    if invalid is None:
+        with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:gz") as archive:
+            names = archive.getnames()
+            assert "coordinate_request_collection.json" in names
+            assert (
+                len(
+                    [
+                        name
+                        for name in names
+                        if name.endswith("accepted_structural_hits.jsonl")
+                    ]
+                )
+                == 2
+            )
+            assert not any("owner-id" in name or "source/" in name for name in names)
+    else:
+        assert result.returncode != 0
+        assert _decode_protocol(result.stdout)["failure_class"] == "wrapper_failure"
+    assert before == {
+        path.relative_to(run): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in run.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    }
+
+
 def test_reference_collection_executes_original_inventory_helper_and_checks_exit(
     tmp_path: Path,
 ) -> None:

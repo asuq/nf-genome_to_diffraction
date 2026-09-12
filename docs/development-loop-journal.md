@@ -17463,3 +17463,31 @@ with a collapsed combined parent or a guessed command.
   inventory and storage limits first, preserve both sites' failed evidence and
   all scientific/release gates, and continue source-isolated performance work
   without presenting a changed workload as a matched optimisation benchmark.
+
+## 2026-09-12 - Bounded native coordinate-request export
+
+- Implemented `collect --coordinate-requests` in the original client and a fixed
+  read-only dispatcher operation for the failed Marmic C001/C025 native control.
+  It gathers complete catalogue and accepted-hit inputs from their completed
+  producers rather than depending on partial coordinate-stage output. Original
+  run/source/terminal evidence is not modified, and the separate local snapshot
+  cannot overwrite an earlier collection or request snapshot.
+- The boundary checks ownership, terminal state, canonical paths, bounded
+  regular-file archives, original terminal/trace/runner bytes, source equivalence,
+  producer checksums, command/case/catalogue/search joins and inventory
+  conservation. Request derivation reuses the existing eligible-input and
+  coordinate-registration selectors; the MR hypothesis budget is not an
+  acquisition cap. No search snapshot, scientific selector or threshold changed.
+- The focused client/CLI/coordinate/admission regression set passed 248 tests;
+  four dispatcher integration cases passed. Synthetic cases retained all 93
+  mappings across 31 eligible groups each. These are boundary tests, not measured
+  native request counts, model availability or scientific acceptance. Lint,
+  type, wrapper-syntax and documentation checks also passed during development.
+- No new remote call, download, cache import, native submission or performance
+  optimisation has occurred. The actual distinct requested/missing object counts
+  remain to be measured after this export boundary is qualified and deployed.
+- Next run the named complete local gate with eight CPUs and two concurrent
+  groups, commit the focused export milestone, require exact-source CI, and
+  refresh/deploy only through the original reviewed client. Freeze both original
+  request inventories before completing bounded public-PDB prefetch/import.
+  Native MR/outcome, cached-resume, larger M6/RF and release gates remain open.

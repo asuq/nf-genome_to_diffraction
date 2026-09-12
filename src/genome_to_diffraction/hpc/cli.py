@@ -207,6 +207,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ):
         action = actions.add_parser(operation, help=help_text)
         action.add_argument("--run-id", required=True)
+        if operation == "collect":
+            action.add_argument(
+                "--coordinate-requests",
+                action="store_true",
+                help="freeze complete model requests from the failed Marmic control",
+            )
 
     logs = actions.add_parser("logs", help="retrieve a bounded log tail")
     logs.add_argument("--run-id", required=True)
@@ -410,6 +416,8 @@ def _run(args: argparse.Namespace, controller: HpcController) -> dict[str, objec
     if args.operation == "logs":
         return controller.logs(args.run_id, args.tail)
     if args.operation == "collect":
+        if args.coordinate_requests:
+            return controller.collect_coordinate_requests(args.run_id)
         return controller.collect(args.run_id)
     if args.operation == "review-collect":
         return controller.review_collect(args.run_id)

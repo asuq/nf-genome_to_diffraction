@@ -99,6 +99,39 @@ path argument is accepted. The requested line limit and 2-MiB byte limit still
 apply. A transport timeout does not authorise submission, retry or cleanup;
 terminal collection still requires authentic terminal or stage-failure evidence.
 
+For the approved missing-coordinate prerequisite, first collect the terminal
+failed Marmic native control normally, then use the same client:
+
+```text
+nf-gtd-hpc-test --config CONFIG collect --run-id RUN_ID --coordinate-requests
+```
+
+This read-only extension freezes a separate `coordinate-requests` snapshot;
+it refuses to overwrite that snapshot or the original `collected` evidence.
+Only the fixed C001/C025 control with both coordinate stages failed is supported.
+The dispatcher exports fixed, owned, link-free files from the completed plan,
+catalogue imports, model-policy and discovery-partition producers, plus the two
+recorded coordinate commands and original terminal/runner/trace evidence.
+No partial coordinate-stage outputs, truth labels, arbitrary paths or URLs are
+used. The archive is limited to 128 MiB per file and 512 MiB in total, with at
+most 64 regular members; exceeding a bound fails instead of truncating requests.
+
+Local validation checks the original collection, exact scientific source bytes,
+plan/source/database/runner checksums, case/catalogue/search joins and complete
+file inventory before publication. It reuses the original eligible-input and
+coordinate selectors to retain all accepted input hits and derive the complete
+three-hit-per-group request inventory. The production 25-hypothesis MR budget
+does not limit this acquisition inventory. The snapshot records its content ID,
+per-case and deduplicated PDB counts, and all original/derived file checksums.
+
+Collection neither downloads public models nor inspects or changes the shared
+coordinate cache. Use its measured inventory to qualify the separately approved
+bounded prefetch/import prerequisite; do not interpret request export as cached
+model availability, MR execution or native-control acceptance. The scientific
+controller remains offline and frozen search snapshots/thresholds are unchanged.
+Tests cover complete inventories beyond 25 mappings, producer and command joins,
+checksum/path/archive bounds, ownership/terminal guards and non-overwrite.
+
 The purpose is bound at staging and rechecked before submission and execution.
 It cannot select arbitrary cases, use leakage inputs, have an operational parent
 or run outside Marmic/Raven. Marmic uses its existing compute-node Slurm
