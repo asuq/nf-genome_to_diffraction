@@ -4887,6 +4887,12 @@ m6_staging_logs() {
     local directory candidate stage_log=m6-scientific-stage.log log_path=""
     local archive_state=absent archive_bytes=unavailable summary content log_bytes
     [[ "$profile" != m6-inputs ]] || stage_log=m6-inputs-stage.log
+    if [[ "$SITE_ID" == marmic && "$profile" == m6-native-control && \
+          "$phase" == staged && \
+          ( -e "$run/logs/m6-coordinate-inspection.log" || \
+            -L "$run/logs/m6-coordinate-inspection.log" ) ]]; then
+        stage_log=m6-coordinate-inspection.log
+    fi
     for directory in "$run" "$run/state" "$run/logs"; do
         [[ -d "$directory" && ! -L "$directory" && -O "$directory" && \
            "$(cd "$directory" && pwd -P)" == "$directory" ]] || \
@@ -5185,6 +5191,71 @@ EOF
     emit total_bytes "$total_bytes"
 }
 
+inspect_coordinate_cache_run() {
+    [[ "$#" -eq 7 ]] || \
+        fail wrapper_failure "inspect-coordinate-cache expects seven fixed arguments"
+    local new_id="$1" new_owner="$2" old_id="$3" old_owner="$4"
+    local archive_sha256="$5" archive_bytes="$6" inventory_sha256="$7"
+    local run original python inspection_log owned name
+    [[ "$SITE_ID" == marmic && -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
+       "$new_id" != "$old_id" && \
+       "$new_id" == gtd-m6-native-control-* && \
+       "$old_id" == gtd-m6-native-control-* && \
+       "$archive_sha256" =~ $CHECKSUM_RE && "$inventory_sha256" =~ $CHECKSUM_RE && \
+       "$archive_bytes" =~ $BYTE_COUNT_RE && ${#archive_bytes} -le 9 ]] || \
+        fail wrapper_failure "coordinate inspection arguments are outside the fixed scope"
+    (( archive_bytes >= 1 && archive_bytes <= MAX_REVIEW_TOTAL_BYTES + 2 * 1024 * 1024 )) || \
+        fail wrapper_failure "coordinate request archive exceeds the existing bound"
+    require_owned_run "$new_id" "$new_owner"
+    require_owned_run "$old_id" "$old_owner"
+    run="$(run_directory "$new_id")"
+    original="$(run_directory "$old_id")"
+    for owned in "$run" "$original"; do
+        [[ ! -L "$owned" && -O "$owned" && \
+           "$(cd "$owned" && pwd -P)" == "$owned" && \
+           -d "$owned/state" && ! -L "$owned/state" && -O "$owned/state" && \
+           -f "$owned/state/owner-id" && ! -L "$owned/state/owner-id" && \
+           -O "$owned/state/owner-id" ]] || \
+            fail wrapper_failure "coordinate inspection run ownership path is unsafe"
+        for name in profile phase site-id controller-kind m6-execution-purpose m6-track; do
+            [[ -f "$owned/state/$name" && ! -L "$owned/state/$name" && \
+               -O "$owned/state/$name" ]] || \
+                fail wrapper_failure "coordinate inspection fixed state is unsafe"
+        done
+        [[ "$(<"$owned/state/profile")" == m6-native-control && \
+           "$(<"$owned/state/site-id")" == marmic && \
+           "$(<"$owned/state/controller-kind")" == slurm_job && \
+           "$(<"$owned/state/m6-execution-purpose")" == native_control && \
+           "$(<"$owned/state/m6-track")" == operational ]] || \
+            fail wrapper_failure "coordinate inspection requires owned Marmic native controls"
+    done
+    [[ "$(<"$run/state/phase")" == staged && \
+       "$(<"$original/state/phase")" == completed && \
+       -f "$original/state/failure-class" && ! -L "$original/state/failure-class" && \
+       -O "$original/state/failure-class" && \
+       "$(<"$original/state/failure-class")" == test_failure ]] || \
+        fail wrapper_failure "coordinate inspection requires a staged new and failed original control"
+    for name in job-id job-result.json controller.json controller-result.json; do
+        [[ ! -e "$run/state/$name" && ! -L "$run/state/$name" ]] || \
+            fail wrapper_failure "coordinate inspection new run already has execution evidence"
+    done
+    [[ -d "$run/logs" && ! -L "$run/logs" && -O "$run/logs" && \
+       -d "$run/source" && ! -L "$run/source" && -O "$run/source" ]] || \
+        fail wrapper_failure "coordinate inspection new source or log directory is unsafe"
+    inspection_log="$run/logs/m6-coordinate-inspection.log"
+    if [[ -e "$inspection_log" || -L "$inspection_log" ]]; then
+        [[ -f "$inspection_log" && ! -L "$inspection_log" && -O "$inspection_log" ]] || \
+            fail wrapper_failure "coordinate inspection log is unsafe"
+    fi
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || fail environment_failure "coordinate inspection lacks its new pinned runtime"
+    PYTHONPATH="$run/source/src" PYTHONDONTWRITEBYTECODE=1 GIT_OPTIONAL_LOCKS=0 \
+        "$python" -P -m genome_to_diffraction.hpc.m6_coordinate_inspection \
+        "$run" "$new_owner" "$original" "$old_owner" \
+        "$archive_sha256" "$archive_bytes" "$inventory_sha256" \
+        2>> "$inspection_log"
+}
+
 collect_coordinate_requests() {
     [[ "$#" -eq 2 ]] || \
         fail wrapper_failure "collect-coordinate-requests expects run ID and owner ID"
@@ -5455,6 +5526,7 @@ collect_run() {
         logs/control-matrix.log \
         logs/m6-inputs-stage.log \
         logs/m6-scientific-stage.log \
+        logs/m6-coordinate-inspection.log \
         logs/m6-inputs.log \
         logs/m6-nextflow-smoke.log \
         logs/m6-native-control.log \
@@ -7404,6 +7476,7 @@ main() {
         logs) logs_run "$@" ;;
         collect) collect_run "$@" ;;
         collect-coordinate-requests) collect_coordinate_requests "$@" ;;
+        inspect-coordinate-cache) inspect_coordinate_cache_run "$@" ;;
         review-collect) review_collect_run "$@" ;;
         t12-review-collect) t12_review_collect_run "$@" ;;
         cancel) cancel_run "$@" ;;
