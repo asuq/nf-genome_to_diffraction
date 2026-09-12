@@ -4889,6 +4889,11 @@ m6_staging_logs() {
     [[ "$profile" != m6-inputs ]] || stage_log=m6-inputs-stage.log
     if [[ "$SITE_ID" == marmic && "$profile" == m6-native-control && \
           "$phase" == staged && \
+          ( -e "$run/logs/m6-coordinate-import.log" || \
+            -L "$run/logs/m6-coordinate-import.log" ) ]]; then
+        stage_log=m6-coordinate-import.log
+    elif [[ "$SITE_ID" == marmic && "$profile" == m6-native-control && \
+          "$phase" == staged && \
           ( -e "$run/logs/m6-coordinate-inspection.log" || \
             -L "$run/logs/m6-coordinate-inspection.log" ) ]]; then
         stage_log=m6-coordinate-inspection.log
@@ -5189,6 +5194,54 @@ EOF
     emit file_count "$file_count"
     emit symlink_count "$symlink_count"
     emit total_bytes "$total_bytes"
+}
+
+coordinate_import_run() {
+    local operation="$1"
+    shift
+    [[ ( "$operation" == preflight && "$#" -eq 5 ) || \
+       ( "$operation" == import && "$#" -eq 8 ) ]] || \
+        fail wrapper_failure "coordinate storage/import expects its fixed scalar arguments"
+    local new_id="$1" new_owner="$2" old_id="$3" old_owner="$4" inspection_sha="$5"
+    local run original owned name python import_log
+    [[ "$SITE_ID" == marmic && -f "$SITE_CONFIG" && ! -L "$SITE_CONFIG" && \
+       "$new_id" != "$old_id" && "$new_id" == gtd-m6-native-control-* && \
+       "$old_id" == gtd-m6-native-control-* && "$inspection_sha" =~ $CHECKSUM_RE ]] || \
+        fail wrapper_failure "coordinate storage/import scope or inspection checksum is invalid"
+    if [[ "$operation" == import ]]; then
+        [[ "$6" =~ $CHECKSUM_RE && "$8" =~ $CHECKSUM_RE && \
+           "$7" =~ $BYTE_COUNT_RE && ${#7} -le 10 ]] || \
+            fail wrapper_failure "coordinate import archive arguments are invalid"
+        (( $7 >= 1 && $7 <= 3 * 1024 * 1024 * 1024 + 256 * 1024 * 1024 )) || \
+            fail wrapper_failure "coordinate import archive exceeds the approved bound"
+    fi
+    require_owned_run "$new_id" "$new_owner"
+    require_owned_run "$old_id" "$old_owner"
+    run="$(run_directory "$new_id")"
+    original="$(run_directory "$old_id")"
+    for owned in "$run" "$original"; do
+        [[ ! -L "$owned" && -O "$owned" && "$(cd "$owned" && pwd -P)" == "$owned" ]] || \
+            fail wrapper_failure "coordinate import owned run path is unsafe"
+        for name in state source logs artifacts; do
+            [[ -d "$owned/$name" && ! -L "$owned/$name" && -O "$owned/$name" ]] || \
+                fail wrapper_failure "coordinate import owned directory is unsafe"
+        done
+        [[ -f "$owned/state/owner-id" && ! -L "$owned/state/owner-id" && \
+           -O "$owned/state/owner-id" ]] || \
+            fail wrapper_failure "coordinate import ownership record is unsafe"
+    done
+    import_log="$run/logs/m6-coordinate-import.log"
+    if [[ -e "$import_log" || -L "$import_log" ]]; then
+        [[ -f "$import_log" && ! -L "$import_log" && -O "$import_log" ]] || \
+            fail wrapper_failure "coordinate import log is unsafe"
+    fi
+    python="$run/source/.pixi/envs/hpc/bin/python"
+    [[ -x "$python" ]] || fail environment_failure "coordinate import lacks its fresh pinned runtime"
+    shift 5
+    PYTHONPATH="$run/source/src" PYTHONDONTWRITEBYTECODE=1 GIT_OPTIONAL_LOCKS=0 \
+        "$python" -P -m genome_to_diffraction.hpc.m6_coordinate_import \
+        "$operation" "$run" "$new_owner" "$original" "$old_owner" "$inspection_sha" \
+        "$@" 2>> "$import_log"
 }
 
 inspect_coordinate_cache_run() {
@@ -5527,6 +5580,7 @@ collect_run() {
         logs/m6-inputs-stage.log \
         logs/m6-scientific-stage.log \
         logs/m6-coordinate-inspection.log \
+        logs/m6-coordinate-import.log \
         logs/m6-inputs.log \
         logs/m6-nextflow-smoke.log \
         logs/m6-native-control.log \
@@ -5823,6 +5877,12 @@ collect_run() {
         artifacts/qualification/m6-native-control-summary.json \
         artifacts/qualification/m6-native-control-output-verification.json \
         artifacts/qualification/m6-native-control-checksums.sha256 \
+        artifacts/m6-coordinate-import/attempt.json \
+        artifacts/m6-coordinate-import/storage_preflight.json \
+        artifacts/m6-coordinate-import/proposed_inspection.json \
+        artifacts/m6-coordinate-import/publication_receipts.jsonl \
+        artifacts/m6-coordinate-import/postinspection.json \
+        artifacts/m6-coordinate-import/import_bundle.json \
         artifacts/qualification/m6-case-results.jsonl \
         artifacts/qualification/m6-candidate-rankings.jsonl.gz \
         artifacts/qualification/m6-model-policy-results.jsonl \
@@ -7477,6 +7537,8 @@ main() {
         collect) collect_run "$@" ;;
         collect-coordinate-requests) collect_coordinate_requests "$@" ;;
         inspect-coordinate-cache) inspect_coordinate_cache_run "$@" ;;
+        coordinate-import-preflight) coordinate_import_run preflight "$@" ;;
+        import-coordinate-cache) coordinate_import_run import "$@" ;;
         review-collect) review_collect_run "$@" ;;
         t12-review-collect) t12_review_collect_run "$@" ;;
         cancel) cancel_run "$@" ;;
