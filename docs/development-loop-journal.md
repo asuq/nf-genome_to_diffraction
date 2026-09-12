@@ -18026,3 +18026,27 @@ with a collapsed combined parent or a guessed command.
   it, raise the cap, change the search snapshots or bypass source/CI validation.
   No coordinates were downloaded or imported, no native job was submitted, and
   Raven and the separate successor worktree remain untouched.
+
+## 2026-09-13 - Bounded diagnostics for the unchanged coordinate layout guard
+
+- Added missing-entry count, raw per-role statvfs fragment sizes, estimated
+  artifact/cache/total peaks and the existing reserve/cap values to the owned
+  layout-failure message. The comparison, eight/four-GiB reserve split, 12-GiB
+  total, coordinate limits and successful report format are unchanged. This
+  supplies evidence for diagnosis; it does not admit a previously rejected
+  layout, claim actual free-space exhaustion or change scientific behaviour.
+- Two full-count regressions use 4,195 synthetic IDs and explicit hypothetical
+  filesystem geometries, including different artifact/cache fragment sizes.
+  Both failed first because the old error omitted the required numeric details.
+  They now verify exact arithmetic, a bounded ASCII message without paths or
+  ownership identifiers, unchanged rejection and no filesystem writes.
+- All 153 focused import/client/prefetch/archive tests passed in 18.36 seconds
+  with four workers and one numerical thread. Lint and targeted type checks
+  pass. The hypothetical geometries remain distinct from unmeasured Marmic
+  values; no budget reassignment, larger allowance, write probe or fallback
+  was introduced.
+- Next qualify the diagnostic source and generated atlas before private CI and
+  the original immutable deployment/staging cycle. Obtain the actual per-role
+  estimates before selecting any accounting correction. Preserve the staged
+  run and failed preflight; no public downloads, import or native submission
+  have occurred. Continue alone under the existing command boundaries.

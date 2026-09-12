@@ -7,8 +7,9 @@ import json
 import shutil
 import sys
 import tarfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -126,6 +127,69 @@ def test_storage_preflight_is_read_only_and_aggregates_real_devices(
         "m6coordstorage_",
         {key: value for key, value in report.items() if key != "preflight_id"},
     )
+    assert _file_digests(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    ("artifact_unit", "cache_unit", "artifact_peak", "cache_peak"),
+    [
+        (4096, 32768, 8072474624, 4610427904),
+        (1048576, 1048576, 12487491584, 39221038080),
+    ],
+)
+def test_full_count_layout_failure_reports_bounded_arithmetic_without_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    artifact_unit: int,
+    cache_unit: int,
+    artifact_peak: int,
+    cache_peak: int,
+) -> None:
+    fixture = _import_fixture(tmp_path)
+    context = remote._context(
+        fixture.base.new,
+        fixture.base.old,
+        NEW_OWNER,
+        OLD_OWNER,
+        fixture.inspection_sha,
+    )
+    # Isolate layout arithmetic at the real inventory's cardinality.
+    context = replace(
+        context,
+        report=context.report.model_copy(
+            update={
+                "missing_pdb_ids": [f"{index + 0x1000:04X}" for index in range(4195)]
+            }
+        ),
+    )
+    units = {
+        context.new / "artifacts": artifact_unit,
+        context.cache_root: cache_unit,
+    }
+    monkeypatch.setattr(
+        remote, "_filesystem", lambda path: (1, path.stat().st_ino, 100 * 1024**3)
+    )
+    monkeypatch.setattr(
+        remote.os, "statvfs", lambda path: SimpleNamespace(f_frsize=units[path])
+    )
+    before = _file_digests(tmp_path)
+    with pytest.raises(ValidationError, match="declared layout") as caught:
+        remote._Space(context)
+    message = str(caught.value)
+    expected = {
+        "missing_pdb_count": 4195,
+        "artifacts_frsize_bytes": artifact_unit,
+        "cache_frsize_bytes": cache_unit,
+        "artifacts_estimated_peak_bytes": artifact_peak,
+        "cache_estimated_peak_bytes": cache_peak,
+        "total_estimated_peak_bytes": artifact_peak + cache_peak,
+        "artifacts_reserve_bytes": 8 * 1024**3,
+        "cache_reserve_bytes": 4 * 1024**3,
+        "additional_disk_limit_bytes": 12 * 1024**3,
+    }
+    assert all(f"{key}={value}" in message for key, value in expected.items())
+    assert len(message.encode("ascii")) < 1024
+    assert all(value not in message for value in (NEW_OWNER, OLD_OWNER, str(tmp_path)))
     assert _file_digests(tmp_path) == before
 
 

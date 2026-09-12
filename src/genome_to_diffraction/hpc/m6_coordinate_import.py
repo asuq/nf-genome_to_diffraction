@@ -5,6 +5,8 @@ original failed producer. Storage preflight observes available filesystem space;
 it is not a reservation or quota guarantee. The approved 12 GiB additional-disk
 budget is split into 8 GiB for archive/extraction/control reports and 4 GiB for
 cache objects/atomic publication/metadata. Shared devices require the sum.
+Rejected layouts report the raw statvfs fragment sizes and estimated peaks in
+the owned failure log. These diagnostics are not a free-space or quota guarantee.
 
 Import accepts only the exact plain TAR manifest and missing-ID object inventory.
 All objects, proposed mappings and publication destinations pass core validation
@@ -240,6 +242,15 @@ class _Space:
         if artifact_peak > ARTIFACT_RESERVE_BYTES or cache_peak > CACHE_RESERVE_BYTES:
             raise ValidationError(
                 "coordinate import declared layout cannot fit the approved disk budget"
+                f"; missing_pdb_count={count}"
+                f" artifacts_frsize_bytes={units['artifacts']}"
+                f" cache_frsize_bytes={units['cache']}"
+                f" artifacts_estimated_peak_bytes={artifact_peak}"
+                f" cache_estimated_peak_bytes={cache_peak}"
+                f" total_estimated_peak_bytes={artifact_peak + cache_peak}"
+                f" artifacts_reserve_bytes={ARTIFACT_RESERVE_BYTES}"
+                f" cache_reserve_bytes={CACHE_RESERVE_BYTES}"
+                f" additional_disk_limit_bytes={MAX_ADDITIONAL_DISK_BYTES}"
             )
 
     def _paths(self, role: _Role, paths: Iterable[Path]) -> set[Path]:
