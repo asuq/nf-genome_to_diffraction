@@ -17361,3 +17361,34 @@ with a collapsed combined parent or a guessed command.
   run. Its transfer cause remains unestablished. Do not retry, submit, extend
   timeouts or clean up before diagnosis; native outcomes, measured resources,
   output freezing, truth isolation and cached resume still gate larger work.
+
+## 2026-09-12 - Marmic native control started after observed transfer recovery
+
+- All six exact-source CI jobs passed for `a590f78b`, run `34657356134`;
+  the unit job took 13m19s. Deployed the checksum-verified diagnostic dispatcher
+  through the original Marmic client. The installed client, scientific job
+  wrapper and recovery tool stayed byte-identical.
+- The preserved incomplete run contained 28,663,808 of the expected 118,138,880
+  runner-archive bytes, with environment installation complete and no import
+  log. This localises its failure before full transfer and validation; the
+  precise reason for the slow or interrupted transfer remains unestablished.
+  Its stale importing state was not reclassified as terminal evidence.
+- Made one controlled staging reattempt to observe transfer progress under the
+  unchanged 900-second limit, using the same confirmed archive and qualified
+  source. Its source archive was 33,228,800 bytes; the combined stream was
+  151,367,680 bytes. Observed source staging, then an installed environment and
+  5,349,376 received runner bytes, followed by fully verified staging in about
+  4m40s. All 63 cases and 65 objects passed archive validation. No timeout,
+  transport algorithm, scientific/resource setting or cache key changed; this
+  successful reattempt does not establish the earlier failure's root cause.
+- Submitted only the approved fixed C001/C025 Marmic native control from
+  `a590f78b`. Its compute-node controller is running, all seven Phenix command
+  probes passed, and the first Nextflow plan, preflight and catalogue tasks
+  were submitted. No native scientific outcome or acceptance is claimed yet.
+  The older incomplete Marmic run and original Raven run remain untouched.
+- Next monitor this immutable owned run through the original client, collect
+  terminal evidence and freeze outputs before truth comparison. Require actual
+  positive/absent outcomes, complete tool and measured resource evidence, and
+  fully cached equivalent resume before any larger benchmark. Retain the older
+  Marmic database snapshot explicitly. Continue the separate three-hour Raven
+  observations; no cancelled investigation or GPU work has been reopened.
