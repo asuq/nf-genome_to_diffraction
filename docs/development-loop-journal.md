@@ -17995,3 +17995,34 @@ with a collapsed combined parent or a guessed command.
   first, then follow the qualified complete-coordinate-cache and native-control/
   cached-resume sequence. No public coordinate bodies, scientific jobs, real
   HPC limit changes or Raven restarts were introduced by this local gate.
+
+## 2026-09-12 - Exact CI and Marmic staging pass; coordinate storage preflight held
+
+- All six CI groups passed on the qualified atlas/evidence revision. Rebuilt the
+  original client and deployed checksum-verified tools to Marmic through its
+  existing bounded recovery route; no new command or raw-SSH authority was used.
+- The preserved partial run had completed source/environment staging 915 seconds
+  after its stage-start event but had no runner archive, manifest or six runner
+  state fields. This is consistent with the previously observed 900-second
+  combined-stage timeout. Its evidence was preserved without repair or submission.
+- Fresh immutable staging passed with the same runner archive and all 63 cases/
+  65 objects authenticated. Only the fixed two-case native control is selected
+  for later execution. Its runner-ready event and complete nonempty runner state
+  were verified; the existing Marmic resource and 24-hour policies are unchanged.
+- Complete coordinate inspection passed: 17,412 requested mappings across the
+  two controls, zero cached mappings and 4,195 distinct missing PDB entries.
+  The original request inventory and frozen search databases remain unchanged.
+- The first prefetch attempt failed closed in remote storage preflight, before
+  local prefetch evidence or any public coordinate acquisition. The owned log
+  identifies the declared-layout check against the internal eight-GiB artifact/
+  four-GiB cache split of the approved 12-GiB total, not an authenticated report
+  of actual free-space exhaustion. Allocation units and computed per-role peaks
+  were not recorded, so actual filesystem feasibility is still unknown.
+- Read-only arithmetic shows that some hypothetical filesystem geometries can
+  exceed the fixed split while fitting the total cap. This is not a measurement
+  of Marmic and does not justify changing its limits. Next obtain bounded layout
+  diagnostics and qualify any justified accounting correction through the
+  original-client route. Preserve the failed preflight; do not blindly repeat
+  it, raise the cap, change the search snapshots or bypass source/CI validation.
+  No coordinates were downloaded or imported, no native job was submitted, and
+  Raven and the separate successor worktree remain untouched.
