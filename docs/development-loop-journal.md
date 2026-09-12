@@ -17913,3 +17913,37 @@ with a collapsed combined parent or a guessed command.
   new frozen-source complete gate before exact-source CI and deployment. Coordinate
   import, native control/resume and all downstream scientific/release gates remain
   open. Continue alone, without changing remote command permissions.
+
+## 2026-09-12 - Approved mock guards pass integration; remaining unit guards time out
+
+- The complete gate finished after 3,438.963 seconds with 24 of 25 checks
+  passing. All 176 integration tests, 185 contract tests, quality/package checks
+  and scientific workflow stubs passed. Both previously timing-out heteromer
+  tests now pass with the explicitly approved 120-second guards.
+- Unit testing recorded 2,151 passes and four subprocess timeouts: the fixed
+  coordinate-inspection dispatcher check exceeded its unchanged 30-second
+  guard; cross-authority rejection and the two missing-localisation-authority
+  Nextflow checks exceeded their unchanged 60-second guards. Those call sites
+  and their functional assertions were not changed by the heteromer patch.
+  Preserve this as a failed full gate, not a scientific or deployment pass.
+- All 1,326 source inputs stayed unchanged throughout the complete gate and
+  subsequent focused observation. Source-manifest SHA-256:
+  `987b49a2747e825bb33b3bb947240e4272a48022deef688c914bc008b4763f84`.
+  Complete-gate log SHA-256:
+  `78e851f4f0fe7864a78905c2a0220f053ed8a1a3dbf8e9f88a6d22c474d2fce5`.
+- After the full gate closed, the four failing tests passed unchanged in
+  33.65 seconds with fresh owned state, four workers, one numerical thread,
+  two-GiB Nextflow heaps and the original 30/60-second guards. The complete
+  test-call durations were 13.821 seconds for coordinate inspection, 17.070
+  seconds for the two-command authority check, and 7.193/6.401 seconds for the
+  two missing-authority checks. These observations do not identify a production
+  defect or establish the cause of the full-workload slowdown.
+- High aggregate host load and substantial memory compression were observed;
+  no process attribution was performed. No other guards, production commands,
+  scientific assertions, resources or permissions were changed. No further full
+  gate, push, deployment, coordinate acquisition/import or scientific submission
+  followed. Raven remains terminal failed and untouched.
+- Next resolve the remaining whole-command test-guard policy before another
+  complete qualification. Keep the approved heteromer change, all failed and
+  passing evidence, frozen search snapshots, complete-cache/native-control/resume
+  gates and the primary-agent-only restriction intact.
