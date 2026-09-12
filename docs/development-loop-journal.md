@@ -17843,3 +17843,49 @@ with a collapsed combined parent or a guessed command.
   source CI and original-client deployment. Then inspect the retained Marmic
   attempt; do not retry, repair or launch science before the
   actual missing-state/timing evidence supports the next action. Continue alone.
+
+## 2026-09-12 - Combined qualification held after two distinct mock-command timeouts
+
+- Regenerated the 495-file main atlas against implementation `3284c256` and
+  completed the combined first-copy/staging-diagnostic gate. The first attempt
+  passed 24 of 25 checks in 2,177.589 seconds; its unchanged heteromer collection
+  call exceeded the test helper's existing 30-second deadline. All 2,155 unit
+  tests, 185 contract tests and workflow stubs passed; integration passed 171
+  tests and failed that one. No full-gate success is claimed.
+- Timed the exact unchanged collection test alone: it passed in 21.26 seconds,
+  with collection taking 7.933 seconds. One explicit full-gate repeat then passed
+  24 of 25 checks in 2,239.189 seconds. This time the original collection test
+  passed, while the P6 conditional-no-hit-assets test exceeded the same existing
+  deadline during its mocked smoke-job call. Integration again passed 171 and
+  failed one; all 2,155 unit tests, 185 contract tests and other checks passed.
+- Both full attempts used eight local CPUs, two concurrent groups, four workers
+  per group, one numerical thread and two-GiB Nextflow heaps. Both captured the
+  same 1,326 unchanged source inputs. Source-manifest SHA-256:
+  `e5bdaf66c5ff8f072a1c11a2cbb861033e2bc8831ab1a1a52dc98c7afdf140d9`.
+  Gate-log SHA-256 values, first then repeat:
+  `e0ce3ffe23ba8f7df37d0d2736d5149abc3d6f5cc9a5929fa6fdfe1b6d6ebfd4`
+  and `983370d263c32ab6860e49fa07cd28fb43db654818aad823a608ba4c51193d12`.
+- The second failed test and smoke-job script are unchanged from qualified
+  `a494d2a9`; its retained log reached the late mocked 9ECN phase. The original
+  collection call is also unchanged. These are local mocked-command timeouts,
+  not evidence that native Phenix or scientific acceptance failed or passed.
+- After the complete repeat finished, both affected tests passed unchanged in
+  27.21 seconds when timed serially: smoke calls took 3.126-3.357 seconds and
+  collection 5.227-5.269 seconds. Four independent one-worker cohorts then passed
+  all eight tests concurrently, in 51.73-52.55 seconds per cohort; the maximum
+  smoke and collection durations were 6.857 and 9.977 seconds respectively.
+  All observations retained the same source manifest, original assertions,
+  original 30-second deadlines and fresh test-owned state. No competing full
+  gate or native scientific job was running during those focused observations.
+- High host load was observed during full validation, but its source and causal
+  role remain unproven. The small concurrent comparison did not reproduce the
+  full-run timeout. Do not infer a production fix, relabel either failed gate,
+  weaken assertions or increase deadlines speculatively. No third full gate,
+  push, deployment, Marmic restaging, coordinate acquisition/import or scientific
+  submission occurred. Raven remains terminal failed and untouched.
+- Next investigate the command-timeout behaviour under the full-test workload
+  with bounded measurements, accounting for other host work if present. Preserve
+  all failed evidence and qualify any justified harness correction before the
+  next complete gate. Original-client staging diagnostics, complete coordinate
+  qualification, native control/resume, RF/M6, rank recovery and release remain
+  open. Continue with the primary agent alone.
