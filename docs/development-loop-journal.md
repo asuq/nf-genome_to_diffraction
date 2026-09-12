@@ -17947,3 +17947,25 @@ with a collapsed combined parent or a guessed command.
   complete qualification. Keep the approved heteromer change, all failed and
   passing evidence, frozen search snapshots, complete-cache/native-control/resume
   gates and the primary-agent-only restriction intact.
+
+## 2026-09-12 - Approved extension to the remaining four whole-command checks
+
+- The user explicitly approved the same 120-second test-only guard for the four
+  remaining timeout failures, keeping real HPC limits unchanged. Applied it to
+  fixed coordinate inspection and its replay-refusal call, both invocations in
+  the cross-authority rejection check, and the two missing-localisation-authority
+  cases. These are four selected test cases, not a global default increase.
+- The helper's 30-second default, deliberate 0.1-second hang regression, other
+  command limits, scientific assertions, production scripts and HPC/Phenix
+  resource/deadline policies remain unchanged. Expected rejection, empty
+  execution traces, authenticated archive membership, old-run immutability and
+  replay refusal are still required; a timeout cannot satisfy these assertions.
+- All nine focused tests passed in 20.40 seconds with four workers, one numerical
+  thread and two-GiB/four-processor Nextflow settings. This includes the four
+  changed cases, four timeout-forwarding cases and real short hang detection.
+  Lint, formatting, targeted type checks and whitespace checks pass.
+- Next regenerate the atlas and run one complete frozen-source gate at the
+  existing eight-CPU/two-group budget. Preserve the earlier failed full gate and
+  unchanged-isolation evidence. Do not push, deploy, import coordinates or start
+  native scientific execution before the full local and exact-source CI gates
+  genuinely pass. Continue with the primary agent alone.

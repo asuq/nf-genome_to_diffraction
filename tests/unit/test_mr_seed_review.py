@@ -1934,6 +1934,7 @@ def test_application_roots_reject_cross_authority_parameters(tmp_path: Path) -> 
         ),
     )
     for command, expected_error, output in invocations:
+        # Allow full application startup/shutdown; still require actual rejection.
         result = subprocess.run(
             command,
             cwd=REPOSITORY,
@@ -1941,7 +1942,7 @@ def test_application_roots_reject_cross_authority_parameters(tmp_path: Path) -> 
             capture_output=True,
             text=True,
             check=False,
-            timeout=60,
+            timeout=120,
         )
         assert result.returncode != 0
         assert expected_error in f"{result.stdout}\n{result.stderr}"
@@ -2014,7 +2015,7 @@ def test_phase3_application_refuses_missing_localisation_authority(
         capture_output=True,
         text=True,
         check=False,
-        timeout=60,
+        timeout=120,
     )
 
     assert result.returncode != 0

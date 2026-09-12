@@ -347,6 +347,13 @@ assertion. This does not change real HPC/Phenix deadlines, permit unbounded
 execution or retries, or convert earlier failed gates into successful ones.
 Require a complete passing validation run after this bounded harness change.
 
+The user then explicitly extended the same 120-second test-only guard to four
+additional checks: fixed coordinate inspection (including replay refusal),
+cross-authority parameter rejection, and both missing-localisation-authority
+Nextflow cases. Keep their failure/mutation assertions, the shorter helper
+default and deliberate short-timeout regression. Real HPC/Phenix deadlines and
+scientific policy remain unchanged; a complete passing gate is still required.
+
 The pipeline narrows candidates. It is not required to force one exact sequence or one unique locus. Exact duplicate protein sequences form one sequence-equivalence group linked to every compatible locus.
 
 The protein catalogue is imported and trusted. Genetic-code inference, taxonomy assignment, and gene prediction are out of scope.

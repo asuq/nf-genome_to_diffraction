@@ -360,11 +360,13 @@ def test_new_pinned_module_runs_through_actual_fixed_dispatcher(tmp_path: Path) 
         str(len(fixture.request)),
         fixture.inventory_sha256,
     ]
+    # Full-source mock checks use the approved bounded test-only hang guard.
     result = _run(
         command,
         cwd=tmp_path,
         environment=environment,
         input_data=fixture.request,
+        timeout_seconds=120.0,
     )
     assert _file_digests(fixture.old) == old_before
     with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:gz") as archive:
@@ -378,6 +380,7 @@ def test_new_pinned_module_runs_through_actual_fixed_dispatcher(tmp_path: Path) 
         environment=environment,
         input_data=fixture.request,
         success=False,
+        timeout_seconds=120.0,
     )
     assert _decode_remote_fields(replay.stdout)["failure_class"] == "wrapper_failure"
     logs = _run(
