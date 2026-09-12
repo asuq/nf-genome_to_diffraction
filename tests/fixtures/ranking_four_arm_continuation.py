@@ -187,9 +187,30 @@ def _request(
     if type(request.threads) is not int or request.threads < 1:
         raise ValueError("reference copy threads must be a positive integer")
     materialisation, admission, reviews = _context(request.inputs)
+    return _request_from_context(
+        request,
+        materialisation=materialisation,
+        admission=admission,
+        reviews=reviews,
+        tasks=_tasks(request.inputs, materialisation, admission, reviews),
+    )
+
+
+def _request_from_context(
+    request: ReferencePreparedCopyRequest,
+    *,
+    materialisation: Path,
+    admission: DiverseFirstCopyFunnelRequest,
+    reviews: ReferenceReviews,
+    tasks: tuple[ReferenceCopyTask, ...],
+) -> tuple[ReferenceCopyTask, AddCopyRunRequest, DiverseFirstCopyFunnelRequest, Path]:
+    """Resolve one request against a union authenticated within the caller's join."""
+
+    if type(request.threads) is not int or request.threads < 1:
+        raise ValueError("reference copy threads must be a positive integer")
     matches = tuple(
         task
-        for task in _tasks(request.inputs, materialisation, admission, reviews)
+        for task in tasks
         if task.admission_prior == request.admission_prior
         and task.seed_solution_id == request.seed_solution_id
     )
@@ -350,6 +371,28 @@ def validate_prepared_reference_copy_task(
 ) -> ReferencePreparedCopyReceipt:
     """Rederive the prior-bound task and validate its original native chain."""
 
+    task, native, admission, authority = _request(request)
+    return _validate_prepared_reference_copy_outputs(
+        path,
+        request,
+        task=task,
+        native=native,
+        admission=admission,
+        authority=authority,
+    )
+
+
+def _validate_prepared_reference_copy_outputs(
+    path: Path,
+    request: ReferencePreparedCopyRequest,
+    *,
+    task: ReferenceCopyTask,
+    native: AddCopyRunRequest,
+    admission: DiverseFirstCopyFunnelRequest,
+    authority: Path,
+) -> ReferencePreparedCopyReceipt:
+    """Validate every native byte against the caller's authenticated copy request."""
+
     if (
         path.is_symlink()
         or path.name != _MANIFEST
@@ -358,7 +401,6 @@ def validate_prepared_reference_copy_task(
     ):
         raise ValueError("reference copy requires its owned canonical receipt")
     receipt = ReferencePreparedCopyReceipt.model_validate_json(path.read_bytes())
-    task, native, admission, authority = _request(request)
     native_digest, count = _native_binding(native, admission, authority)
     inputs = _input_digests(request.inputs)
     source = _source_sha256()

@@ -14,6 +14,10 @@ original receipts, so rehashing an altered parent cannot authenticate it. Empty
 admission and empty recommendations remain explicit; no refinement, sequence
 identity or native success is invented. Tests use simulated copy evidence;
 native refinement and fixed-route/resume qualification remain outstanding.
+
+One assembly authenticates the complete continuation context at entry and exit,
+while validating every native copy receipt against that call-local context.
+No validation state or checksum result survives the call or crosses task boundaries.
 """
 
 import shutil
@@ -29,9 +33,9 @@ from tests.fixtures.ranking_four_arm_continuation import (
     ReferencePreparedCopyRequest,
     _context,
     _input_digests,
-    _request,
+    _request_from_context,
     _tasks,
-    validate_prepared_reference_copy_task,
+    _validate_prepared_reference_copy_outputs,
 )
 from tests.fixtures.ranking_four_arm_plan import _inventory
 from tests.fixtures.ranking_four_arm_reference import AdmissionPrior
@@ -93,7 +97,10 @@ class _DerivedFinalists:
 def _derive(
     inputs: ReferenceContinuationInputs, copy_receipts: tuple[Path, ...]
 ) -> _DerivedFinalists:
-    materialisation, admission, reviews = _context(inputs)
+    source = _source_sha256()
+    context = _context(inputs)
+    original_inputs = _input_digests(inputs)
+    materialisation, admission, reviews = context
     expected_tasks = _tasks(inputs, materialisation, admission, reviews)
     expected = {
         (task.admission_prior, task.seed_solution_id) for task in expected_tasks
@@ -122,7 +129,7 @@ def _derive(
     evidence: dict[AdmissionPrior, list[ReferenceCopyEvidence]] = {
         row.admission_prior: [] for row in reviews.cohorts
     }
-    digests = _input_digests(inputs)
+    digests = dict(original_inputs)
     files: dict[str, Path] = {}
     documents: dict[str, dict[str, object]] = {}
     tasks: list[ReferenceFinalist] = []
@@ -141,8 +148,21 @@ def _derive(
             threads=receipt.threads,
             output_directory=path.parent,
         )
-        validate_prepared_reference_copy_task(path, request)
-        _, native, _, _ = _request(request)
+        copy_task, native, _, authority = _request_from_context(
+            request,
+            materialisation=materialisation,
+            admission=admission,
+            reviews=reviews,
+            tasks=expected_tasks,
+        )
+        _validate_prepared_reference_copy_outputs(
+            path,
+            request,
+            task=copy_task,
+            native=native,
+            admission=admission,
+            authority=authority,
+        )
         evidence[prior].append(ReferenceCopyEvidence(native, path.parent))
         digests[f"copy_receipt/{prior}/{seed_id}"] = sha256_file(path)
         parent = _object(path.parent / "best_parent.json")
@@ -200,6 +220,17 @@ def _derive(
                 copy_evidence=tuple(evidence[prior]),
             )
         )
+    # Recheck the complete original graph and raw manifest bytes, not only the
+    # parsed context or this join's retained parents. Nothing is cached across calls.
+    after = _context(inputs)
+    after_tasks = _tasks(inputs, *after)
+    if (
+        after != context
+        or after_tasks != expected_tasks
+        or _input_digests(inputs) != original_inputs
+        or _source_sha256() != source
+    ):
+        raise ValueError("reference finalist upstream context changed during assembly")
     return _DerivedFinalists(
         preflight.crystal_id,
         tuple(tasks),

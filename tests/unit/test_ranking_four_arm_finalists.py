@@ -2,12 +2,18 @@
 
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
+import tests.fixtures.ranking_four_arm_finalists as finalists_module
 from genome_to_diffraction.checksums import atomic_write_json, sha256_file
 from genome_to_diffraction.ids import content_id
+from genome_to_diffraction.mr.add_copy import AddCopyRunRequest
+from genome_to_diffraction.ranking import DiverseFirstCopyFunnelRequest
 from tests.fixtures.ranking_four_arm_continuation import (
+    ReferenceCopyTask,
+    ReferencePreparedCopyReceipt,
     ReferencePreparedCopyRequest,
     reference_copy_tasks,
     run_prepared_reference_copy_task,
@@ -39,10 +45,15 @@ def test_reference_finalists_require_actual_complete_prior_bound_copy_union(
         )
         for index, task in enumerate(tasks)
     )
+    upstream_checks = Mock(wraps=finalists_module._context)
+    monkeypatch.setattr(finalists_module, "_context", upstream_checks)
     path = build_reference_finalists(
         inputs, copy_receipts=receipts, output=tmp_path / "finalists"
     )
     manifest = validate_reference_finalists(path, inputs, copy_receipts=receipts)
+    # Construction, its final check and explicit replay each authenticate the
+    # whole original context at entry and exit, independent of the receipt count.
+    assert upstream_checks.call_count == 6
     assert len(manifest.tasks) == len(tasks)
     assert not manifest.refinement_executed
     assert not manifest.human_approval_granted
@@ -91,6 +102,76 @@ def test_reference_finalists_require_actual_complete_prior_bound_copy_union(
     atomic_write_json(path, document)
     with pytest.raises(ValueError, match="tasks, stages or frozen inputs changed"):
         validate_reference_finalists(path, inputs, copy_receipts=receipts)
+
+
+@pytest.mark.parametrize("mutation", ("original_first_copy_log", "review_bytes"))
+def test_reference_finalists_reauthenticate_upstream_after_last_copy_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    inputs = _inputs(tmp_path, monkeypatch)
+    tasks = reference_copy_tasks(inputs)
+    _fake_runtime(monkeypatch, log_text=NO_SOLUTION_LOG, write_solution=False)
+    receipts = tuple(
+        run_prepared_reference_copy_task(
+            ReferencePreparedCopyRequest(
+                inputs=inputs,
+                admission_prior=task.admission_prior,
+                seed_solution_id=task.seed_solution_id,
+                threads=16,
+                output_directory=tmp_path / f"simulated-copy-{index}",
+            )
+        )
+        for index, task in enumerate(tasks)
+    )
+    original_validate = finalists_module._validate_prepared_reference_copy_outputs
+    upstream_checks = Mock(wraps=finalists_module._context)
+    monkeypatch.setattr(finalists_module, "_context", upstream_checks)
+    copy_checks = 0
+
+    def mutate_after_copy(
+        path: Path,
+        request: ReferencePreparedCopyRequest,
+        *,
+        task: ReferenceCopyTask,
+        native: AddCopyRunRequest,
+        admission: DiverseFirstCopyFunnelRequest,
+        authority: Path,
+    ) -> ReferencePreparedCopyReceipt:
+        nonlocal copy_checks
+        result = original_validate(
+            path,
+            request,
+            task=task,
+            native=native,
+            admission=admission,
+            authority=authority,
+        )
+        copy_checks += 1
+        if copy_checks == len(receipts):
+            target = (
+                inputs.first_copy_receipts[0].parent / "PHASER.log"
+                if mutation == "original_first_copy_log"
+                else inputs.reviews_path
+            )
+            # A newline leaves the parsed review manifest identical, but its
+            # original bytes must still be bound across the entire assembly.
+            target.write_bytes(target.read_bytes() + b"\n")
+        return result
+
+    monkeypatch.setattr(
+        finalists_module, "_validate_prepared_reference_copy_outputs", mutate_after_copy
+    )
+    output = tmp_path / "changed-during-assembly"
+    message = (
+        "receipt, original inputs or outputs changed"
+        if mutation == "original_first_copy_log"
+        else "upstream context changed during assembly"
+    )
+    with pytest.raises(ValueError, match=message):
+        build_reference_finalists(inputs, copy_receipts=receipts, output=output)
+    assert copy_checks == len(receipts)
+    assert upstream_checks.call_count == 2
+    assert not output.exists()
 
 
 def test_reference_no_hit_finalists_preserve_four_empty_advanced_inventories(

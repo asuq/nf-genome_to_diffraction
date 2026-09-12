@@ -321,6 +321,15 @@ reconstructs all tasks and copied bytes from the original receipts; rehashing an
 altered output cannot authenticate it. Empty admission and zero recommendations
 remain separate, and this step executes neither refinement nor sequence calls.
 
+Each finalist assembly authenticates the complete original continuation graph
+and exact task union at entry and exit, reusing that context only within the
+call. Every copy receipt still receives its own native, command, source and
+byte-inventory validation. Ownership validation precedes raw-input digest
+capture, and upstream manifest bytes are checked again before publication.
+Neither parsed context nor checksums are cached across calls or independent
+tasks. Late changes to an original first-copy log or to otherwise equivalent
+upstream review JSON bytes fail before a finalist output is created.
+
 The [prepared-copy tests](../tests/unit/test_ranking_four_arm_continuation.py)
 and [finalist tests](../tests/unit/test_ranking_four_arm_finalists.py) use actual
 production preparation/review/copy implementations with synthetic external
