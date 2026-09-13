@@ -18272,3 +18272,28 @@ with a collapsed combined parent or a guessed command.
   five-minute monitoring path checks compact status while pending and reads full
   instructions/evidence only when development resumes. No new remote operation,
   coordinate continuation/import or native scientific job has been launched.
+
+## 2026-09-13 - Complete continuation qualification gate passes
+
+- All 25 checks passed in the fresh complete gate in 1,920.455 seconds with the
+  eight-CPU/two-group budget, four workers per group, one numerical thread and
+  two-GiB Nextflow heaps. All 2,208 unit tests passed in 1,639.87 seconds, all 176
+  integration tests in 686.75 seconds and all 185 contracts in 9.89 seconds.
+  The multicrystal stub passed in 180.603 seconds; all three checks previously
+  skipped after it also passed. Timings are observations, not causal performance
+  claims. The prior failed gate and isolated diagnostic remain separate evidence.
+- All 1,332 captured source inputs remained unchanged throughout the gate.
+  Source-manifest SHA-256:
+  `d6d4cf6002da52256f20fc10a3ba277007c1c4ea2ca854d811ac23d0827e43d6`.
+  Complete-gate log SHA-256:
+  `7471d3dd3bcff4478f295410afc160b203b9f4a022392f6240c8aa2c231bdb2c`.
+  The atlas check passed for all 498 generated files, inventory
+  `atlasinv_e50f4b8621afe591236cde1545e1eccaabcff3d982b7606bc705211099658444`.
+  Only passing-test scratch created by this gate was eligible for normal pytest
+  teardown; qualification logs, manifests and earlier acquisition evidence remain.
+- Next require all six private CI groups on the exact revision, then rebuild
+  the original client and use immutable deployment/staging of the unchanged fixed
+  Marmic control. Fresh full inspection and retained-inventory confirmation must
+  precede the approved remaining-only coordinate continuation. Actual headroom,
+  complete gzip/entity/SEQRES validation, import reinspection, native control and
+  cached resume remain required; none is implied by this local software gate.
