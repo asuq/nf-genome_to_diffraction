@@ -18245,3 +18245,30 @@ with a collapsed combined parent or a guessed command.
   types pass. Next require the full frozen-source gate, exact private CI and fresh
   immutable deployment/staging before the approved real continuation, followed by
   complete cache, native-control and cached-resume qualification.
+
+## 2026-09-13 - Full-gate local executor failure and unchanged isolated recovery
+
+- The first continuation gate retained all 1,332 source inputs unchanged but did
+  not pass: 21 checks passed, the multicrystal stub failed and its three remaining
+  group checks were skipped. Unit tests passed all 2,208 cases, integration all
+  176 and contracts all 185. Preserve the failed gate; these results do not permit
+  deployment or substitute for a complete successful run.
+- The failing provider-discovery stub exceeded the test profile's five-minute
+  wall-clock task limit. Nextflow 26.04.6 raised `IllegalThreadStateException`
+  while reading the exit value immediately after destroying the timed-out local
+  process. Its versioned executor source confirms that path. The affected check
+  recorded 171.162 monotonic seconds versus 2,027.685 wall seconds; the gaps are
+  consistent with host suspension or clock interruption, not proof of database
+  scaling. The precise host event was not independently established. The outer
+  logs survive; the existing stub script removed its temporary work tree on exit.
+- An isolated rerun of the same complete multicrystal check passed in 96.18 seconds
+  with the same four-CPU/two-GiB-heap/one-numerical-thread per-group settings.
+  Wall and monotonic duration were both about 96 seconds. All 1,332 source inputs
+  remained unchanged and their manifest exactly matched the failed gate. No code,
+  scientific policy, process limit, dependency or retry setting was changed.
+- Next require a fresh complete gate on the unchanged implementation. Keep the
+  host awake for local wall-clock-limited checks; do not mask interruptions by
+  relaxing limits or patching pipeline logic without evidence. The approved
+  five-minute monitoring path checks compact status while pending and reads full
+  instructions/evidence only when development resumes. No new remote operation,
+  coordinate continuation/import or native scientific job has been launched.
